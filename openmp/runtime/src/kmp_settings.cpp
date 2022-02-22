@@ -1245,13 +1245,25 @@ static void __kmp_stg_parse_num_hidden_helper_threads(char const *name,
   // task
   if (__kmp_hidden_helper_threads_num == 0) {
     __kmp_enable_hidden_helper = FALSE;
+  } else {
+    // Since the main thread of hidden helper team dooes not participate
+    // in tasks execution let's increment the number of threads by one
+    // so that requested number of threads do actual job.
+    __kmp_hidden_helper_threads_num++;
   }
 } // __kmp_stg_parse_num_hidden_helper_threads
 
 static void __kmp_stg_print_num_hidden_helper_threads(kmp_str_buf_t *buffer,
                                                       char const *name,
                                                       void *data) {
-  __kmp_stg_print_int(buffer, name, __kmp_hidden_helper_threads_num);
+  if (__kmp_hidden_helper_threads_num == 0) {
+    __kmp_stg_print_int(buffer, name, __kmp_hidden_helper_threads_num);
+  } else {
+    KMP_DEBUG_ASSERT(__kmp_hidden_helper_threads_num > 1);
+    // Let's exclude the main thread of hidden helper team and print
+    // number of worker threads those do actual job.
+    __kmp_stg_print_int(buffer, name, __kmp_hidden_helper_threads_num - 1);
+  }
 } // __kmp_stg_print_num_hidden_helper_threads
 
 static void __kmp_stg_parse_use_hidden_helper(char const *name,
@@ -4978,10 +4990,20 @@ static void __kmp_stg_parse_hw_subset(char const *name, char const *value,
       char *attr_ptr;
       int offset = 0;
       kmp_hw_attr_t attr;
-      int num =
-          atoi(core_components[j]); // each component should start with a number
-      if (num <= 0) {
-        goto err; // only positive integers are valid for count
+      int num;
+      // components may begin with an optional count of the number of resources
+      if (isdigit(*core_components[j])) {
+        num = atoi(core_components[j]);
+        if (num <= 0) {
+          goto err; // only positive integers are valid for count
+        }
+        pos = core_components[j] + strspn(core_components[j], digits);
+      } else if (*core_components[j] == '*') {
+        num = kmp_hw_subset_t::USE_ALL;
+        pos = core_components[j] + 1;
+      } else {
+        num = kmp_hw_subset_t::USE_ALL;
+        pos = core_components[j];
       }
 
       offset_ptr = strchr(core_components[j], '@');
@@ -5015,10 +5037,6 @@ static void __kmp_stg_parse_hw_subset(char const *name, char const *value,
           goto err;
         }
         *attr_ptr = '\0'; // cut the attribute from the component
-      }
-      pos = core_components[j] + strspn(core_components[j], digits);
-      if (pos == core_components[j]) {
-        goto err;
       }
       // detect the component type
       kmp_hw_t type = __kmp_stg_parse_hw_subset_name(pos);
@@ -5164,6 +5182,27 @@ static void __kmp_stg_print_mwait_hints(kmp_str_buf_t *buffer, char const *name,
 } // __kmp_stg_print_mwait_hints
 
 #endif // KMP_HAVE_MWAIT || KMP_HAVE_UMWAIT
+
+#if KMP_HAVE_UMWAIT
+// -----------------------------------------------------------------------------
+// KMP_TPAUSE
+// 0 = don't use TPAUSE, 1 = use C0.1 state, 2 = use C0.2 state
+
+static void __kmp_stg_parse_tpause(char const *name, char const *value,
+                                   void *data) {
+  __kmp_stg_parse_int(name, value, 0, INT_MAX, &__kmp_tpause_state);
+  if (__kmp_tpause_state != 0) {
+    // The actual hint passed to tpause is: 0 for C0.2 and 1 for C0.1
+    if (__kmp_tpause_state == 2) // use C0.2
+      __kmp_tpause_hint = 0; // default was set to 1 for C0.1
+  }
+} // __kmp_stg_parse_tpause
+
+static void __kmp_stg_print_tpause(kmp_str_buf_t *buffer, char const *name,
+                                   void *data) {
+  __kmp_stg_print_int(buffer, name, __kmp_tpause_state);
+} // __kmp_stg_print_tpause
+#endif // KMP_HAVE_UMWAIT
 
 // -----------------------------------------------------------------------------
 // OMP_DISPLAY_ENV
@@ -5529,6 +5568,10 @@ static kmp_setting_t __kmp_stg_table[] = {
      __kmp_stg_print_user_level_mwait, NULL, 0, 0},
     {"KMP_MWAIT_HINTS", __kmp_stg_parse_mwait_hints,
      __kmp_stg_print_mwait_hints, NULL, 0, 0},
+#endif
+
+#if KMP_HAVE_UMWAIT
+    {"KMP_TPAUSE", __kmp_stg_parse_tpause, __kmp_stg_print_tpause, NULL, 0, 0},
 #endif
     {"", NULL, NULL, NULL, 0, 0}}; // settings
 

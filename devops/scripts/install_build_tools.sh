@@ -12,7 +12,10 @@ apt update && apt install -yqq \
       python3-pip \
       zstd \
       ocl-icd-libopencl1 \
-      vim
+      vim \
+      libffi-dev \
+      libva-dev \
+      libtool      
 
 pip3 install psutil
 

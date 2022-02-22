@@ -121,10 +121,10 @@ findDuplicateElement(ArrayRef<NamedAttribute> value) {
   if (value.size() == 2)
     return value[0].getName() == value[1].getName() ? value[0] : none;
 
-  auto it = std::adjacent_find(value.begin(), value.end(),
-                               [](NamedAttribute l, NamedAttribute r) {
-                                 return l.getName() == r.getName();
-                               });
+  const auto *it = std::adjacent_find(value.begin(), value.end(),
+                                      [](NamedAttribute l, NamedAttribute r) {
+                                        return l.getName() == r.getName();
+                                      });
   return it != value.end() ? *it : none;
 }
 
@@ -1236,8 +1236,7 @@ bool OpaqueElementsAttr::decode(ElementsAttr &result) {
   Dialect *dialect = getContext()->getLoadedDialect(getDialect());
   if (!dialect)
     return true;
-  auto *interface =
-      dialect->getRegisteredInterface<DialectDecodeAttributesInterface>();
+  auto *interface = llvm::dyn_cast<DialectDecodeAttributesInterface>(dialect);
   if (!interface)
     return true;
   return failed(interface->decode(*this, result));

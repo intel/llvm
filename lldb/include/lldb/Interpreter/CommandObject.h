@@ -172,11 +172,6 @@ public:
     return nullptr;
   }
 
-  virtual void AproposAllSubCommands(llvm::StringRef prefix,
-                                     llvm::StringRef search_word,
-                                     StringList &commands_found,
-                                     StringList &commands_help) {}
-
   void FormatLongHelpText(Stream &output_strm, llvm::StringRef long_help);
 
   void GenerateHelpText(CommandReturnObject &result);
@@ -281,14 +276,13 @@ public:
   ///    The command arguments.
   ///
   /// \return
-  ///     nullptr if there is no special repeat command - it will use the
+  ///     llvm::None if there is no special repeat command - it will use the
   ///     current command line.
-  ///     Otherwise a pointer to the command to be repeated.
-  ///     If the returned string is the empty string, the command won't be
-  ///     repeated.
-  virtual const char *GetRepeatCommand(Args &current_command_args,
-                                       uint32_t index) {
-    return nullptr;
+  ///     Otherwise a std::string containing the command to be repeated.
+  ///     If the string is empty, the command won't be allow repeating.
+  virtual llvm::Optional<std::string>
+  GetRepeatCommand(Args &current_command_args, uint32_t index) {
+    return llvm::None;
   }
 
   bool HasOverrideCallback() const {

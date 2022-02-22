@@ -27,11 +27,9 @@
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallingConv.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/OperandTraits.h"
@@ -52,7 +50,6 @@ namespace llvm {
 class APInt;
 class ConstantInt;
 class DataLayout;
-class LLVMContext;
 
 //===----------------------------------------------------------------------===//
 //                                AllocaInst Class
@@ -103,6 +100,11 @@ public:
   /// Overload to return most specific pointer type.
   PointerType *getType() const {
     return cast<PointerType>(Instruction::getType());
+  }
+
+  /// Return the address space for the allocation.
+  unsigned getAddressSpace() const {
+    return getType()->getAddressSpace();
   }
 
   /// Get allocation size in bits. Returns None if size can't be determined,
@@ -1450,6 +1452,10 @@ public:
   /// Returns the sequence of all FCmp predicates.
   ///
   static auto predicates() { return FCmpPredicates(); }
+
+  /// Return result of `LHS Pred RHS` comparison.
+  static bool compare(const APFloat &LHS, const APFloat &RHS,
+                      FCmpInst::Predicate Pred);
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {

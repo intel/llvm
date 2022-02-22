@@ -62,12 +62,14 @@ namespace llvm {
     APFloat APFloatVal{0.0};
     Constant *ConstantVal;
     std::unique_ptr<Constant *[]> ConstantStructElts;
+    bool NoCFI = false;
 
     ValID() = default;
     ValID(const ValID &RHS)
         : Kind(RHS.Kind), Loc(RHS.Loc), UIntVal(RHS.UIntVal), FTy(RHS.FTy),
           StrVal(RHS.StrVal), StrVal2(RHS.StrVal2), APSIntVal(RHS.APSIntVal),
-          APFloatVal(RHS.APFloatVal), ConstantVal(RHS.ConstantVal) {
+          APFloatVal(RHS.APFloatVal), ConstantVal(RHS.ConstantVal),
+          NoCFI(RHS.NoCFI) {
       assert(!RHS.ConstantStructElts);
     }
 
@@ -261,6 +263,7 @@ namespace llvm {
     bool parseOptionalAlignment(MaybeAlign &Alignment,
                                 bool AllowParens = false);
     bool parseOptionalDerefAttrBytes(lltok::Kind AttrKind, uint64_t &Bytes);
+    bool parseOptionalUWTableKind(UWTableKind &Kind);
     bool parseScopeAndOrdering(bool IsAtomic, SyncScope::ID &SSID,
                                AtomicOrdering &Ordering);
     bool parseScope(SyncScope::ID &SSID);

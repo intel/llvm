@@ -365,6 +365,10 @@ pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
                                   pi_uint32 num_events_in_wait_list,
                                   const pi_event *event_wait_list,
                                   pi_event *event);
+pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                             pi_uint32 num_events_in_wait_list,
+                                             const pi_event *event_wait_list,
+                                             pi_event *event);
 pi_result hip_piEventRelease(pi_event event);
 pi_result hip_piEventRetain(pi_event event);
 
@@ -418,6 +422,23 @@ pi_result _pi_event::start() {
 
   isStarted_ = true;
   return result;
+}
+
+bool _pi_event::is_completed() const noexcept {
+  if (!isRecorded_) {
+    return false;
+  }
+  if (!isCompleted_) {
+    const hipError_t ret = hipEventQuery(evEnd_);
+    if (ret != hipSuccess && ret != hipErrorNotReady) {
+      PI_CHECK_ERROR(ret);
+      return false;
+    }
+    if (ret == hipErrorNotReady) {
+      return false;
+    }
+  }
+  return true;
 }
 
 pi_uint64 _pi_event::get_queued_time() const {
@@ -824,6 +845,7 @@ pi_result hip_piContextGetInfo(pi_context context, pi_context_info param_name,
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
+  case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
@@ -1315,12 +1337,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    pi_uint64{bytes});
   }
   case PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE: {
-    int constant_memory = 0;
+    unsigned int constant_memory = 0;
+
+    // hipDeviceGetAttribute takes a int*, however the size of the constant
+    // memory on AMD GPU may be larger than what can fit in the positive part
+    // of a signed integer, so use an unsigned integer and cast the pointer to
+    // int*.
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&constant_memory,
+        hipDeviceGetAttribute(reinterpret_cast<int *>(&constant_memory),
                               hipDeviceAttributeTotalConstantMemory,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(constant_memory >= 0);
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64(constant_memory));
@@ -1380,6 +1406,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    PI_TRUE);
   }
   case PI_DEVICE_INFO_AVAILABLE: {
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
+  }
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
   }
@@ -1600,6 +1630,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_ATOMIC_64:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   // TODO: Investigate if this information is available on HIP.
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
@@ -3436,13 +3467,30 @@ pi_result hip_piEventRelease(pi_event event) {
   return PI_SUCCESS;
 }
 
-/// Enqueues a wait on the given CUstream for all events.
+/// Enqueues a wait on the given queue for all events.
 /// See \ref enqueueEventWait
 ///
+/// Currently queues are represented by a single in-order stream, therefore
+/// every command is an implicit barrier and so hip_piEnqueueEventsWait has the
+/// same behavior as hip_piEnqueueEventsWaitWithBarrier. So
+/// hip_piEnqueueEventsWait can just call hip_piEnqueueEventsWaitWithBarrier.
 pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
                                   pi_uint32 num_events_in_wait_list,
                                   const pi_event *event_wait_list,
                                   pi_event *event) {
+  return hip_piEnqueueEventsWaitWithBarrier(
+      command_queue, num_events_in_wait_list, event_wait_list, event);
+}
+
+/// Enqueues a wait on the given queue for all specified events.
+/// See \ref enqueueEventWaitWithBarrier
+///
+/// If the events list is empty, the enqueued wait will wait on all previous
+/// events in the queue.
+pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                             pi_uint32 num_events_in_wait_list,
+                                             const pi_event *event_wait_list,
+                                             pi_event *event) {
   if (!command_queue) {
     return PI_INVALID_QUEUE;
   }
@@ -4750,15 +4798,19 @@ pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
     }
 
     case PI_MEM_ALLOC_DEVICE: {
-      unsigned int value;
+      // get device index associated with this pointer
       result = PI_CHECK_ERROR(
           hipPointerGetAttributes(&hipPointerAttributeType, ptr));
-      auto devicePointer =
-          static_cast<int *>(hipPointerAttributeType.devicePointer);
-      value = *devicePointer;
-      pi_platform platform;
-      result = hip_piPlatformsGet(1, &platform, nullptr);
-      pi_device device = platform->devices_[value].get();
+      int device_idx = hipPointerAttributeType.device;
+
+      // currently each device is in its own platform, so find the platform at
+      // the same index
+      std::vector<pi_platform> platforms;
+      platforms.resize(device_idx + 1);
+      result = hip_piPlatformsGet(device_idx + 1, platforms.data(), nullptr);
+
+      // get the device from the platform
+      pi_device device = platforms[device_idx]->devices_[0].get();
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
     }
@@ -4886,6 +4938,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueKernelLaunch, hip_piEnqueueKernelLaunch)
   _PI_CL(piEnqueueNativeKernel, hip_piEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, hip_piEnqueueEventsWait)
+  _PI_CL(piEnqueueEventsWaitWithBarrier, hip_piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, hip_piEnqueueMemBufferRead)
   _PI_CL(piEnqueueMemBufferReadRect, hip_piEnqueueMemBufferReadRect)
   _PI_CL(piEnqueueMemBufferWrite, hip_piEnqueueMemBufferWrite)

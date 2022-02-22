@@ -23,7 +23,6 @@ llvm::Expected<bool> lldb_private::LLDBSwigPythonBreakpointCallbackFunction(
     const lldb_private::StructuredDataImpl &args_impl) {
   using namespace llvm;
 
-  lldb::SBFrame sb_frame(frame_sp);
   lldb::SBBreakpointLocation sb_bp_loc(bp_loc_sp);
 
   PyErr_Cleaner py_err_cleaner(true);
@@ -38,15 +37,13 @@ llvm::Expected<bool> lldb_private::LLDBSwigPythonBreakpointCallbackFunction(
   else
     return arg_info.takeError();
 
-  PythonObject frame_arg(PyRefType::Owned, SBTypeToSWIGWrapper(sb_frame));
-  PythonObject bp_loc_arg(PyRefType::Owned, SBTypeToSWIGWrapper(sb_bp_loc));
+  PythonObject frame_arg = ToSWIGWrapper(frame_sp);
+  PythonObject bp_loc_arg = ToSWIGWrapper(bp_loc_sp);
 
-  auto result = [&]() -> Expected<PythonObject> {
-    // If the called function doesn't take extra_args, drop them here:
-    if (max_positional_args < 4)
-      return pfunc.Call(frame_arg, bp_loc_arg, dict);
-    return pfunc.Call(frame_arg, bp_loc_arg, ToSWIGWrapper(args_impl), dict);
-  }();
+  auto result =
+      max_positional_args < 4
+          ? pfunc.Call(frame_arg, bp_loc_arg, dict)
+          : pfunc.Call(frame_arg, bp_loc_arg, ToSWIGWrapper(args_impl), dict);
 
   if (!result)
     return result.takeError();
@@ -71,8 +68,6 @@ llvm::Expected<bool> lldb_private::LLDBSwigPythonBreakpointCallbackFunction(
 bool lldb_private::LLDBSwigPythonWatchpointCallbackFunction(
     const char *python_function_name, const char *session_dictionary_name,
     const lldb::StackFrameSP &frame_sp, const lldb::WatchpointSP &wp_sp) {
-  lldb::SBFrame sb_frame(frame_sp);
-  lldb::SBWatchpoint sb_wp(wp_sp);
 
   bool stop_at_watchpoint = true;
 
@@ -86,9 +81,8 @@ bool lldb_private::LLDBSwigPythonWatchpointCallbackFunction(
   if (!pfunc.IsAllocated())
     return stop_at_watchpoint;
 
-  PythonObject frame_arg(PyRefType::Owned, SBTypeToSWIGWrapper(sb_frame));
-  PythonObject wp_arg(PyRefType::Owned, SBTypeToSWIGWrapper(sb_wp));
-  PythonObject result = pfunc(frame_arg, wp_arg, dict);
+  PythonObject result =
+      pfunc(ToSWIGWrapper(frame_sp), ToSWIGWrapper(wp_sp), dict);
 
   if (result.get() == Py_False)
     stop_at_watchpoint = false;
@@ -100,7 +94,6 @@ bool lldb_private::LLDBSwigPythonCallTypeScript(
     const char *python_function_name, const void *session_dictionary,
     const lldb::ValueObjectSP &valobj_sp, void **pyfunct_wrapper,
     const lldb::TypeSummaryOptionsSP &options_sp, std::string &retval) {
-  lldb::SBTypeSummaryOptions sb_options(options_sp.get());
 
   retval.clear();
 
@@ -148,24 +141,23 @@ bool lldb_private::LLDBSwigPythonCallTypeScript(
   }
 
   PythonObject value_arg = ToSWIGWrapper(valobj_sp);
-  PythonObject options_arg(PyRefType::Owned, SBTypeToSWIGWrapper(sb_options));
 
   if (argc.get().max_positional_args < 3)
     result = pfunc(value_arg, dict);
   else
-    result = pfunc(value_arg, dict, options_arg);
+    result = pfunc(value_arg, dict, ToSWIGWrapper(*options_sp));
 
   retval = result.Str().GetString().str();
 
   return true;
 }
 
-void *lldb_private::LLDBSwigPythonCreateSyntheticProvider(
+PythonObject lldb_private::LLDBSwigPythonCreateSyntheticProvider(
     const char *python_class_name, const char *session_dictionary_name,
     const lldb::ValueObjectSP &valobj_sp) {
   if (python_class_name == NULL || python_class_name[0] == '\0' ||
       !session_dictionary_name)
-    Py_RETURN_NONE;
+    return PythonObject();
 
   PyErr_Cleaner py_err_cleaner(true);
 
@@ -175,29 +167,29 @@ void *lldb_private::LLDBSwigPythonCreateSyntheticProvider(
       python_class_name, dict);
 
   if (!pfunc.IsAllocated())
-    Py_RETURN_NONE;
+    return PythonObject();
 
   auto sb_value = std::make_unique<lldb::SBValue>(valobj_sp);
   sb_value->SetPreferSyntheticValue(false);
 
   PythonObject val_arg = ToSWIGWrapper(std::move(sb_value));
   if (!val_arg.IsAllocated())
-    Py_RETURN_NONE;
+    return PythonObject();
 
   PythonObject result = pfunc(val_arg, dict);
 
   if (result.IsAllocated())
-    return result.release();
+    return result;
 
-  Py_RETURN_NONE;
+  return PythonObject();
 }
 
-void *lldb_private::LLDBSwigPythonCreateCommandObject(
+PythonObject lldb_private::LLDBSwigPythonCreateCommandObject(
     const char *python_class_name, const char *session_dictionary_name,
-    const lldb::DebuggerSP debugger_sp) {
+    lldb::DebuggerSP debugger_sp) {
   if (python_class_name == NULL || python_class_name[0] == '\0' ||
       !session_dictionary_name)
-    Py_RETURN_NONE;
+    return PythonObject();
 
   PyErr_Cleaner py_err_cleaner(true);
   auto dict = PythonModule::MainModule().ResolveName<PythonDictionary>(
@@ -206,26 +198,19 @@ void *lldb_private::LLDBSwigPythonCreateCommandObject(
       python_class_name, dict);
 
   if (!pfunc.IsAllocated())
-    return nullptr;
+    return PythonObject();
 
-  lldb::SBDebugger debugger_sb(debugger_sp);
-  PythonObject debugger_arg(PyRefType::Owned, SBTypeToSWIGWrapper(debugger_sb));
-  PythonObject result = pfunc(debugger_arg, dict);
-
-  if (result.IsAllocated())
-    return result.release();
-
-  Py_RETURN_NONE;
+  return pfunc(ToSWIGWrapper(std::move(debugger_sp)), dict);
 }
 
-void *lldb_private::LLDBSwigPythonCreateScriptedProcess(
+PythonObject lldb_private::LLDBSwigPythonCreateScriptedProcess(
     const char *python_class_name, const char *session_dictionary_name,
     const lldb::TargetSP &target_sp,
     const lldb_private::StructuredDataImpl &args_impl,
     std::string &error_string) {
   if (python_class_name == NULL || python_class_name[0] == '\0' ||
       !session_dictionary_name)
-    Py_RETURN_NONE;
+    return PythonObject();
 
   PyErr_Cleaner py_err_cleaner(true);
 
@@ -237,7 +222,7 @@ void *lldb_private::LLDBSwigPythonCreateScriptedProcess(
   if (!pfunc.IsAllocated()) {
     error_string.append("could not find script class: ");
     error_string.append(python_class_name);
-    return nullptr;
+    return PythonObject();
   }
 
   PythonObject target_arg = ToSWIGWrapper(target_sp);
@@ -250,7 +235,7 @@ void *lldb_private::LLDBSwigPythonCreateScriptedProcess(
         [&](const llvm::ErrorInfoBase &E) {
           error_string.append(E.message());
         });
-    Py_RETURN_NONE;
+    return PythonObject();
   }
 
   PythonObject result = {};
@@ -259,21 +244,17 @@ void *lldb_private::LLDBSwigPythonCreateScriptedProcess(
   } else {
     error_string.assign("wrong number of arguments in __init__, should be 2 "
                         "(not including self)");
-    Py_RETURN_NONE;
   }
-
-  if (result.IsAllocated())
-    return result.release();
-  Py_RETURN_NONE;
+  return result;
 }
 
-void *lldb_private::LLDBSwigPythonCreateScriptedThread(
+PythonObject lldb_private::LLDBSwigPythonCreateScriptedThread(
     const char *python_class_name, const char *session_dictionary_name,
     const lldb::ProcessSP &process_sp, const StructuredDataImpl &args_impl,
     std::string &error_string) {
   if (python_class_name == NULL || python_class_name[0] == '\0' ||
       !session_dictionary_name)
-    Py_RETURN_NONE;
+    return PythonObject();
 
   PyErr_Cleaner py_err_cleaner(true);
 
@@ -285,7 +266,7 @@ void *lldb_private::LLDBSwigPythonCreateScriptedThread(
   if (!pfunc.IsAllocated()) {
     error_string.append("could not find script class: ");
     error_string.append(python_class_name);
-    return nullptr;
+    return PythonObject();
   }
 
   llvm::Expected<PythonCallable::ArgInfo> arg_info = pfunc.GetArgInfo();
@@ -296,30 +277,24 @@ void *lldb_private::LLDBSwigPythonCreateScriptedThread(
         [&](const llvm::ErrorInfoBase &E) {
           error_string.append(E.message());
         });
-    Py_RETURN_NONE;
+    return PythonObject();
   }
 
-  PythonObject result = {};
-  if (arg_info.get().max_positional_args == 2) {
-    result = pfunc(ToSWIGWrapper(process_sp), ToSWIGWrapper(args_impl));
-  } else {
-    error_string.assign("wrong number of arguments in __init__, should be 2 "
-                        "(not including self)");
-    Py_RETURN_NONE;
-  }
+  if (arg_info.get().max_positional_args == 2)
+    return pfunc(ToSWIGWrapper(process_sp), ToSWIGWrapper(args_impl));
 
-  if (result.IsAllocated())
-    return result.release();
-  Py_RETURN_NONE;
+  error_string.assign("wrong number of arguments in __init__, should be 2 "
+                      "(not including self)");
+  return PythonObject();
 }
 
-void *lldb_private::LLDBSwigPythonCreateScriptedThreadPlan(
+PythonObject lldb_private::LLDBSwigPythonCreateScriptedThreadPlan(
     const char *python_class_name, const char *session_dictionary_name,
     const lldb_private::StructuredDataImpl &args_impl,
     std::string &error_string, const lldb::ThreadPlanSP &thread_plan_sp) {
   if (python_class_name == NULL || python_class_name[0] == '\0' ||
       !session_dictionary_name)
-    Py_RETURN_NONE;
+    return PythonObject();
 
   PyErr_Cleaner py_err_cleaner(true);
 
@@ -331,7 +306,7 @@ void *lldb_private::LLDBSwigPythonCreateScriptedThreadPlan(
   if (!pfunc.IsAllocated()) {
     error_string.append("could not find script class: ");
     error_string.append(python_class_name);
-    return nullptr;
+    return PythonObject();
   }
 
   PythonObject tp_arg = ToSWIGWrapper(thread_plan_sp);
@@ -344,7 +319,7 @@ void *lldb_private::LLDBSwigPythonCreateScriptedThreadPlan(
         [&](const llvm::ErrorInfoBase &E) {
           error_string.append(E.message());
         });
-    Py_RETURN_NONE;
+    return PythonObject();
   }
 
   PythonObject result = {};
@@ -353,7 +328,7 @@ void *lldb_private::LLDBSwigPythonCreateScriptedThreadPlan(
     if (args_sb->IsValid()) {
       error_string.assign(
           "args passed, but __init__ does not take an args dictionary");
-      Py_RETURN_NONE;
+      return PythonObject();
     }
     result = pfunc(tp_arg, dict);
   } else if (arg_info.get().max_positional_args >= 3) {
@@ -361,15 +336,13 @@ void *lldb_private::LLDBSwigPythonCreateScriptedThreadPlan(
   } else {
     error_string.assign("wrong number of arguments in __init__, should be 2 or "
                         "3 (not including self)");
-    Py_RETURN_NONE;
+    return PythonObject();
   }
 
   // FIXME: At this point we should check that the class we found supports all
   // the methods that we need.
 
-  if (result.IsAllocated())
-    return result.release();
-  Py_RETURN_NONE;
+  return result;
 }
 
 bool lldb_private::LLDBSWIGPythonCallThreadPlan(
@@ -386,9 +359,8 @@ bool lldb_private::LLDBSWIGPythonCallThreadPlan(
 
   PythonObject result;
   if (event != nullptr) {
-    lldb::SBEvent sb_event(event);
-    PythonObject event_arg(PyRefType::Owned, SBTypeToSWIGWrapper(sb_event));
-    result = pfunc(event_arg);
+    ScopedPythonObject<SBEvent> event_arg = ToSWIGWrapper(event);
+    result = pfunc(event_arg.obj());
   } else
     result = pfunc();
 
@@ -411,14 +383,14 @@ bool lldb_private::LLDBSWIGPythonCallThreadPlan(
   return false;
 }
 
-void *lldb_private::LLDBSwigPythonCreateScriptedBreakpointResolver(
+PythonObject lldb_private::LLDBSwigPythonCreateScriptedBreakpointResolver(
     const char *python_class_name, const char *session_dictionary_name,
     const StructuredDataImpl &args_impl,
     const lldb::BreakpointSP &breakpoint_sp) {
 
   if (python_class_name == NULL || python_class_name[0] == '\0' ||
       !session_dictionary_name)
-    Py_RETURN_NONE;
+    return PythonObject();
 
   PyErr_Cleaner py_err_cleaner(true);
 
@@ -428,7 +400,7 @@ void *lldb_private::LLDBSwigPythonCreateScriptedBreakpointResolver(
       python_class_name, dict);
 
   if (!pfunc.IsAllocated())
-    return nullptr;
+    return PythonObject();
 
   PythonObject result =
       pfunc(ToSWIGWrapper(breakpoint_sp), ToSWIGWrapper(args_impl), dict);
@@ -439,11 +411,9 @@ void *lldb_private::LLDBSwigPythonCreateScriptedBreakpointResolver(
     // Check that __callback__ is defined:
     auto callback_func = result.ResolveName<PythonCallable>("__callback__");
     if (callback_func.IsAllocated())
-      return result.release();
-    else
-      result.release();
+      return result;
   }
-  Py_RETURN_NONE;
+  return PythonObject();
 }
 
 unsigned int lldb_private::LLDBSwigPythonCallBreakpointResolver(
@@ -456,13 +426,7 @@ unsigned int lldb_private::LLDBSwigPythonCallBreakpointResolver(
   if (!pfunc.IsAllocated())
     return 0;
 
-  PythonObject result;
-  if (sym_ctx != nullptr) {
-    lldb::SBSymbolContext sb_sym_ctx(sym_ctx);
-    PythonObject sym_ctx_arg(PyRefType::Owned, SBTypeToSWIGWrapper(sb_sym_ctx));
-    result = pfunc(sym_ctx_arg);
-  } else
-    result = pfunc();
+  PythonObject result = sym_ctx ? pfunc(ToSWIGWrapper(*sym_ctx)) : pfunc();
 
   if (PyErr_Occurred()) {
     PyErr_Print();
@@ -491,17 +455,17 @@ unsigned int lldb_private::LLDBSwigPythonCallBreakpointResolver(
   return ret_val;
 }
 
-void *lldb_private::LLDBSwigPythonCreateScriptedStopHook(
+PythonObject lldb_private::LLDBSwigPythonCreateScriptedStopHook(
     lldb::TargetSP target_sp, const char *python_class_name,
     const char *session_dictionary_name, const StructuredDataImpl &args_impl,
     Status &error) {
   if (python_class_name == NULL || python_class_name[0] == '\0') {
     error.SetErrorString("Empty class name.");
-    Py_RETURN_NONE;
+    return PythonObject();
   }
   if (!session_dictionary_name) {
     error.SetErrorString("No session dictionary");
-    Py_RETURN_NONE;
+    return PythonObject();
   }
 
   PyErr_Cleaner py_err_cleaner(true);
@@ -514,7 +478,7 @@ void *lldb_private::LLDBSwigPythonCreateScriptedStopHook(
   if (!pfunc.IsAllocated()) {
     error.SetErrorStringWithFormat("Could not find class: %s.",
                                    python_class_name);
-    return nullptr;
+    return PythonObject();
   }
 
   PythonObject result =
@@ -531,23 +495,22 @@ void *lldb_private::LLDBSwigPythonCreateScriptedStopHook(
               "Wrong number of args for "
               "handle_stop callback, should be 2 (excluding self), got: %zu",
               num_args);
-          Py_RETURN_NONE;
+          return PythonObject();
         } else
-          return result.release();
+          return result;
       } else {
         error.SetErrorString("Couldn't get num arguments for handle_stop "
                              "callback.");
-        Py_RETURN_NONE;
+        return PythonObject();
       }
-      return result.release();
+      return result;
     } else {
       error.SetErrorStringWithFormat("Class \"%s\" is missing the required "
                                      "handle_stop callback.",
                                      python_class_name);
-      result.release();
     }
   }
-  Py_RETURN_NONE;
+  return PythonObject();
 }
 
 bool lldb_private::LLDBSwigPythonStopHookCallHandleStop(
@@ -564,12 +527,11 @@ bool lldb_private::LLDBSwigPythonStopHookCallHandleStop(
   if (!pfunc.IsAllocated())
     return true;
 
-  PythonObject result;
-  lldb::SBExecutionContext sb_exc_ctx(exc_ctx_sp);
-  PythonObject exc_ctx_arg(PyRefType::Owned, SBTypeToSWIGWrapper(sb_exc_ctx));
-  lldb::SBStream sb_stream;
-  PythonObject sb_stream_arg(PyRefType::Owned, SBTypeToSWIGWrapper(sb_stream));
-  result = pfunc(exc_ctx_arg, sb_stream_arg);
+  auto *sb_stream = new lldb::SBStream();
+  PythonObject sb_stream_arg =
+      ToSWIGWrapper(std::unique_ptr<lldb::SBStream>(sb_stream));
+  PythonObject result =
+      pfunc(ToSWIGWrapper(std::move(exc_ctx_sp)), sb_stream_arg);
 
   if (PyErr_Occurred()) {
     stream->PutCString("Python error occurred handling stop-hook.");
@@ -581,7 +543,7 @@ bool lldb_private::LLDBSwigPythonStopHookCallHandleStop(
   // Now add the result to the output stream.  SBStream only
   // makes an internally help StreamString which I can't interpose, so I
   // have to copy it over here.
-  stream->PutCString(sb_stream.GetData());
+  stream->PutCString(sb_stream->GetData());
 
   if (result.get() == Py_False)
     return false;
@@ -809,12 +771,9 @@ void *lldb_private::LLDBSWIGPython_CastPyObjectToSBMemoryRegionInfo(PyObject *
 
 bool lldb_private::LLDBSwigPythonCallCommand(
     const char *python_function_name, const char *session_dictionary_name,
-    lldb::DebuggerSP &debugger, const char *args,
+    lldb::DebuggerSP debugger, const char *args,
     lldb_private::CommandReturnObject &cmd_retobj,
     lldb::ExecutionContextRefSP exe_ctx_ref_sp) {
-  lldb::SBCommandReturnObject cmd_retobj_sb(cmd_retobj);
-  lldb::SBDebugger debugger_sb(debugger);
-  lldb::SBExecutionContext exe_ctx_sb(exe_ctx_ref_sp);
 
   PyErr_Cleaner py_err_cleaner(true);
   auto dict = PythonModule::MainModule().ResolveName<PythonDictionary>(
@@ -830,26 +789,22 @@ bool lldb_private::LLDBSwigPythonCallCommand(
     llvm::consumeError(argc.takeError());
     return false;
   }
-  PythonObject debugger_arg(PyRefType::Owned, SBTypeToSWIGWrapper(debugger_sb));
-  PythonObject exe_ctx_arg(PyRefType::Owned, SBTypeToSWIGWrapper(exe_ctx_sb));
-  PythonObject cmd_retobj_arg(PyRefType::Owned,
-                              SBTypeToSWIGWrapper(cmd_retobj_sb));
+  PythonObject debugger_arg = ToSWIGWrapper(std::move(debugger));
+  auto cmd_retobj_arg = ToSWIGWrapper(cmd_retobj);
 
   if (argc.get().max_positional_args < 5u)
-    pfunc(debugger_arg, PythonString(args), cmd_retobj_arg, dict);
+    pfunc(debugger_arg, PythonString(args), cmd_retobj_arg.obj(), dict);
   else
-    pfunc(debugger_arg, PythonString(args), exe_ctx_arg, cmd_retobj_arg, dict);
+    pfunc(debugger_arg, PythonString(args),
+          ToSWIGWrapper(std::move(exe_ctx_ref_sp)), cmd_retobj_arg.obj(), dict);
 
   return true;
 }
 
 bool lldb_private::LLDBSwigPythonCallCommandObject(
-    PyObject * implementor, lldb::DebuggerSP & debugger, const char *args,
+    PyObject *implementor, lldb::DebuggerSP debugger, const char *args,
     lldb_private::CommandReturnObject &cmd_retobj,
     lldb::ExecutionContextRefSP exe_ctx_ref_sp) {
-  lldb::SBCommandReturnObject cmd_retobj_sb(cmd_retobj);
-  lldb::SBDebugger debugger_sb(debugger);
-  lldb::SBExecutionContext exe_ctx_sb(exe_ctx_ref_sp);
 
   PyErr_Cleaner py_err_cleaner(true);
 
@@ -859,22 +814,20 @@ bool lldb_private::LLDBSwigPythonCallCommandObject(
   if (!pfunc.IsAllocated())
     return false;
 
-  PythonObject debugger_arg(PyRefType::Owned, SBTypeToSWIGWrapper(debugger_sb));
-  PythonObject exe_ctx_arg(PyRefType::Owned, SBTypeToSWIGWrapper(exe_ctx_sb));
-  PythonObject cmd_retobj_arg(PyRefType::Owned,
-                              SBTypeToSWIGWrapper(cmd_retobj_sb));
+  auto cmd_retobj_arg = ToSWIGWrapper(cmd_retobj);
 
-  pfunc(debugger_arg, PythonString(args), exe_ctx_arg, cmd_retobj_arg);
+  pfunc(ToSWIGWrapper(std::move(debugger)), PythonString(args),
+        ToSWIGWrapper(exe_ctx_ref_sp), cmd_retobj_arg.obj());
 
   return true;
 }
 
-void *lldb_private::LLDBSWIGPythonCreateOSPlugin(
+PythonObject lldb_private::LLDBSWIGPythonCreateOSPlugin(
     const char *python_class_name, const char *session_dictionary_name,
     const lldb::ProcessSP &process_sp) {
   if (python_class_name == NULL || python_class_name[0] == '\0' ||
       !session_dictionary_name)
-    Py_RETURN_NONE;
+    return PythonObject();
 
   PyErr_Cleaner py_err_cleaner(true);
 
@@ -884,21 +837,16 @@ void *lldb_private::LLDBSWIGPythonCreateOSPlugin(
       python_class_name, dict);
 
   if (!pfunc.IsAllocated())
-    Py_RETURN_NONE;
+    return PythonObject();
 
-  auto result = pfunc(ToSWIGWrapper(process_sp));
-
-  if (result.IsAllocated())
-    return result.release();
-
-  Py_RETURN_NONE;
+  return pfunc(ToSWIGWrapper(process_sp));
 }
 
-void *lldb_private::LLDBSWIGPython_CreateFrameRecognizer(
+PythonObject lldb_private::LLDBSWIGPython_CreateFrameRecognizer(
     const char *python_class_name, const char *session_dictionary_name) {
   if (python_class_name == NULL || python_class_name[0] == '\0' ||
       !session_dictionary_name)
-    Py_RETURN_NONE;
+    return PythonObject();
 
   PyErr_Cleaner py_err_cleaner(true);
 
@@ -908,26 +856,20 @@ void *lldb_private::LLDBSWIGPython_CreateFrameRecognizer(
       python_class_name, dict);
 
   if (!pfunc.IsAllocated())
-    Py_RETURN_NONE;
+    return PythonObject();
 
-  auto result = pfunc();
-
-  if (result.IsAllocated())
-    return result.release();
-
-  Py_RETURN_NONE;
+  return pfunc();
 }
 
 PyObject *lldb_private::LLDBSwigPython_GetRecognizedArguments(
     PyObject * implementor, const lldb::StackFrameSP &frame_sp) {
   static char callee_name[] = "get_recognized_arguments";
 
-  lldb::SBFrame frame_sb(frame_sp);
-  PyObject *arg = SBTypeToSWIGWrapper(frame_sb);
+  PythonObject arg = ToSWIGWrapper(frame_sp);
 
   PythonString str(callee_name);
   PyObject *result =
-      PyObject_CallMethodObjArgs(implementor, str.get(), arg, NULL);
+      PyObject_CallMethodObjArgs(implementor, str.get(), arg.get(), NULL);
   return result;
 }
 
@@ -973,14 +915,12 @@ bool lldb_private::LLDBSWIGPythonRunScriptKeywordProcess(
   return true;
 }
 
-bool lldb_private::LLDBSWIGPythonRunScriptKeywordThread(
+llvm::Optional<std::string> lldb_private::LLDBSWIGPythonRunScriptKeywordThread(
     const char *python_function_name, const char *session_dictionary_name,
-    lldb::ThreadSP &thread, std::string &output)
-
-{
+    lldb::ThreadSP thread) {
   if (python_function_name == NULL || python_function_name[0] == '\0' ||
       !session_dictionary_name)
-    return false;
+    return llvm::None;
 
   PyErr_Cleaner py_err_cleaner(true);
 
@@ -990,15 +930,11 @@ bool lldb_private::LLDBSWIGPythonRunScriptKeywordThread(
       python_function_name, dict);
 
   if (!pfunc.IsAllocated())
-    return false;
+    return llvm::None;
 
-  lldb::SBThread thread_sb(thread);
-  PythonObject thread_arg(PyRefType::Owned, SBTypeToSWIGWrapper(thread_sb));
-  auto result = pfunc(thread_arg, dict);
+  auto result = pfunc(ToSWIGWrapper(std::move(thread)), dict);
 
-  output = result.Str().GetString().str();
-
-  return true;
+  return result.Str().GetString().str();
 }
 
 bool lldb_private::LLDBSWIGPythonRunScriptKeywordTarget(
@@ -1026,14 +962,12 @@ bool lldb_private::LLDBSWIGPythonRunScriptKeywordTarget(
   return true;
 }
 
-bool lldb_private::LLDBSWIGPythonRunScriptKeywordFrame(
+llvm::Optional<std::string> lldb_private::LLDBSWIGPythonRunScriptKeywordFrame(
     const char *python_function_name, const char *session_dictionary_name,
-    lldb::StackFrameSP &frame, std::string &output)
-
-{
+    lldb::StackFrameSP frame) {
   if (python_function_name == NULL || python_function_name[0] == '\0' ||
       !session_dictionary_name)
-    return false;
+    return llvm::None;
 
   PyErr_Cleaner py_err_cleaner(true);
 
@@ -1043,15 +977,11 @@ bool lldb_private::LLDBSWIGPythonRunScriptKeywordFrame(
       python_function_name, dict);
 
   if (!pfunc.IsAllocated())
-    return false;
+    return llvm::None;
 
-  lldb::SBFrame frame_sb(frame);
-  PythonObject frame_arg(PyRefType::Owned, SBTypeToSWIGWrapper(frame_sb));
-  auto result = pfunc(frame_arg, dict);
+  auto result = pfunc(ToSWIGWrapper(std::move(frame)), dict);
 
-  output = result.Str().GetString().str();
-
-  return true;
+  return result.Str().GetString().str();
 }
 
 bool lldb_private::LLDBSWIGPythonRunScriptKeywordValue(
@@ -1081,7 +1011,7 @@ bool lldb_private::LLDBSWIGPythonRunScriptKeywordValue(
 
 bool lldb_private::LLDBSwigPythonCallModuleInit(
     const char *python_module_name, const char *session_dictionary_name,
-    lldb::DebuggerSP &debugger) {
+    lldb::DebuggerSP debugger) {
   std::string python_function_name_string = python_module_name;
   python_function_name_string += ".__lldb_init_module";
   const char *python_function_name = python_function_name_string.c_str();
@@ -1098,9 +1028,7 @@ bool lldb_private::LLDBSwigPythonCallModuleInit(
   if (!pfunc.IsAllocated())
     return true;
 
-  lldb::SBDebugger debugger_sb(debugger);
-  PythonObject debugger_arg(PyRefType::Owned, SBTypeToSWIGWrapper(debugger_sb));
-  pfunc(debugger_arg, dict);
+  pfunc(ToSWIGWrapper(std::move(debugger)), dict);
 
   return true;
 }

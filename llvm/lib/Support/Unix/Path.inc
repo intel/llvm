@@ -273,7 +273,7 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
     // the program, and not the eventual binary file. Therefore, call realpath
     // so this behaves the same on all platforms.
 #if _POSIX_VERSION >= 200112 || defined(__GLIBC__)
-    if (char *real_path = realpath(exe_path, NULL)) {
+    if (char *real_path = realpath(exe_path, nullptr)) {
       std::string ret = std::string(real_path);
       free(real_path);
       return ret;
@@ -380,20 +380,22 @@ std::error_code current_path(SmallVectorImpl<char> &result) {
     return std::error_code();
   }
 
-  result.reserve(PATH_MAX);
+  result.resize_for_overwrite(PATH_MAX);
 
   while (true) {
-    if (::getcwd(result.data(), result.capacity()) == nullptr) {
+    if (::getcwd(result.data(), result.size()) == nullptr) {
       // See if there was a real error.
-      if (errno != ENOMEM)
+      if (errno != ENOMEM) {
+        result.clear();
         return std::error_code(errno, std::generic_category());
+      }
       // Otherwise there just wasn't enough space.
-      result.reserve(result.capacity() * 2);
+      result.resize_for_overwrite(result.capacity() * 2);
     } else
       break;
   }
 
-  result.set_size(strlen(result.data()));
+  result.truncate(strlen(result.data()));
   return std::error_code();
 }
 
@@ -590,19 +592,6 @@ std::error_code rename(const Twine &from, const Twine &to) {
 }
 
 std::error_code resize_file(int FD, uint64_t Size) {
-#if defined(HAVE_POSIX_FALLOCATE)
-  // If we have posix_fallocate use it. Unlike ftruncate it always allocates
-  // space, so we get an error if the disk is full.
-  if (int Err = ::posix_fallocate(FD, 0, Size)) {
-#ifdef _AIX
-    constexpr int NotSupportedError = ENOTSUP;
-#else
-    constexpr int NotSupportedError = EOPNOTSUPP;
-#endif
-    if (Err != EINVAL && Err != NotSupportedError)
-      return std::error_code(Err, std::generic_category());
-  }
-#endif
   // Use ftruncate as a fallback. It may or may not allocate space. At least on
   // OS X with HFS+ it does.
   if (::ftruncate(FD, Size) == -1)
@@ -881,6 +870,19 @@ mapped_file_region::mapped_file_region(int fd, mapmode mode, size_t length,
 void mapped_file_region::unmapImpl() {
   if (Mapping)
     ::munmap(Mapping, Size);
+}
+
+void mapped_file_region::dontNeedImpl() {
+  assert(Mode == mapped_file_region::readonly);
+  if (!Mapping)
+      return;
+#if defined(__MVS__) || defined(_AIX)
+  // If we don't have madvise, or it isn't beneficial, treat this as a no-op.
+#elif defined(POSIX_MADV_DONTNEED)
+  ::posix_madvise(Mapping, Size, POSIX_MADV_DONTNEED);
+#else
+  ::madvise(Mapping, Size, MADV_DONTNEED);
+#endif
 }
 
 int mapped_file_region::alignment() {

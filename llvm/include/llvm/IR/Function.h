@@ -364,7 +364,7 @@ public:
   /// Remove function attribute from this function.
   void removeFnAttr(StringRef Kind);
 
-  void removeFnAttrs(const AttrBuilder &Attrs);
+  void removeFnAttrs(const AttributeMask &Attrs);
 
   /// removes the attribute from the return value list of attributes.
   void removeRetAttr(Attribute::AttrKind Kind);
@@ -373,7 +373,7 @@ public:
   void removeRetAttr(StringRef Kind);
 
   /// removes the attributes from the return value list of attributes.
-  void removeRetAttrs(const AttrBuilder &Attrs);
+  void removeRetAttrs(const AttributeMask &Attrs);
 
   /// removes the attribute from the list of attributes.
   void removeParamAttr(unsigned ArgNo, Attribute::AttrKind Kind);
@@ -382,7 +382,7 @@ public:
   void removeParamAttr(unsigned ArgNo, StringRef Kind);
 
   /// removes the attribute from the list of attributes.
-  void removeParamAttrs(unsigned ArgNo, const AttrBuilder &Attrs);
+  void removeParamAttrs(unsigned ArgNo, const AttributeMask &Attrs);
 
   /// Return true if the function has the attribute.
   bool hasFnAttribute(Attribute::AttrKind Kind) const;
@@ -509,10 +509,10 @@ public:
   }
 
   /// Determine if the function does not access or only writes memory.
-  bool doesNotReadMemory() const {
+  bool onlyWritesMemory() const {
     return doesNotAccessMemory() || hasFnAttribute(Attribute::WriteOnly);
   }
-  void setDoesNotReadMemory() {
+  void setOnlyWritesMemory() {
     addFnAttr(Attribute::WriteOnly);
   }
 
@@ -623,15 +623,19 @@ public:
   bool willReturn() const { return hasFnAttribute(Attribute::WillReturn); }
   void setWillReturn() { addFnAttr(Attribute::WillReturn); }
 
+  /// Get what kind of unwind table entry to generate for this function.
+  UWTableKind getUWTableKind() const {
+    return AttributeSets.getUWTableKind();
+  }
+
   /// True if the ABI mandates (or the user requested) that this
   /// function be in a unwind table.
   bool hasUWTable() const {
-    return hasFnAttribute(Attribute::UWTable);
+    return getUWTableKind() != UWTableKind::None;
   }
-  void setHasUWTable() {
-    addFnAttr(Attribute::UWTable);
+  void setUWTableKind(UWTableKind K) {
+    addFnAttr(Attribute::getWithUWTableKind(getContext(), K));
   }
-
   /// True if this function needs an unwind table.
   bool needsUnwindTableEntry() const {
     return hasUWTable() || !doesNotThrow() || hasPersonalityFn();

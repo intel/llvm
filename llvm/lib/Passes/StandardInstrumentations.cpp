@@ -441,7 +441,7 @@ const Module *getModuleForComparison(Any IR) {
 
 } // namespace
 
-template <typename T> ChangeReporter<T>::~ChangeReporter<T>() {
+template <typename T> ChangeReporter<T>::~ChangeReporter() {
   assert(BeforeStack.empty() && "Problem with Change Printer stack.");
 }
 
@@ -587,7 +587,7 @@ void TextChangeReporter<T>::handleIgnored(StringRef PassID, std::string &Name) {
   Out << formatv("*** IR Pass {0} on {1} ignored ***\n", PassID, Name);
 }
 
-IRChangedPrinter::~IRChangedPrinter() {}
+IRChangedPrinter::~IRChangedPrinter() = default;
 
 void IRChangedPrinter::registerCallbacks(PassInstrumentationCallbacks &PIC) {
   if (PrintChanged == ChangePrinter::PrintChangedVerbose ||
@@ -1207,7 +1207,7 @@ void VerifyInstrumentation::registerCallbacks(
       });
 }
 
-InLineChangePrinter::~InLineChangePrinter() {}
+InLineChangePrinter::~InLineChangePrinter() = default;
 
 void InLineChangePrinter::generateIRRepresentation(Any IR, StringRef PassID,
                                                    IRDataT<EmptyData> &D) {

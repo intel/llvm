@@ -12,6 +12,8 @@
 #include <string>
 #include <unordered_set>
 
+#include <CL/sycl/detail/common.hpp>
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
 // traces using the trace framework
@@ -33,9 +35,14 @@ inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
     "sycl.experimental.mem_alloc";
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+extern uint8_t GBufferStreamID;
 extern uint8_t GMemAllocStreamID;
 extern xpti::trace_event_data_t *GMemAllocEvent;
 #endif
+
+// Stream name being used to notify about buffer objects.
+inline constexpr const char *SYCL_BUFFER_STREAM_NAME =
+    "sycl.experimental.buffer";
 
 class XPTIRegistry {
 public:
@@ -43,10 +50,13 @@ public:
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     std::call_once(MInitialized, [this] {
       xptiFrameworkInitialize();
+      // SYCL buffer events
+      GBufferStreamID = xptiRegisterStream(SYCL_BUFFER_STREAM_NAME);
+      this->initializeStream(SYCL_BUFFER_STREAM_NAME, 0, 1, "0.1");
 
       // Memory allocation events
       GMemAllocStreamID = xptiRegisterStream(SYCL_MEM_ALLOC_STREAM_NAME);
-      initializeStream(SYCL_MEM_ALLOC_STREAM_NAME, 0, 1, "0.1");
+      this->initializeStream(SYCL_MEM_ALLOC_STREAM_NAME, 0, 1, "0.1");
       xpti::payload_t MAPayload("SYCL Memory Allocations Layer");
       uint64_t MAInstanceNo = 0;
       GMemAllocEvent = xptiMakeEvent("SYCL Memory Allocations", &MAPayload,
@@ -79,9 +89,27 @@ public:
 #endif // XPTI_ENABLE_INSTRUMENTATION
   }
 
+  static void bufferConstructorNotification(const void *,
+                                            const detail::code_location &,
+                                            const void *, const void *,
+                                            uint32_t, uint32_t, size_t[3]);
+  static void bufferAssociateNotification(const void *, const void *);
+  static void bufferReleaseNotification(const void *, const void *);
+  static void bufferDestructorNotification(const void *);
+  static void bufferAccessorNotification(const void *, const void *, uint32_t,
+                                         uint32_t,
+                                         const detail::code_location &);
+
 private:
   std::unordered_set<std::string> MActiveStreams;
   std::once_flag MInitialized;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  static xpti::trace_event_data_t *
+  createTraceEvent(const void *Obj, const void *ObjName, uint64_t &IId,
+                   const detail::code_location &CodeLoc,
+                   uint16_t TraceEventType);
+#endif // XPTI_ENABLE_INSTRUMENTATION
 };
 } // namespace detail
 } // namespace sycl

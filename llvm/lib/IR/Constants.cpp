@@ -16,16 +16,19 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/IR/GlobalAlias.h"
+#include "llvm/IR/GlobalIFunc.h"
 #include "llvm/IR/GlobalValue.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -535,6 +538,9 @@ void llvm::deleteConstant(Constant *C) {
   case Constant::DSOLocalEquivalentVal:
     delete static_cast<DSOLocalEquivalent *>(C);
     break;
+  case Constant::NoCFIValueVal:
+    delete static_cast<NoCFIValue *>(C);
+    break;
   case Constant::UndefValueVal:
     delete static_cast<UndefValue *>(C);
     break;
@@ -736,15 +742,8 @@ static bool constantIsDead(const Constant *C, bool RemoveDeadUsers) {
       ++I;
   }
 
-  if (RemoveDeadUsers) {
-    // If C is only used by metadata, it should not be preserved but should
-    // have its uses replaced.
-    if (C->isUsedByMetadata()) {
-      const_cast<Constant *>(C)->replaceAllUsesWith(
-          UndefValue::get(C->getType()));
-    }
+  if (RemoveDeadUsers)
     const_cast<Constant *>(C)->destroyConstant();
-  }
 
   return true;
 }
@@ -776,18 +775,22 @@ void Constant::removeDeadConstantUsers() const {
   }
 }
 
-bool Constant::hasOneLiveUse() const {
+bool Constant::hasOneLiveUse() const { return hasNLiveUses(1); }
+
+bool Constant::hasZeroLiveUses() const { return hasNLiveUses(0); }
+
+bool Constant::hasNLiveUses(unsigned N) const {
   unsigned NumUses = 0;
-  for (const Use &use : uses()) {
-    const Constant *User = dyn_cast<Constant>(use.getUser());
+  for (const Use &U : uses()) {
+    const Constant *User = dyn_cast<Constant>(U.getUser());
     if (!User || !constantIsDead(User, /* RemoveDeadUsers= */ false)) {
       ++NumUses;
 
-      if (NumUses > 1)
+      if (NumUses > N)
         return false;
     }
   }
-  return NumUses == 1;
+  return NumUses == N;
 }
 
 Constant *Constant::replaceUndefsWith(Constant *C, Constant *Replacement) {
@@ -1488,28 +1491,6 @@ bool ConstantExpr::isCompare() const {
   return getOpcode() == Instruction::ICmp || getOpcode() == Instruction::FCmp;
 }
 
-bool ConstantExpr::isGEPWithNoNotionalOverIndexing() const {
-  if (getOpcode() != Instruction::GetElementPtr) return false;
-
-  gep_type_iterator GEPI = gep_type_begin(this), E = gep_type_end(this);
-  User::const_op_iterator OI = std::next(this->op_begin());
-
-  // The remaining indices may be compile-time known integers within the bounds
-  // of the corresponding notional static array types.
-  for (; GEPI != E; ++GEPI, ++OI) {
-    if (isa<UndefValue>(*OI))
-      continue;
-    auto *CI = dyn_cast<ConstantInt>(*OI);
-    if (!CI || (GEPI.isBoundedSequential() &&
-                (CI->getValue().getActiveBits() > 64 ||
-                 CI->getZExtValue() >= GEPI.getSequentialNumElements())))
-      return false;
-  }
-
-  // All the indices checked out.
-  return true;
-}
-
 bool ConstantExpr::hasIndices() const {
   return getOpcode() == Instruction::ExtractValue ||
          getOpcode() == Instruction::InsertValue;
@@ -1960,6 +1941,47 @@ Value *DSOLocalEquivalent::handleOperandChangeImpl(Value *From, Value *To) {
     // reflect the type of the function it's holding.
     mutateType(Func->getType());
   }
+  return nullptr;
+}
+
+NoCFIValue *NoCFIValue::get(GlobalValue *GV) {
+  NoCFIValue *&NC = GV->getContext().pImpl->NoCFIValues[GV];
+  if (!NC)
+    NC = new NoCFIValue(GV);
+
+  assert(NC->getGlobalValue() == GV &&
+         "NoCFIValue does not match the expected global value");
+  return NC;
+}
+
+NoCFIValue::NoCFIValue(GlobalValue *GV)
+    : Constant(GV->getType(), Value::NoCFIValueVal, &Op<0>(), 1) {
+  setOperand(0, GV);
+}
+
+/// Remove the constant from the constant table.
+void NoCFIValue::destroyConstantImpl() {
+  const GlobalValue *GV = getGlobalValue();
+  GV->getContext().pImpl->NoCFIValues.erase(GV);
+}
+
+Value *NoCFIValue::handleOperandChangeImpl(Value *From, Value *To) {
+  assert(From == getGlobalValue() && "Changing value does not match operand.");
+
+  GlobalValue *GV = dyn_cast<GlobalValue>(To->stripPointerCasts());
+  assert(GV && "Can only replace the operands with a global value");
+
+  NoCFIValue *&NewNC = getContext().pImpl->NoCFIValues[GV];
+  if (NewNC)
+    return llvm::ConstantExpr::getBitCast(NewNC, getType());
+
+  getContext().pImpl->NoCFIValues.erase(getGlobalValue());
+  NewNC = this;
+  setOperand(0, GV);
+
+  if (GV->getType() != getType())
+    mutateType(GV->getType());
+
   return nullptr;
 }
 
@@ -2502,11 +2524,11 @@ Constant *ConstantExpr::getGetElementPtr(Type *Ty, Constant *C,
 
 Constant *ConstantExpr::getICmp(unsigned short pred, Constant *LHS,
                                 Constant *RHS, bool OnlyIfReduced) {
+  auto Predicate = static_cast<CmpInst::Predicate>(pred);
   assert(LHS->getType() == RHS->getType());
-  assert(CmpInst::isIntPredicate((CmpInst::Predicate)pred) &&
-         "Invalid ICmp Predicate");
+  assert(CmpInst::isIntPredicate(Predicate) && "Invalid ICmp Predicate");
 
-  if (Constant *FC = ConstantFoldCompareInstruction(pred, LHS, RHS))
+  if (Constant *FC = ConstantFoldCompareInstruction(Predicate, LHS, RHS))
     return FC;          // Fold a few common cases...
 
   if (OnlyIfReduced)
@@ -2515,7 +2537,7 @@ Constant *ConstantExpr::getICmp(unsigned short pred, Constant *LHS,
   // Look up the constant in the table first to ensure uniqueness
   Constant *ArgVec[] = { LHS, RHS };
   // Get the key type with both the opcode and predicate
-  const ConstantExprKeyType Key(Instruction::ICmp, ArgVec, pred);
+  const ConstantExprKeyType Key(Instruction::ICmp, ArgVec, Predicate);
 
   Type *ResultTy = Type::getInt1Ty(LHS->getContext());
   if (VectorType *VT = dyn_cast<VectorType>(LHS->getType()))
@@ -2527,11 +2549,11 @@ Constant *ConstantExpr::getICmp(unsigned short pred, Constant *LHS,
 
 Constant *ConstantExpr::getFCmp(unsigned short pred, Constant *LHS,
                                 Constant *RHS, bool OnlyIfReduced) {
+  auto Predicate = static_cast<CmpInst::Predicate>(pred);
   assert(LHS->getType() == RHS->getType());
-  assert(CmpInst::isFPPredicate((CmpInst::Predicate)pred) &&
-         "Invalid FCmp Predicate");
+  assert(CmpInst::isFPPredicate(Predicate) && "Invalid FCmp Predicate");
 
-  if (Constant *FC = ConstantFoldCompareInstruction(pred, LHS, RHS))
+  if (Constant *FC = ConstantFoldCompareInstruction(Predicate, LHS, RHS))
     return FC;          // Fold a few common cases...
 
   if (OnlyIfReduced)
@@ -2540,7 +2562,7 @@ Constant *ConstantExpr::getFCmp(unsigned short pred, Constant *LHS,
   // Look up the constant in the table first to ensure uniqueness
   Constant *ArgVec[] = { LHS, RHS };
   // Get the key type with both the opcode and predicate
-  const ConstantExprKeyType Key(Instruction::FCmp, ArgVec, pred);
+  const ConstantExprKeyType Key(Instruction::FCmp, ArgVec, Predicate);
 
   Type *ResultTy = Type::getInt1Ty(LHS->getContext());
   if (VectorType *VT = dyn_cast<VectorType>(LHS->getType()))

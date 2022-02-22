@@ -56,10 +56,8 @@ class WorkListMaintainer : public GISelChangeObserver {
   SmallPtrSet<const MachineInstr *, 4> CreatedInstrs;
 
 public:
-  WorkListMaintainer(WorkListTy &WorkList)
-      : GISelChangeObserver(), WorkList(WorkList) {}
-  virtual ~WorkListMaintainer() {
-  }
+  WorkListMaintainer(WorkListTy &WorkList) : WorkList(WorkList) {}
+  virtual ~WorkListMaintainer() = default;
 
   void erasingInstr(MachineInstr &MI) override {
     LLVM_DEBUG(dbgs() << "Erasing: " << MI << "\n");

@@ -252,6 +252,8 @@ enum Kind {
   kw_immarg,
   kw_byref,
   kw_mustprogress,
+  kw_sync,
+  kw_async,
 
   kw_type,
   kw_opaque,
@@ -370,6 +372,7 @@ enum Kind {
   kw_insertvalue,
   kw_blockaddress,
   kw_dso_local_equivalent,
+  kw_no_cfi,
 
   kw_freeze,
 

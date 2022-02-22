@@ -16,7 +16,6 @@
 #define SANITIZER_COMMON_H
 
 #include "sanitizer_flags.h"
-#include "sanitizer_interface_internal.h"
 #include "sanitizer_internal_defs.h"
 #include "sanitizer_libc.h"
 #include "sanitizer_list.h"
@@ -238,12 +237,12 @@ void SetPrintfAndReportCallback(void (*callback)(const char *));
 // Lock sanitizer error reporting and protects against nested errors.
 class ScopedErrorReportLock {
  public:
-  ScopedErrorReportLock() ACQUIRE(mutex_) { Lock(); }
-  ~ScopedErrorReportLock() RELEASE(mutex_) { Unlock(); }
+  ScopedErrorReportLock() SANITIZER_ACQUIRE(mutex_) { Lock(); }
+  ~ScopedErrorReportLock() SANITIZER_RELEASE(mutex_) { Unlock(); }
 
-  static void Lock() ACQUIRE(mutex_);
-  static void Unlock() RELEASE(mutex_);
-  static void CheckLocked() CHECK_LOCKED(mutex_);
+  static void Lock() SANITIZER_ACQUIRE(mutex_);
+  static void Unlock() SANITIZER_RELEASE(mutex_);
+  static void CheckLocked() SANITIZER_CHECK_LOCKED(mutex_);
 
  private:
   static atomic_uintptr_t reporting_thread_;
@@ -286,7 +285,7 @@ void SetStackSizeLimitInBytes(uptr limit);
 bool AddressSpaceIsUnlimited();
 void SetAddressSpaceUnlimited();
 void AdjustStackSize(void *attr);
-void PlatformPrepareForSandboxing(__sanitizer_sandbox_arguments *args);
+void PlatformPrepareForSandboxing(void *args);
 void SetSandboxingCallback(void (*f)());
 
 void InitializeCoverage(bool enabled, const char *coverage_dir);
@@ -739,6 +738,9 @@ bool ReadFileToBuffer(const char *file_name, char **buff, uptr *buff_size,
                       uptr *read_len, uptr max_len = kDefaultFileMaxSize,
                       error_t *errno_p = nullptr);
 
+int GetModuleAndOffsetForPc(uptr pc, char *module_name, uptr module_name_len,
+                            uptr *pc_offset);
+
 // When adding a new architecture, don't forget to also update
 // script/asan_symbolize.py and sanitizer_symbolizer_libcdep.cpp.
 inline const char *ModuleArchToString(ModuleArch arch) {
@@ -956,7 +958,7 @@ struct SignalContext {
   uptr sp;
   uptr bp;
   bool is_memory_access;
-  enum WriteFlag { UNKNOWN, READ, WRITE } write_flag;
+  enum WriteFlag { Unknown, Read, Write } write_flag;
 
   // In some cases the kernel cannot provide the true faulting address; `addr`
   // will be zero then.  This field allows to distinguish between these cases

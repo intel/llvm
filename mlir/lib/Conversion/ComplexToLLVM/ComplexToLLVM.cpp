@@ -64,7 +64,7 @@ struct AbsOpConversion : public ConvertOpToLLVMPattern<complex::AbsOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
 
-    ComplexStructBuilder complexStruct(adaptor.complex());
+    ComplexStructBuilder complexStruct(adaptor.getComplex());
     Value real = complexStruct.real(rewriter, op.getLoc());
     Value imag = complexStruct.imaginary(rewriter, op.getLoc());
 
@@ -78,6 +78,18 @@ struct AbsOpConversion : public ConvertOpToLLVMPattern<complex::AbsOp> {
   }
 };
 
+struct ConstantOpLowering : public ConvertOpToLLVMPattern<complex::ConstantOp> {
+  using ConvertOpToLLVMPattern::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(complex::ConstantOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    return LLVM::detail::oneToOneRewrite(
+        op, LLVM::ConstantOp::getOperationName(), adaptor.getOperands(),
+        *getTypeConverter(), rewriter);
+  }
+};
+
 struct CreateOpConversion : public ConvertOpToLLVMPattern<complex::CreateOp> {
   using ConvertOpToLLVMPattern<complex::CreateOp>::ConvertOpToLLVMPattern;
 
@@ -88,8 +100,8 @@ struct CreateOpConversion : public ConvertOpToLLVMPattern<complex::CreateOp> {
     auto loc = complexOp.getLoc();
     auto structType = typeConverter->convertType(complexOp.getType());
     auto complexStruct = ComplexStructBuilder::undef(rewriter, loc, structType);
-    complexStruct.setReal(rewriter, loc, adaptor.real());
-    complexStruct.setImaginary(rewriter, loc, adaptor.imaginary());
+    complexStruct.setReal(rewriter, loc, adaptor.getReal());
+    complexStruct.setImaginary(rewriter, loc, adaptor.getImaginary());
 
     rewriter.replaceOp(complexOp, {complexStruct});
     return success();
@@ -103,7 +115,7 @@ struct ReOpConversion : public ConvertOpToLLVMPattern<complex::ReOp> {
   matchAndRewrite(complex::ReOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     // Extract real part from the complex number struct.
-    ComplexStructBuilder complexStruct(adaptor.complex());
+    ComplexStructBuilder complexStruct(adaptor.getComplex());
     Value real = complexStruct.real(rewriter, op.getLoc());
     rewriter.replaceOp(op, real);
 
@@ -118,7 +130,7 @@ struct ImOpConversion : public ConvertOpToLLVMPattern<complex::ImOp> {
   matchAndRewrite(complex::ImOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     // Extract imaginary part from the complex number struct.
-    ComplexStructBuilder complexStruct(adaptor.complex());
+    ComplexStructBuilder complexStruct(adaptor.getComplex());
     Value imaginary = complexStruct.imaginary(rewriter, op.getLoc());
     rewriter.replaceOp(op, imaginary);
 
@@ -139,10 +151,10 @@ unpackBinaryComplexOperands(OpTy op, typename OpTy::Adaptor adaptor,
 
   // Extract real and imaginary values from operands.
   BinaryComplexOperands unpacked;
-  ComplexStructBuilder lhs(adaptor.lhs());
+  ComplexStructBuilder lhs(adaptor.getLhs());
   unpacked.lhs.real(lhs.real(rewriter, loc));
   unpacked.lhs.imag(lhs.imaginary(rewriter, loc));
-  ComplexStructBuilder rhs(adaptor.rhs());
+  ComplexStructBuilder rhs(adaptor.getRhs());
   unpacked.rhs.real(rhs.real(rewriter, loc));
   unpacked.rhs.imag(rhs.imaginary(rewriter, loc));
 
@@ -294,6 +306,7 @@ void mlir::populateComplexToLLVMConversionPatterns(
   patterns.add<
       AbsOpConversion,
       AddOpConversion,
+      ConstantOpLowering,
       CreateOpConversion,
       DivOpConversion,
       ImOpConversion,

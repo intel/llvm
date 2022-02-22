@@ -354,6 +354,7 @@ namespace clang {
     ExpectedType VisitTypeOfExprType(const TypeOfExprType *T);
     // FIXME: DependentTypeOfExprType
     ExpectedType VisitTypeOfType(const TypeOfType *T);
+    ExpectedType VisitUsingType(const UsingType *T);
     ExpectedType VisitDecltypeType(const DecltypeType *T);
     ExpectedType VisitUnaryTransformType(const UnaryTransformType *T);
     ExpectedType VisitAutoType(const AutoType *T);
@@ -1346,6 +1347,17 @@ ExpectedType ASTNodeImporter::VisitTypeOfType(const TypeOfType *T) {
   return Importer.getToContext().getTypeOfType(*ToUnderlyingTypeOrErr);
 }
 
+ExpectedType ASTNodeImporter::VisitUsingType(const UsingType *T) {
+  Expected<UsingShadowDecl *> FoundOrErr = import(T->getFoundDecl());
+  if (!FoundOrErr)
+    return FoundOrErr.takeError();
+  Expected<QualType> UnderlyingOrErr = import(T->getUnderlyingType());
+  if (!UnderlyingOrErr)
+    return UnderlyingOrErr.takeError();
+
+  return Importer.getToContext().getUsingType(*FoundOrErr, *UnderlyingOrErr);
+}
+
 ExpectedType ASTNodeImporter::VisitDecltypeType(const DecltypeType *T) {
   // FIXME: Make sure that the "to" context supports C++0x!
   ExpectedExpr ToExprOrErr = import(T->getUnderlyingExpr());
@@ -2006,6 +2018,14 @@ Error ASTNodeImporter::ImportDefinition(
   }
 
   To->startDefinition();
+  // Set the definition to complete even if it is really not complete during
+  // import. Some AST constructs (expressions) require the record layout
+  // to be calculated (see 'clang::computeDependence') at the time they are
+  // constructed. Import of such AST node is possible during import of the
+  // same record, there is no way to have a completely defined record (all
+  // fields imported) at that time without multiple AST import passes.
+  if (!Importer.isMinimalImport())
+    To->setCompleteDefinition(true);
   // Complete the definition even if error is returned.
   // The RecordDecl may be already part of the AST so it is better to
   // have it in complete state even if something is wrong with it.
@@ -2070,9 +2090,10 @@ Error ASTNodeImporter::ImportDefinition(
       ToCXX->setBases(Bases.data(), Bases.size());
   }
 
-  if (shouldForceImportDeclContext(Kind))
+  if (shouldForceImportDeclContext(Kind)) {
     if (Error Err = ImportDeclContext(From, /*ForceImport=*/true))
       return Err;
+  }
 
   return Error::success();
 }
@@ -8403,8 +8424,8 @@ Expected<TypeSourceInfo *> ASTImporter::Import(TypeSourceInfo *FromTSI) {
 // and destructed after it is created. The construction already performs the
 // import of the data.
 template <typename T> struct AttrArgImporter {
-  AttrArgImporter<T>(const AttrArgImporter<T> &) = delete;
-  AttrArgImporter<T>(AttrArgImporter<T> &&) = default;
+  AttrArgImporter(const AttrArgImporter<T> &) = delete;
+  AttrArgImporter(AttrArgImporter<T> &&) = default;
   AttrArgImporter<T> &operator=(const AttrArgImporter<T> &) = delete;
   AttrArgImporter<T> &operator=(AttrArgImporter<T> &&) = default;
 
@@ -8423,8 +8444,8 @@ private:
 // is used by the attribute classes. This object should be created once for the
 // array data to be imported (the array size is not imported, just copied).
 template <typename T> struct AttrArgArrayImporter {
-  AttrArgArrayImporter<T>(const AttrArgArrayImporter<T> &) = delete;
-  AttrArgArrayImporter<T>(AttrArgArrayImporter<T> &&) = default;
+  AttrArgArrayImporter(const AttrArgArrayImporter<T> &) = delete;
+  AttrArgArrayImporter(AttrArgArrayImporter<T> &&) = default;
   AttrArgArrayImporter<T> &operator=(const AttrArgArrayImporter<T> &) = delete;
   AttrArgArrayImporter<T> &operator=(AttrArgArrayImporter<T> &&) = default;
 

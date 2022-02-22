@@ -8,13 +8,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
 option(SYCL_DISABLE_STL_ASSERTIONS "Disable assertions in STL containers" OFF)
 option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
+option(SYCL_ENABLE_COVERAGE "Enables code coverage for runtime and unit tests" OFF)
+
+if (NOT SYCL_COVERAGE_PATH)
+  set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
+endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 include(SYCLUtils)
 
 set(SYCL_MAJOR_VERSION 5)
-set(SYCL_MINOR_VERSION 4)
+set(SYCL_MINOR_VERSION 5)
 set(SYCL_PATCH_VERSION 0)
 set(SYCL_DEV_ABI_VERSION 0)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
@@ -57,7 +62,23 @@ if(MSVC)
   include(LLVMCheckLinkerFlag)
   llvm_check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
   if(LINKER_SUPPORTS_DEBUG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
+    # sccache is not compatible with /Zi flag
+    if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
+      # CMake may put /Zi by default
+      if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+        string(REPLACE "/Zi" "/Z7" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+      elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+        string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+        string(REPLACE "/Zi" "/Z7" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+      elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+        string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+        string(REPLACE "/Zi" "/Z7" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+      endif()
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Z7")
+    else()
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
+    endif()
     add_link_options("/DEBUG")
 
     # Enable unreferenced removal and ICF in Release mode.
@@ -229,9 +250,11 @@ add_custom_target(sycl-compiler
           llvm-spirv
           llvm-link
           llvm-objcopy
+          spirv-to-ir-wrapper
           sycl-post-link
           opencl-aot
 )
+
 add_custom_target( sycl-toolchain
   DEPENDS ${SYCL_RT_LIBS}
           sycl-compiler
@@ -239,6 +262,13 @@ add_custom_target( sycl-toolchain
           ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )
+
+# Enable new IN_LIST operator.
+cmake_policy(SET CMP0057 NEW)
+
+if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
+  add_dependencies(sycl-toolchain libsycldevice)
+endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
   add_dependencies( sycl-toolchain xpti)
@@ -292,6 +322,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      llvm-spirv
      llvm-link
      llvm-objcopy
+     spirv-to-ir-wrapper
      sycl-post-link
      sycl-ls
      clang-resource-headers
@@ -334,17 +365,13 @@ if(SYCL_BUILD_PI_HIP)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
 endif()
 
-if (SYCL_BUILD_PI_ESIMD_EMULATOR)
+if(SYCL_BUILD_PI_ESIMD_EMULATOR)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
   if (MSVC)
     list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
   else()
     list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
   endif()
-else()
-  # TODO/FIXME : Removing empty header file (cm_rt.h) generation when
-  # the ESIMD_EMULATOR support is enabled by default
-  file (TOUCH ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL/cm_rt.h)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

@@ -27,9 +27,11 @@
 
 #pragma once
 
-#include <CL/sycl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/device_selector.hpp>
+#include <CL/sycl/platform.hpp>
+#include <CL/sycl/queue.hpp>
 #include <detail/platform_impl.hpp>
 
 #include <functional>
@@ -66,7 +68,7 @@ namespace RT = detail::pi;
 /// redefinitions would also affect other platforms' behavior.
 /// Therefore, any plugin-related information is fully copied whenever
 /// a user-passed SYCL object instance is being mocked.
-/// The underlying SYCL platform must be a non-host plaftorm to facilitate
+/// The underlying SYCL platform must be a non-host platform to facilitate
 /// plugin usage.
 ///
 /// Simple usage examples would look like this:

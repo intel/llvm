@@ -44,7 +44,6 @@ struct RecordContext;
 } // namespace detail
 
 class ListRecTy;
-struct MultiClass;
 class Record;
 class RecordKeeper;
 class RecordVal;
@@ -2016,7 +2015,7 @@ class Resolver {
 
 public:
   explicit Resolver(Record *CurRec) : CurRec(CurRec) {}
-  virtual ~Resolver() {}
+  virtual ~Resolver() = default;
 
   Record *getCurrentRecord() const { return CurRec; }
 

@@ -562,6 +562,15 @@ TEST_P(ImportType, ImportAtomicType) {
       functionDecl(hasDescendant(typedefDecl(has(atomicType())))));
 }
 
+TEST_P(ImportType, ImportUsingType) {
+  MatchVerifier<Decl> Verifier;
+  testImport("struct C {};"
+             "void declToImport() { using ::C; new C{}; }",
+             Lang_CXX11, "", Lang_CXX11, Verifier,
+             functionDecl(hasDescendant(
+                 cxxNewExpr(hasType(pointerType(pointee(usingType())))))));
+}
+
 TEST_P(ImportDecl, ImportFunctionTemplateDecl) {
   MatchVerifier<Decl> Verifier;
   testImport("template <typename T> void declToImport() { };", Lang_CXX03, "",
@@ -6800,7 +6809,8 @@ struct ImportWithExternalSource : ASTImporterOptionSpecificTestBase {
                  bool MinimalImport,
                  const std::shared_ptr<ASTImporterSharedState> &SharedState) {
       return new ASTImporter(ToContext, ToFileManager, FromContext,
-                             FromFileManager, MinimalImport,
+                             // Use minimal import for these tests.
+                             FromFileManager, /*MinimalImport=*/true,
                              // We use the regular lookup.
                              /*SharedState=*/nullptr);
     };
@@ -7464,6 +7474,57 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportDeductionGuideDifferentOrder) {
                 ->getParam(0)
                 ->getDeclContext(),
             ToDGOther);
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase,
+       ImportRecordWithLayoutRequestingExpr) {
+  TranslationUnitDecl *FromTU = getTuDecl(
+      R"(
+      struct A {
+        int idx;
+        static void foo(A x) {
+          (void)&"text"[x.idx];
+        }
+      };
+      )",
+      Lang_CXX11);
+
+  auto *FromA = FirstDeclMatcher<CXXRecordDecl>().match(
+      FromTU, cxxRecordDecl(hasName("A")));
+
+  // Test that during import of 'foo' the record layout can be obtained without
+  // crash.
+  auto *ToA = Import(FromA, Lang_CXX11);
+  EXPECT_TRUE(ToA);
+  EXPECT_TRUE(ToA->isCompleteDefinition());
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase,
+       ImportRecordWithLayoutRequestingExprDifferentRecord) {
+  TranslationUnitDecl *FromTU = getTuDecl(
+      R"(
+      struct B;
+      struct A {
+        int idx;
+        B *b;
+      };
+      struct B {
+        static void foo(A x) {
+          (void)&"text"[x.idx];
+        }
+      };
+      )",
+      Lang_CXX11);
+
+  auto *FromA = FirstDeclMatcher<CXXRecordDecl>().match(
+      FromTU, cxxRecordDecl(hasName("A")));
+
+  // Test that during import of 'foo' the record layout (of 'A') can be obtained
+  // without crash. It is not possible to have all of the fields of 'A' imported
+  // at that time (without big code changes).
+  auto *ToA = Import(FromA, Lang_CXX11);
+  EXPECT_TRUE(ToA);
+  EXPECT_TRUE(ToA->isCompleteDefinition());
 }
 
 INSTANTIATE_TEST_SUITE_P(ParameterizedTests, ASTImporterLookupTableTest,

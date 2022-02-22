@@ -9,9 +9,7 @@
 #ifndef LLD_ELF_INPUT_SECTION_H
 #define LLD_ELF_INPUT_SECTION_H
 
-#include "Config.h"
 #include "Relocations.h"
-#include "Thunks.h"
 #include "lld/Common/LLVM.h"
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseSet.h"
@@ -21,13 +19,12 @@
 namespace lld {
 namespace elf {
 
+class InputFile;
 class Symbol;
-struct SectionPiece;
 
 class Defined;
 struct Partition;
 class SyntheticSection;
-class MergeSyntheticSection;
 template <class ELFT> class ObjFile;
 class OutputSection;
 
@@ -52,13 +49,6 @@ public:
 
   StringRef name;
 
-  // This pointer points to the "real" instance of this instance.
-  // Usually Repl == this. However, if ICF merges two sections,
-  // Repl pointer of one section points to another section. So,
-  // if you need to get a pointer to this instance, do not use
-  // this but instead this->Repl.
-  SectionBase *repl;
-
   uint8_t sectionKind : 3;
 
   // The next two bit fields are only used by InputSectionBase, but we
@@ -72,7 +62,7 @@ public:
   // The 1-indexed partition that this section is assigned to by the garbage
   // collector, or 0 if this section is dead. Normally there is only one
   // partition, so this will either be 0 or 1.
-  uint8_t partition;
+  uint8_t partition = 1;
   elf::Partition &getPartition() const;
 
   // These corresponds to the fields in Elf_Shdr.
@@ -102,9 +92,9 @@ protected:
   constexpr SectionBase(Kind sectionKind, StringRef name, uint64_t flags,
                         uint32_t entsize, uint32_t alignment, uint32_t type,
                         uint32_t info, uint32_t link)
-      : name(name), repl(this), sectionKind(sectionKind), bss(false),
-        keepUnique(false), partition(0), alignment(alignment), flags(flags),
-        entsize(entsize), type(type), link(link), info(info) {}
+      : name(name), sectionKind(sectionKind), bss(false), keepUnique(false),
+        alignment(alignment), flags(flags), entsize(entsize), type(type),
+        link(link), info(info) {}
 };
 
 // This corresponds to a section of an input file.
@@ -126,6 +116,12 @@ public:
   // its static type.
   InputFile *file;
 
+  // Input sections are part of an output section. Special sections
+  // like .eh_frame and merge sections are first combined into a
+  // synthetic section that is then added to an output section. In all
+  // cases this points one level up.
+  SectionBase *parent = nullptr;
+
   // Section index of the relocation section if exists.
   uint32_t relSecIdx = 0;
 
@@ -137,13 +133,16 @@ public:
   // one or two jump instructions at the end that could be relaxed to a smaller
   // instruction. The members below help trimming the trailing jump instruction
   // and shrinking a section.
-  unsigned bytesDropped = 0;
+  uint8_t bytesDropped = 0;
 
   // Whether the section needs to be padded with a NOP filler due to
   // deleteFallThruJmpInsn.
   bool nopFiller = false;
 
-  void drop_back(uint64_t num) { bytesDropped += num; }
+  void drop_back(unsigned num) {
+    assert(bytesDropped + num < 256);
+    bytesDropped += num;
+  }
 
   void push_back(uint64_t num) {
     assert(bytesDropped >= num);
@@ -163,14 +162,6 @@ public:
     return rawData;
   }
 
-  uint64_t getOffsetInFile() const;
-
-  // Input sections are part of an output section. Special sections
-  // like .eh_frame and merge sections are first combined into a
-  // synthetic section that is then added to an output section. In all
-  // cases this points one level up.
-  SectionBase *parent = nullptr;
-
   // The next member in the section group if this section is in a group. This is
   // used by --gc-sections.
   InputSectionBase *nextInSectionGroup = nullptr;
@@ -187,11 +178,10 @@ public:
 
   // Get the function symbol that encloses this offset from within the
   // section.
-  template <class ELFT>
   Defined *getEnclosingFunction(uint64_t offset);
 
   // Returns a source location string. Used to construct an error message.
-  template <class ELFT> std::string getLocation(uint64_t offset);
+  std::string getLocation(uint64_t offset);
   std::string getSrcMsg(const Symbol &sym, uint64_t offset);
   std::string getObjMsg(uint64_t offset);
 
@@ -213,7 +203,7 @@ public:
   // block sections are enabled.  Basic block sections creates opportunities to
   // relax jump instructions at basic block boundaries after reordering the
   // basic blocks.
-  SmallVector<JumpInstrMod, 0> jumpInstrMods;
+  JumpInstrMod *jumpInstrMod = nullptr;
 
   // A function compiled with -fsplit-stack calling a function
   // compiled without -fsplit-stack needs its prologue adjusted. Find
@@ -249,6 +239,7 @@ protected:
 // have to be as compact as possible, which is why we don't store the size (can
 // be found by looking at the next one).
 struct SectionPiece {
+  SectionPiece() = default;
   SectionPiece(size_t off, uint32_t hash, bool live)
       : inputOff(off), live(live), hash(hash >> 1) {}
 
@@ -299,7 +290,7 @@ public:
   SyntheticSection *getParent() const;
 
 private:
-  void splitStrings(ArrayRef<uint8_t> a, size_t size);
+  void splitStrings(StringRef s, size_t size);
   void splitNonStrings(ArrayRef<uint8_t> a, size_t size);
 };
 
@@ -331,7 +322,7 @@ public:
 
   // Splittable sections are handled as a sequence of data
   // rather than a single large blob of data.
-  std::vector<EhSectionPiece> pieces;
+  SmallVector<EhSectionPiece, 0> pieces;
 
   SyntheticSection *getParent() const;
 };
@@ -367,6 +358,10 @@ public:
   template <class ELFT, class RelTy>
   void relocateNonAlloc(uint8_t *buf, llvm::ArrayRef<RelTy> rels);
 
+  // Points to the canonical section. If ICF folds two sections, repl pointer of
+  // one section points to the other.
+  InputSection *repl = this;
+
   // Used by ICF.
   uint32_t eqClass[2] = {0, 0};
 
@@ -382,11 +377,7 @@ private:
   template <class ELFT> void copyShtGroup(uint8_t *buf);
 };
 
-#ifdef _WIN32
-static_assert(sizeof(InputSection) <= 184, "InputSection is too big");
-#else
-static_assert(sizeof(InputSection) <= 176, "InputSection is too big");
-#endif
+static_assert(sizeof(InputSection) <= 160, "InputSection is too big");
 
 inline bool isDebugSection(const InputSectionBase &sec) {
   return (sec.flags & llvm::ELF::SHF_ALLOC) == 0 &&
@@ -394,7 +385,7 @@ inline bool isDebugSection(const InputSectionBase &sec) {
 }
 
 // The list of all input sections.
-extern std::vector<InputSectionBase *> inputSections;
+extern SmallVector<InputSectionBase *, 0> inputSections;
 
 // The set of TOC entries (.toc + addend) for which we should not apply
 // toc-indirect to toc-relative relaxation. const Symbol * refers to the

@@ -328,10 +328,6 @@ static bool isMMAType(Type *Ty) {
 InstructionCost PPCTTIImpl::getUserCost(const User *U,
                                         ArrayRef<const Value *> Operands,
                                         TTI::TargetCostKind CostKind) {
-  // Set the max cost if an MMA type is present (v256i1, v512i1).
-  if (isMMAType(U->getType()))
-    return InstructionCost::getMax();
-
   // We already implement getCastInstrCost and getMemoryOpCost where we perform
   // the vector adjustment there.
   if (isa<CastInst>(U) || isa<LoadInst>(U) || isa<StoreInst>(U))
@@ -378,11 +374,10 @@ bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
   // clobbers ctr.
   auto asmClobbersCTR = [](InlineAsm *IA) {
     InlineAsm::ConstraintInfoVector CIV = IA->ParseConstraints();
-    for (unsigned i = 0, ie = CIV.size(); i < ie; ++i) {
-      InlineAsm::ConstraintInfo &C = CIV[i];
+    for (const InlineAsm::ConstraintInfo &C : CIV) {
       if (C.Type != InlineAsm::isInput)
-        for (unsigned j = 0, je = C.Codes.size(); j < je; ++j)
-          if (StringRef(C.Codes[j]).equals_insensitive("{ctr}"))
+        for (const auto &Code : C.Codes)
+          if (StringRef(Code).equals_insensitive("{ctr}"))
             return true;
     }
     return false;
@@ -657,10 +652,16 @@ bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
       }
 
       return true;
-    } else if (isa<BinaryOperator>(J) &&
-               (J->getType()->getScalarType()->isFP128Ty() ||
+    } else if ((J->getType()->getScalarType()->isFP128Ty() ||
                 J->getType()->getScalarType()->isPPC_FP128Ty())) {
       // Most operations on f128 or ppc_f128 values become calls.
+      return true;
+    } else if (isa<FCmpInst>(J) &&
+               J->getOperand(0)->getType()->getScalarType()->isFP128Ty()) {
+      return true;
+    } else if ((isa<FPTruncInst>(J) || isa<FPExtInst>(J)) &&
+               (cast<CastInst>(J)->getSrcTy()->getScalarType()->isFP128Ty() ||
+                cast<CastInst>(J)->getDestTy()->getScalarType()->isFP128Ty())) {
       return true;
     } else if (isa<UIToFPInst>(J) || isa<SIToFPInst>(J) ||
                isa<FPToUIInst>(J) || isa<FPToSIInst>(J)) {
@@ -1276,23 +1277,21 @@ PPCTTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
   return BaseT::getIntrinsicInstrCost(ICA, CostKind);
 }
 
-bool PPCTTIImpl::areFunctionArgsABICompatible(
-    const Function *Caller, const Function *Callee,
-    SmallPtrSetImpl<Argument *> &Args) const {
+bool PPCTTIImpl::areTypesABICompatible(const Function *Caller,
+                                       const Function *Callee,
+                                       const ArrayRef<Type *> &Types) const {
 
   // We need to ensure that argument promotion does not
   // attempt to promote pointers to MMA types (__vector_pair
   // and __vector_quad) since these types explicitly cannot be
   // passed as arguments. Both of these types are larger than
   // the 128-bit Altivec vectors and have a scalar size of 1 bit.
-  if (!BaseT::areFunctionArgsABICompatible(Caller, Callee, Args))
+  if (!BaseT::areTypesABICompatible(Caller, Callee, Types))
     return false;
 
-  return llvm::none_of(Args, [](Argument *A) {
-    auto *EltTy = cast<PointerType>(A->getType())->getElementType();
-    if (EltTy->isSized())
-      return (EltTy->isIntOrIntVectorTy(1) &&
-              EltTy->getPrimitiveSizeInBits() > 128);
+  return llvm::none_of(Types, [](Type *Ty) {
+    if (Ty->isSized())
+      return Ty->isIntOrIntVectorTy(1) && Ty->getPrimitiveSizeInBits() > 128;
     return false;
   });
 }
@@ -1301,8 +1300,8 @@ bool PPCTTIImpl::canSaveCmp(Loop *L, BranchInst **BI, ScalarEvolution *SE,
                             LoopInfo *LI, DominatorTree *DT,
                             AssumptionCache *AC, TargetLibraryInfo *LibInfo) {
   // Process nested loops first.
-  for (Loop::iterator I = L->begin(), E = L->end(); I != E; ++I)
-    if (canSaveCmp(*I, BI, SE, LI, DT, AC, LibInfo))
+  for (Loop *I : *L)
+    if (canSaveCmp(I, BI, SE, LI, DT, AC, LibInfo))
       return false; // Stop search.
 
   HardwareLoopInfo HWLoopInfo(L);

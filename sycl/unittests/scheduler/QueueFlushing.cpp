@@ -98,8 +98,9 @@ static void addDepAndEnqueue(detail::Command *Cmd,
                              detail::QueueImplPtr &DepQueue,
                              detail::Requirement &MockReq) {
   MockCommand DepCmd(DepQueue);
+  std::vector<detail::Command *> ToCleanUp;
   DepCmd.getEvent()->getHandleRef() = reinterpret_cast<pi_event>(new int{});
-  (void)Cmd->addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr});
+  (void)Cmd->addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
 
   detail::EnqueueResultT Res;
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
@@ -159,6 +160,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
   detail::AllocaCommand AllocaCmd = detail::AllocaCommand(QueueImplA, MockReq);
   void *MockHostPtr;
   detail::EnqueueResultT Res;
+  std::vector<detail::Command *> ToCleanUp;
 
   // Check that each of the non-blocking commands flush the dependency queue
   {
@@ -194,7 +196,8 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                                       /*Events*/ {})};
     detail::ExecCGCommand ExecCGCmd{std::move(CG), QueueImplA};
     MockReq.MDims = 1;
-    (void)ExecCGCmd.addDep(detail::DepDesc(&AllocaCmd, &MockReq, &AllocaCmd));
+    (void)ExecCGCmd.addDep(detail::DepDesc(&AllocaCmd, &MockReq, &AllocaCmd),
+                           ToCleanUp);
     testCommandEnqueue(&ExecCGCmd, QueueImplB, MockReq);
   }
 
@@ -206,7 +209,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
     detail::EventImplPtr DepEvent{new detail::event_impl(QueueImplB)};
     DepEvent->setContextImpl(QueueImplB->getContextImplPtr());
     DepEvent->getHandleRef() = reinterpret_cast<pi_event>(new int{});
-    (void)Cmd.addDep(DepEvent);
+    (void)Cmd.addDep(DepEvent, ToCleanUp);
     MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
     EXPECT_TRUE(QueueFlushed);
   }
@@ -224,7 +227,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
       DepEvent->setContextImpl(TempQueueImpl->getContextImplPtr());
       DepEvent->getHandleRef() = reinterpret_cast<pi_event>(new int{});
     }
-    (void)Cmd.addDep(DepEvent);
+    (void)Cmd.addDep(DepEvent, ToCleanUp);
     MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
     EXPECT_FALSE(EventStatusQueried);
     EXPECT_FALSE(QueueFlushed);
@@ -244,10 +247,10 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                 access::mode::read_write};
     MockCommand DepCmdA(QueueImplB);
     DepCmdA.getEvent()->getHandleRef() = reinterpret_cast<pi_event>(new int{});
-    (void)Cmd.addDep(detail::DepDesc{&DepCmdA, &MockReq, nullptr});
+    (void)Cmd.addDep(detail::DepDesc{&DepCmdA, &MockReq, nullptr}, ToCleanUp);
     MockCommand DepCmdB(QueueImplB);
     DepCmdB.getEvent()->getHandleRef() = reinterpret_cast<pi_event>(new int{});
-    (void)Cmd.addDep(detail::DepDesc{&DepCmdB, &MockReq, nullptr});
+    (void)Cmd.addDep(detail::DepDesc{&DepCmdB, &MockReq, nullptr}, ToCleanUp);
     // The check is performed in redefinedQueueFlush
     MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
   }
@@ -259,13 +262,13 @@ TEST_F(SchedulerTest, QueueFlushing) {
                               access::mode::read_write};
     MockCommand DepCmd(QueueImplB);
     DepCmd.getEvent()->getHandleRef() = reinterpret_cast<pi_event>(new int{});
-    (void)CmdA.addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr});
+    (void)CmdA.addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
     MockScheduler::enqueueCommand(&CmdA, Res, detail::NON_BLOCKING);
 
     EventStatusQueried = false;
     detail::MapMemObject CmdB{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                               access::mode::read_write};
-    (void)CmdB.addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr});
+    (void)CmdB.addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
     MockScheduler::enqueueCommand(&CmdB, Res, detail::NON_BLOCKING);
     EXPECT_FALSE(EventStatusQueried);
   }

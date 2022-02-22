@@ -715,6 +715,7 @@ TargetLoweringBase::TargetLoweringBase(const TargetMachine &tm) : TM(tm) {
   SchedPreferenceInfo = Sched::ILP;
   GatherAllAliasesMaxDepth = 18;
   IsStrictFPEnabled = DisableStrictNodeMutation;
+  MaxBytesForAlignment = 0;
   // TODO: the default will be switched to 0 in the next commit, along
   // with the Target-specific changes necessary.
   MaxAtomicSizeInBitsSupported = 1024;
@@ -815,6 +816,12 @@ void TargetLoweringBase::initActions() {
     setOperationAction(ISD::ADDE, VT, Expand);
     setOperationAction(ISD::SUBC, VT, Expand);
     setOperationAction(ISD::SUBE, VT, Expand);
+
+    // Halving adds
+    setOperationAction(ISD::AVGFLOORS, VT, Expand);
+    setOperationAction(ISD::AVGFLOORU, VT, Expand);
+    setOperationAction(ISD::AVGCEILS, VT, Expand);
+    setOperationAction(ISD::AVGCEILU, VT, Expand);
 
     // Absolute difference
     setOperationAction(ISD::ABDS, VT, Expand);
@@ -2038,6 +2045,11 @@ Align TargetLoweringBase::getPrefLoopAlignment(MachineLoop *ML) const {
   if (TM.Options.LoopAlignment)
     return Align(TM.Options.LoopAlignment);
   return PrefLoopAlignment;
+}
+
+unsigned TargetLoweringBase::getMaxPermittedBytesForAlignment(
+    MachineBasicBlock *MBB) const {
+  return MaxBytesForAlignment;
 }
 
 //===----------------------------------------------------------------------===//

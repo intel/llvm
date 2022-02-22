@@ -14,10 +14,6 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
-// Forward declaration from Dialect.h
-template <typename ConcreteDialect>
-void registerDialect(DialectRegistry &registry);
-
 namespace arith {
 class ArithmeticDialect;
 } // namespace arith
@@ -37,6 +33,10 @@ class SCFDialect;
 namespace memref {
 class MemRefDialect;
 } // namespace memref
+
+namespace tensor {
+class TensorDialect;
+} // namespace tensor
 
 namespace vector {
 class VectorDialect;

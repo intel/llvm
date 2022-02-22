@@ -334,59 +334,6 @@ public:
       ArrayRef<llvm::Function *> CXXThreadLocalInits,
       ArrayRef<const VarDecl *> CXXThreadLocalInitVars) override;
 
-  bool mayNeedDestruction(const VarDecl *VD) const {
-    if (VD->needsDestruction(getContext()))
-      return true;
-
-    // If the variable has an incomplete class type (or array thereof), it
-    // might need destruction.
-    const Type *T = VD->getType()->getBaseElementTypeUnsafe();
-    if (T->getAs<RecordType>() && T->isIncompleteType())
-      return true;
-
-    return false;
-  }
-
-  /// Determine whether we will definitely emit this variable with a constant
-  /// initializer, either because the language semantics demand it or because
-  /// we know that the initializer is a constant.
-  // For weak definitions, any initializer available in the current translation
-  // is not necessarily reflective of the initializer used; such initializers
-  // are ignored unless if InspectInitForWeakDef is true.
-  bool
-  isEmittedWithConstantInitializer(const VarDecl *VD,
-                                   bool InspectInitForWeakDef = false) const {
-    VD = VD->getMostRecentDecl();
-    if (VD->hasAttr<ConstInitAttr>())
-      return true;
-
-    // All later checks examine the initializer specified on the variable. If
-    // the variable is weak, such examination would not be correct.
-    if (!InspectInitForWeakDef &&
-        (VD->isWeak() || VD->hasAttr<SelectAnyAttr>()))
-      return false;
-
-    const VarDecl *InitDecl = VD->getInitializingDeclaration();
-    if (!InitDecl)
-      return false;
-
-    // If there's no initializer to run, this is constant initialization.
-    if (!InitDecl->hasInit())
-      return true;
-
-    // If we have the only definition, we don't need a thread wrapper if we
-    // will emit the value as a constant.
-    if (isUniqueGVALinkage(getContext().GetGVALinkageForVariable(VD)))
-      return !mayNeedDestruction(VD) && InitDecl->evaluateValue();
-
-    // Otherwise, we need a thread wrapper unless we know that every
-    // translation unit will emit the value as a constant. We rely on the
-    // variable being constant-initialized in every translation unit if it's
-    // constant-initialized in any translation unit, which isn't actually
-    // guaranteed by the standard but is necessary for sanity.
-    return InitDecl->hasConstantInitialization();
-  }
-
   bool usesThreadWrapperFunction(const VarDecl *VD) const override {
     return !isEmittedWithConstantInitializer(VD) ||
            mayNeedDestruction(VD);
@@ -697,8 +644,8 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
   CharUnits VTablePtrAlign =
     CGF.CGM.getDynamicOffsetAlignment(ThisAddr.getAlignment(), RD,
                                       CGF.getPointerAlign());
-  llvm::Value *VTable =
-    CGF.GetVTablePtr(Address(This, VTablePtrAlign), VTableTy, RD);
+  llvm::Value *VTable = CGF.GetVTablePtr(
+      Address(This, ThisAddr.getElementType(), VTablePtrAlign), VTableTy, RD);
 
   // Apply the offset.
   // On ARM64, to reserve extra space in virtual member function pointers,
@@ -1345,7 +1292,8 @@ void ItaniumCXXABI::emitThrow(CodeGenFunction &CGF, const CXXThrowExpr *E) {
       AllocExceptionFn, llvm::ConstantInt::get(SizeTy, TypeSize), "exception");
 
   CharUnits ExnAlign = CGF.getContext().getExnObjectAlignment();
-  CGF.EmitAnyExprToExn(E->getSubExpr(), Address(ExceptionPtr, ExnAlign));
+  CGF.EmitAnyExprToExn(
+      E->getSubExpr(), Address(ExceptionPtr, CGM.Int8Ty, ExnAlign));
 
   // Now throw the exception.
   llvm::Constant *TypeInfo = CGM.GetAddrOfRTTIDescriptor(ThrowType,
@@ -2465,7 +2413,7 @@ void ItaniumCXXABI::EmitGuardedInit(CodeGenFunction &CGF,
     CGM.setStaticLocalDeclGuardAddress(&D, guard);
   }
 
-  Address guardAddr = Address(guard, guardAlignment);
+  Address guardAddr = Address(guard, guard->getValueType(), guardAlignment);
 
   // Test whether the variable has completed initialization.
   //
@@ -4529,8 +4477,7 @@ static void InitCatchParam(CodeGenFunction &CGF,
       // pad.  The best solution is to fix the personality function.
       } else {
         // Pull the pointer for the reference type off.
-        llvm::Type *PtrTy =
-          cast<llvm::PointerType>(LLVMCatchTy)->getElementType();
+        llvm::Type *PtrTy = CGF.ConvertTypeForMem(CaughtType);
 
         // Create the temporary and write the adjusted pointer into it.
         Address ExnPtrTmp =
@@ -4613,7 +4560,7 @@ static void InitCatchParam(CodeGenFunction &CGF,
   if (!copyExpr) {
     llvm::Value *rawAdjustedExn = CallBeginCatch(CGF, Exn, true);
     Address adjustedExn(CGF.Builder.CreateBitCast(rawAdjustedExn, PtrTy),
-                        caughtExnAlignment);
+                        LLVMCatchTy, caughtExnAlignment);
     LValue Dest = CGF.MakeAddrLValue(ParamAddr, CatchType);
     LValue Src = CGF.MakeAddrLValue(adjustedExn, CatchType);
     CGF.EmitAggregateCopy(Dest, Src, CatchType, AggValueSlot::DoesNotOverlap);
@@ -4627,7 +4574,7 @@ static void InitCatchParam(CodeGenFunction &CGF,
 
   // Cast that to the appropriate type.
   Address adjustedExn(CGF.Builder.CreateBitCast(rawAdjustedExn, PtrTy),
-                      caughtExnAlignment);
+                      LLVMCatchTy, caughtExnAlignment);
 
   // The copy expression is defined in terms of an OpaqueValueExpr.
   // Find it and map it to the adjusted expression.

@@ -983,6 +983,8 @@ namespace {
       discardCleanups();
     }
 
+    ASTContext &getCtx() const override { return Ctx; }
+
     void setEvaluatingDecl(APValue::LValueBase Base, APValue &Value,
                            EvaluatingDeclKind EDK = EvaluatingDeclKind::Ctor) {
       EvaluatingDecl = Base;
@@ -1115,8 +1117,6 @@ namespace {
     }
 
     Expr::EvalStatus &getEvalStatus() const override { return EvalStatus; }
-
-    ASTContext &getCtx() const override { return Ctx; }
 
     // If we have a prior diagnostic, it will be noting that the expression
     // isn't a constant expression. This diagnostic is more important,
@@ -1706,8 +1706,8 @@ namespace {
 
   struct MemberPtr {
     MemberPtr() {}
-    explicit MemberPtr(const ValueDecl *Decl) :
-      DeclAndIsDerivedMember(Decl, false), Path() {}
+    explicit MemberPtr(const ValueDecl *Decl)
+        : DeclAndIsDerivedMember(Decl, false) {}
 
     /// The member or (direct or indirect) field referred to by this member
     /// pointer, or 0 if this is a null member pointer.
@@ -1954,11 +1954,12 @@ static bool EvaluateIgnoredValue(EvalInfo &Info, const Expr *E) {
   return true;
 }
 
-/// Should this call expression be treated as a string literal?
-static bool IsStringLiteralCall(const CallExpr *E) {
+/// Should this call expression be treated as a constant?
+static bool IsConstantCall(const CallExpr *E) {
   unsigned Builtin = E->getBuiltinCallee();
   return (Builtin == Builtin::BI__builtin___CFStringMakeConstantString ||
-          Builtin == Builtin::BI__builtin___NSStringMakeConstantString);
+          Builtin == Builtin::BI__builtin___NSStringMakeConstantString ||
+          Builtin == Builtin::BI__builtin_function_start);
 }
 
 static bool IsGlobalLValue(APValue::LValueBase B) {
@@ -2004,7 +2005,7 @@ static bool IsGlobalLValue(APValue::LValueBase B) {
   case Expr::ObjCBoxedExprClass:
     return cast<ObjCBoxedExpr>(E)->isExpressibleAsConstantInitializer();
   case Expr::CallExprClass:
-    return IsStringLiteralCall(cast<CallExpr>(E));
+    return IsConstantCall(cast<CallExpr>(E));
   // For GCC compatibility, &&label has static storage duration.
   case Expr::AddrLabelExprClass:
     return true;
@@ -2215,6 +2216,19 @@ static bool CheckLValueConstantExpression(EvalInfo &Info, SourceLocation Loc,
       if (!isForManglingOnly(Kind) && Var->hasAttr<DLLImportAttr>())
         // FIXME: Diagnostic!
         return false;
+
+      // In CUDA/HIP device compilation, only device side variables have
+      // constant addresses.
+      if (Info.getCtx().getLangOpts().CUDA &&
+          Info.getCtx().getLangOpts().CUDAIsDevice &&
+          Info.getCtx().CUDAConstantEvalCtx.NoWrongSidedVars) {
+        if ((!Var->hasAttr<CUDADeviceAttr>() &&
+             !Var->hasAttr<CUDAConstantAttr>() &&
+             !Var->getType()->isCUDADeviceBuiltinSurfaceType() &&
+             !Var->getType()->isCUDADeviceBuiltinTextureType()) ||
+            Var->hasAttr<HIPManagedAttr>())
+          return false;
+      }
     }
     if (const auto *FD = dyn_cast<const FunctionDecl>(BaseVD)) {
       // __declspec(dllimport) must be handled very carefully:
@@ -4932,8 +4946,13 @@ static EvalStmtResult EvaluateSwitch(StmtResult &Result, EvalInfo &Info,
     if (SS->getConditionVariable() &&
         !EvaluateDecl(Info, SS->getConditionVariable()))
       return ESR_Failed;
-    if (!EvaluateInteger(SS->getCond(), Value, Info))
-      return ESR_Failed;
+    if (SS->getCond()->isValueDependent()) {
+      if (!EvaluateDependentExpr(SS->getCond(), Info))
+        return ESR_Failed;
+    } else {
+      if (!EvaluateInteger(SS->getCond(), Value, Info))
+        return ESR_Failed;
+    }
     if (!CondScope.destroy())
       return ESR_Failed;
   }
@@ -6036,7 +6055,7 @@ static bool EvaluateArgs(ArrayRef<const Expr *> Args, CallRef Call,
           unsigned ASTIdx = Idx.getASTIndex();
           if (ASTIdx >= Args.size())
             continue;
-          ForbiddenNullArgs[ASTIdx] = 1;
+          ForbiddenNullArgs[ASTIdx] = true;
         }
     }
   }
@@ -6104,9 +6123,6 @@ static bool HandleFunctionCall(SourceLocation CallLoc,
     APValue RHSValue;
     if (!handleTrivialCopy(Info, MD->getParamDecl(0), Args[0], RHSValue,
                            MD->getParent()->isUnion()))
-      return false;
-    if (Info.getLangOpts().CPlusPlus20 && MD->isTrivial() &&
-        !HandleUnionActiveMemberChange(Info, Args[0], *This))
       return false;
     if (!handleAssignment(Info, Args[0], *This, MD->getThisType(),
                           RHSValue))
@@ -7619,6 +7635,15 @@ public:
         if (!EvaluateObjectArgument(Info, Args[0], ThisVal))
           return false;
         This = &ThisVal;
+
+        // If this is syntactically a simple assignment using a trivial
+        // assignment operator, start the lifetimes of union members as needed,
+        // per C++20 [class.union]5.
+        if (Info.getLangOpts().CPlusPlus20 && OCE &&
+            OCE->getOperator() == OO_Equal && MD->isTrivial() &&
+            !HandleUnionActiveMemberChange(Info, Args[0], ThisVal))
+          return false;
+
         Args = Args.slice(1);
       } else if (MD && MD->isLambdaStaticInvoker()) {
         // Map the static invoker for the lambda back to the call operator.
@@ -8985,7 +9010,7 @@ bool PointerExprEvaluator::visitNonBuiltinCallExpr(const CallExpr *E) {
 }
 
 bool PointerExprEvaluator::VisitCallExpr(const CallExpr *E) {
-  if (IsStringLiteralCall(E))
+  if (IsConstantCall(E))
     return Success(E);
 
   if (unsigned BuiltinOp = E->getBuiltinCallee())
@@ -10451,6 +10476,15 @@ bool VectorExprEvaluator::VisitUnaryOperator(const UnaryOperator *E) {
   if (!Evaluate(SubExprValue, Info, SubExpr))
     return false;
 
+  // FIXME: This vector evaluator someday needs to be changed to be LValue
+  // aware/keep LValue information around, rather than dealing with just vector
+  // types directly. Until then, we cannot handle cases where the operand to
+  // these unary operators is an LValue. The only case I've been able to see
+  // cause this is operator++ assigning to a member expression (only valid in
+  // altivec compilations) in C mode, so this shouldn't limit us too much.
+  if (SubExprValue.isLValue())
+    return false;
+
   assert(SubExprValue.getVectorLength() == VD->getNumElements() &&
          "Vector length doesn't match type?");
 
@@ -10697,28 +10731,55 @@ bool ArrayExprEvaluator::VisitCXXConstructExpr(const CXXConstructExpr *E,
   bool HadZeroInit = Value->hasValue();
 
   if (const ConstantArrayType *CAT = Info.Ctx.getAsConstantArrayType(Type)) {
-    unsigned N = CAT->getSize().getZExtValue();
+    unsigned FinalSize = CAT->getSize().getZExtValue();
 
     // Preserve the array filler if we had prior zero-initialization.
     APValue Filler =
       HadZeroInit && Value->hasArrayFiller() ? Value->getArrayFiller()
                                              : APValue();
 
-    *Value = APValue(APValue::UninitArray(), N, N);
+    *Value = APValue(APValue::UninitArray(), 0, FinalSize);
+    if (FinalSize == 0)
+      return true;
 
-    if (HadZeroInit)
-      for (unsigned I = 0; I != N; ++I)
-        Value->getArrayInitializedElt(I) = Filler;
-
-    // Initialize the elements.
     LValue ArrayElt = Subobject;
     ArrayElt.addArray(Info, E, CAT);
-    for (unsigned I = 0; I != N; ++I)
-      if (!VisitCXXConstructExpr(E, ArrayElt, &Value->getArrayInitializedElt(I),
-                                 CAT->getElementType()) ||
-          !HandleLValueArrayAdjustment(Info, E, ArrayElt, CAT->getElementType(),
-                                       1))
-        return false;
+    // We do the whole initialization in two passes, first for just one element,
+    // then for the whole array. It's possible we may find out we can't do const
+    // init in the first pass, in which case we avoid allocating a potentially
+    // large array. We don't do more passes because expanding array requires
+    // copying the data, which is wasteful.
+    for (const unsigned N : {1u, FinalSize}) {
+      unsigned OldElts = Value->getArrayInitializedElts();
+      if (OldElts == N)
+        break;
+
+      // Expand the array to appropriate size.
+      APValue NewValue(APValue::UninitArray(), N, FinalSize);
+      for (unsigned I = 0; I < OldElts; ++I)
+        NewValue.getArrayInitializedElt(I).swap(
+            Value->getArrayInitializedElt(I));
+      Value->swap(NewValue);
+
+      if (HadZeroInit)
+        for (unsigned I = OldElts; I < N; ++I)
+          Value->getArrayInitializedElt(I) = Filler;
+
+      // Initialize the elements.
+      for (unsigned I = OldElts; I < N; ++I) {
+        if (!VisitCXXConstructExpr(E, ArrayElt,
+                                   &Value->getArrayInitializedElt(I),
+                                   CAT->getElementType()) ||
+            !HandleLValueArrayAdjustment(Info, E, ArrayElt,
+                                         CAT->getElementType(), 1))
+          return false;
+        // When checking for const initilization any diagnostic is considered
+        // an error.
+        if (Info.EvalStatus.Diag && !Info.EvalStatus.Diag->empty() &&
+            !Info.keepEvaluatingAfterFailure())
+          return false;
+      }
+    }
 
     return true;
   }

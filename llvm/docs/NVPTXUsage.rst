@@ -343,19 +343,22 @@ Reflection Parameters
 The libdevice library currently uses the following reflection parameters to
 control code generation:
 
-==================== ======================================================
-Flag                 Description
-==================== ======================================================
-``__CUDA_FTZ=[0,1]`` Use optimized code paths that flush subnormals to zero
-==================== ======================================================
+=========================== ======================================================
+Flag                        Description
+=========================== ======================================================
+``__CUDA_FTZ=[0,1]``        Use optimized code paths that flush subnormals to zero
+``__CUDA_PREC_SQRT=[0,1]``  Use precise square root
+=========================== ======================================================
 
-The value of this flag is determined by the "nvvm-reflect-ftz" module flag.
-The following sets the ftz flag to 1.
+The value of these flags are determined by the "nvvm-reflect-ftz" and
+"nvvm-reflect-prec-sqrt" module flags respectively.
+The following sets the ftz flag to 1, and the precise sqrt flag to 1.
 
 .. code-block:: llvm
 
-    !llvm.module.flag = !{!0}
+    !llvm.module.flag = !{!0, !1}
     !0 = !{i32 4, !"nvvm-reflect-ftz", i32 1}
+    !1 = !{i32 4, !"nvvm-reflect-prec-sqrt", i32 1}
 
 (``i32 4`` indicates that the value set here overrides the value in another
 module we link with.  See the `LangRef <LangRef.html#module-flags-metadata>`

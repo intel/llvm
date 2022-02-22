@@ -12,22 +12,20 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
-#include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
-#include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/SCF/Utils.h"
+#include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/Dialect/Vector/VectorUtils.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "mlir/Transforms/LoopUtils.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
 
@@ -204,7 +202,7 @@ static bool tensorChunkAccessedByUnknownOp(HoistableWrite write,
         continue;
       }
       auto read = dyn_cast<vector::TransferReadOp>(user);
-      if (!read || !isDisjointTransferIndices(
+      if (!read || !vector::isDisjointTransferIndices(
                        cast<VectorTransferOpInterface>(read.getOperation()),
                        cast<VectorTransferOpInterface>(
                            write.transferWriteOp.getOperation()))) {
@@ -286,9 +284,11 @@ static void hoistReadWrite(HoistableRead read, HoistableWrite write,
 
   // Update the source tensor.
   if (read.extractSliceOp)
-    read.extractSliceOp.sourceMutable().assign(forOp.initArgs()[initArgNumber]);
+    read.extractSliceOp.sourceMutable().assign(
+        forOp.getInitArgs()[initArgNumber]);
   else
-    read.transferReadOp.sourceMutable().assign(forOp.initArgs()[initArgNumber]);
+    read.transferReadOp.sourceMutable().assign(
+        forOp.getInitArgs()[initArgNumber]);
 
   // Hoist write after.
   if (write.insertSliceOp)
@@ -296,7 +296,7 @@ static void hoistReadWrite(HoistableRead read, HoistableWrite write,
   write.transferWriteOp->moveAfter(forOp);
 
   // Update the yield.
-  auto yieldOp = cast<scf::YieldOp>(forOp.region().front().getTerminator());
+  auto yieldOp = cast<scf::YieldOp>(forOp.getRegion().front().getTerminator());
   if (write.insertSliceOp)
     yieldOp->setOperand(initArgNumber, write.insertSliceOp.dest());
   else
@@ -318,7 +318,7 @@ static void hoistReadWrite(HoistableRead read, HoistableWrite write,
     write.insertSliceOp.destMutable().assign(read.extractSliceOp.source());
   } else {
     newForOp.getResult(initArgNumber)
-        .replaceAllUsesWith(write.transferWriteOp.getResult(0));
+        .replaceAllUsesWith(write.transferWriteOp.getResult());
     write.transferWriteOp.sourceMutable().assign(
         newForOp.getResult(initArgNumber));
   }
@@ -344,7 +344,7 @@ void mlir::linalg::hoistRedundantVectorTransfersOnTensor(FuncOp func) {
     changed = false;
     func.walk([&](scf::ForOp forOp) {
       Operation *yield = forOp.getBody()->getTerminator();
-      for (auto it : llvm::enumerate(forOp.getRegionIterArgs())) {
+      for (const auto &it : llvm::enumerate(forOp.getRegionIterArgs())) {
         OpOperand &ret = yield->getOpOperand(it.index());
         HoistableWrite write =
             getLoopInvariantTransferWriteOpDefining(forOp, ret);
@@ -464,14 +464,14 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
           continue;
         if (auto transferWriteUse =
                 dyn_cast<vector::TransferWriteOp>(use.getOwner())) {
-          if (!isDisjointTransferSet(
+          if (!vector::isDisjointTransferSet(
                   cast<VectorTransferOpInterface>(transferWrite.getOperation()),
                   cast<VectorTransferOpInterface>(
                       transferWriteUse.getOperation())))
             return WalkResult::advance();
         } else if (auto transferReadUse =
                        dyn_cast<vector::TransferReadOp>(use.getOwner())) {
-          if (!isDisjointTransferSet(
+          if (!vector::isDisjointTransferSet(
                   cast<VectorTransferOpInterface>(transferWrite.getOperation()),
                   cast<VectorTransferOpInterface>(
                       transferReadUse.getOperation())))

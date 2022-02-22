@@ -402,7 +402,7 @@ class BinaryFileHandler final : public FileHandler {
   std::string CurWriteBundleTarget;
 
 public:
-  BinaryFileHandler() : FileHandler() {}
+  BinaryFileHandler() {}
 
   ~BinaryFileHandler() final {}
 
@@ -749,8 +749,7 @@ class ObjectFileHandler final : public FileHandler {
 
 public:
   ObjectFileHandler(std::unique_ptr<ObjectFile> ObjIn)
-      : FileHandler(), Obj(std::move(ObjIn)),
-        CurrentSection(Obj->section_begin()),
+      : Obj(std::move(ObjIn)), CurrentSection(Obj->section_begin()),
         NextSection(Obj->section_begin()) {}
 
   ~ObjectFileHandler() final {}
@@ -1005,8 +1004,7 @@ protected:
   }
 
 public:
-  TextFileHandler(StringRef Comment)
-      : FileHandler(), Comment(Comment), ReadChars(0) {
+  TextFileHandler(StringRef Comment) : Comment(Comment), ReadChars(0) {
     BundleStartString =
         "\n" + Comment.str() + " " OFFLOAD_BUNDLER_MAGIC_STR "__START__ ";
     BundleEndString =
@@ -1808,7 +1806,7 @@ static Error UnbundleArchive() {
     } // End of processing of all bundle entries of this child of input archive.
   }   // End of while over children of input archive.
 
-  assert(!ArchiveErr && "Error occured while reading archive!");
+  assert(!ArchiveErr && "Error occurred while reading archive!");
 
   /// Write out an archive for each target
   for (auto &Target : TargetNames) {

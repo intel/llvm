@@ -46,8 +46,6 @@ target(tsan_target_type, "rtl") {
   cflags = [ "-fPIE" ]
 
   sources = [
-    "tsan_clock.cpp",
-    "tsan_clock.h",
     "tsan_debugging.cpp",
     "tsan_defs.h",
     "tsan_dense_alloc.h",
@@ -130,13 +128,6 @@ target(tsan_target_type, "rtl") {
     sources += [ "tsan_rtl_s390x.S" ]
   }
 
-  # To be able to include sanitizer_common.
-  include_dirs = [ ".." ]
-
-  # FIXME: have SANITIZER_COMMON_CFLAGS thingy? should fno-builtin be in
-  # crt_code?
-  cflags += [ "-fno-builtin" ]
-
   # FIXME: link rt dl m pthread log
   # FIXME: dep on libcxx-headers?
   # FIXME: add_sanitizer_rt_version_list (cf hwasan)
@@ -159,6 +150,8 @@ target(tsan_target_type, "rtl") {
       "-Wl,-U,___sanitizer_symbolize_data",
       "-Wl,-U,___sanitizer_symbolize_demangle",
       "-Wl,-U,___sanitizer_symbolize_flush",
+      "-Wl,-U,___sanitizer_symbolize_set_demangle",
+      "-Wl,-U,___sanitizer_symbolize_set_inline_frames",
 
       # FIXME: better
       "-Wl,-install_name,@rpath/libclang_rt.tsan_osx_dynamic.dylib",

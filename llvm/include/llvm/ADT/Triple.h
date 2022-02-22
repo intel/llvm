@@ -57,6 +57,8 @@ public:
     bpfeb,          // eBPF or extended BPF or 64-bit BPF (big endian)
     csky,           // CSKY: csky
     hexagon,        // Hexagon: hexagon
+    loongarch32,    // LoongArch (32-bit): loongarch32
+    loongarch64,    // LoongArch (64-bit): loongarch64
     m68k,           // M68k: Motorola 680x0 family
     mips,           // MIPS: mips, mipsallegrex, mipsr6
     mipsel,         // MIPSEL: mipsel, mipsallegrexe, mipsr6el
@@ -108,9 +110,11 @@ public:
   enum SubArchType {
     NoSubArch,
 
+    ARMSubArch_v9_3a,
     ARMSubArch_v9_2a,
     ARMSubArch_v9_1a,
     ARMSubArch_v9,
+    ARMSubArch_v8_8a,
     ARMSubArch_v8_7a,
     ARMSubArch_v8_6a,
     ARMSubArch_v8_5a,
@@ -276,9 +280,7 @@ public:
 
   /// Default constructor is the same as an empty string and leaves all
   /// triple fields unknown.
-  Triple()
-      : Data(), Arch(), SubArch(), Vendor(), OS(), Environment(),
-        ObjectFormat() {}
+  Triple() : Arch(), SubArch(), Vendor(), OS(), Environment(), ObjectFormat() {}
 
   explicit Triple(const Twine &Str);
   Triple(const Twine &ArchStr, const Twine &VendorStr, const Twine &OSStr);
@@ -727,6 +729,41 @@ public:
            isOSBinFormatELF();
   }
 
+  /// Tests whether the target is T32.
+  bool isArmT32() const {
+    switch (getSubArch()) {
+    case Triple::ARMSubArch_v8m_baseline:
+    case Triple::ARMSubArch_v7s:
+    case Triple::ARMSubArch_v7k:
+    case Triple::ARMSubArch_v7ve:
+    case Triple::ARMSubArch_v6:
+    case Triple::ARMSubArch_v6m:
+    case Triple::ARMSubArch_v6k:
+    case Triple::ARMSubArch_v6t2:
+    case Triple::ARMSubArch_v5:
+    case Triple::ARMSubArch_v5te:
+    case Triple::ARMSubArch_v4t:
+      return false;
+    default:
+      return true;
+    }
+  }
+
+  /// Tests whether the target is an M-class.
+  bool isArmMClass() const {
+    switch (getSubArch()) {
+    case Triple::ARMSubArch_v6m:
+    case Triple::ARMSubArch_v7m:
+    case Triple::ARMSubArch_v7em:
+    case Triple::ARMSubArch_v8m_mainline:
+    case Triple::ARMSubArch_v8m_baseline:
+    case Triple::ARMSubArch_v8_1m_mainline:
+      return true;
+    default:
+      return false;
+    }
+  }
+
   /// Tests whether the target is AArch64 (little and big endian).
   bool isAArch64() const {
     return getArch() == Triple::aarch64 || getArch() == Triple::aarch64_be ||
@@ -743,6 +780,11 @@ public:
                    getEnvironment() == Triple::GNUILP32
                ? PointerWidth == 32
                : PointerWidth == 64;
+  }
+
+  /// Tests whether the target is LoongArch (32- and 64-bit).
+  bool isLoongArch() const {
+    return getArch() == Triple::loongarch32 || getArch() == Triple::loongarch64;
   }
 
   /// Tests whether the target is MIPS 32-bit (little and big endian).

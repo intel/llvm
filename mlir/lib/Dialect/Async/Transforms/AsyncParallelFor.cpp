@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Async/IR/Async.h"
@@ -21,6 +23,7 @@
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/RegionUtils.h"
 
@@ -111,7 +114,7 @@ public:
       AsyncMinTaskSizeComputationFunction computeMinTaskSize)
       : OpRewritePattern(ctx), asyncDispatch(asyncDispatch),
         numWorkerThreads(numWorkerThreads),
-        computeMinTaskSize(computeMinTaskSize) {}
+        computeMinTaskSize(std::move(computeMinTaskSize)) {}
 
   LogicalResult matchAndRewrite(scf::ParallelOp op,
                                 PatternRewriter &rewriter) const override;
@@ -209,7 +212,7 @@ static ParallelComputeFunctionType
 getParallelComputeFunctionType(scf::ParallelOp op, PatternRewriter &rewriter) {
   // Values implicitly captured by the parallel operation.
   llvm::SetVector<Value> captures;
-  getUsedValuesDefinedAbove(op.region(), op.region(), captures);
+  getUsedValuesDefinedAbove(op.getRegion(), op.getRegion(), captures);
 
   SmallVector<Type> inputs;
   inputs.reserve(2 + 4 * op.getNumLoops() + captures.size());
@@ -244,7 +247,7 @@ getParallelComputeFunctionType(scf::ParallelOp op, PatternRewriter &rewriter) {
 
 // Create a parallel compute fuction from the parallel operation.
 static ParallelComputeFunction createParallelComputeFunction(
-    scf::ParallelOp op, ParallelComputeFunctionBounds bounds,
+    scf::ParallelOp op, const ParallelComputeFunctionBounds &bounds,
     unsigned numBlockAlignedInnerLoops, PatternRewriter &rewriter) {
   OpBuilder::InsertionGuard guard(rewriter);
   ImplicitLocOpBuilder b(op.getLoc(), rewriter);
@@ -268,7 +271,9 @@ static ParallelComputeFunction createParallelComputeFunction(
   rewriter.getListener()->notifyOperationInserted(func);
 
   // Create function entry block.
-  Block *block = b.createBlock(&func.getBody(), func.begin(), type.getInputs());
+  Block *block =
+      b.createBlock(&func.getBody(), func.begin(), type.getInputs(),
+                    SmallVector<Location>(type.getNumInputs(), op.getLoc()));
   b.setInsertionPointToEnd(block);
 
   ParallelComputeFunctionArgs args = {op.getNumLoops(), func.getArguments()};
@@ -286,7 +291,7 @@ static ParallelComputeFunction createParallelComputeFunction(
     return llvm::to_vector(
         llvm::map_range(llvm::zip(args, attrs), [&](auto tuple) -> Value {
           if (IntegerAttr attr = std::get<1>(tuple))
-            return b.create<ConstantOp>(attr);
+            return b.create<arith::ConstantOp>(attr);
           return std::get<0>(tuple);
         }));
   };
@@ -399,12 +404,12 @@ static ParallelComputeFunction createParallelComputeFunction(
         } else {
           // Select nested loop lower/upper bounds depending on our position in
           // the multi-dimensional iteration space.
-          auto lb = nb.create<SelectOp>(isBlockFirstCoord[loopIdx],
-                                        blockFirstCoord[loopIdx + 1], c0);
+          auto lb = nb.create<arith::SelectOp>(
+              isBlockFirstCoord[loopIdx], blockFirstCoord[loopIdx + 1], c0);
 
-          auto ub = nb.create<SelectOp>(isBlockLastCoord[loopIdx],
-                                        blockEndCoord[loopIdx + 1],
-                                        tripCounts[loopIdx + 1]);
+          auto ub = nb.create<arith::SelectOp>(isBlockLastCoord[loopIdx],
+                                               blockEndCoord[loopIdx + 1],
+                                               tripCounts[loopIdx + 1]);
 
           nb.create<scf::ForOp>(lb, ub, c1, ValueRange(),
                                 workLoopBuilder(loopIdx + 1));
@@ -480,7 +485,8 @@ static FuncOp createAsyncDispatchFunction(ParallelComputeFunction &computeFunc,
   rewriter.getListener()->notifyOperationInserted(func);
 
   // Create function entry block.
-  Block *block = b.createBlock(&func.getBody(), func.begin(), type.getInputs());
+  Block *block = b.createBlock(&func.getBody(), func.begin(), type.getInputs(),
+                               SmallVector<Location>(type.getNumInputs(), loc));
   b.setInsertionPointToEnd(block);
 
   Type indexTy = b.getIndexType();
@@ -497,11 +503,12 @@ static FuncOp createAsyncDispatchFunction(ParallelComputeFunction &computeFunc,
   // Create a work splitting while loop for the [blockStart, blockEnd) range.
   SmallVector<Type> types = {indexTy, indexTy};
   SmallVector<Value> operands = {blockStart, blockEnd};
+  SmallVector<Location> locations = {loc, loc};
 
   // Create a recursive dispatch loop.
   scf::WhileOp whileOp = b.create<scf::WhileOp>(types, operands);
-  Block *before = b.createBlock(&whileOp.before(), {}, types);
-  Block *after = b.createBlock(&whileOp.after(), {}, types);
+  Block *before = b.createBlock(&whileOp.getBefore(), {}, types, locations);
+  Block *after = b.createBlock(&whileOp.getAfter(), {}, types, locations);
 
   // Setup dispatch loop condition block: decide if we need to go into the
   // `after` block and launch one more async dispatch.
@@ -582,9 +589,9 @@ static void doAsyncDispatch(ImplicitLocOpBuilder &b, PatternRewriter &rewriter,
   // the given operands vector.
   auto appendBlockComputeOperands = [&](SmallVector<Value> &operands) {
     operands.append(tripCounts);
-    operands.append(op.lowerBound().begin(), op.lowerBound().end());
-    operands.append(op.upperBound().begin(), op.upperBound().end());
-    operands.append(op.step().begin(), op.step().end());
+    operands.append(op.getLowerBound().begin(), op.getLowerBound().end());
+    operands.append(op.getUpperBound().begin(), op.getUpperBound().end());
+    operands.append(op.getStep().begin(), op.getStep().end());
     operands.append(parallelComputeFunction.captures);
   };
 
@@ -661,9 +668,11 @@ doSequentialDispatch(ImplicitLocOpBuilder &b, PatternRewriter &rewriter,
   auto computeFuncOperands = [&](Value blockIndex) -> SmallVector<Value> {
     SmallVector<Value> computeFuncOperands = {blockIndex, blockSize};
     computeFuncOperands.append(tripCounts);
-    computeFuncOperands.append(op.lowerBound().begin(), op.lowerBound().end());
-    computeFuncOperands.append(op.upperBound().begin(), op.upperBound().end());
-    computeFuncOperands.append(op.step().begin(), op.step().end());
+    computeFuncOperands.append(op.getLowerBound().begin(),
+                               op.getLowerBound().end());
+    computeFuncOperands.append(op.getUpperBound().begin(),
+                               op.getUpperBound().end());
+    computeFuncOperands.append(op.getStep().begin(), op.getStep().end());
     computeFuncOperands.append(parallelComputeFunction.captures);
     return computeFuncOperands;
   };
@@ -722,9 +731,9 @@ AsyncParallelForRewrite::matchAndRewrite(scf::ParallelOp op,
   //   tripCount = ceil_div(upperBound - lowerBound, step);
   SmallVector<Value> tripCounts(op.getNumLoops());
   for (size_t i = 0; i < op.getNumLoops(); ++i) {
-    auto lb = op.lowerBound()[i];
-    auto ub = op.upperBound()[i];
-    auto step = op.step()[i];
+    auto lb = op.getLowerBound()[i];
+    auto ub = op.getUpperBound()[i];
+    auto step = op.getStep()[i];
     auto range = b.createOrFold<arith::SubIOp>(ub, lb);
     tripCounts[i] = b.createOrFold<arith::CeilDivSIOp>(range, step);
   }
@@ -758,9 +767,9 @@ AsyncParallelForRewrite::matchAndRewrite(scf::ParallelOp op,
     // folding, loop unrolling and vectorization.
     ParallelComputeFunctionBounds staticBounds = {
         integerConstants(tripCounts),
-        integerConstants(op.lowerBound()),
-        integerConstants(op.upperBound()),
-        integerConstants(op.step()),
+        integerConstants(op.getLowerBound()),
+        integerConstants(op.getUpperBound()),
+        integerConstants(op.getStep()),
     };
 
     // Find how many inner iteration dimensions are statically known, and their
@@ -791,19 +800,53 @@ AsyncParallelForRewrite::matchAndRewrite(scf::ParallelOp op,
         numUnrollableLoops++;
     }
 
-    // With large number of threads the value of creating many compute blocks
-    // is reduced because the problem typically becomes memory bound. For small
-    // number of threads it helps with stragglers.
-    float overshardingFactor = numWorkerThreads <= 4    ? 8.0
-                               : numWorkerThreads <= 8  ? 4.0
-                               : numWorkerThreads <= 16 ? 2.0
-                               : numWorkerThreads <= 32 ? 1.0
-                               : numWorkerThreads <= 64 ? 0.8
-                                                        : 0.6;
+    Value numWorkerThreadsVal;
+    if (numWorkerThreads >= 0)
+      numWorkerThreadsVal = b.create<arith::ConstantIndexOp>(numWorkerThreads);
+    else
+      numWorkerThreadsVal = b.create<async::RuntimeNumWorkerThreadsOp>();
 
-    // Do not overload worker threads with too many compute blocks.
-    Value maxComputeBlocks = b.create<arith::ConstantIndexOp>(
-        std::max(1, static_cast<int>(numWorkerThreads * overshardingFactor)));
+    // With large number of threads the value of creating many compute blocks
+    // is reduced because the problem typically becomes memory bound. For this
+    // reason we scale the number of workers using an equivalent to the
+    // following logic:
+    //   float overshardingFactor = numWorkerThreads <= 4    ? 8.0
+    //                              : numWorkerThreads <= 8  ? 4.0
+    //                              : numWorkerThreads <= 16 ? 2.0
+    //                              : numWorkerThreads <= 32 ? 1.0
+    //                              : numWorkerThreads <= 64 ? 0.8
+    //                                                       : 0.6;
+
+    // Pairs of non-inclusive lower end of the bracket and factor that the
+    // number of workers needs to be scaled with if it falls in that bucket.
+    const SmallVector<std::pair<int, float>> overshardingBrackets = {
+        {4, 4.0f}, {8, 2.0f}, {16, 1.0f}, {32, 0.8f}, {64, 0.6f}};
+    const float initialOvershardingFactor = 8.0f;
+
+    Value scalingFactor = b.create<arith::ConstantFloatOp>(
+        llvm::APFloat(initialOvershardingFactor), b.getF32Type());
+    for (const std::pair<int, float> &p : overshardingBrackets) {
+      Value bracketBegin = b.create<arith::ConstantIndexOp>(p.first);
+      Value inBracket = b.create<arith::CmpIOp>(
+          arith::CmpIPredicate::sgt, numWorkerThreadsVal, bracketBegin);
+      Value bracketScalingFactor = b.create<arith::ConstantFloatOp>(
+          llvm::APFloat(p.second), b.getF32Type());
+      scalingFactor = b.create<arith::SelectOp>(inBracket, bracketScalingFactor,
+                                                scalingFactor);
+    }
+    Value numWorkersIndex =
+        b.create<arith::IndexCastOp>(b.getI32Type(), numWorkerThreadsVal);
+    Value numWorkersFloat =
+        b.create<arith::SIToFPOp>(b.getF32Type(), numWorkersIndex);
+    Value scaledNumWorkers =
+        b.create<arith::MulFOp>(scalingFactor, numWorkersFloat);
+    Value scaledNumInt =
+        b.create<arith::FPToSIOp>(b.getI32Type(), scaledNumWorkers);
+    Value scaledWorkers =
+        b.create<arith::IndexCastOp>(b.getIndexType(), scaledNumInt);
+
+    Value maxComputeBlocks = b.create<arith::MaxSIOp>(
+        b.create<arith::ConstantIndexOp>(1), scaledWorkers);
 
     // Compute parallel block size from the parallel problem size:
     //   blockSize = min(tripCount,
@@ -900,7 +943,7 @@ std::unique_ptr<Pass> mlir::createAsyncParallelForPass(bool asyncDispatch,
 
 void mlir::async::populateAsyncParallelForPatterns(
     RewritePatternSet &patterns, bool asyncDispatch, int32_t numWorkerThreads,
-    AsyncMinTaskSizeComputationFunction computeMinTaskSize) {
+    const AsyncMinTaskSizeComputationFunction &computeMinTaskSize) {
   MLIRContext *ctx = patterns.getContext();
   patterns.add<AsyncParallelForRewrite>(ctx, asyncDispatch, numWorkerThreads,
                                         computeMinTaskSize);

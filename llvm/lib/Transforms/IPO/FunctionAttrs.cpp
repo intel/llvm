@@ -133,7 +133,7 @@ static MemoryAccessKind checkFunctionMemoryAccess(Function &F, bool ThisBody,
     if (AliasAnalysis::onlyReadsMemory(MRB))
       return MAK_ReadOnly;
 
-    if (AliasAnalysis::doesNotReadMemory(MRB))
+    if (AliasAnalysis::onlyWritesMemory(MRB))
       return MAK_WriteOnly;
 
     // Conservatively assume it reads and writes to memory.
@@ -295,13 +295,13 @@ static void addReadAttrs(const SCCNodeSet &SCCNodes, AARGetterT &&AARGetter,
       // No change.
       continue;
 
-    if (F->doesNotReadMemory() && WritesMemory)
+    if (F->onlyWritesMemory() && WritesMemory)
       continue;
 
     Changed.insert(F);
 
     // Clear out any existing attributes.
-    AttrBuilder AttrsToRemove;
+    AttributeMask AttrsToRemove;
     AttrsToRemove.addAttribute(Attribute::ReadOnly);
     AttrsToRemove.addAttribute(Attribute::ReadNone);
     AttrsToRemove.addAttribute(Attribute::WriteOnly);
@@ -681,66 +681,55 @@ determinePointerAccessAttrs(Argument *A,
 
     case Instruction::Call:
     case Instruction::Invoke: {
-      bool Captures = true;
-
-      if (I->getType()->isVoidTy())
-        Captures = false;
-
-      auto AddUsersToWorklistIfCapturing = [&] {
-        if (Captures)
-          for (Use &UU : I->uses())
-            if (Visited.insert(&UU).second)
-              Worklist.push_back(&UU);
-      };
-
       CallBase &CB = cast<CallBase>(*I);
       if (CB.isCallee(U)) {
         IsRead = true;
-        Captures = false; // See comment in CaptureTracking for context
+        // Note that indirect calls do not capture, see comment in
+        // CaptureTracking for context
         continue;
-      }
-      if (CB.doesNotAccessMemory()) {
-        AddUsersToWorklistIfCapturing();
-        continue;
-      }
-
-      Function *F = CB.getCalledFunction();
-      if (!F) {
-        if (CB.onlyReadsMemory()) {
-          IsRead = true;
-          AddUsersToWorklistIfCapturing();
-          continue;
-        }
-        return Attribute::None;
       }
 
       // Given we've explictily handled the callee operand above, what's left
       // must be a data operand (e.g. argument or operand bundle)
       const unsigned UseIndex = CB.getDataOperandNo(U);
-      const bool IsOperandBundleUse = UseIndex >= CB.arg_size();
 
-      if (UseIndex >= F->arg_size() && !IsOperandBundleUse) {
-        assert(F->isVarArg() && "More params than args in non-varargs call");
-        return Attribute::None;
+      if (!CB.doesNotCapture(UseIndex)) {
+        if (!CB.onlyReadsMemory())
+          // If the callee can save a copy into other memory, then simply
+          // scanning uses of the call is insufficient.  We have no way
+          // of tracking copies of the pointer through memory to see
+          // if a reloaded copy is written to, thus we must give up.
+          return Attribute::None;
+        // Push users for processing once we finish this one
+        if (!I->getType()->isVoidTy())
+          for (Use &UU : I->uses())
+            if (Visited.insert(&UU).second)
+              Worklist.push_back(&UU);
       }
+      
+      if (CB.doesNotAccessMemory())
+        continue;
 
-      Captures &= !CB.doesNotCapture(UseIndex);
-
-      if (CB.isArgOperand(U) && SCCNodes.count(F->getArg(UseIndex))) {
-        // This is an argument which is part of the speculative SCC.  Note that
-        // only operands corresponding to formal arguments of the callee can
-        // participate in the speculation.
-        AddUsersToWorklistIfCapturing();
-        break;
-      }
+      if (Function *F = CB.getCalledFunction())
+        if (CB.isArgOperand(U) && UseIndex < F->arg_size() &&
+            SCCNodes.count(F->getArg(UseIndex)))
+          // This is an argument which is part of the speculative SCC.  Note
+          // that only operands corresponding to formal arguments of the callee
+          // can participate in the speculation.
+          break;
 
       // The accessors used on call site here do the right thing for calls and
       // invokes with operand bundles.
-      if (!CB.onlyReadsMemory() && !CB.onlyReadsMemory(UseIndex))
-        return Attribute::None;
-      if (!CB.doesNotAccessMemory(UseIndex))
+      if (CB.doesNotAccessMemory(UseIndex)) {
+        /* nop */
+      } else if (CB.onlyReadsMemory() || CB.onlyReadsMemory(UseIndex)) {
         IsRead = true;
-      AddUsersToWorklistIfCapturing();
+      } else if (CB.hasFnAttr(Attribute::WriteOnly) ||
+                 CB.dataOperandHasImpliedAttr(UseIndex, Attribute::WriteOnly)) {
+        IsWrite = true;
+      } else {
+        return Attribute::None;
+      }
       break;
     }
 
@@ -995,6 +984,13 @@ static void addArgumentAttrs(const SCCNodeSet &SCCNodes,
         A->addAttr(Attribute::NoCapture);
         ++NumNoCapture;
         Changed.insert(A->getParent());
+
+        // Infer the access attributes given the new nocapture one
+        SmallPtrSet<Argument *, 8> Self;
+        Self.insert(&*A);
+        Attribute::AttrKind R = determinePointerAccessAttrs(&*A, Self);
+        if (R != Attribute::None)
+          addAccessAttr(A, R);
       }
       continue;
     }
@@ -1618,6 +1614,26 @@ static bool basicBlockCanReturn(BasicBlock &BB) {
   return none_of(BB, instructionDoesNotReturn);
 }
 
+// FIXME: this doesn't handle recursion.
+static bool canReturn(Function &F) {
+  SmallVector<BasicBlock *, 16> Worklist;
+  SmallPtrSet<BasicBlock *, 16> Visited;
+
+  Visited.insert(&F.front());
+  Worklist.push_back(&F.front());
+
+  do {
+    BasicBlock *BB = Worklist.pop_back_val();
+    if (basicBlockCanReturn(*BB))
+      return true;
+    for (BasicBlock *Succ : successors(BB))
+      if (Visited.insert(Succ).second)
+        Worklist.push_back(Succ);
+  } while (!Worklist.empty());
+
+  return false;
+}
+
 // Set the noreturn function attribute if possible.
 static void addNoReturnAttrs(const SCCNodeSet &SCCNodes,
                              SmallSet<Function *, 8> &Changed) {
@@ -1626,9 +1642,7 @@ static void addNoReturnAttrs(const SCCNodeSet &SCCNodes,
         F->doesNotReturn())
       continue;
 
-    // The function can return if any basic blocks can return.
-    // FIXME: this doesn't handle recursion or unreachable blocks.
-    if (none_of(*F, basicBlockCanReturn)) {
+    if (!canReturn(*F)) {
       F->setDoesNotReturn();
       Changed.insert(F);
     }

@@ -290,6 +290,7 @@ public:
   }
 
   void clearStreams() { MStreams.clear(); }
+  bool hasStreams() { return !MStreams.empty(); }
 };
 
 /// "Copy memory" command group class.
@@ -443,11 +444,11 @@ public:
   pi_mem_advice getAdvice() {
     auto ExtendedMembers = getExtendedMembers();
     if (!ExtendedMembers)
-      return PI_MEM_ADVISE_UNKNOWN;
+      return PI_MEM_ADVICE_UNKNOWN;
     for (const ExtendedMemberT &EM : *ExtendedMembers)
       if ((ExtendedMembersType::HANDLER_MEM_ADVICE == EM.MType) && EM.MData)
         return *std::static_pointer_cast<pi_mem_advice>(EM.MData);
-    return PI_MEM_ADVISE_UNKNOWN;
+    return PI_MEM_ADVICE_UNKNOWN;
   }
 };
 

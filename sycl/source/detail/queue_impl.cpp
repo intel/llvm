@@ -74,10 +74,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
-  // FIXME these events are stored for level zero until as a workaround, remove
-  // once piEventRelease no longer calls wait on the event in the plugin.
-  if (!MSupportOOO ||
-      getPlugin().getBackend() == backend::ext_oneapi_level_zero)
+  if (!MSupportOOO)
     addSharedEvent(ResEvent);
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
@@ -99,10 +96,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
-  // FIXME these events are stored for level zero until as a workaround, remove
-  // once piEventRelease no longer calls wait on the event in the plugin.
-  if (!MSupportOOO ||
-      getPlugin().getBackend() == backend::ext_oneapi_level_zero)
+  if (!MSupportOOO)
     addSharedEvent(ResEvent);
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
@@ -125,29 +119,31 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
-  // FIXME these events are stored for level zero until as a workaround, remove
-  // once piEventRelease no longer calls wait on the event in the plugin.
-  if (!MSupportOOO ||
-      getPlugin().getBackend() == backend::ext_oneapi_level_zero)
+  if (!MSupportOOO)
     addSharedEvent(ResEvent);
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
 void queue_impl::addEvent(const event &Event) {
-  EventImplPtr Eimpl = getSyclObjImpl(Event);
-  Command *Cmd = (Command *)(Eimpl->getCommand());
+  EventImplPtr EImpl = getSyclObjImpl(Event);
+  assert(EImpl && "Event implementation is missing");
+  auto *Cmd = static_cast<Command *>(EImpl->getCommand());
   if (!Cmd) {
     // if there is no command on the event, we cannot track it with MEventsWeak
     // as that will leave it with no owner. Track in MEventsShared only if we're
     // unable to call piQueueFinish during wait.
-    // FIXME these events are stored for level zero until as a workaround,
-    // remove once piEventRelease no longer calls wait on the event in the
-    // plugin.
-    if (is_host() || !MSupportOOO ||
-        getPlugin().getBackend() == backend::ext_oneapi_level_zero)
+    if (is_host() || !MSupportOOO)
       addSharedEvent(Event);
-  } else {
-    std::weak_ptr<event_impl> EventWeakPtr{Eimpl};
+  }
+  // As long as the queue supports piQueueFinish we only need to store events
+  // with command nodes in the following cases:
+  // 1. Unenqueued commands, since they aren't covered by piQueueFinish.
+  // 2. Kernels with streams, since they are not supported by post enqueue
+  // cleanup.
+  // 3. Host tasks, for both reasons.
+  else if (is_host() || !MSupportOOO || EImpl->getHandleRef() == nullptr ||
+           EImpl->needsCleanupAfterWait()) {
+    std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
   }
@@ -157,10 +153,7 @@ void queue_impl::addEvent(const event &Event) {
 /// but some events have no other owner. In this case,
 /// addSharedEvent will have the queue track the events via a shared pointer.
 void queue_impl::addSharedEvent(const event &Event) {
-  // FIXME The assertion should be corrected once the Level Zero workaround is
-  // removed.
-  assert(is_host() || !MSupportOOO ||
-         getPlugin().getBackend() == backend::ext_oneapi_level_zero);
+  assert(is_host() || !MSupportOOO);
   std::lock_guard<std::mutex> Lock(MMutex);
   // Events stored in MEventsShared are not released anywhere else aside from
   // calls to queue::wait/wait_and_throw, which a user application might not
@@ -238,12 +231,12 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
       DevStr = "ACCELERATOR";
     else
       DevStr = "UNKNOWN";
-    xptiAddMetadata(WaitEvent, "sycl_device", DevStr.c_str());
+    xpti::addMetadata(WaitEvent, "sycl_device", DevStr);
     if (HasSourceInfo) {
-      xptiAddMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
-      xptiAddMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
-      xptiAddMetadata(WaitEvent, "sym_line_no",
-                      std::to_string(CodeLoc.lineNumber()).c_str());
+      xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
+      xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
+      xpti::addMetadata(WaitEvent, "sym_line_no",
+                        std::to_string(CodeLoc.lineNumber()));
     }
     xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
                           QWaitInstanceNo,
@@ -293,50 +286,31 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   // directly. Otherwise, only wait for unenqueued or host task events, starting
   // from the latest submitted task in order to minimize total amount of calls,
   // then handle the rest with piQueueFinish.
-  // TODO the new workflow has worse performance with Level Zero, keep the old
-  // behavior until this is addressed
-  if (!is_host() &&
-      getPlugin().getBackend() == backend::ext_oneapi_level_zero) {
+  const bool SupportsPiFinish = !is_host() && MSupportOOO;
+  for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
+       EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
+    if (std::shared_ptr<event_impl> EventImplSharedPtr =
+            EventImplWeakPtrIt->lock()) {
+      // A nullptr PI event indicates that piQueueFinish will not cover it,
+      // either because it's a host task event or an unenqueued one.
+      if (!SupportsPiFinish || nullptr == EventImplSharedPtr->getHandleRef()) {
+        EventImplSharedPtr->wait(EventImplSharedPtr);
+      }
+    }
+  }
+  if (SupportsPiFinish) {
+    const detail::plugin &Plugin = getPlugin();
+    Plugin.call<detail::PiApiKind::piQueueFinish>(getHandleRef());
     for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
       if (std::shared_ptr<event_impl> EventImplSharedPtr =
               EventImplWeakPtr.lock())
-        EventImplSharedPtr->wait(EventImplSharedPtr);
+        if (EventImplSharedPtr->needsCleanupAfterWait())
+          EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
+    assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
+                                   "shouldn't have shared events");
+  } else {
     for (event &Event : SharedEvents)
       Event.wait();
-  } else {
-    bool SupportsPiFinish = !is_host() && MSupportOOO;
-    for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
-         EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
-      if (std::shared_ptr<event_impl> EventImplSharedPtr =
-              EventImplWeakPtrIt->lock()) {
-        // A nullptr PI event indicates that piQueueFinish will not cover it,
-        // either because it's a host task event or an unenqueued one.
-        if (!SupportsPiFinish ||
-            nullptr == EventImplSharedPtr->getHandleRef()) {
-          EventImplSharedPtr->wait(EventImplSharedPtr);
-        }
-      }
-    }
-    if (SupportsPiFinish) {
-      const detail::plugin &Plugin = getPlugin();
-      Plugin.call<detail::PiApiKind::piQueueFinish>(getHandleRef());
-      for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
-        if (std::shared_ptr<event_impl> EventImplSharedPtr =
-                EventImplWeakPtr.lock())
-          EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
-      // FIXME these events are stored for level zero until as a workaround,
-      // remove once piEventRelease no longer calls wait on the event in the
-      // plugin.
-      if (Plugin.getBackend() == backend::ext_oneapi_level_zero) {
-        SharedEvents.clear();
-      }
-      assert(SharedEvents.empty() &&
-             "Queues that support calling piQueueFinish "
-             "shouldn't have shared events");
-    } else {
-      for (event &Event : SharedEvents)
-        Event.wait();
-    }
   }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);

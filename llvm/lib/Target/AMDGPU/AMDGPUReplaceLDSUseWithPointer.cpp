@@ -83,7 +83,7 @@
 #include "AMDGPU.h"
 #include "GCNSubtarget.h"
 #include "Utils/AMDGPUBaseInfo.h"
-#include "Utils/AMDGPULDSUtils.h"
+#include "Utils/AMDGPUMemoryUtils.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetOperations.h"
@@ -428,7 +428,7 @@ class CollectReachableCallees {
     //
     // FIXME: Need to handle bit-casted function pointers.
     //
-    SmallVector<CallGraphNode *, 8> CGNStack(df_begin(KCGN), df_end(KCGN));
+    SmallVector<CallGraphNode *, 8> CGNStack(depth_first(KCGN));
     SmallPtrSet<CallGraphNode *, 8> VisitedCGNodes;
     while (!CGNStack.empty()) {
       auto *CGN = CGNStack.pop_back_val();

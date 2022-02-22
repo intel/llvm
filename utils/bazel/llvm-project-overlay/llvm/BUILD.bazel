@@ -408,6 +408,7 @@ cc_library(
     copts = llvm_copts,
     deps = [
         ":Support",
+        ":Symbolize",
     ],
 )
 
@@ -462,7 +463,6 @@ cc_library(
         ":DebugInfo",
         ":DebugInfoDWARF",
         ":DebugInfoPDB",
-        ":Debuginfod",
         ":Demangle",
         ":Object",
         ":Support",
@@ -841,6 +841,7 @@ cc_library(
         ":Core",
         ":DebugInfoDWARF",
         ":Support",
+        ":Symbolize",
         ":config",
     ],
 )
@@ -2393,6 +2394,21 @@ cc_library(
 )
 
 cc_library(
+    name = "WindowsDriver",
+    srcs = glob([
+        "lib/WindowsDriver/*.cpp",
+    ]),
+    hdrs = glob([
+        "include/llvm/WindowsDriver/*.h",
+    ]),
+    copts = llvm_copts,
+    deps = [
+        ":Option",
+        ":Support",
+    ],
+)
+
+cc_library(
     name = "WindowsManifest",
     srcs = glob([
         "lib/WindowsManifest/*.cpp",
@@ -2990,6 +3006,8 @@ cc_binary(
     copts = llvm_copts,
     stamp = 0,
     deps = [
+        ":AllTargetsAsmParsers",
+        ":AllTargetsCodeGens",
         ":BinaryFormat",
         ":Object",
         ":Support",
@@ -4203,6 +4221,45 @@ cc_binary(
     deps = [
         ":Object",
         ":Support",
+        ":TextAPI",
+    ],
+)
+
+gentbl(
+    name = "TLICheckerOptsTableGen",
+    strip_include_prefix = "tools/llvm-tli-checker",
+    tbl_outs = [(
+        "-gen-opt-parser-defs",
+        "tools/llvm-tli-checker/Opts.inc",
+    )],
+    tblgen = ":llvm-tblgen",
+    td_file = "tools/llvm-tli-checker/Opts.td",
+    td_srcs = ["include/llvm/Option/OptParser.td"],
+)
+
+cc_binary(
+    name = "llvm-tli-checker",
+    testonly = True,
+    srcs = glob([
+        "tools/llvm-tli-checker/*.cpp",
+        "tools/llvm-tli-checker/*.h",
+    ]),
+    copts = llvm_copts,
+    stamp = 0,
+    deps = [
+        ":Analysis",
+        ":BinaryFormat",
+        ":BitReader",
+        ":BitstreamReader",
+        ":Core",
+        ":Demangle",
+        ":MC",
+        ":MCParser",
+        ":Object",
+        ":Option",
+        ":Remarks",
+        ":Support",
+        ":TLICheckerOptsTableGen",
         ":TextAPI",
     ],
 )

@@ -75,19 +75,19 @@ bool test_esimd_trunc() __attribute__((sycl_device)) {
 }
 
 bool test_esimd_ballot() __attribute__((sycl_device)) {
-  simd<ushort, 4> vus4 = {1, 0, 3, 0};
-  simd<ushort, 8> vus8 = {1, 0, 3, 0, 5, 0, 7, 0};
-  simd<ushort, 20> vus20 = {1, 0, 3, 0, 5, 0, 7, 0, 9, 0,
-                            1, 0, 3, 0, 5, 0, 7, 0, 9, 0};
+  simd<ushort, 4> vus4({1, 0, 3, 0});
+  simd<ushort, 8> vus8({1, 0, 3, 0, 5, 0, 7, 0});
+  simd<ushort, 20> vus20(
+      {1, 0, 3, 0, 5, 0, 7, 0, 9, 0, 1, 0, 3, 0, 5, 0, 7, 0, 9, 0});
 
   uint mus4 = esimd::ballot(vus4);
   uint mus8 = esimd::ballot(vus8);
   uint mus20 = esimd::ballot(vus20);
 
-  simd<uint, 4> vui4 = {1, 0, 3, 0};
-  simd<uint, 16> vui16 = {1, 0, 3, 0, 5, 0, 7, 0, 1, 0, 3, 0, 5, 0, 7, 0};
-  simd<uint, 20> vui20 = {1, 0, 3, 0, 5, 0, 7, 0, 9, 0,
-                          1, 0, 3, 0, 5, 0, 7, 0, 9, 0};
+  simd<uint, 4> vui4({1, 0, 3, 0});
+  simd<uint, 16> vui16({1, 0, 3, 0, 5, 0, 7, 0, 1, 0, 3, 0, 5, 0, 7, 0});
+  simd<uint, 20> vui20(
+      {1, 0, 3, 0, 5, 0, 7, 0, 9, 0, 1, 0, 3, 0, 5, 0, 7, 0, 9, 0});
 
   uint mui4 = esimd::ballot(vui4);
   uint mui16 = esimd::ballot(vui16);

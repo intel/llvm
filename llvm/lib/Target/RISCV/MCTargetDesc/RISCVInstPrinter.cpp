@@ -85,7 +85,7 @@ void RISCVInstPrinter::printRegName(raw_ostream &O, unsigned RegNo) const {
 void RISCVInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
                                     const MCSubtargetInfo &STI, raw_ostream &O,
                                     const char *Modifier) {
-  assert((Modifier == 0 || Modifier[0] == 0) && "No modifiers supported");
+  assert((Modifier == nullptr || Modifier[0] == 0) && "No modifiers supported");
   const MCOperand &MO = MI->getOperand(OpNo);
 
   if (MO.isReg()) {
@@ -146,7 +146,7 @@ void RISCVInstPrinter::printFenceArg(const MCInst *MI, unsigned OpNo,
   if ((FenceArg & RISCVFenceField::W) != 0)
     O << 'w';
   if (FenceArg == 0)
-    O << "unknown";
+    O << "0";
 }
 
 void RISCVInstPrinter::printFRMArg(const MCInst *MI, unsigned OpNo,

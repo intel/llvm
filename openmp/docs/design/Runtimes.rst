@@ -3,7 +3,15 @@
 LLVM/OpenMP Runtimes
 ====================
 
-There are four distinct types of LLVM/OpenMP runtimes
+There are four distinct types of LLVM/OpenMP runtimes: the host runtime
+:ref:`libomp`, the target offloading runtime :ref:`libomptarget`, the target
+offloading plugin :ref:`libomptarget_plugin`, and finally the target device
+runtime :ref:`libomptarget_device`.
+
+For general information on debugging OpenMP target offloading applications, see
+:ref:`libomptarget_info` and :ref:`libomptarget_device_debugging`
+
+.. _libomp:
 
 LLVM/OpenMP Host Runtime (``libomp``)
 -------------------------------------
@@ -468,7 +476,7 @@ An extended syntax is available when ``KMP_TOPOLOGY_METHOD=hwloc``. Depending on
 resources are detected, you may be able to specify additional resources, such as
 NUMA domains and groups of hardware resources that share certain cache levels.
 
-**Basic syntax:** ``num_unitsID[@offset][:attribute] [,num_unitsID[@offset][:attribute]...]``
+**Basic syntax:** ``[num_units|*]ID[@offset][:attribute] [,[num_units|*]ID[@offset][:attribute]...]``
 
 Supported unit IDs are not case-insensitive.
 
@@ -483,6 +491,11 @@ Supported unit IDs are not case-insensitive.
 
 | ``T`` - thread
 | ``num_units`` specifies the requested number of HW threads per core.
+
+.. note::
+    ``num_units`` can be left out or explicitly specified as ``*`` instead of a positive integer
+    meaning use all specified resources at that level.
+    e.g., ``1s,*c`` means use 1 socket and all the cores on that socket
 
 ``offset`` - (Optional) The number of units to skip.
 
@@ -554,6 +567,8 @@ available hardware resources.
   architecture, depending on ``KMP_TOPOLOGY_METHOD`` specified, as hwloc can
   often detect more topology layers than the default method used by the OpenMP
   run-time library.
+* ``*c:eff1@3``: Use all available sockets, skip the first three cores of
+  efficiency 1, and then use the rest of the available cores of efficiency 1.
 
 To see the result of the setting, you can specify ``verbose`` modifier in
 ``KMP_AFFINITY`` environment variable. The OpenMP run-time library will output
@@ -656,6 +671,8 @@ OpenMP run-time library during program execution.
 
 **Default:** ``true``
 
+.. _libomptarget:
+
 LLVM/OpenMP Target Host Runtime (``libomptarget``)
 --------------------------------------------------
 
@@ -676,6 +693,7 @@ variables is defined below.
     * ``LIBOMPTARGET_HEAP_SIZE=<Num>``
     * ``LIBOMPTARGET_STACK_SIZE=<Num>``
     * ``LIBOMPTARGET_SHARED_MEMORY_SIZE=<Num>``
+    * ``LIBOMPTARGET_MAP_FORCE_ATOMIC=[TRUE/FALSE] (default TRUE)``
 
 LIBOMPTARGET_DEBUG
 """"""""""""""""""
@@ -714,6 +732,8 @@ larger than this threshold will not use the memory manager and be freed after
 the device kernel exits. The default threshold value is ``8KB``. If
 ``LIBOMPTARGET_MEMORY_MANAGER_THRESHOLD`` is set to ``0`` the memory manager
 will be completely disabled.
+
+.. _libomptarget_info:
 
 LIBOMPTARGET_INFO
 """""""""""""""""
@@ -927,7 +947,7 @@ going wrong.
     Libomptarget error: Copying data from device failed.
     Libomptarget error: Call to targetDataEnd failed, abort target.
     Libomptarget error: Failed to process data after launching the kernel.
-    Libomptarget error: Run with LIBOMPTARGET_INFO=4 to dump host-target pointer mappings.
+    Libomptarget error: Consult https://openmp.llvm.org/design/Runtimes.html for debugging options.
     sum.cpp:5:1: Libomptarget error 1: failure of target construct while offloading is mandatory
 
 This shows that there is an illegal memory access occuring inside the OpenMP
@@ -996,6 +1016,24 @@ runtime call.
 
    Offloading
 
+
+LIBOMPTARGET_MAP_FORCE_ATOMIC
+"""""""""""""""""""""""""""""
+
+The OpenMP standard guarantees that map clauses are atomic. However, the this
+can have a drastic performance impact. Users that do not require atomic map
+clauses can disable them to potentially recover lost performance. As a
+consequence, users have to guarantee themselves that no two map clauses will
+concurrently map the same memory. If the memory is already mapped and the
+map clauses will only modify the reference counter from a non-zero count to
+another non-zero count, concurrent map clauses are supported regardless of
+this option. To disable forced atomic map clauses use "false"/"FALSE" as the
+value of the ``LIBOMPTARGET_MAP_FORCE_ATOMIC`` environment variable.
+The default behavior of LLVM 14 is to force atomic maps clauses, prior versions
+of LLVM did not.
+
+.. _libomptarget_plugin:
+
 LLVM/OpenMP Target Host Runtime Plugins (``libomptarget.rtl.XXXX``)
 -------------------------------------------------------------------
 
@@ -1057,12 +1095,16 @@ LIBOMPTARGET_RPC_LATENCY
 """"""""""""""""""""""""
 This is the maximum amount of time the client will wait for a response from the server.
 
+.. _libomptarget_device:
+
 LLVM/OpenMP Target Device Runtime (``libomptarget-ARCH-SUBARCH.bc``)
 --------------------------------------------------------------------
 
 The target device runtime is an LLVM bitcode library that implements OpenMP
 runtime functions on the target device. It is linked with the device code's LLVM
 IR during compilation.
+
+.. _libomptarget_device_debugging:
 
 Debugging
 ^^^^^^^^^
@@ -1078,6 +1120,7 @@ debugging features are supported.
 
     * Enable debugging assertions in the device. ``0x01``
     * Enable OpenMP runtime function traces in the device. ``0x2``
+    * Enable diagnosing common problems during offloading . ``0x4``
 
 .. code-block:: c++
 

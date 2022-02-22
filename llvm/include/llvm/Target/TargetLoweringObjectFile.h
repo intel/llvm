@@ -16,6 +16,7 @@
 
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCRegister.h"
+#include "llvm/Support/Alignment.h"
 #include <cstdint>
 
 namespace llvm {
@@ -221,7 +222,7 @@ public:
   }
 
   /// Returns the register used as static base in RWPI variants.
-  virtual const MCRegister getStaticBase() const { return MCRegister::NoRegister; }
+  virtual MCRegister getStaticBase() const { return MCRegister::NoRegister; }
 
   /// Get the target specific RWPI relocation.
   virtual const MCExpr *getIndirectSymViaRWPI(const MCSymbol *Sym) const {

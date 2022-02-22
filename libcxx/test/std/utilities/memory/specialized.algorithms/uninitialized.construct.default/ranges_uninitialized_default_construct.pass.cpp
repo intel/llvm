@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts, libcpp-has-no-incomplete-ranges
+// UNSUPPORTED: libcpp-no-concepts
+// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // <memory>
 
@@ -25,47 +26,12 @@
 #include <ranges>
 #include <type_traits>
 
+#include "../buffer.h"
+#include "../counted.h"
 #include "test_macros.h"
 #include "test_iterators.h"
 
-struct Counted {
-  static int current_objects;
-  static int total_objects;
-  static int throw_on;
-
-  explicit Counted() {
-    if (throw_on == total_objects) {
-      TEST_THROW(1);
-    }
-
-    ++current_objects;
-    ++total_objects;
-  }
-
-  ~Counted() { --current_objects; }
-
-  static void reset() {
-    current_objects = total_objects = 0;
-    throw_on = -1;
-  }
-
-  Counted(Counted const&) = delete;
-  friend void operator&(Counted) = delete;
-};
-int Counted::current_objects = 0;
-int Counted::total_objects = 0;
-int Counted::throw_on = -1;
-
-template <typename T, int N>
-struct Buffer {
-  alignas(T) char buffer[sizeof(T) * N] = {};
-
-  T* begin() { return reinterpret_cast<T*>(buffer); }
-  T* end() { return begin() + N; }
-  const T* cbegin() const { return reinterpret_cast<const T*>(buffer); }
-  const T* cend() const { return cbegin() + N; }
-};
-
+// TODO(varconst): consolidate the ADL checks into a single file.
 // Because this is a variable and not a function, it's guaranteed that ADL won't be used. However,
 // implementations are allowed to use a different mechanism to achieve this effect, so this check is
 // libc++-specific.
@@ -145,8 +111,7 @@ int main(int, char**) {
     constexpr int N = 3;
     Buffer<Counted, 5> buf;
 
-    auto counted_range = std::views::counted(buf.begin(), N);
-    std::ranges::uninitialized_default_construct(counted_range);
+    std::ranges::uninitialized_default_construct(std::views::counted(buf.begin(), N));
     assert(Counted::current_objects == N);
     assert(Counted::total_objects == N);
 
@@ -191,8 +156,7 @@ int main(int, char**) {
 
     Counted::throw_on = 3; // When constructing the fourth object.
     try {
-      auto range = std::ranges::subrange(buf.begin(), buf.end());
-      std::ranges::uninitialized_default_construct(range);
+      std::ranges::uninitialized_default_construct(buf);
     } catch(...) {}
     assert(Counted::current_objects == 0);
     assert(Counted::total_objects == 3);

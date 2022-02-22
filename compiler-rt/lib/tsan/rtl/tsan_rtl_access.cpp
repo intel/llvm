@@ -156,7 +156,7 @@ ALWAYS_INLINE void StoreShadow(RawShadow* sp, RawShadow s) {
 
 NOINLINE void DoReportRace(ThreadState* thr, RawShadow* shadow_mem, Shadow cur,
                            Shadow old,
-                           AccessType typ) NO_THREAD_SAFETY_ANALYSIS {
+                           AccessType typ) SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   // For the free shadow markers the first element (that contains kFreeSid)
   // triggers the race, but the second element contains info about the freeing
   // thread, take it.
@@ -448,6 +448,44 @@ ALWAYS_INLINE USED void MemoryAccess(ThreadState* thr, uptr pc, uptr addr,
     return;
   if (!TryTraceMemoryAccess(thr, pc, addr, size, typ))
     return TraceRestartMemoryAccess(thr, pc, addr, size, typ);
+  CheckRaces(thr, shadow_mem, cur, shadow, access, typ);
+}
+
+void MemoryAccess16(ThreadState* thr, uptr pc, uptr addr, AccessType typ);
+
+NOINLINE
+void RestartMemoryAccess16(ThreadState* thr, uptr pc, uptr addr,
+                           AccessType typ) {
+  TraceSwitchPart(thr);
+  MemoryAccess16(thr, pc, addr, typ);
+}
+
+ALWAYS_INLINE USED void MemoryAccess16(ThreadState* thr, uptr pc, uptr addr,
+                                       AccessType typ) {
+  const uptr size = 16;
+  FastState fast_state = thr->fast_state;
+  if (UNLIKELY(fast_state.GetIgnoreBit()))
+    return;
+  Shadow cur(fast_state, 0, 8, typ);
+  RawShadow* shadow_mem = MemToShadow(addr);
+  bool traced = false;
+  {
+    LOAD_CURRENT_SHADOW(cur, shadow_mem);
+    if (LIKELY(ContainsSameAccess(shadow_mem, cur, shadow, access, typ)))
+      goto SECOND;
+    if (!TryTraceMemoryAccessRange(thr, pc, addr, size, typ))
+      return RestartMemoryAccess16(thr, pc, addr, typ);
+    traced = true;
+    if (UNLIKELY(CheckRaces(thr, shadow_mem, cur, shadow, access, typ)))
+      return;
+  }
+SECOND:
+  shadow_mem += kShadowCnt;
+  LOAD_CURRENT_SHADOW(cur, shadow_mem);
+  if (LIKELY(ContainsSameAccess(shadow_mem, cur, shadow, access, typ)))
+    return;
+  if (!traced && !TryTraceMemoryAccessRange(thr, pc, addr, size, typ))
+    return RestartMemoryAccess16(thr, pc, addr, typ);
   CheckRaces(thr, shadow_mem, cur, shadow, access, typ);
 }
 

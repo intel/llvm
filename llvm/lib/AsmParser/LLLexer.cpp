@@ -708,6 +708,8 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(immarg);
   KEYWORD(byref);
   KEYWORD(mustprogress);
+  KEYWORD(sync);
+  KEYWORD(async);
 
   KEYWORD(type);
   KEYWORD(opaque);
@@ -733,6 +735,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(x);
   KEYWORD(blockaddress);
   KEYWORD(dso_local_equivalent);
+  KEYWORD(no_cfi);
 
   // Metadata types.
   KEYWORD(distinct);

@@ -195,7 +195,7 @@ TEST_F(FormatTestJS, JSDocComments) {
                    getGoogleJSStyleWithColumns(20)));
 
   // FIXME: this overcounts the */ as a continuation of the 12 when breaking.
-  // Related to the FIXME in BreakableBlockComment::getRangeLength.
+  // Cf. BreakableBlockComment::getRemainingLength.
   EXPECT_EQ("/**\n"
             " * @returns {string}\n"
             " *     jsdoc line line\n"
@@ -2694,6 +2694,116 @@ TEST_F(FormatTestJS, NoBreakAfterAsserts) {
 
 TEST_F(FormatTestJS, NumericSeparators) {
   verifyFormat("x = 1_000_000 + 12;", "x = 1_000_000   + 12;");
+}
+
+TEST_F(FormatTestJS, AlignConsecutiveDeclarations) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_JavaScript);
+  Style.AlignConsecutiveDeclarations = FormatStyle::ACS_Consecutive;
+  verifyFormat("let    letVariable = 5;\n"
+               "double constVariable = 10;",
+               Style);
+
+  verifyFormat("let   letVariable = 5;\n"
+               "const constVariable = 10;",
+               Style);
+
+  verifyFormat("let          letVariable = 5;\n"
+               "static const constVariable = 10;",
+               Style);
+
+  verifyFormat("let        letVariable = 5;\n"
+               "static var constVariable = 10;",
+               Style);
+
+  verifyFormat("let letVariable = 5;\n"
+               "var constVariable = 10;",
+               Style);
+
+  verifyFormat("double letVariable = 5;\n"
+               "var    constVariable = 10;",
+               Style);
+
+  verifyFormat("const letVariable = 5;\n"
+               "var   constVariable = 10;",
+               Style);
+
+  verifyFormat("int letVariable = 5;\n"
+               "int constVariable = 10;",
+               Style);
+}
+
+TEST_F(FormatTestJS, AlignConsecutiveAssignments) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_JavaScript);
+
+  Style.AlignConsecutiveAssignments = FormatStyle::ACS_Consecutive;
+  verifyFormat("let letVariable      = 5;\n"
+               "double constVariable = 10;",
+               Style);
+
+  verifyFormat("let letVariable     = 5;\n"
+               "const constVariable = 10;",
+               Style);
+
+  verifyFormat("let letVariable            = 5;\n"
+               "static const constVariable = 10;",
+               Style);
+
+  verifyFormat("let letVariable          = 5;\n"
+               "static var constVariable = 10;",
+               Style);
+
+  verifyFormat("let letVariable   = 5;\n"
+               "var constVariable = 10;",
+               Style);
+
+  verifyFormat("double letVariable = 5;\n"
+               "var constVariable  = 10;",
+               Style);
+
+  verifyFormat("const letVariable = 5;\n"
+               "var constVariable = 10;",
+               Style);
+
+  verifyFormat("int letVariable   = 5;\n"
+               "int constVariable = 10;",
+               Style);
+}
+
+TEST_F(FormatTestJS, AlignConsecutiveAssignmentsAndDeclarations) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_JavaScript);
+  Style.AlignConsecutiveDeclarations = FormatStyle::ACS_Consecutive;
+  Style.AlignConsecutiveAssignments = FormatStyle::ACS_Consecutive;
+  verifyFormat("let    letVariable   = 5;\n"
+               "double constVariable = 10;",
+               Style);
+
+  verifyFormat("let   letVariable   = 5;\n"
+               "const constVariable = 10;",
+               Style);
+
+  verifyFormat("let          letVariable   = 5;\n"
+               "static const constVariable = 10;",
+               Style);
+
+  verifyFormat("let        letVariable   = 5;\n"
+               "static var constVariable = 10;",
+               Style);
+
+  verifyFormat("let letVariable   = 5;\n"
+               "var constVariable = 10;",
+               Style);
+
+  verifyFormat("double letVariable   = 5;\n"
+               "var    constVariable = 10;",
+               Style);
+
+  verifyFormat("const letVariable   = 5;\n"
+               "var   constVariable = 10;",
+               Style);
+
+  verifyFormat("int letVariable   = 5;\n"
+               "int constVariable = 10;",
+               Style);
 }
 
 } // namespace format

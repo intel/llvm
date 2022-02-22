@@ -35,7 +35,6 @@ class ArrayType;
 class Constant;
 class FunctionType;
 class GlobalVariable;
-class StructType;
 class Type;
 class Value;
 class OpenMPIRBuilder;
@@ -48,7 +47,6 @@ class OMPExecutableDirective;
 class OMPLoopDirective;
 class VarDecl;
 class OMPDeclareReductionDecl;
-class IdentifierInfo;
 
 namespace CodeGen {
 class Address;
@@ -162,10 +160,10 @@ private:
   /// Performs aggregate initialization.
   /// \param N Number of reduction item in the common list.
   /// \param PrivateAddr Address of the corresponding private item.
-  /// \param SharedLVal Address of the original shared variable.
+  /// \param SharedAddr Address of the original shared variable.
   /// \param DRD Declare reduction construct used for reduction item.
   void emitAggregateInitialization(CodeGenFunction &CGF, unsigned N,
-                                   Address PrivateAddr, LValue SharedLVal,
+                                   Address PrivateAddr, Address SharedAddr,
                                    const OMPDeclareReductionDecl *DRD);
 
 public:
@@ -187,10 +185,10 @@ public:
   /// \param PrivateAddr Address of the corresponding private item.
   /// \param DefaultInit Default initialization sequence that should be
   /// performed if no reduction specific initialization is found.
-  /// \param SharedLVal Address of the original shared variable.
+  /// \param SharedAddr Address of the original shared variable.
   void
   emitInitialization(CodeGenFunction &CGF, unsigned N, Address PrivateAddr,
-                     LValue SharedLVal,
+                     Address SharedAddr,
                      llvm::function_ref<bool(CodeGenFunction &)> DefaultInit);
   /// Returns true if the private copy requires cleanups.
   bool needCleanups(unsigned N);

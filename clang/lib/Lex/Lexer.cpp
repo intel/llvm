@@ -2378,8 +2378,9 @@ bool Lexer::SkipLineComment(Token &Result, const char *CurPtr,
                             bool &TokAtPhysicalStartOfLine) {
   // If Line comments aren't explicitly enabled for this language, emit an
   // extension warning.
-  if (!LangOpts.LineComment && !isLexingRawMode()) {
-    Diag(BufferPtr, diag::ext_line_comment);
+  if (!LangOpts.LineComment) {
+    if (!isLexingRawMode()) // There's no PP in raw mode, so can't emit diags.
+      Diag(BufferPtr, diag::ext_line_comment);
 
     // Mark them enabled so we only emit one warning for this translation
     // unit.
@@ -2548,9 +2549,9 @@ static bool isEndOfBlockCommentWithEscapedNewLine(const char *CurPtr,
   assert(CurPtr[0] == '\n' || CurPtr[0] == '\r');
 
   // Position of the first trigraph in the ending sequence.
-  const char *TrigraphPos = 0;
+  const char *TrigraphPos = nullptr;
   // Position of the first whitespace after a '\' in the ending sequence.
-  const char *SpacePos = 0;
+  const char *SpacePos = nullptr;
 
   while (true) {
     // Back up off the newline.
