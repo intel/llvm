@@ -1,4 +1,4 @@
-; RUN: opt --PropagateAspectUsage < %s -S | FileCheck %s --implicit-check-not "!intel_used_aspects"
+; RUN: opt -passes=sycl-propagate-aspect-usage < %s -S | FileCheck %s --implicit-check-not "!intel_used_aspects"
 ;
 ; Test checks that no metadata propagates because MyStruct
 ; isn't used inside functions.

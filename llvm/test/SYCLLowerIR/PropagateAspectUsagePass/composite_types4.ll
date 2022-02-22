@@ -1,4 +1,4 @@
-; RUN: opt --PropagateAspectUsage < %s -S > %t.ll
+; RUN: opt -passes=sycl-propagate-aspect-usage < %s -S > %t.ll
 ; RUN: FileCheck %s < %t.ll --check-prefix CHECK-FIRST
 ; RUN: FileCheck %s < %t.ll --check-prefix CHECK-SECOND
 ;

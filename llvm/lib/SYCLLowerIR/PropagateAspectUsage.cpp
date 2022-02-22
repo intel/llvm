@@ -60,7 +60,7 @@ private:
 } // namespace
 
 char SYCLPropagateAspectUsageLegacyPass::ID = 0;
-INITIALIZE_PASS(SYCLPropagateAspectUsageLegacyPass, "PropagateAspectUsage",
+INITIALIZE_PASS(SYCLPropagateAspectUsageLegacyPass, "sycl-propagate-aspect-usage",
                 "Propagate aspect usage", false, false)
 
 ModulePass *llvm::createPropagateAspectUsagePass() {

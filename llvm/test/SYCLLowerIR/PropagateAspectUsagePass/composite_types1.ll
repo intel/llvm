@@ -1,4 +1,4 @@
-; RUN: opt --PropagateAspectUsage < %s -S | FileCheck %s
+; RUN: opt -passes=sycl-propagate-aspect-usage < %s -S | FileCheck %s
 ;
 ; Test checks simple composite structures.
 
