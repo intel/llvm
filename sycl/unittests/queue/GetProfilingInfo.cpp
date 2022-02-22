@@ -86,7 +86,7 @@ TEST(GetProfilingInfo, normal_pass_without_exception) {
       Ctx, {Dev}, {KernelID_1});
 
   const int globalWIs{512};
-  EXPECT_NO_THROW({
+  try {
     auto event = Queue.submit([&](sycl::handler &cgh) {
       cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
     });
@@ -100,7 +100,10 @@ TEST(GetProfilingInfo, normal_pass_without_exception) {
     (void)submit_time;
     (void)start_time;
     (void)end_time;
-  });
+  } catch (sycl::exception const &e) {
+    std::cerr << e.what() << std::endl;
+    FAIL();
+  }
 }
 
 TEST(GetProfilingInfo, command_exception_check) {
@@ -119,12 +122,12 @@ TEST(GetProfilingInfo, command_exception_check) {
 
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
   auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
+  sycl::queue Queue{Dev};
+  const sycl::context Ctx = Queue.get_context();
+  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+      Ctx, {Dev}, {KernelID_1});
+  const int globalWIs{512};
   {
-    sycl::queue Queue{Dev};
-    const sycl::context Ctx = Queue.get_context();
-    auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-        Ctx, {Dev}, {KernelID_1});
-    const int globalWIs{512};
     try {
       auto event = Queue.submit([&](sycl::handler &cgh) {
         cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
@@ -133,18 +136,13 @@ TEST(GetProfilingInfo, command_exception_check) {
       auto submit_time = event.get_profiling_info<
           sycl::info::event_profiling::command_submit>();
       (void)submit_time;
-    } catch (sycl::exception const &e) {
-      std::cerr << e.what() << std::endl;
+      FAIL();
+    } catch (sycl::exception &e) {
       EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
-                             "'enable_profiling' queue property");
+                            "'enable_profiling' queue property");
     }
   }
   {
-    sycl::queue Queue{Dev};
-    const sycl::context Ctx = Queue.get_context();
-    auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-        Ctx, {Dev}, {KernelID_1});
-    const int globalWIs{512};
     try {
       auto event = Queue.submit([&](sycl::handler &cgh) {
         cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
@@ -154,6 +152,7 @@ TEST(GetProfilingInfo, command_exception_check) {
           event
               .get_profiling_info<sycl::info::event_profiling::command_start>();
       (void)start_time;
+      FAIL();
     } catch (sycl::exception const &e) {
       std::cerr << e.what() << std::endl;
       EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
@@ -161,11 +160,6 @@ TEST(GetProfilingInfo, command_exception_check) {
     }
   }
   {
-    sycl::queue Queue{Dev};
-    const sycl::context Ctx = Queue.get_context();
-    auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-        Ctx, {Dev}, {KernelID_1});
-    const int globalWIs{512};
     try {
       auto event = Queue.submit([&](sycl::handler &cgh) {
         cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
@@ -174,7 +168,114 @@ TEST(GetProfilingInfo, command_exception_check) {
       auto end_time =
           event.get_profiling_info<sycl::info::event_profiling::command_end>();
       (void)end_time;
+      FAIL();
     } catch (sycl::exception const &e) {
+      EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
+                             "'enable_profiling' queue property");
+    }
+  }
+}
+
+TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
+  cl::sycl::platform Plt{cl::sycl::default_selector{}};
+  if (Plt.is_host()) {
+    GTEST_SKIP();
+  }
+  sycl::unittest::PiMock Mock{Plt};
+  setupDefaultMockAPIs(Mock);
+  Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+      redefinedPiEventGetProfilingInfo);
+  const sycl::device Dev = Plt.get_devices()[0];
+  static sycl::unittest::PiImage DevImage_1 =
+      generateTestImage<InfoTestKernel>();
+
+  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
+  auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
+  const int globalWIs{512};
+  cl::sycl::event event;
+  {
+    sycl::queue Queue{
+        Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
+    const sycl::context Ctx = Queue.get_context();
+    auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+        Ctx, {Dev}, {KernelID_1});
+    event = Queue.submit([&](sycl::handler &cgh) {
+      cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
+    });
+    event.wait();
+  }
+  try {
+    auto submit_time =
+        event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+    auto start_time =
+        event.get_profiling_info<sycl::info::event_profiling::command_start>();
+    auto end_time =
+        event.get_profiling_info<sycl::info::event_profiling::command_end>();
+    (void)submit_time;
+    (void)start_time;
+    (void)end_time;
+  } catch (sycl::exception &e) {
+    std::cerr << e.what() << std::endl;
+    FAIL();
+  }
+}
+
+TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
+  cl::sycl::platform Plt{cl::sycl::default_selector{}};
+  if (Plt.is_host()) {
+    GTEST_SKIP();
+  }
+  sycl::unittest::PiMock Mock{Plt};
+  setupDefaultMockAPIs(Mock);
+  Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+      redefinedPiEventGetProfilingInfo);
+  const sycl::device Dev = Plt.get_devices()[0];
+  static sycl::unittest::PiImage DevImage_1 =
+      generateTestImage<InfoTestKernel>();
+
+  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
+  auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
+  const int globalWIs{512};
+  cl::sycl::event event;
+  {
+    sycl::queue Queue{Dev};
+    const sycl::context Ctx = Queue.get_context();
+    auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+        Ctx, {Dev}, {KernelID_1});
+    event = Queue.submit([&](sycl::handler &cgh) {
+      cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
+    });
+    event.wait();
+  }
+  {
+    try {
+      auto submit_time =
+          event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+      (void)submit_time;
+      FAIL();
+    } catch (sycl::exception &e) {
+      EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
+                             "'enable_profiling' queue property");
+    }
+  }
+  {
+    try {
+      auto start_time =
+          event.get_profiling_info<sycl::info::event_profiling::command_start>();
+      (void)start_time;
+      FAIL();
+    } catch (sycl::exception &e) {
+      EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
+                             "'enable_profiling' queue property");
+    }
+  }
+  {
+    try {
+      auto end_time =
+          event.get_profiling_info<sycl::info::event_profiling::command_end>();
+      (void)end_time;
+      FAIL();
+    } catch (sycl::exception &e) {
       EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
                              "'enable_profiling' queue property");
     }
