@@ -99,7 +99,7 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
 }
 
 event_impl::event_impl(HostEventState State)
-    : MIsFlushed(true), MState(State) {}
+    :isInited(false), MIsFlushed(true), MState(State) {}
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
@@ -337,7 +337,18 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 pi_native_handle event_impl::getNative() const {
+  if (!MContext) {
+    static context SyclContext;
+    MContext = getSyclObjImpl(SyclContext);
+  }
+  auto Context = MContext->getHandleRef();
   auto Plugin = getPlugin();
+  if (!isInited) {
+    isInited = true;
+    Plugin.call<PiApiKind::piEventCreate>(Context, getHandleRef());
+    MOpenCLInterop = true;
+    MHostEvent = false;
+  }
   if (Plugin.getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
   pi_native_handle Handle;
