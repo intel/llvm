@@ -38,8 +38,6 @@ public:
     HES_Discarded
   };
 
-  mutable bool isInited = true;
-
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
@@ -217,6 +215,7 @@ private:
   void instrumentationEpilog(void *TelementryEvent, const std::string &Name,
                              int32_t StreamID, uint64_t IId) const;
 
+  mutable bool isInited = true;
   mutable RT::PiEvent MEvent = nullptr;
   mutable ContextImplPtr MContext;
   mutable bool MOpenCLInterop = false;
