@@ -3042,6 +3042,9 @@ def WorkGroupSizeHint :  InheritableAttr {
               ExprArgument<"YDim", /*optional*/1>,
               ExprArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
+  // In OpenCL C this attribute takes no default values wherehas in SYCL it does. 
+  // To avoid confusing diagnostics, the checks are deffered to "handleWorkGroupSizeHint". 
+  let HasCustomParsing = 1;
   let AdditionalMembers = [{
     Optional<llvm::APSInt> getXDimVal() const {
       if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))

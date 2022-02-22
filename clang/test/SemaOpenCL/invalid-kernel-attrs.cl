@@ -10,9 +10,9 @@ kernel __attribute__((vec_type_hint(bool))) void kernel4() {} //expected-error{{
 
 kernel __attribute__((vec_type_hint(int))) __attribute__((vec_type_hint(float))) void kernel5() {} //expected-warning{{attribute 'vec_type_hint' is already applied with different arguments}}
 
-kernel __attribute__((work_group_size_hint(8,16,32,4))) void kernel6() {} //expected-error{{'work_group_size_hint' attribute takes no more than 3 arguments}}
+kernel __attribute__((work_group_size_hint(8,16,32,4))) void kernel6() {} //expected-error{{'work_group_size_hint' attribute requires exactly 3 arguments}}
 
-kernel __attribute__((work_group_size_hint(1,2))) void kernel6b() {}  //expected-error{{attribute requires exactly 3 arguments}}
+kernel __attribute__((work_group_size_hint(1,2))) void kernel6b() {}  //expected-error{{'work_group_size_hint' attribute requires exactly 3 arguments}}
 
 kernel __attribute__((work_group_size_hint(1,2,3))) __attribute__((work_group_size_hint(3,2,1))) void kernel7() {}  //expected-warning{{attribute 'work_group_size_hint' is already applied with different arguments}} expected-note {{previous attribute is here}}
 

@@ -3502,6 +3502,11 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
   }
 
+  // FIXME: NumArgs checking is disabled in Attr.td to keep consistent
+  // disgnostics with OpenCL C that does not have optional values here.
+  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 3))
+    return;
+
   // Handles default arguments in work_group_size_hint
   auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL) {
     assert(AL.getKind() == ParsedAttr::AT_WorkGroupSizeHint && AL.hasScope() &&
