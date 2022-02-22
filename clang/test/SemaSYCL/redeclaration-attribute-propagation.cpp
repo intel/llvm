@@ -31,7 +31,7 @@ func3();
 [[sycl::reqd_work_group_size(1, 1, 1)]] // expected-note {{conflicting attribute is here}}
 void
 // expected-warning@+1 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
-func3() {} // expected-error {{'reqd_work_group_size' attribute conflicts with ''reqd_work_group_size'' attribute}}
+func3() {} // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
 
 // fourth case - expect warning.
 [[intel::max_work_group_size(4, 4, 4)]] void func4();   // expected-note {{previous attribute is here}}

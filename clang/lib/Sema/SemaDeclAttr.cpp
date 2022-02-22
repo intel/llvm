@@ -3258,7 +3258,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
           (getExprValue(AL.getArgAsExpr(1), Ctx) <= *A->getYDimVal()) &&
           (getExprValue(AL.getArgAsExpr(2), Ctx) <= *A->getZDimVal()))) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << AL << A->getSpelling();
+          << AL << A;
       S.Diag(A->getLocation(), diag::note_conflicting_attribute);
       Result &= false;
     }
@@ -3272,7 +3272,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
           (getExprValue(AL.getArgAsExpr(2), Ctx) >=
            getExprValue(A->getZDim(), Ctx)))) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << AL << A->getSpelling();
+          << AL << A;
       S.Diag(A->getLocation(), diag::note_conflicting_attribute);
       Result &= false;
     }
@@ -3584,8 +3584,8 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
 	checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), YDim),
 	checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), ZDim)) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
-         << CI << DeclAttr->getSpelling();
-      Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
+         << CI << DeclAttr;
+      Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
       return;
     }
   }
@@ -3659,7 +3659,7 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
         checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), A.getYDim()),
         checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
-         << DeclAttr << A.getSpelling();
+         << DeclAttr << &A;
       Diag(A.getLoc(), diag::note_conflicting_attribute);
       return nullptr;
     }
