@@ -24,17 +24,43 @@ struct coeff_struct_t {
   std::array<std::array<float, 3>, 3> c;
 };
 
-coeff_t get_coefficients() {
-  return {{{1.0, 2.0, 3.0}, {1.1, 2.1, 3.1}, {1.2, 2.2, 3.2}}};
+struct alignas(64) coeff_struct_aligned_t {
+  std::array<std::array<float, 3>, 3> c;
+};
+
+struct alignas(64) coeff_struct_aligned2_t {
+  std::array<std::array<float, 3>, 3> c;
+  int number;
+};
+
+template <typename T> constexpr T get_coefficients() {
+  return {{{{1.0, 2.0, 3.0}, {1.1, 2.1, 3.1}, {1.2, 2.2, 3.2}}}};
 }
 
-coeff_struct_t get_coefficient_struct() {
-  return {{{{1.0, 2.0, 3.0}, {1.1, 2.1, 3.1}, {1.2, 2.2, 3.2}}}};
+template <> constexpr coeff_t get_coefficients<coeff_t>() {
+  return {{{1.0, 2.0, 3.0}, {1.1, 2.1, 3.1}, {1.2, 2.2, 3.2}}};
 }
 
 constexpr specialization_id<coeff_t> coeff_id;
 
 constexpr specialization_id<coeff_struct_t> coeff_struct_id;
+
+// Represented in the IR as
+// clang-format off
+// { %struct.coeff_struct_aligned_t { %"class.std::array.0" zeroinitializer, [28 x i8] undef } }
+//                                                                           ~ padding ~
+// clang-format on
+constexpr specialization_id<coeff_struct_aligned_t> coeff_struct_aligned_id;
+
+// An extra specialization constant to check whether the runtime correctly
+// calculates the sizes and offsets of the specialization constants with
+// padding.
+// Represented in the IR as
+// clang-format off
+// { %struct.coeff_struct_aligned2_t { %"class.std::array.0" zeroinitializer, i32 0, [24 x i8] undef } }
+//                                                                                   ~ padding ~
+// clang-format on
+constexpr specialization_id<coeff_struct_aligned2_t> coeff_struct_aligned_id2;
 
 template <typename IN>
 float calc_conv(const coeff_t &coeff, const IN &in, item<2> item_id) {
@@ -64,8 +90,13 @@ void do_conv(buffer<float, 2> in, buffer<float, 2> out, CP coeff_provider) {
 
     // Set the coefficient of the convolution as constant.
     // This will build a specific kernel the coefficient available as literals.
-    cgh.set_specialization_constant<coeff_id>(get_coefficients());
-    cgh.set_specialization_constant<coeff_struct_id>(get_coefficient_struct());
+    cgh.set_specialization_constant<coeff_id>(get_coefficients<coeff_t>());
+    cgh.set_specialization_constant<coeff_struct_id>(
+        get_coefficients<coeff_struct_t>());
+    cgh.set_specialization_constant<coeff_struct_aligned_id>(
+        get_coefficients<coeff_struct_aligned_t>());
+    cgh.set_specialization_constant<coeff_struct_aligned_id2>(
+        get_coefficients<coeff_struct_aligned2_t>());
     cgh.parallel_for<KernelName>(
         in.get_range(), [=](item<2> item_id, kernel_handler h) {
           auto coeff = coeff_provider(h);
@@ -122,6 +153,18 @@ int main() {
 
   do_conv<class Convolution2>(input, output, [](kernel_handler &h) {
     return h.get_specialization_constant<coeff_struct_id>().c;
+  });
+
+  compare_result(host_accessor{output, read_only}, expected);
+
+  do_conv<class Convolution3>(input, output, [](kernel_handler &h) {
+    return h.get_specialization_constant<coeff_struct_aligned_id>().c;
+  });
+
+  compare_result(host_accessor{output, read_only}, expected);
+
+  do_conv<class Convolution4>(input, output, [](kernel_handler &h) {
+    return h.get_specialization_constant<coeff_struct_aligned_id2>().c;
   });
 
   compare_result(host_accessor{output, read_only}, expected);
