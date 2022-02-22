@@ -343,13 +343,11 @@ pi_native_handle event_impl::getNative() const {
     MHostEvent = MContext->is_host();
     MOpenCLInterop = !MHostEvent;
   }
-  //RT::PiContext &Context = MContext->getHandleRef();
   auto Plugin = getPlugin();
   if (!isInited) {
     isInited = true;
     auto TempContext = MContext.get()->getHandleRef();
-    getPlugin().call<PiApiKind::piEventCreate>(TempContext, &MEvent);
-    //Plugin.call<PiApiKind::piEventCreate>(Context, getHandleRef());
+    Plugin.call<PiApiKind::piEventCreate>(TempContext, &MEvent);
   }
   if (Plugin.getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
