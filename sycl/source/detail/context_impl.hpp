@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/resource_pool.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/property_list.hpp>
@@ -167,6 +168,13 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
+  /// Gets the resource pool of the SYCL context.
+  ///
+  /// \return a reference to the resource pool.
+  ResourcePool &getResourcePool() {
+    return MAuxiliaryResourcePool;
+  }
+
 private:
   async_handler MAsyncHandler;
   std::vector<device> MDevices;
@@ -177,6 +185,7 @@ private:
   std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
       MCachedLibPrograms;
   mutable KernelProgramCache MKernelProgramCache;
+  ResourcePool MAuxiliaryResourcePool;
 };
 
 } // namespace detail

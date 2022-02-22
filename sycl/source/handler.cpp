@@ -790,5 +790,13 @@ void handler::depends_on(const std::vector<event> &Events) {
   }
 }
 
+const std::shared_ptr<context_impl> &handler::getContextImplPtr() {
+  return MQueue->getContextImplPtr();
+}
+
+detail::ResourcePool &handler::getResourcePool() {
+  return getContextImplPtr()->getResourcePool();
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

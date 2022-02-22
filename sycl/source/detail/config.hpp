@@ -217,6 +217,16 @@ public:
   }
 };
 
+template <> class SYCLConfig<SYCL_DISABLE_AUXILIARY_RESOURCE_POOL> {
+  using BaseT = SYCLConfigBase<SYCL_DISABLE_AUXILIARY_RESOURCE_POOL>;
+
+public:
+  static bool get() {
+    static const char *ValStr = BaseT::getRawValue();
+    return ValStr != nullptr;
+  }
+};
+
 template <> class SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING> {
   using BaseT = SYCLConfigBase<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>;
 

@@ -157,6 +157,7 @@ set(SYCL_SOURCES
     "detail/persistent_device_code_cache.cpp"
     "detail/platform_util.cpp"
     "detail/reduction.cpp"
+    "detail/resource_pool.cpp"
     "detail/sampler_impl.cpp"
     "detail/stream_impl.cpp"
     "detail/scheduler/commands.cpp"

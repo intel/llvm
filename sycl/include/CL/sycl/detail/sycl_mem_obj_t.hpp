@@ -84,6 +84,10 @@ public:
               const size_t SizeInBytes, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
+  SYCLMemObjT(RT::PiMem MemObject, const context &SyclContext,
+              const size_t SizeInBytes, event AvailableEvent,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator);
+
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)

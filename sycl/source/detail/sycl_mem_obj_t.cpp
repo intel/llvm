@@ -51,6 +51,20 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
   Plugin.call<PiApiKind::piMemRetain>(Mem);
 }
 
+// Special internal "interop" constructor. This is used by auxiliary resources.
+SYCLMemObjT::SYCLMemObjT(RT::PiMem MemObject, const context &SyclContext,
+                         const size_t SizeInBytes, event AvailableEvent,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator)
+    : MAllocator(std::move(Allocator)), MProps(),
+      MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
+      MInteropContext(detail::getSyclObjImpl(SyclContext)),
+      MInteropMemObject(pi::cast<cl_mem>(MemObject)), MOpenCLInterop(true),
+      MHostPtrReadOnly(false), MNeedWriteBack(false), MSizeInBytes(SizeInBytes),
+      MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
+      MSharedPtrStorage(nullptr) {
+  getPlugin().call<PiApiKind::piMemRetain>(MemObject);
+}
+
 void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
   void *Ptr = getUserPtr();
   return MemoryManager::releaseMemObj(Context, this, MemAllocation, Ptr);

@@ -153,6 +153,13 @@ public:
       : BaseT(MemObject, SyclContext, SizeInBytes, std::move(AvailableEvent),
               std::move(Allocator)) {}
 
+  buffer_impl(RT::PiMem MemObject, const context &SyclContext,
+              const size_t SizeInBytes,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              event AvailableEvent)
+      : BaseT(MemObject, SyclContext, SizeInBytes, std::move(AvailableEvent),
+              std::move(Allocator)) {}
+
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &OutEventToWait) override;
   void constructorNotification(const detail::code_location &CodeLoc,

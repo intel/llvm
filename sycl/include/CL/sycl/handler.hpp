@@ -16,6 +16,7 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/handler_proxy.hpp>
 #include <CL/sycl/detail/os_util.hpp>
+#include <CL/sycl/detail/resource_pool.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/interop_handle.hpp>
@@ -477,6 +478,42 @@ private:
   /// @param ReduObj is a pointer to object that must be stored.
   void addReduction(const std::shared_ptr<const void> &ReduObj) {
     MSharedPtrStorage.push_back(ReduObj);
+  }
+  
+  /// Gets the context implementation of the context associated with the
+  /// handler.
+  ///
+  /// \return a reference to the shared pointer pointing to the context
+  ///         implementation of the underlying context.
+  const std::shared_ptr<detail::context_impl> &getContextImplPtr();
+
+  /// Gets the resource pool for the context associated with the handler.
+  ///
+  /// \return a reference to the resource pool of the underlying context.
+  detail::ResourcePool &getResourcePool();
+
+  /// Gets or allocates a new resource from the resource pool.
+  ///
+  /// \param Range is the range of the underlying buffer for the resource.
+  /// \return a shared pointer to the resulting resource.
+  template <typename T, int Dims>
+  std::shared_ptr<detail::ManagedResource<T, Dims>>
+  getOrAllocateResourceFromPool(range<Dims> Range) {
+    return getResourcePool().getOrAllocateResource<T, Dims>(
+        Range, getContextImplPtr());
+  }
+
+  /// Gets or allocates a new resource from the resource pool and intialize it.
+  ///
+  /// \param Range is the range of the underlying buffer for the resource.
+  /// \param DataPtr is a pointer to the data to initialize the resource with.
+  ///        The data pointed to must be at least the size of range in bytes.
+  /// \return a shared pointer to the resulting resource.
+  template <typename T, int Dims>
+  std::shared_ptr<detail::ManagedResource<T, Dims>>
+  getOrAllocateResourceFromPool(range<Dims> Range, T *DataPtr) {
+    return getResourcePool().getOrAllocateResource<T, Dims>(Range, MQueue,
+                                                            DataPtr);
   }
 
   ~handler() = default;

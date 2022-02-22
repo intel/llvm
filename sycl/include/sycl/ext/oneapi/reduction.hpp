@@ -10,6 +10,7 @@
 
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/atomic.hpp>
+#include <CL/sycl/detail/resource_pool.hpp>
 #include <CL/sycl/detail/tuple.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/kernel.hpp>
@@ -646,7 +647,7 @@ public:
   accessor<T, buffer_dim, access::mode::read>
   getReadAccToPreviousPartialReds(handler &CGH) const {
     CGH.addReduction(MOutBufPtr);
-    return {*MOutBufPtr, CGH};
+    return {MOutBufPtr->getBuffer(), CGH};
   }
 
   /// Returns user's USM pointer passed to reduction for editing.
@@ -672,9 +673,10 @@ public:
   template <bool IsOneWG>
   std::enable_if_t<!IsOneWG, rw_accessor_type>
   getWriteMemForPartialReds(size_t Size, handler &CGH) {
-    MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+    MOutBufPtr =
+        CGH.getOrAllocateResourceFromPool<T, buffer_dim>(range<1>(Size));
     CGH.addReduction(MOutBufPtr);
-    return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+    return createHandlerWiredReadWriteAccessor(CGH, MOutBufPtr->getBuffer());
   }
 
   /// Returns an accessor accessing the memory that will hold the reduction
@@ -690,9 +692,10 @@ public:
     }
 
     // Create a new output buffer and return an accessor to it.
-    MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+    MOutBufPtr =
+        CGH.getOrAllocateResourceFromPool<T, buffer_dim>(range<1>(Size));
     CGH.addReduction(MOutBufPtr);
-    return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+    return createHandlerWiredReadWriteAccessor(CGH, MOutBufPtr->getBuffer());
   }
 
   /// If reduction is initialized with read-write accessor, which does not
@@ -708,9 +711,10 @@ public:
 
     auto RWReduVal = std::make_shared<T>(MIdentity);
     CGH.addReduction(RWReduVal);
-    MOutBufPtr = std::make_shared<buffer<T, 1>>(RWReduVal.get(), range<1>(1));
+    MOutBufPtr = CGH.getOrAllocateResourceFromPool<T, buffer_dim>(
+        range<1>(1), RWReduVal.get());
     CGH.addReduction(MOutBufPtr);
-    return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+    return createHandlerWiredReadWriteAccessor(CGH, MOutBufPtr->getBuffer());
   }
 
   accessor<int, 1, access::mode::read_write, access::target::device,
@@ -718,9 +722,10 @@ public:
   getReadWriteAccessorToInitializedGroupsCounter(handler &CGH) {
     auto CounterMem = std::make_shared<int>(0);
     CGH.addReduction(CounterMem);
-    auto CounterBuf = std::make_shared<buffer<int, 1>>(CounterMem.get(), 1);
+    auto CounterBuf =
+        CGH.getOrAllocateResourceFromPool<int>(range<1>{1}, CounterMem.get());
     CGH.addReduction(CounterBuf);
-    return {*CounterBuf, CGH};
+    return {CounterBuf->getBuffer(), CGH};
   }
 
   bool hasUserDiscardWriteAccessor() { return MDWAcc != nullptr; }
@@ -775,7 +780,7 @@ private:
   std::shared_ptr<rw_accessor_type> MRWAcc;
   std::shared_ptr<dw_accessor_type> MDWAcc;
 
-  std::shared_ptr<buffer<T, buffer_dim>> MOutBufPtr;
+  std::shared_ptr<ManagedResource<T, buffer_dim>> MOutBufPtr;
 
   /// USM pointer referencing the memory to where the result of the reduction
   /// must be written. Applicable/used only for USM reductions.
