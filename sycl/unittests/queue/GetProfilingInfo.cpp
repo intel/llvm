@@ -1,5 +1,5 @@
 //==------------------ GetProfilingInfo.cpp --- unit tests for check if needed
-//exception is thrown
+// exception is thrown
 // when get_profiling_info() called without queue::enable_profiling property in
 // queue property list -----------------==//
 //

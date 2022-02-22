@@ -128,6 +128,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue) : MQueue{Queue} {
+  MIsProfilingEnabled = Queue->is_host() || Queue->MIsProfilingEnabled;
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
 
@@ -136,11 +137,8 @@ event_impl::event_impl(const QueueImplPtr &Queue) : MQueue{Queue} {
       if (!MHostProfilingInfo)
         throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
     }
-    MIsProfilingEnabled = true;
-
     return;
   }
-
   MState.store(HES_Complete);
 }
 
@@ -252,9 +250,7 @@ void event_impl::cleanupCommand(
 }
 
 void event_impl::checkProfilingPreconditions() const {
-  QueueImplPtr QueueImpl = MQueue.lock();
-  if (QueueImpl &&
-      !QueueImpl->has_property<property::queue::enable_profiling>()) {
+  if (!MIsProfilingEnabled) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
                           "get_profiling_info() can't be used without set "
                           "'enable_profiling' queue property");
