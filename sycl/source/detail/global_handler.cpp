@@ -145,7 +145,7 @@ void shutdown() {
     for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
       // shutdown() is called once and only when process is terminating.
       // Till the time it is called all threads using RT must be closed so it
-      // should be safe to work will plugin without multi thread protection.
+      // should be safe to work with plugin without multi thread protection.
       // Shutdown mode allows to skip some potentially unsafe code
       // (lock/unlock).
       Plugin.enableShutdownMode();
