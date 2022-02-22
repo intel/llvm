@@ -277,8 +277,8 @@ public:
   }
 
 #if __SYCL_DEVICE_ONLY__
-#define OP(opassign, op)                                                       \
-  template <typename T2> wi_element &operator opassign(const T2 &rhs) {        \
+#define OP(op)                                                                 \
+  template <typename T2> wi_element &operator op##=(const T2 &rhs) {           \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm,                                                                \
         static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx)               \
@@ -287,17 +287,17 @@ public:
     return *this;                                                              \
   }
 #else // __SYCL_DEVICE_ONLY__
-#define OP(opassign, op)                                                       \
-  template <typename T2> wi_element &operator opassign(const T2 &rhs) {        \
+#define OP(op)                                                                 \
+  template <typename T2> wi_element &operator op##=(const T2 &rhs) {           \
     (void)rhs;                                                                 \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_INVALID_DEVICE);                                    \
   }
 #endif // __SYCL_DEVICE_ONLY__
-  OP(+=, +)
-  OP(-=, -)
-  OP(*=, *)
-  OP(/=, /)
+  OP(+)
+  OP(-)
+  OP(*)
+  OP(/)
 #undef OP
 };
 
@@ -377,8 +377,8 @@ public:
   }
 
 #if __SYCL_DEVICE_ONLY__
-#define OP(opassign, op)                                                       \
-  wi_element &operator opassign(const uint16_t &rhs) {                         \
+#define OP(op)                                                                 \
+  wi_element &operator op##=(const uint16_t &rhs) {                            \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm,                                                                \
         make_bf16(make_fp32(__spirv_VectorExtractDynamic(M.spvm, idx)          \
@@ -387,57 +387,50 @@ public:
     return *this;                                                              \
   }
 #else // __SYCL_DEVICE_ONLY__
-#define OP(opassign, op)                                                       \
-  wi_element &operator opassign(const uint16_t &rhs) {                         \
+#define OP(op)                                                                 \
+  wi_element &operator op##=(const uint16_t &rhs) {                            \
     (void)rhs;                                                                 \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_INVALID_DEVICE);                                    \
   }
 #endif // __SYCL_DEVICE_ONLY__
-  OP(+=, +)
-  OP(-=, -)
-  OP(*=, *)
-  OP(/=, /)
+  OP(+)
+  OP(-)
+  OP(*)
+  OP(/)
 #undef OP
 
+  template <typename T1, typename T2> struct Converter {
+    static T2 convert(const T1 &from) { return static_cast<T2>(from); }
+  };
+
+  template <typename T> struct Converter<T, uint16_t> {
+    static uint16_t convert(const T &from) { return make_bf16(from); }
+  };
 #if __SYCL_DEVICE_ONLY__
-#define OP(type, op)                                                           \
+#define OP(input_type, type, op)                                               \
   friend type operator op(                                                     \
       const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,        \
       const uint16_t &rhs) {                                                   \
-    return make_bf16(make_fp32(                                                \
+    return Converter<input_type, type>::convert(make_fp32(                     \
         __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) op make_fp32(rhs)); \
   }                                                                            \
   friend type operator op(                                                     \
       const uint16_t &lhs,                                                     \
       const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &rhs) {      \
-    return make_bf16(make_fp32(                                                \
+    return Converter<input_type, type>::convert(make_fp32(                     \
         __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx)) op make_fp32(lhs)); \
   }
-  OP(uint16_t, +)
-  OP(uint16_t, -)
-  OP(uint16_t, *)
-  OP(uint16_t, /)
-#undef OP
-#define OP(type, op)                                                           \
-  friend type operator op(                                                     \
-      const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,        \
-      const uint16_t &rhs) {                                                   \
-    return type{make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx))   \
-                    op make_fp32(rhs)};                                        \
-  }                                                                            \
-  friend type operator op(                                                     \
-      const uint16_t &lhs,                                                     \
-      const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &rhs) {      \
-    return type{make_fp32(__spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx))   \
-                    op make_fp32(lhs)};                                        \
-  }
-  OP(bool, ==)
-  OP(bool, !=)
-  OP(bool, <)
-  OP(bool, >)
-  OP(bool, <=)
-  OP(bool, >=)
+  OP(float, uint16_t, +)
+  OP(float, uint16_t, -)
+  OP(float, uint16_t, *)
+  OP(float, uint16_t, /)
+  OP(bool, bool, ==)
+  OP(bool, bool, !=)
+  OP(bool, bool, <)
+  OP(bool, bool, >)
+  OP(bool, bool, <=)
+  OP(bool, bool, >=)
 #undef OP
 #else // __SYCL_DEVICE_ONLY__
 #define OP(type, op)                                                           \
