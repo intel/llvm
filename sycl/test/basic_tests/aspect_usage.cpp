@@ -24,7 +24,7 @@
 // CHECK-WARNINGS-DBG-NEXT: use is from this call chain:
 // CHECK-WARNINGS-DBG-NEXT:  func1() (defined at [[PATH]]:45:57)
 // CHECK-WARNINGS-DBG-NEXT:  func2() (defined at [[PATH]]:43:22)
-// CHECK-WARNINGS-DBG-NEXT:  func3() (defined at [[PATH]]:38:10)
+// CHECK-WARNINGS-DBG-NEXT:  func3() (defined at [[PATH]]:39:5)
 
 #include <CL/sycl.hpp>
 
