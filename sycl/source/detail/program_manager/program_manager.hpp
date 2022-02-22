@@ -108,8 +108,8 @@ public:
                        SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
-  /// \param M idenfies the OS module the kernel comes from (multiple OS modules
-  ///          may have kernels with the same name)
+  /// \param M identifies the OS module the kernel comes from (multiple OS
+  ///        modules may have kernels with the same name)
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
@@ -153,7 +153,7 @@ public:
   /// \param NativePrg the native program, target for spec constant setting; if
   ///        not null then overrides the native program in Prg
   /// \param Img A source of the information about which constants need
-  ///        setting and symboling->integer spec constnant ID mapping. If not
+  ///        setting and symboling->integer spec constant ID mapping. If not
   ///        null, overrides native program->binary image binding maintained by
   ///        the program manager.
   void flushSpecConstants(const program_impl &Prg,
@@ -188,10 +188,9 @@ public:
 
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
-  std::vector<device_image_plain>
-  getSYCLDeviceImagesWithCompatibleState(const context &Ctx,
-                                         const std::vector<device> &Devs,
-                                         bundle_state TargetState);
+  std::vector<device_image_plain> getSYCLDeviceImagesWithCompatibleState(
+      const context &Ctx, const std::vector<device> &Devs,
+      bundle_state TargetState, const std::vector<kernel_id> &KernelIDs = {});
 
   // Brind images in the passed vector to the required state. Does it inplace
   void
@@ -314,7 +313,23 @@ private:
   /// TODO: Use std::unordered_set with transparent hash and equality functions
   ///       when C++20 is enabled for the runtime library.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_map<std::string, kernel_id> m_KernelIDs;
+  //
+  std::unordered_map<std::string, kernel_id> m_KernelName2KernelIDs;
+
+  // Maps KernelIDs to device binary images. There can be more than one image
+  // in case of SPIRV + AOT.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  std::unordered_multimap<kernel_id, RTDeviceBinaryImage *>
+      m_KernelIDs2BinImage;
+
+  // Maps device binary image to a vector of kernel ids in this image.
+  // Using shared_ptr to avoid expensive copy of the vector.
+  // The vector is initialized in addImages function and is supposed to be
+  // immutable afterwards.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  std::unordered_map<RTDeviceBinaryImage *,
+                     std::shared_ptr<std::vector<kernel_id>>>
+      m_BinImg2KernelIDs;
 
   /// Protects kernel ID cache.
   /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
