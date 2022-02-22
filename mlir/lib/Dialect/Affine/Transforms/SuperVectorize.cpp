@@ -380,9 +380,9 @@ using namespace vector;
 /// }
 /// ```
 ///
-/// The -affine-vectorize pass with the following arguments:
+/// The -affine-super-vectorize pass with the following arguments:
 /// ```
-/// -affine-vectorize="virtual-vector-size=256 test-fastest-varying=0"
+/// -affine-super-vectorize="virtual-vector-size=256 test-fastest-varying=0"
 /// ```
 ///
 /// produces this standard innermost-loop vectorized code:
@@ -434,9 +434,10 @@ using namespace vector;
 /// }
 /// ```
 ///
-/// The -affine-vectorize pass with the following arguments:
+/// The -affine-super-vectorize pass with the following arguments:
 /// ```
-/// -affine-vectorize="virtual-vector-size=32,256 test-fastest-varying=1,0"
+/// -affine-super-vectorize="virtual-vector-size=32,256 \
+///                          test-fastest-varying=1,0"
 /// ```
 ///
 /// produces this more interesting mixed outer-innermost-loop vectorized code:
@@ -523,10 +524,10 @@ using namespace vector;
 /// }
 /// ```
 ///
-/// The -affine-vectorize pass with the following arguments:
+/// The -affine-super-vectorize pass with the following arguments:
 /// ```
-/// -affine-vectorize="virtual-vector-size=128 test-fastest-varying=0 \
-///                    vectorize-reductions=true"
+/// -affine-super-vectorize="virtual-vector-size=128 test-fastest-varying=0 \
+///                          vectorize-reductions=true"
 /// ```
 /// produces the following output:
 /// ```mlir
@@ -548,7 +549,7 @@ using namespace vector;
 ///     %7 = select %3, %6, %arg2 : vector<128xi1>, vector<128xf32>
 ///     affine.yield %7 : vector<128xf32>
 ///   }
-///   %1 = vector.reduction "add", %0 : vector<128xf32> into f32
+///   %1 = vector.reduction <add>, %0 : vector<128xf32> into f32
 ///   return %1 : f32
 /// }
 /// ```
@@ -722,7 +723,8 @@ struct VectorizationState {
   ///
   /// Example 2:
   ///   * 'replaced': %0 = affine.for %i = 0 to 512 iter_args(%x = ...) -> (f32)
-  ///   * 'replacement': %1 = vector.reduction "add" %0 : vector<4xf32> into f32
+  ///   * 'replacement': %1 = vector.reduction <add>, %0 : vector<4xf32> into
+  ///   f32
   void registerLoopResultScalarReplacement(Value replaced, Value replacement);
 
   /// Returns in 'replacedVals' the scalar replacement for values in
@@ -856,7 +858,7 @@ void VectorizationState::registerValueScalarReplacement(
 ///
 /// Example 2:
 ///   * 'replaced': %0 = affine.for %i = 0 to 512 iter_args(%x = ...) -> (f32)
-///   * 'replacement': %1 = vector.reduction "add" %0 : vector<4xf32> into f32
+///   * 'replacement': %1 = vector.reduction <add>, %0 : vector<4xf32> into f32
 void VectorizationState::registerLoopResultScalarReplacement(
     Value replaced, Value replacement) {
   assert(isa<AffineForOp>(replaced.getDefiningOp()));

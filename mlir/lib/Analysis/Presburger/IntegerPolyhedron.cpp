@@ -108,16 +108,10 @@ unsigned IntegerPolyhedron::insertId(IdKind kind, unsigned pos, unsigned num) {
   assert(pos <= getNumIdKind(kind));
 
   unsigned absolutePos = getIdKindOffset(kind) + pos;
-  if (kind == IdKind::Dimension)
-    numDims += num;
-  else if (kind == IdKind::Symbol)
-    numSymbols += num;
-  numIds += num;
-
   inequalities.insertColumns(absolutePos, num);
   equalities.insertColumns(absolutePos, num);
 
-  return absolutePos;
+  return PresburgerLocalSpace::insertId(kind, pos, num);
 }
 
 unsigned IntegerPolyhedron::appendDimId(unsigned num) {
@@ -166,27 +160,12 @@ void IntegerPolyhedron::removeIdRange(IdKind kind, unsigned idStart,
 }
 
 void IntegerPolyhedron::removeIdRange(unsigned idStart, unsigned idLimit) {
-  assert(idLimit < getNumCols() && "invalid id limit");
-
-  if (idStart >= idLimit)
-    return;
-
-  // We are going to be removing one or more identifiers from the range.
-  assert(idStart < getNumIds() && "invalid idStart position");
+  // Update space paramaters.
+  PresburgerLocalSpace::removeIdRange(idStart, idLimit);
 
   // Remove eliminated identifiers from the constraints..
   equalities.removeColumns(idStart, idLimit - idStart);
   inequalities.removeColumns(idStart, idLimit - idStart);
-
-  // Update members numDims, numSymbols and numIds.
-  unsigned numDimsEliminated =
-      getIdKindOverlap(IdKind::Dimension, idStart, idLimit);
-  unsigned numSymbolsEliminated =
-      getIdKindOverlap(IdKind::Symbol, idStart, idLimit);
-
-  numDims -= numDimsEliminated;
-  numSymbols -= numSymbolsEliminated;
-  numIds -= (idLimit - idStart);
 }
 
 void IntegerPolyhedron::removeEquality(unsigned pos) {
@@ -220,45 +199,6 @@ void IntegerPolyhedron::swapId(unsigned posA, unsigned posB) {
     std::swap(atIneq(r, posA), atIneq(r, posB));
   for (unsigned r = 0, e = getNumEqualities(); r < e; r++)
     std::swap(atEq(r, posA), atEq(r, posB));
-}
-
-unsigned IntegerPolyhedron::getIdKindOffset(IdKind kind) const {
-  if (kind == IdKind::Dimension)
-    return 0;
-  if (kind == IdKind::Symbol)
-    return getNumDimIds();
-  if (kind == IdKind::Local)
-    return getNumDimAndSymbolIds();
-  llvm_unreachable("IdKind expected to be Dimension, Symbol or Local!");
-}
-
-unsigned IntegerPolyhedron::getIdKindEnd(IdKind kind) const {
-  return getIdKindOffset(kind) + getNumIdKind(kind);
-}
-
-unsigned IntegerPolyhedron::getNumIdKind(IdKind kind) const {
-  if (kind == IdKind::Dimension)
-    return getNumDimIds();
-  if (kind == IdKind::Symbol)
-    return getNumSymbolIds();
-  if (kind == IdKind::Local)
-    return getNumLocalIds();
-  llvm_unreachable("IdKind expected to be Dimension, Symbol or Local!");
-}
-
-unsigned IntegerPolyhedron::getIdKindOverlap(IdKind kind, unsigned idStart,
-                                             unsigned idLimit) const {
-  unsigned idRangeStart = getIdKindOffset(kind);
-  unsigned idRangeEnd = getIdKindEnd(kind);
-
-  // Compute number of elements in intersection of the ranges [idStart, idLimit)
-  // and [idRangeStart, idRangeEnd).
-  unsigned overlapStart = std::max(idStart, idRangeStart);
-  unsigned overlapEnd = std::min(idLimit, idRangeEnd);
-
-  if (overlapStart > overlapEnd)
-    return 0;
-  return overlapEnd - overlapStart;
 }
 
 void IntegerPolyhedron::clearConstraints() {
@@ -1065,24 +1005,71 @@ void IntegerPolyhedron::removeRedundantConstraints() {
   equalities.resizeVertically(pos);
 }
 
-/// Eliminate `pos2^th` local identifier, replacing its every instance with
-/// `pos1^th` local identifier. This function is intended to be used to remove
-/// redundancy when local variables at position `pos1` and `pos2` are restricted
-/// to have the same value.
-static void eliminateRedundantLocalId(IntegerPolyhedron &poly, unsigned pos1,
-                                      unsigned pos2) {
+Optional<uint64_t> IntegerPolyhedron::computeVolume() const {
+  assert(getNumSymbolIds() == 0 && "Symbols are not yet supported!");
 
-  assert(pos1 < poly.getNumLocalIds() && "Invalid local id position");
-  assert(pos2 < poly.getNumLocalIds() && "Invalid local id position");
+  Simplex simplex(*this);
+  // If the polytope is rationally empty, there are certainly no integer
+  // points.
+  if (simplex.isEmpty())
+    return 0;
 
-  unsigned localOffset = poly.getNumDimAndSymbolIds();
-  pos1 += localOffset;
-  pos2 += localOffset;
-  for (unsigned i = 0, e = poly.getNumInequalities(); i < e; ++i)
-    poly.atIneq(i, pos1) += poly.atIneq(i, pos2);
-  for (unsigned i = 0, e = poly.getNumEqualities(); i < e; ++i)
-    poly.atEq(i, pos1) += poly.atEq(i, pos2);
-  poly.removeId(pos2);
+  // Just find the maximum and minimum integer value of each non-local id
+  // separately, thus finding the number of integer values each such id can
+  // take. Multiplying these together gives a valid overapproximation of the
+  // number of integer points in the polyhedron. The result this gives is
+  // equivalent to projecting (rationally) the polyhedron onto its non-local ids
+  // and returning the number of integer points in a minimal axis-parallel
+  // hyperrectangular overapproximation of that.
+  //
+  // We also handle the special case where one dimension is unbounded and
+  // another dimension can take no integer values. In this case, the volume is
+  // zero.
+  //
+  // If there is no such empty dimension, if any dimension is unbounded we
+  // just return the result as unbounded.
+  uint64_t count = 1;
+  SmallVector<int64_t, 8> dim(getNumIds() + 1);
+  bool hasUnboundedId = false;
+  for (unsigned i = 0, e = getNumDimAndSymbolIds(); i < e; ++i) {
+    dim[i] = 1;
+    Optional<int64_t> min, max;
+    std::tie(min, max) = simplex.computeIntegerBounds(dim);
+    dim[i] = 0;
+
+    // One of the dimensions is unbounded. Note this fact. We will return
+    // unbounded if none of the other dimensions makes the volume zero.
+    if (!min || !max) {
+      hasUnboundedId = true;
+      continue;
+    }
+
+    // In this case there are no valid integer points and the volume is
+    // definitely zero.
+    if (*min > *max)
+      return 0;
+
+    count *= (*max - *min + 1);
+  }
+
+  if (count == 0)
+    return 0;
+  if (hasUnboundedId)
+    return {};
+  return count;
+}
+
+void IntegerPolyhedron::eliminateRedundantLocalId(unsigned posA,
+                                                  unsigned posB) {
+  assert(posA < getNumLocalIds() && "Invalid local id position");
+  assert(posB < getNumLocalIds() && "Invalid local id position");
+
+  unsigned localOffset = getIdKindOffset(IdKind::Local);
+  posA += localOffset;
+  posB += localOffset;
+  inequalities.addToColumn(posB, posA, 1);
+  equalities.addToColumn(posB, posA, 1);
+  removeId(posB);
 }
 
 /// Adds additional local ids to the sets such that they both have the union
@@ -1129,8 +1116,8 @@ void IntegerPolyhedron::mergeLocalIds(IntegerPolyhedron &other) {
   // Merge function that merges the local variables in both sets by treating
   // them as the same identifier.
   auto merge = [&polyA, &polyB](unsigned i, unsigned j) -> bool {
-    eliminateRedundantLocalId(polyA, i, j);
-    eliminateRedundantLocalId(polyB, i, j);
+    polyA.eliminateRedundantLocalId(i, j);
+    polyB.eliminateRedundantLocalId(i, j);
     return true;
   };
 
@@ -1259,13 +1246,6 @@ void IntegerPolyhedron::addLocalFloorDiv(ArrayRef<int64_t> dividend,
                  std::negate<int64_t>());
   bound[bound.size() - 1] += divisor - 1;
   addInequality(bound);
-}
-
-void IntegerPolyhedron::setDimSymbolSeparation(unsigned newSymbolCount) {
-  assert(newSymbolCount <= getNumDimAndSymbolIds() &&
-         "invalid separation position");
-  numDims = numDims + numSymbols - newSymbolCount;
-  numSymbols = newSymbolCount;
 }
 
 /// Finds an equality that equates the specified identifier to a constant.
@@ -1518,11 +1498,21 @@ IntegerPolyhedron::computeConstantLowerOrUpperBound(unsigned pos) {
 
 Optional<int64_t> IntegerPolyhedron::getConstantBound(BoundType type,
                                                       unsigned pos) const {
-  assert(type != BoundType::EQ && "EQ not implemented");
-  IntegerPolyhedron tmpCst(*this);
   if (type == BoundType::LB)
-    return tmpCst.computeConstantLowerOrUpperBound</*isLower=*/true>(pos);
-  return tmpCst.computeConstantLowerOrUpperBound</*isLower=*/false>(pos);
+    return IntegerPolyhedron(*this)
+        .computeConstantLowerOrUpperBound</*isLower=*/true>(pos);
+  if (type == BoundType::UB)
+    return IntegerPolyhedron(*this)
+        .computeConstantLowerOrUpperBound</*isLower=*/false>(pos);
+
+  assert(type == BoundType::EQ && "expected EQ");
+  Optional<int64_t> lb =
+      IntegerPolyhedron(*this)
+          .computeConstantLowerOrUpperBound</*isLower=*/true>(pos);
+  Optional<int64_t> ub =
+      IntegerPolyhedron(*this)
+          .computeConstantLowerOrUpperBound</*isLower=*/false>(pos);
+  return (lb && ub && *lb == *ub) ? Optional<int64_t>(*ub) : None;
 }
 
 // A simple (naive and conservative) check for hyper-rectangularity.

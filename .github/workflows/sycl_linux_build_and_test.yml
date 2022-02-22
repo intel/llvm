@@ -40,7 +40,7 @@ on:
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --hip-amd-arch=gfx906 --cuda"
+        default: "--hip --cuda"
       build_artifact_suffix:
         type: string
         required: true
@@ -86,7 +86,7 @@ jobs:
               \"build_cache_root\":\"/__w/\",
               \"build_cache_suffix\":\"default\",
               \"build_cache_size\":\"2G\",
-              \"build_configure_extra_args\":\"--hip --hip-amd-arch=gfx906 --cuda\",
+              \"build_configure_extra_args\":\"--hip --cuda\",
               \"build_artifact_suffix\":\"default\",
               \"build_upload_artifact\":\"false\",
               \"intel_drivers_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
