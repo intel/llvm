@@ -27,6 +27,7 @@ namespace cm_support {
 #include <cm_rt.h>
 } // namespace cm_support
 
+/// TODO : Use 'UINT_MAX?'
 #define ESIMD_EMULATOR_MAX_SURFACE 65536
 
 template <class To, class From> To pi_cast(From Value) {
@@ -95,15 +96,25 @@ struct _pi_context : _pi_object {
   std::mutex CmSVMMapMutex;
 
   // HOST_SURFACE_INDEX generator
+  // Host-mapped buffer does not have corresponding CM-surface while
+  // it is de-referenced by __esimd_get_surface_index with surface
+  // index same as cm-managed. HostSurfaceIndex generator from Context
+  // returns integer-type surface index while avoiding collision with
+  // ones generated from CM so that both CM-managed and Host-mapped
+  // surfaces are managed in single PiESimdSurfaceMap.
   int generateHostSurfaceIndex() {
-    // CM generates Surface Index from 0, incrementing
-    // ESIMD_EMULATOR PI generates Surface Index from
+    // CM generates Surface Index from 0, incrementing. ESIMD_EMULATOR
+    // Plug-in generates Surface Index from
     // ESIMD_EMULATOR_MAX_SURFACE, decrementing
     std::lock_guard<std::mutex> Lock(SurfaceIdxGeneratorLock);
     int NewIndex = HostSurfaceIndex--;
     return NewIndex;
   }
 
+  // Function to provide host surface index most recently
+  // generated. Used to determine
+  // 1. whether a surface index is from CM or generator
+  // 2. if a surface index from CM collides with ones from generator
   int getLastHostSurfaceIndex() { return HostSurfaceIndex + 1; }
 
 private:
@@ -148,6 +159,10 @@ struct _pi_mem : _pi_object {
   pi_result addMapping(void *MappedTo, size_t SizeArg, size_t OffsetArg);
   pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
   bool isCmSurface() {
+    // Surface index from CM is always smaller than ones generated for
+    // host-mapped surfaces.
+    // REF - _pi_context::generateHostSurfaceIndex()
+    //       _pi_context::getLastHostSurfaceIndex()
     return SurfaceIndex < Context->getLastHostSurfaceIndex();
   }
 

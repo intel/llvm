@@ -119,8 +119,7 @@ static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 // Single-entry cache for piPlatformsGet call.
 static pi_platform PiPlatformCache;
 // TODO/FIXME : Memory leak. Handle with 'piTearDown'.
-static sycl::detail::SpinLock *PiPlatformCacheMutex =
-    new sycl::detail::SpinLock;
+static sycl::detail::SpinLock *PiPlatformCacheLock = new sycl::detail::SpinLock;
 
 // Mapping between surface index and CM-managed surface
 static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap =
@@ -492,7 +491,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiPlatformCacheMutex};
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiPlatformCacheLock};
   if (!PiPlatformCachePopulated) {
     PiPlatformCache = new _pi_platform();
     PiPlatformCache->CmEmuVersion = std::string("0.0.1");
@@ -1090,9 +1089,9 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
     // Memory space is already allocated in host memory.
     // ESIMD_EMULATOR won't create cache for memory space pointed to
-    // by HostPtr, therefore there is no corresponding CM-surface
-    // SurfaceIndex is generated within plug-in while avoiding
-    // overlapping with ones generated from CM
+    // by HostPtr, therefore there is no corresponding CM-surface.
+    // SurfaceIndex used for PiESimdSurfaceMap is generated within
+    // plug-in while avoiding collision with ones generated from CM.
     MapBasePtr = pi_cast<char *>(HostPtr);
     SurfaceIndexArg = Context->generateHostSurfaceIndex();
     assert(PiESimdSurfaceMap->find(SurfaceIndexArg) ==
@@ -1111,7 +1110,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     Status = CmBuf->GetIndex(CmIndex);
     SurfaceIndexArg = CmIndex->get_data();
     assert(SurfaceIndexArg < Context->getLastHostSurfaceIndex() &&
-           "Surface Index space collision between Host-managed surface and "
+           "Surface Index collision between Host-managed surface and"
            "cm-managed surface");
     assert(PiESimdSurfaceMap->find(SurfaceIndexArg) ==
                PiESimdSurfaceMap->end() &&
@@ -1157,27 +1156,25 @@ pi_result piMemRelease(pi_mem Mem) {
   }
 
   if (--(Mem->RefCount) == 0) {
-    if (Mem->getMemType() == PI_MEM_TYPE_BUFFER) {
-      _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      if (PiBuf->isCmSurface()) {
+    if (Mem->isCmSurface()) {
+      if (Mem->getMemType() == PI_MEM_TYPE_BUFFER) {
+        _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
         // TODO implement libCM API failure logging mechanism, so that these
         // failures are clearly distinguishable from other EMU plugin failures.
         if (Mem->Context->Device->CmDevicePtr->DestroySurface(
                 PiBuf->CmBufferPtr) != cm_support::CM_SUCCESS) {
           return PI_INVALID_MEM_OBJECT;
         }
-      }
-    } else if (Mem->getMemType() == PI_MEM_TYPE_IMAGE2D) {
-      _pi_image *PiImg = static_cast<_pi_image *>(Mem);
-      if (PiImg->isCmSurface()) {
+      } else if (Mem->getMemType() == PI_MEM_TYPE_IMAGE2D) {
+        _pi_image *PiImg = static_cast<_pi_image *>(Mem);
         if (Mem->Context->Device->CmDevicePtr->DestroySurface(
                 PiImg->CmSurfacePtr) != cm_support::CM_SUCCESS) {
           return PI_INVALID_MEM_OBJECT;
         }
+      } else {
+        return PI_INVALID_MEM_OBJECT;
       }
-    } else {
-      return PI_INVALID_MEM_OBJECT;
-    }
+    } // (Mem->isCmSurface())
 
     // Removing Surface-map entry
     const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
@@ -1186,7 +1183,7 @@ pi_result piMemRelease(pi_mem Mem) {
       PiESimdSurfaceMap->erase(MapEntryIt);
     } else {
       if (PrintPiTrace) {
-        std::cerr << "Failure from CM-managed buffer/image deletion"
+        std::cerr << "Failure from Plug-in-managed buffer/image deletion"
                   << std::endl;
       }
       return PI_INVALID_MEM_OBJECT;
@@ -1314,8 +1311,8 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
     // Memory space is already allocated in host memory.
     // ESIMD_EMULATOR won't create cache for memory space pointed to
     // by HostPtr, therefore there is no corresponding CM-surface.
-    // SurfaceIndex is generated within plug-in while avoiding
-    // overlapping with ones generated from CM
+    // SurfaceIndex used for PiESimdSurfaceMap is generated within
+    // plug-in while avoiding collision with ones generated from CM.
     MapBasePtr = pi_cast<char *>(HostPtr);
     SurfaceIndexArg = Context->generateHostSurfaceIndex();
     assert(PiESimdSurfaceMap->find(SurfaceIndexArg) ==
@@ -1336,7 +1333,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
     SurfaceIndexArg = CmIndex->get_data();
     assert(SurfaceIndexArg < Context->getLastHostSurfaceIndex() &&
-           "Surface Index space collision between Host-managed surface and "
+           "Surface Index collision between Host-managed surface and "
            "cm-managed surface");
     assert(PiESimdSurfaceMap->find(SurfaceIndexArg) ==
                PiESimdSurfaceMap->end() &&
@@ -1993,7 +1990,26 @@ pi_result piTearDown(void *) {
 
   const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
   for (auto it = PiESimdSurfaceMap->begin(); it != PiESimdSurfaceMap->end();) {
-    // TODO : Call DestroySurface for Buffer/Image created & manage by CM
+    auto Mem = it->second;
+
+    if (Mem->isCmSurface()) {
+      if (Mem->getMemType() == PI_MEM_TYPE_BUFFER) {
+        _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
+        if (Mem->Context->Device->CmDevicePtr->DestroySurface(
+                PiBuf->CmBufferPtr) != cm_support::CM_SUCCESS) {
+          return PI_INVALID_MEM_OBJECT;
+        }
+      } else if (Mem->getMemType() == PI_MEM_TYPE_IMAGE2D) {
+        _pi_image *PiImg = static_cast<_pi_image *>(Mem);
+        if (Mem->Context->Device->CmDevicePtr->DestroySurface(
+                PiImg->CmSurfacePtr) != cm_support::CM_SUCCESS) {
+          return PI_INVALID_MEM_OBJECT;
+        }
+      } else {
+        return PI_INVALID_MEM_OBJECT;
+      }
+    } // (Mem->isCmSurface())
+
     it = PiESimdSurfaceMap->erase(it);
   }
   return PI_SUCCESS;
