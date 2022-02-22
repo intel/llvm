@@ -20,7 +20,7 @@
 // definition
 SPIR_GLOBAL AssertHappened SPIR_AssertHappenedMem;
 
-DEVICE_EXTERN_C void __devicelib_assert_read(__SYCL_GLOBAL__ void *_Dst) {
+void __devicelib_assert_read(__SYCL_GLOBAL__ void *_Dst) {
   AssertHappened *Dst = (AssertHappened *)_Dst;
   int Flag = atomicLoad(&SPIR_AssertHappenedMem.Flag);
 
@@ -69,7 +69,7 @@ struct DevicelibAssertReadKernelName;
 
 // a stub function to enforce assert info reader kernel in devicelib image
 __attribute__((noinline))
-DEVICE_EXTERN_C void __devicelib_stub() {
+void __devicelib_stub() {
   kernel_caller<DevicelibAssertReadKernelName, DevicelibAssertReadT>(DevicelibAssertReadT{NULL});
 }
 
