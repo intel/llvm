@@ -726,9 +726,7 @@ struct _pi_queue : _pi_object {
   // discard_events property. Since we don't create events for some commands we
   // guarantee in-order semantics inside command-list by using barriers and
   // create a special event for the last barrier of the command-list to
-  // guarantee the semantics between command-lists. this mod only uses compute
-  // queue to avoid creating events to provide a dependency between compute and
-  // copy queues.
+  // guarantee the semantics between command-lists.
   bool EventlessMode = false;
 
   // Indicates if the previous command was submitted into the copy engine. it is
