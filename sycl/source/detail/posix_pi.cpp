@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/pi.hpp>
 
 #include <dlfcn.h>
 #include <string>
@@ -19,7 +20,12 @@ namespace pi {
 void *loadOsLibrary(const std::string &PluginPath) {
   // TODO: Check if the option RTLD_NOW is correct. Explore using
   // RTLD_DEEPBIND option when there are multiple plugins.
-  return dlopen(PluginPath.c_str(), RTLD_NOW);
+  void *so = dlopen(PluginPath.c_str(), RTLD_NOW);
+  if (!so && trace(TraceLevel::PI_TRACE_ALL)) {
+    std::cerr << "SYCL_PI_TRACE[-1]: dlopen(" << PluginPath << ") failed with <"
+              << dlerror() << ">" << std::endl;
+  }
+  return so;
 }
 
 int unloadOsLibrary(void *Library) { return dlclose(Library); }
