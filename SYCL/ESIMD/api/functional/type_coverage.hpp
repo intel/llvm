@@ -240,6 +240,7 @@ enum class tested_types { core, fp, fp_extra, uint, sint };
 // default type coverage over the tests
 template <tested_types required> auto get_tested_types() {
   if constexpr (required == tested_types::core) {
+#ifdef ESIMD_TESTS_FULL_COVERAGE
     return named_type_pack<
         char, unsigned char, signed char, short, unsigned short, int,
         unsigned int, long, unsigned long, float, long long,
@@ -248,12 +249,17 @@ template <tested_types required> auto get_tested_types() {
                                       "unsigned int", "long", "unsigned long",
                                       "float", "long long",
                                       "unsigned long long");
+#else
+    return named_type_pack<float, int, unsigned int, signed char>::generate(
+        "float", "int", "unsigned int", "signed char");
+#endif
   } else if constexpr (required == tested_types::fp) {
     return named_type_pack<float>::generate("float");
   } else if constexpr (required == tested_types::fp_extra) {
     return named_type_pack<sycl::half, double>::generate("sycl::half",
                                                          "double");
   } else if constexpr (required == tested_types::uint) {
+#ifdef ESIMD_TESTS_FULL_COVERAGE
     if constexpr (!std::is_signed_v<char>) {
       return named_type_pack<unsigned char, unsigned short, unsigned int,
                              unsigned long, unsigned long long,
@@ -267,7 +273,11 @@ template <tested_types required> auto get_tested_types() {
                                         "unsigned int", "unsigned long",
                                         "unsigned long long");
     }
+#else
+    return named_type_pack<unsigned int>::generate("unsigned int");
+#endif
   } else if constexpr (required == tested_types::sint) {
+#ifdef ESIMD_TESTS_FULL_COVERAGE
     if constexpr (std::is_signed_v<char>) {
       return named_type_pack<signed char, short, int, long, long long,
                              char>::generate("signed char", "short", "int",
@@ -277,6 +287,9 @@ template <tested_types required> auto get_tested_types() {
                              long long>::generate("signed char", "short", "int",
                                                   "long", "long long");
     }
+#else
+    return named_type_pack<int, signed char>::generate("int", "signed char");
+#endif
   } else {
     static_assert(required != required, "Unexpected tested type");
   }
@@ -289,7 +302,13 @@ template <int... Values> auto inline get_sizes() {
 
 // Factory method to retrieve pre-defined values_pack, to have the same
 // default sizes over the tests
-auto inline get_all_sizes() { return get_sizes<1, 8, 16, 32>(); }
+auto inline get_all_sizes() {
+#ifdef ESIMD_TESTS_FULL_COVERAGE
+  return get_sizes<1, 8, 16, 32>();
+#else
+  return get_sizes<1, 8>();
+#endif
+}
 
 // It's a deprecated function and it exists only for backward compatibility and
 // it should be deleted in the future. Use get_all_sizes() instead.

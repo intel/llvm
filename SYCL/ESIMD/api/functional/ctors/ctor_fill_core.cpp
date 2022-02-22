@@ -60,6 +60,7 @@ int main(int, char **) {
   }
   {
     // Validate basic functionality works for every type
+
     const auto types = get_tested_types<tested_types::core>();
     const auto sizes = get_all_sizes();
     const auto contexts = unnamed_type_pack<ctors::var_decl>::generate();

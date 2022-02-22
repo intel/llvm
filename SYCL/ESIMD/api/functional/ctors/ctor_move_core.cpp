@@ -36,7 +36,7 @@ using namespace esimd_test::api::functional;
 
 int main(int, char **) {
   bool passed = true;
-  const auto types = get_tested_types<tested_types::fp_extra>();
+  const auto types = get_tested_types<tested_types::core>();
   const auto sizes = get_all_sizes();
   const auto contexts =
       unnamed_type_pack<ctors::initializer, ctors::var_decl,

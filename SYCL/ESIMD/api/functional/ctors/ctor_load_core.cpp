@@ -30,6 +30,7 @@ int main(int, char **) {
                     esimd_test::createExceptionHandler());
 
   bool passed = true;
+
   const auto types = get_tested_types<tested_types::core>();
   const auto sizes = get_all_sizes();
 
