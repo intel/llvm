@@ -595,7 +595,7 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
   auto *GOTAddr = Builder.CreateIntToPtr(GOTAsInt, Int8PtrPtrTy, "global_addr");
 
   // Load the original pointer through the global.
-  return Builder.CreateLoad(Address(GOTAddr, getPointerAlign()),
+  return Builder.CreateLoad(Address(GOTAddr, Int8PtrTy, getPointerAlign()),
                             "decoded_addr");
 }
 
@@ -1292,9 +1292,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         EI->getType()->getPointerElementType(), &*EI, Idx);
     llvm::Type *Ty =
         cast<llvm::GetElementPtrInst>(Addr)->getResultElementType();
-    ReturnValuePointer = Address(Addr, getPointerAlign());
+    ReturnValuePointer = Address::deprecated(Addr, getPointerAlign());
     Addr = Builder.CreateAlignedLoad(Ty, Addr, getPointerAlign(), "agg.result");
-    ReturnValue = Address(Addr, CGM.getNaturalTypeAlignment(RetTy));
+    ReturnValue = Address::deprecated(Addr, CGM.getNaturalTypeAlignment(RetTy));
   } else {
     ReturnValue = CreateIRTemp(RetTy, "retval");
 
@@ -2141,7 +2141,7 @@ static void emitNonZeroVLAInit(CodeGenFunction &CGF, QualType baseType,
     dest.getAlignment().alignmentOfArrayElement(baseSize);
 
   // memcpy the individual element bit-pattern.
-  Builder.CreateMemCpy(Address(cur, curAlign), src, baseSizeInChars,
+  Builder.CreateMemCpy(Address(cur, CGF.Int8Ty, curAlign), src, baseSizeInChars,
                        /*volatile*/ false);
 
   // Go to the next element.
@@ -2214,7 +2214,7 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
     CharUnits NullAlign = DestPtr.getAlignment();
     NullVariable->setAlignment(NullAlign.getAsAlign());
     Address SrcPtr(Builder.CreateBitCast(NullVariable, Builder.getInt8PtrTy()),
-                   NullAlign);
+                   Builder.getInt8Ty(), NullAlign);
 
     if (vla) return emitNonZeroVLAInit(*this, Ty, DestPtr, SrcPtr, SizeVal);
 
@@ -2696,7 +2696,7 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
     for (const auto *I : D->specific_attrs<AnnotateAttr>())
       V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation(), I);
 
-    return Address(V, Addr.getAlignment());
+    return Address::deprecated(V, Addr.getAlignment());
   }
 
   llvm::Function *F =
@@ -2708,7 +2708,7 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
     V = Builder.CreateBitCast(V, VTy);
   }
 
-  return Address(V, Addr.getAlignment());
+  return Address::deprecated(V, Addr.getAlignment());
 }
 
 Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(const FieldDecl *D,
@@ -2729,7 +2729,7 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
         CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
     V = EmitAnnotationCall(F, V, AnnotStr, Location);
 
-    return Address(V, Addr.getAlignment());
+    return Address::deprecated(V, Addr.getAlignment());
   }
 
   unsigned AS = VTy->getPointerAddressSpace();
@@ -2740,7 +2740,7 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
   V = EmitAnnotationCall(F, V, AnnotStr, Location);
   V = Builder.CreateBitCast(V, VTy);
 
-  return Address(V, Addr.getAlignment());
+  return Address::deprecated(V, Addr.getAlignment());
 }
 
 CodeGenFunction::CGCapturedStmtInfo::~CGCapturedStmtInfo() { }
