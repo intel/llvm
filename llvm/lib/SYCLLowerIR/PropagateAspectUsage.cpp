@@ -365,8 +365,8 @@ void checkDeclaredAspectsForFunction(Function *F,
   for (int Aspect : MissedAspects) {
     auto CallChain = constructAspectUsageChain(F, Map, Aspect);
     C.diagnose(DiagnosticInfoSYCLUnspecAspect(
-        F->getName(), getAspectStrRepresentation(Aspect), CallChain,
-        isFullDebug));
+        demangle(F->getName().str()), getAspectStrRepresentation(Aspect),
+        CallChain, isFullDebug));
   }
 }
 
