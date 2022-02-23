@@ -399,31 +399,8 @@ static bool PiPlatformCachePopulated = false;
 static bool PiDriverGlobalOffsetExtensionFound = false;
 static bool PiDriverModuleProgramExtensionFound = false;
 
-// TODO:: In the following 4 methods we may want to distinguish read access vs.
+// TODO:: In the following 2 methods we may want to distinguish read access vs.
 // write (as it is OK for multiple threads to read the map without locking it).
-
-pi_result _pi_mem::addMapping(void *MappedTo, size_t Offset, size_t Size) {
-  auto Res = Mappings.insert({MappedTo, {Offset, Size}});
-  // False as the second value in pair means that mapping was not inserted
-  // because mapping already exists.
-  if (!Res.second) {
-    zePrint("piEnqueueMemBufferMap: duplicate mapping detected\n");
-    return PI_INVALID_VALUE;
-  }
-  return PI_SUCCESS;
-}
-
-pi_result _pi_mem::removeMapping(void *MappedTo, Mapping &MapInfo) {
-  auto It = Mappings.find(MappedTo);
-  if (It == Mappings.end()) {
-    zePrint("piEnqueueMemUnmap: unknown memory mapping\n");
-    return PI_INVALID_VALUE;
-  }
-  MapInfo = It->second;
-  Mappings.erase(It);
-  return PI_SUCCESS;
-}
-
 pi_result
 _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
                                             size_t &Index, bool HostVisible,
@@ -6236,7 +6213,14 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
 
-    return Buffer->addMapping(*RetMap, Offset, Size);
+    auto Res = Buffer->Mappings.insert({*RetMap, {Offset, Size}});
+    // False as the second value in pair means that mapping was not inserted
+    // because mapping already exists.
+    if (!Res.second) {
+      zePrint("piEnqueueMemBufferMap: duplicate mapping detected\n");
+      return PI_INVALID_VALUE;
+    }
+    return PI_SUCCESS;
   }
 
   // Lock automatically releases when this goes out of scope.
@@ -6276,7 +6260,14 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   if (auto Res = Queue->executeCommandList(CommandList, BlockingMap))
     return Res;
 
-  return Buffer->addMapping(*RetMap, Offset, Size);
+  auto Res = Buffer->Mappings.insert({*RetMap, {Offset, Size}});
+  // False as the second value in pair means that mapping was not inserted
+  // because mapping already exists.
+  if (!Res.second) {
+    zePrint("piEnqueueMemBufferMap: duplicate mapping detected\n");
+    return PI_INVALID_VALUE;
+  }
+  return PI_SUCCESS;
 }
 
 pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
@@ -6312,8 +6303,13 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   {
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock Guard(MemObj->Mutex);
-    if (pi_result Res = MemObj->removeMapping(MappedPtr, MapInfo))
-      return Res;
+    auto It = MemObj->Mappings.find(MappedPtr);
+    if (It == MemObj->Mappings.end()) {
+      zePrint("piEnqueueMemUnmap: unknown memory mapping\n");
+      return PI_INVALID_VALUE;
+    }
+    MapInfo = It->second;
+    MemObj->Mappings.erase(It);
 
     // NOTE: we still have to free the host memory allocated/returned by
     // piEnqueueMemBufferMap, but can only do so after the above copy

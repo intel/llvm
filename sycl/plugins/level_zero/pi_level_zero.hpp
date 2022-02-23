@@ -206,6 +206,10 @@ struct _pi_object {
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
   std::atomic<pi_uint32> RefCount;
+
+  // Protects accesses to all the non-const member variables.  Exclusive access
+  // is required to modify any of these members.
+  std::shared_mutex Mutex;
 };
 
 // Record for a memory allocation. This structure is used to keep information
@@ -839,9 +843,9 @@ struct _pi_mem : _pi_object {
     size_t Size;
   };
 
-  // Protects accesses to all the non-const member variables.  Exclusive access
-  // is required to modify any of these members.
-  std::shared_mutex Mutex;
+  // The key is the host pointer representing an active mapping.
+  // The value is the information needed to maintain/undo the mapping.
+  std::unordered_map<void *, Mapping> Mappings;
 
   // Interface of the _pi_mem object
 
@@ -856,20 +860,11 @@ struct _pi_mem : _pi_object {
 
   virtual ~_pi_mem() = default;
 
-  // Thread-safe methods to work with memory mappings
-  pi_result addMapping(void *MappedTo, size_t Size, size_t Offset);
-  pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
-
 protected:
   _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false,
           bool ImportedHostPtr = false)
       : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost},
         HostPtrImported{ImportedHostPtr}, Mappings{} {}
-
-private:
-  // The key is the host pointer representing an active mapping.
-  // The value is the information needed to maintain/undo the mapping.
-  std::unordered_map<void *, Mapping> Mappings;
 };
 
 struct _pi_buffer final : _pi_mem {
@@ -1123,10 +1118,6 @@ struct _pi_program : _pi_object {
   // This error message is used only in Invalid state to hold a custom error
   // message from a call to piProgramLink.
   const std::string ErrorMessage;
-
-  // Protects accesses to all the non-const member variables.  Exclusive access
-  // is required to modify any of these members.
-  std::shared_mutex Mutex;
 
   state State;
 
