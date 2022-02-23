@@ -29,12 +29,10 @@ DEVICE_EXTERN_C
 div_t __devicelib_div(int x, int y) { return {x / y, x % y}; }
 
 DEVICE_EXTERN_C
-ldiv_t __devicelib_ldiv(long int x, long int y) { return {x / y, x % y}; }
+ldiv_t __devicelib_ldiv(long x, long y) { return {x / y, x % y}; }
 
 DEVICE_EXTERN_C
-lldiv_t __devicelib_lldiv(long long int x, long long int y) {
-  return {x / y, x % y};
-}
+lldiv_t __devicelib_lldiv(long long x, long long y) { return {x / y, x % y}; }
 
 DEVICE_EXTERN_C
 float __devicelib_scalbnf(float x, int n) { return __spirv_ocl_ldexp(x, n); }
