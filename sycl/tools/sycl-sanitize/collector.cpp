@@ -143,12 +143,10 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
   if (std::string_view(StreamName) == "sycl.pi.debug") {
     GS = new GlobalState;
     uint8_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(
-        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
-        tpCallback);
-    xptiRegisterCallback(
-        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
-        tpCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
+                         tpCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
+                         tpCallback);
 
     GS->ArgHandlerPostCall.set_piextUSMHostAlloc(handleUSMHostAlloc);
     GS->ArgHandlerPostCall.set_piextUSMDeviceAlloc(handleUSMDeviceAlloc);
@@ -199,16 +197,15 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
     GS->LastTracepoint.Line = 0;
   }
 
-  auto Type = static_cast<xpti::trace_point_type_t>(TraceType);
   // Lock while we capture information
   std::lock_guard<std::mutex> Lock(GS->IOMutex);
 
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   const auto *Plugin = static_cast<pi_plugin *>(Data->user_data);
-  if (Type == xpti::trace_point_type_t::function_with_args_begin) {
+  if (TraceType == xpti::trace_function_with_args_begin) {
     GS->ArgHandlerPreCall.handle(Data->function_id, *Plugin, std::nullopt,
                                  Data->args_data);
-  } else if (Type == xpti::trace_point_type_t::function_with_args_end) {
+  } else if (TraceType == xpti::trace_function_with_args_end) {
     const pi_result Result = *static_cast<pi_result *>(Data->ret_data);
     GS->ArgHandlerPostCall.handle(Data->function_id, *Plugin, Result,
                                   Data->args_data);

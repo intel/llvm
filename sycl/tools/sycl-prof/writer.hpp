@@ -17,11 +17,9 @@ public:
   virtual void init() = 0;
   virtual void finalize() = 0;
   virtual void writeBegin(std::string_view Name, std::string_view Category,
-                          unsigned long PID, unsigned long TID,
-                          unsigned long TimeStamp) = 0;
+                          size_t PID, size_t TID, size_t TimeStamp) = 0;
   virtual void writeEnd(std::string_view Name, std::string_view Category,
-                        unsigned long PID, unsigned long TID,
-                        unsigned long TimeStamp) = 0;
+                        size_t PID, size_t TID, size_t TimeStamp) = 0;
   virtual ~Writer() = default;
 };
 
@@ -36,9 +34,8 @@ public:
     MOutFile << "  \"traceEvents\": [\n";
   }
 
-  void writeBegin(std::string_view Name, std::string_view Category,
-                  unsigned long PID, unsigned long TID,
-                  unsigned long TimeStamp) override {
+  void writeBegin(std::string_view Name, std::string_view Category, size_t PID,
+                  size_t TID, size_t TimeStamp) override {
     std::lock_guard _{MWriteMutex};
 
     if (!MOutFile.is_open())
@@ -53,9 +50,8 @@ public:
     MOutFile << std::endl;
   }
 
-  void writeEnd(std::string_view Name, std::string_view Category,
-                unsigned long PID, unsigned long TID,
-                unsigned long TimeStamp) override {
+  void writeEnd(std::string_view Name, std::string_view Category, size_t PID,
+                size_t TID, size_t TimeStamp) override {
     std::lock_guard _{MWriteMutex};
 
     if (!MOutFile.is_open())
