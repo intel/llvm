@@ -1,4 +1,4 @@
-name: Linux Post Commit Checks
+name: SYCL Post Commit
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 jobs:
   linux_default:
     name: Linux Default
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
       build_runs_on: build
       build_cache_root: "/__w/llvm"
@@ -15,7 +15,7 @@ jobs:
       build_artifact_suffix: default
   linux_no_assert:
     name: Linux (no assert)
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
       build_runs_on: build
       build_cache_root: "/__w/llvm"
