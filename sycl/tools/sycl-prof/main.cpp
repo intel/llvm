@@ -32,32 +32,26 @@ int main(int argc, char **argv, char *env[]) {
 
   cl::ParseCommandLineOptions(argc, argv);
 
-  std::vector<const char *> NewEnv;
+  std::vector<std::string> NewEnv;
 
   {
     size_t I = 0;
     while (env[I] != nullptr)
-      NewEnv.push_back(env[I++]);
+      NewEnv.emplace_back(env[I++]);
   }
 
   std::string ProfOutFile = "SYCL_PROF_OUT_FILE=" + OutputFilename;
-  NewEnv.push_back(ProfOutFile.c_str());
+  NewEnv.push_back(ProfOutFile);
   NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.so");
   NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_profiler_collector.so");
   NewEnv.push_back("XPTI_TRACE_ENABLE=1");
-  NewEnv.push_back(nullptr);
 
-  std::vector<const char *> Args;
+  std::vector<std::string> Args;
 
-  Args.push_back(TargetExecutable.c_str());
+  Args.push_back(TargetExecutable);
+  std::copy(Argv.begin(), Argv.end(), std::back_inserter(Args));
 
-  for (auto &Arg : Argv) {
-    Args.push_back(Arg.c_str());
-  }
-
-  Args.push_back(nullptr);
-
-  int Err = launch(TargetExecutable.c_str(), Args, NewEnv);
+  int Err = launch(TargetExecutable, Args, NewEnv);
 
   if (Err) {
     std::cerr << "Failed to launch target application. Error code " << Err
