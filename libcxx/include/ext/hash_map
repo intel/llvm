@@ -201,12 +201,13 @@ template <class Key, class T, class Hash, class Pred, class Alloc>
 
 */
 
+#include <__algorithm/is_permutation.h>
 #include <__config>
 #include <__hash_table>
+#include <ext/__hash>
 #include <functional>
 #include <stdexcept>
 #include <type_traits>
-#include <ext/__hash>
 
 #if defined(__DEPRECATED) && __DEPRECATED
 #if defined(_LIBCPP_WARNING)
@@ -217,7 +218,7 @@ template <class Key, class T, class Hash, class Pred, class Alloc>
 #endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 namespace __gnu_cxx {

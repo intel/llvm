@@ -9,6 +9,7 @@
 #include "PassDetail.h"
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -17,9 +18,8 @@
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Pass/Pass.h"
@@ -31,7 +31,7 @@ static Value cloneMemref(Location loc, Value memref, OpBuilder &b) {
   auto memrefType = memref.getType().cast<MemRefType>();
   auto alloc = b.create<memref::AllocOp>(loc, memrefType,
                                          getDynOperands(loc, memref, b));
-  b.create<linalg::CopyOp>(loc, memref, alloc);
+  b.create<memref::CopyOp>(loc, memref, alloc);
   return alloc;
 }
 
@@ -197,10 +197,10 @@ public:
 /// ```
 ///   %a = alloc(sizes)
 ///   %sv = subview %source [offsets][sizes][strides]
-///   linalg_copy(%sv, %a)
+///   memref.copy(%sv, %a)
 /// ```
 ///
-/// This pattern is arguable a std pattern once linalg::CopyOp becomes
+/// This pattern is arguable a std pattern once memref::CopyOp becomes
 /// std::CopyOp.
 class ExtractSliceOpConverter
     : public OpConversionPattern<tensor::ExtractSliceOp> {
@@ -223,7 +223,7 @@ public:
     Value subView = rewriter.create<memref::SubViewOp>(
         op.getLoc(), sourceMemref, op.getMixedOffsets(), op.getMixedSizes(),
         op.getMixedStrides());
-    rewriter.create<linalg::CopyOp>(op.getLoc(), subView, alloc);
+    rewriter.create<memref::CopyOp>(op.getLoc(), subView, alloc);
     rewriter.replaceOp(op, alloc);
     return success();
   }
@@ -235,11 +235,11 @@ public:
 /// conversion infra:
 /// ```
 ///   %sv = subview %dest [offsets][sizes][strides]
-///   linalg_copy(%source, %sv)
+///   memref.copy(%source, %sv)
 ///   // replace with %dest
 /// ```
 ///
-/// This pattern is arguable a std pattern once linalg::CopyOp becomes
+/// This pattern is arguable a std pattern once memref::CopyOp becomes
 /// std::CopyOp.
 class InsertSliceOpConverter
     : public OpConversionPattern<tensor::InsertSliceOp> {
@@ -263,45 +263,8 @@ public:
         op.getLoc(), destMemRef, op.getMixedOffsets(), op.getMixedSizes(),
         op.getMixedStrides());
     // Copy the small memref.
-    rewriter.create<linalg::CopyOp>(op.getLoc(), sourceMemRef, subview);
+    rewriter.create<memref::CopyOp>(op.getLoc(), sourceMemRef, subview);
     rewriter.replaceOp(op, destMemRef);
-    return success();
-  }
-};
-
-class VectorTransferReadOpConverter
-    : public OpConversionPattern<vector::TransferReadOp> {
-public:
-  using OpConversionPattern<vector::TransferReadOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(vector::TransferReadOp readOp, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const final {
-    if (readOp.getShapedType().isa<MemRefType>())
-      return failure();
-    rewriter.replaceOpWithNewOp<vector::TransferReadOp>(
-        readOp, readOp.getType(), adaptor.source(), adaptor.indices(),
-        adaptor.permutation_mapAttr(), adaptor.padding(), adaptor.mask(),
-        adaptor.in_boundsAttr());
-    return success();
-  }
-};
-
-class VectorTransferWriteOpConverter
-    : public OpConversionPattern<vector::TransferWriteOp> {
-public:
-  using OpConversionPattern<vector::TransferWriteOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(vector::TransferWriteOp writeOp, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const final {
-    if (writeOp.getShapedType().isa<MemRefType>())
-      return failure();
-    rewriter.create<vector::TransferWriteOp>(
-        writeOp.getLoc(), adaptor.vector(), adaptor.source(), adaptor.indices(),
-        adaptor.permutation_mapAttr(),
-        adaptor.in_bounds() ? adaptor.in_boundsAttr() : ArrayAttr());
-    rewriter.replaceOp(writeOp, adaptor.source());
     return success();
   }
 };
@@ -320,7 +283,7 @@ struct LinalgBufferizePass : public LinalgBufferizeBase<LinalgBufferizePass> {
     target.addLegalDialect<arith::ArithmeticDialect, AffineDialect,
                            memref::MemRefDialect, StandardOpsDialect,
                            tensor::TensorDialect>();
-    target.addIllegalOp<InitTensorOp, PadTensorOp, tensor::CollapseShapeOp,
+    target.addIllegalOp<InitTensorOp, tensor::PadOp, tensor::CollapseShapeOp,
                         tensor::ExpandShapeOp, tensor::ExtractSliceOp,
                         tensor::InsertSliceOp>();
 
@@ -329,9 +292,6 @@ struct LinalgBufferizePass : public LinalgBufferizeBase<LinalgBufferizePass> {
       return typeConverter.isLegal(op);
     };
     target.addDynamicallyLegalDialect<linalg::LinalgDialect>(isLegalOperation);
-    target
-        .addDynamicallyLegalOp<vector::TransferReadOp, vector::TransferWriteOp>(
-            isLegalOperation);
 
     RewritePatternSet patterns(&context);
     populateLinalgBufferizePatterns(typeConverter, patterns);
@@ -358,10 +318,8 @@ void mlir::linalg::populateLinalgBufferizePatterns(
       BufferizeTensorReshapeOp<tensor::ExpandShapeOp>,
       BufferizeTensorReshapeOp<tensor::CollapseShapeOp>,
       ExtractSliceOpConverter,
-      InsertSliceOpConverter,
-      VectorTransferReadOpConverter,
-      VectorTransferWriteOpConverter
+      InsertSliceOpConverter
     >(typeConverter, patterns.getContext());
   // clang-format on
-  patterns.add<GeneralizePadTensorOpPattern>(patterns.getContext());
+  patterns.add<GeneralizePadOpPattern>(patterns.getContext());
 }

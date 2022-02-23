@@ -20,7 +20,7 @@ void test(enum_type val)
 
 int main() {
 
-  // CHECK: define {{.*}}spir_kernel void @_ZTSZ4test9enum_typeE15kernel_function(i32 %_arg_)
+  // CHECK: define {{.*}}spir_kernel void @_ZTSZ4test9enum_typeE15kernel_function(i32 noundef %_arg_)
 
   // CHECK: getelementptr inbounds %class.anon, %class.anon addrspace(4)*
   // CHECK: call spir_func void @_ZZ4test9enum_typeENKUlvE_clEv(%class.anon addrspace(4)* {{[^,]*}} %{{.+}})

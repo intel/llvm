@@ -25,14 +25,14 @@ int main() {
 
 // Check kernel_A parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_A
-// CHECK-SAME: i32 addrspace(1)* [[MEM_ARG1:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: %"struct.cl::sycl::range"* byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+_1]],
-// CHECK-SAME: %"struct.cl::sycl::range"* byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+_2]],
-// CHECK-SAME: %"struct.cl::sycl::id"* byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_3]],
-// CHECK-SAME: i32 addrspace(1)* [[MEM_ARG2:%[a-zA-Z0-9_]+_4]],
-// CHECK-SAME: %"struct.cl::sycl::range"* byval{{.*}}align 4 [[ACC_RANGE2:%[a-zA-Z0-9_]+_6]],
-// CHECK-SAME: %"struct.cl::sycl::range"* byval{{.*}}align 4 [[MEM_RANGE2:%[a-zA-Z0-9_]+_7]],
-// CHECK-SAME: %"struct.cl::sycl::id"* byval{{.*}}align 4 [[OFFSET2:%[a-zA-Z0-9_]+_8]])
+// CHECK-SAME: i32 addrspace(1)* noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+_1]],
+// CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+_2]],
+// CHECK-SAME: %"struct.cl::sycl::id"* noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_3]],
+// CHECK-SAME: i32 addrspace(1)* noundef align 4 [[MEM_ARG2:%[a-zA-Z0-9_]+_4]],
+// CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[ACC_RANGE2:%[a-zA-Z0-9_]+_6]],
+// CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[MEM_RANGE2:%[a-zA-Z0-9_]+_7]],
+// CHECK-SAME: %"struct.cl::sycl::id"* noundef byval{{.*}}align 4 [[OFFSET2:%[a-zA-Z0-9_]+_8]])
 
 // CHECK alloca for pointer arguments
 // CHECK: [[MEM_ARG1:%[a-zA-Z0-9_.]+]] = alloca i32 addrspace(1)*, align 8
@@ -77,7 +77,7 @@ int main() {
 // CHECK: [[ACC_RANGE1:%.*]] = addrspacecast %"struct.cl::sycl::range" addrspace(4)* [[ACC_RANGE1AS]] to %"struct.cl::sycl::range"*
 // CHECK: [[MEM_RANGE1:%.*]] = addrspacecast %"struct.cl::sycl::range" addrspace(4)* [[MEM_RANGE1AS]] to %"struct.cl::sycl::range"*
 // CHECK: [[OFFSET1:%.*]] = addrspacecast %"struct.cl::sycl::id" addrspace(4)* [[OFFSET1AS]] to %"struct.cl::sycl::id"*
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[INDEX1]], i32 addrspace(1)* [[MEM_LOAD1]], %"struct.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE1]], %"struct.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE1]], %"struct.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET1]])
+// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[INDEX1]], i32 addrspace(1)* noundef [[MEM_LOAD1]], %"struct.cl::sycl::range"* noundef byval({{.*}}) align 4 [[ACC_RANGE1]], %"struct.cl::sycl::range"* noundef byval({{.*}}) align 4 [[MEM_RANGE1]], %"struct.cl::sycl::id"* noundef byval({{.*}}) align 4 [[OFFSET1]])
 
 // CHECK acc[1] __init method call
 // CHECK: [[ACCESSOR_ARRAY2:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class.anon, %class.anon addrspace(4)* [[LOCAL_OBJECT]], i32 0, i32 0
@@ -87,4 +87,4 @@ int main() {
 // CHECK: [[ACC_RANGE2:%.*]] = addrspacecast %"struct.cl::sycl::range" addrspace(4)* [[ACC_RANGE2AS]] to %"struct.cl::sycl::range"*
 // CHECK: [[MEM_RANGE2:%.*]] = addrspacecast %"struct.cl::sycl::range" addrspace(4)* [[MEM_RANGE2AS]] to %"struct.cl::sycl::range"*
 // CHECK: [[OFFSET2:%.*]] = addrspacecast %"struct.cl::sycl::id" addrspace(4)* [[OFFSET2AS]] to %"struct.cl::sycl::id"*
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[INDEX2]], i32 addrspace(1)* [[MEM_LOAD2]], %"struct.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE2]], %"struct.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE2]], %"struct.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET2]])
+// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[INDEX2]], i32 addrspace(1)* noundef [[MEM_LOAD2]], %"struct.cl::sycl::range"* noundef byval({{.*}}) align 4 [[ACC_RANGE2]], %"struct.cl::sycl::range"* noundef byval({{.*}}) align 4 [[MEM_RANGE2]], %"struct.cl::sycl::id"* noundef byval({{.*}}) align 4 [[OFFSET2]])

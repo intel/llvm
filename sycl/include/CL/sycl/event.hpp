@@ -141,6 +141,8 @@ private:
 
   pi_native_handle getNative() const;
 
+  std::vector<pi_native_handle> getNativeVector() const;
+
   std::shared_ptr<detail::event_impl> impl;
 
   template <class Obj>
@@ -148,6 +150,10 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  template <backend BackendName, class SyclObjectT>
+  friend auto get_native(const SyclObjectT &Obj)
+      -> backend_return_t<BackendName, SyclObjectT>;
 };
 
 } // namespace sycl

@@ -1081,11 +1081,11 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return {internal::CapabilityJointMatrixINTEL};
   }
-  SPIRVType *getCompType() { return CompType; }
-  SPIRVValue *getLayout() { return Layout; }
-  SPIRVValue *getRows() { return Rows; }
-  SPIRVValue *getColumns() { return Columns; }
-  SPIRVValue *getScope() { return Scope; }
+  SPIRVType *getCompType() const { return CompType; }
+  SPIRVValue *getLayout() const { return Layout; }
+  SPIRVValue *getRows() const { return Rows; }
+  SPIRVValue *getColumns() const { return Columns; }
+  SPIRVValue *getScope() const { return Scope; }
 };
 
 } // namespace SPIRV

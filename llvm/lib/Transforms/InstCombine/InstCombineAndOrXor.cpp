@@ -1872,6 +1872,9 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
   if (Instruction *X = foldVectorBinop(I))
     return X;
 
+  if (Instruction *Phi = foldBinopWithPhiOperands(I))
+    return Phi;
+
   // See if we can simplify any instructions used by the instruction whose sole
   // purpose is to compute bits we don't care about.
   if (SimplifyDemandedInstructionBits(I))
@@ -2081,21 +2084,37 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
         if (Op0->hasOneUse() || isFreeToInvert(C, C->hasOneUse()))
           return BinaryOperator::CreateAnd(Op1, Builder.CreateNot(C));
 
-    // (A | B) & ((~A) ^ B) -> (A & B)
-    // (A | B) & (B ^ (~A)) -> (A & B)
-    // (B | A) & ((~A) ^ B) -> (A & B)
-    // (B | A) & (B ^ (~A)) -> (A & B)
+    // (A | B) & (~A ^ B) -> A & B
+    // (A | B) & (B ^ ~A) -> A & B
+    // (B | A) & (~A ^ B) -> A & B
+    // (B | A) & (B ^ ~A) -> A & B
     if (match(Op1, m_c_Xor(m_Not(m_Value(A)), m_Value(B))) &&
         match(Op0, m_c_Or(m_Specific(A), m_Specific(B))))
       return BinaryOperator::CreateAnd(A, B);
 
-    // ((~A) ^ B) & (A | B) -> (A & B)
-    // ((~A) ^ B) & (B | A) -> (A & B)
-    // (B ^ (~A)) & (A | B) -> (A & B)
-    // (B ^ (~A)) & (B | A) -> (A & B)
+    // (~A ^ B) & (A | B) -> A & B
+    // (~A ^ B) & (B | A) -> A & B
+    // (B ^ ~A) & (A | B) -> A & B
+    // (B ^ ~A) & (B | A) -> A & B
     if (match(Op0, m_c_Xor(m_Not(m_Value(A)), m_Value(B))) &&
         match(Op1, m_c_Or(m_Specific(A), m_Specific(B))))
       return BinaryOperator::CreateAnd(A, B);
+
+    // (~A | B) & (A ^ B) -> ~A & B
+    // (~A | B) & (B ^ A) -> ~A & B
+    // (B | ~A) & (A ^ B) -> ~A & B
+    // (B | ~A) & (B ^ A) -> ~A & B
+    if (match(Op0, m_c_Or(m_Not(m_Value(A)), m_Value(B))) &&
+        match(Op1, m_c_Xor(m_Specific(A), m_Specific(B))))
+      return BinaryOperator::CreateAnd(Builder.CreateNot(A), B);
+
+    // (A ^ B) & (~A | B) -> ~A & B
+    // (B ^ A) & (~A | B) -> ~A & B
+    // (A ^ B) & (B | ~A) -> ~A & B
+    // (B ^ A) & (B | ~A) -> ~A & B
+    if (match(Op1, m_c_Or(m_Not(m_Value(A)), m_Value(B))) &&
+        match(Op0, m_c_Xor(m_Specific(A), m_Specific(B))))
+      return BinaryOperator::CreateAnd(Builder.CreateNot(A), B);
   }
 
   {
@@ -2648,6 +2667,9 @@ Instruction *InstCombinerImpl::visitOr(BinaryOperator &I) {
 
   if (Instruction *X = foldVectorBinop(I))
     return X;
+
+  if (Instruction *Phi = foldBinopWithPhiOperands(I))
+    return Phi;
 
   // See if we can simplify any instructions used by the instruction whose sole
   // purpose is to compute bits we don't care about.
@@ -3537,6 +3559,9 @@ Instruction *InstCombinerImpl::visitXor(BinaryOperator &I) {
   if (Instruction *X = foldVectorBinop(I))
     return X;
 
+  if (Instruction *Phi = foldBinopWithPhiOperands(I))
+    return Phi;
+
   if (Instruction *NewXor = foldXorToXor(I, Builder))
     return NewXor;
 
@@ -3652,9 +3677,8 @@ Instruction *InstCombinerImpl::visitXor(BinaryOperator &I) {
       APInt FoldConst = C1->getValue().lshr(C2->getValue());
       FoldConst ^= C3->getValue();
       // Prepare the two operands.
-      auto *Opnd0 = cast<Instruction>(Builder.CreateLShr(X, C2));
-      Opnd0->takeName(cast<Instruction>(Op0));
-      Opnd0->setDebugLoc(I.getDebugLoc());
+      auto *Opnd0 = Builder.CreateLShr(X, C2);
+      Opnd0->takeName(Op0);
       return BinaryOperator::CreateXor(Opnd0, ConstantInt::get(Ty, FoldConst));
     }
   }

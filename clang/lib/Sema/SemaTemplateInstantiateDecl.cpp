@@ -189,15 +189,37 @@ static void instantiateDependentAnnotationAttr(
     const AnnotateAttr *Attr, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+  // If the attribute has delayed arguments it will have to instantiate those
+  // and handle them as new arguments for the attribute.
+  bool HasDelayedArgs = Attr->delayedArgs_size();
+
+  ArrayRef<Expr *> ArgsToInstantiate =
+      HasDelayedArgs
+          ? ArrayRef<Expr *>{Attr->delayedArgs_begin(), Attr->delayedArgs_end()}
+          : ArrayRef<Expr *>{Attr->args_begin(), Attr->args_end()};
+
   SmallVector<Expr *, 4> Args;
-  Args.reserve(Attr->args_size());
-  for (auto *E : Attr->args()) {
-    ExprResult Result = S.SubstExpr(E, TemplateArgs);
-    if (!Result.isUsable())
+  if (S.SubstExprs(ArgsToInstantiate,
+                   /*IsCall=*/false, TemplateArgs, Args))
+    return;
+
+  StringRef Str = Attr->getAnnotation();
+  if (HasDelayedArgs) {
+    if (Args.size() < 1) {
+      S.Diag(Attr->getLoc(), diag::err_attribute_too_few_arguments)
+          << Attr << 1;
       return;
-    Args.push_back(Result.get());
+    }
+
+    if (!S.checkStringLiteralArgumentAttr(*Attr, Args[0], Str))
+      return;
+
+    llvm::SmallVector<Expr *, 4> ActualArgs;
+    ActualArgs.insert(ActualArgs.begin(), Args.begin() + 1, Args.end());
+    std::swap(Args, ActualArgs);
   }
-  S.AddAnnotationAttr(New, *Attr, Attr->getAnnotation(), Args);
+  S.AddAnnotationAttr(New, *Attr, Str, Args);
 }
 
 static Expr *instantiateDependentFunctionAttrCondition(
@@ -814,6 +836,25 @@ static void instantiateWorkGroupSizeHintAttr(
                              ZResult.get());
 }
 
+static void instantiateSYCLIntelMaxWorkGroupSizeAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelMaxWorkGroupSizeAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult XResult = S.SubstExpr(A->getXDim(), TemplateArgs);
+  if (XResult.isInvalid())
+    return;
+  ExprResult YResult = S.SubstExpr(A->getYDim(), TemplateArgs);
+  if (YResult.isInvalid())
+    return;
+  ExprResult ZResult = S.SubstExpr(A->getZDim(), TemplateArgs);
+  if (ZResult.isInvalid())
+    return;
+
+  S.AddSYCLIntelMaxWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
+                                     ZResult.get());
+}
+
 // This doesn't take any template parameters, but we have a custom action that
 // needs to happen when the kernel itself is instantiated. We need to run the
 // ItaniumMangler to mark the names required to name this kernel.
@@ -1045,8 +1086,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *SYCLIntelMaxWorkGroupSize =
             dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(TmplAttr)) {
-      instantiateIntelSYCTripleLFunctionAttr<SYCLIntelMaxWorkGroupSizeAttr>(
-          *this, TemplateArgs, SYCLIntelMaxWorkGroupSize, New);
+      instantiateSYCLIntelMaxWorkGroupSizeAttr(*this, TemplateArgs,
+                                               SYCLIntelMaxWorkGroupSize, New);
       continue;
     }
     if (const auto *SYCLIntelMaxConcurrency =
@@ -3995,7 +4036,7 @@ TemplateDeclInstantiator::VisitClassTemplateSpecializationDecl(
                                         InstTemplateArgs,
                                         false,
                                         Converted,
-                                        /*UpdateArgsWithConversion=*/true))
+                                        /*UpdateArgsWithConversions=*/true))
     return nullptr;
 
   // Figure out where to insert this class template explicit specialization
@@ -4117,7 +4158,7 @@ Decl *TemplateDeclInstantiator::VisitVarTemplateSpecializationDecl(
   SmallVector<TemplateArgument, 4> Converted;
   if (SemaRef.CheckTemplateArgumentList(InstVarTemplate, D->getLocation(),
                                         VarTemplateArgsInfo, false, Converted,
-                                        /*UpdateArgsWithConversion=*/true))
+                                        /*UpdateArgsWithConversions=*/true))
     return nullptr;
 
   // Check whether we've already seen a declaration of this specialization.

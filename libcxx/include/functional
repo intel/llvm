@@ -496,9 +496,9 @@ POLICY:  For non-variadic implementations, the number of arguments is limited
 #include <__debug>
 #include <__functional/binary_function.h> // TODO: deprecate
 #include <__functional/binary_negate.h>
+#include <__functional/bind.h>
 #include <__functional/bind_back.h>
 #include <__functional/bind_front.h>
-#include <__functional/bind.h>
 #include <__functional/binder1st.h>
 #include <__functional/binder2nd.h>
 #include <__functional/compose.h>
@@ -529,7 +529,7 @@ POLICY:  For non-variadic implementations, the number of arguments is limited
 #include <version>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 #endif // _LIBCPP_FUNCTIONAL

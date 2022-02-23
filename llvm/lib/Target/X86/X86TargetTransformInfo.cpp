@@ -3430,6 +3430,20 @@ X86TTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
   if (ICA.isTypeBasedOnly())
     return getTypeBasedIntrinsicInstrCost(ICA, CostKind);
 
+  static const CostTblEntry AVX512BWCostTbl[] = {
+    { ISD::ROTL,       MVT::v32i16,  2 },
+    { ISD::ROTL,       MVT::v16i16,  2 },
+    { ISD::ROTL,       MVT::v8i16,   2 },
+    { ISD::ROTL,       MVT::v64i8,   5 },
+    { ISD::ROTL,       MVT::v32i8,   5 },
+    { ISD::ROTL,       MVT::v16i8,   5 },
+    { ISD::ROTR,       MVT::v32i16,  2 },
+    { ISD::ROTR,       MVT::v16i16,  2 },
+    { ISD::ROTR,       MVT::v8i16,   2 },
+    { ISD::ROTR,       MVT::v64i8,   5 },
+    { ISD::ROTR,       MVT::v32i8,   5 },
+    { ISD::ROTR,       MVT::v16i8,   5 }
+  };
   static const CostTblEntry AVX512CostTbl[] = {
     { ISD::ROTL,       MVT::v8i64,   1 },
     { ISD::ROTL,       MVT::v4i64,   1 },
@@ -3507,6 +3521,10 @@ X86TTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
     MVT MTy = LT.second;
 
     // Attempt to lookup cost.
+    if (ST->hasBWI())
+      if (const auto *Entry = CostTableLookup(AVX512BWCostTbl, ISD, MTy))
+        return LT.first * Entry->Cost;
+
     if (ST->hasAVX512())
       if (const auto *Entry = CostTableLookup(AVX512CostTbl, ISD, MTy))
         return LT.first * Entry->Cost;
@@ -3579,15 +3597,16 @@ InstructionCost X86TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
       return 0;
 
     // The type may be split. Normalize the index to the new type.
+    unsigned SizeInBits = LT.second.getSizeInBits();
     unsigned NumElts = LT.second.getVectorNumElements();
     unsigned SubNumElts = NumElts;
     Index = Index % NumElts;
 
     // For >128-bit vectors, we need to extract higher 128-bit subvectors.
     // For inserts, we also need to insert the subvector back.
-    if (LT.second.getSizeInBits() > 128) {
-      assert((LT.second.getSizeInBits() % 128) == 0 && "Illegal vector");
-      unsigned NumSubVecs = LT.second.getSizeInBits() / 128;
+    if (SizeInBits > 128) {
+      assert((SizeInBits % 128) == 0 && "Illegal vector");
+      unsigned NumSubVecs = SizeInBits / 128;
       SubNumElts = NumElts / NumSubVecs;
       if (SubNumElts <= Index) {
         RegisterFileMoveCost += (Opcode == Instruction::InsertElement ? 2 : 1);
@@ -3662,13 +3681,14 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
   if (Insert) {
     std::pair<InstructionCost, MVT> LT = TLI->getTypeLegalizationCost(DL, Ty);
     MVT MScalarTy = LT.second.getScalarType();
+    unsigned SizeInBits = LT.second.getSizeInBits();
 
     if ((MScalarTy == MVT::i16 && ST->hasSSE2()) ||
         (MScalarTy.isInteger() && ST->hasSSE41()) ||
         (MScalarTy == MVT::f32 && ST->hasSSE41())) {
       // For types we can insert directly, insertion into 128-bit sub vectors is
       // cheap, followed by a cheap chain of concatenations.
-      if (LT.second.getSizeInBits() <= 128) {
+      if (SizeInBits <= 128) {
         Cost +=
             BaseT::getScalarizationOverhead(Ty, DemandedElts, Insert, false);
       } else {
@@ -3686,7 +3706,7 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
         // Case#3: inserting into 4,5,6,7 index needs 4*vpinsrd + inserti128.
         const int CostValue = *LT.first.getValue();
         assert(CostValue >= 0 && "Negative cost!");
-        unsigned Num128Lanes = LT.second.getSizeInBits() / 128 * CostValue;
+        unsigned Num128Lanes = SizeInBits / 128 * CostValue;
         unsigned NumElts = LT.second.getVectorNumElements() * CostValue;
         APInt WidenedDemandedElts = DemandedElts.zextOrSelf(NumElts);
         unsigned Scale = NumElts / Num128Lanes;
@@ -4977,9 +4997,13 @@ InstructionCost X86TTIImpl::getGatherScatterOpCost(
     const Instruction *I = nullptr) {
   if (CostKind != TTI::TCK_RecipThroughput) {
     if ((Opcode == Instruction::Load &&
-         isLegalMaskedGather(SrcVTy, Align(Alignment))) ||
+         isLegalMaskedGather(SrcVTy, Align(Alignment)) &&
+         !forceScalarizeMaskedGather(cast<VectorType>(SrcVTy),
+                                     Align(Alignment))) ||
         (Opcode == Instruction::Store &&
-         isLegalMaskedScatter(SrcVTy, Align(Alignment))))
+         isLegalMaskedScatter(SrcVTy, Align(Alignment)) &&
+         !forceScalarizeMaskedScatter(cast<VectorType>(SrcVTy),
+                                      Align(Alignment))))
       return 1;
     return BaseT::getGatherScatterOpCost(Opcode, SrcVTy, Ptr, VariableMask,
                                          Alignment, CostKind, I);
@@ -4994,9 +5018,13 @@ InstructionCost X86TTIImpl::getGatherScatterOpCost(
   unsigned AddressSpace = PtrTy->getAddressSpace();
 
   if ((Opcode == Instruction::Load &&
-       !isLegalMaskedGather(SrcVTy, Align(Alignment))) ||
+       (!isLegalMaskedGather(SrcVTy, Align(Alignment)) ||
+        forceScalarizeMaskedGather(cast<VectorType>(SrcVTy),
+                                   Align(Alignment)))) ||
       (Opcode == Instruction::Store &&
-       !isLegalMaskedScatter(SrcVTy, Align(Alignment))))
+       (!isLegalMaskedScatter(SrcVTy, Align(Alignment)) ||
+        forceScalarizeMaskedScatter(cast<VectorType>(SrcVTy),
+                                    Align(Alignment)))))
     return getGSScalarCost(Opcode, SrcVTy, VariableMask, Alignment,
                            AddressSpace);
 
@@ -5119,35 +5147,21 @@ bool X86TTIImpl::supportsGather() const {
   return ST->hasAVX512() || (ST->hasFastGather() && ST->hasAVX2());
 }
 
+bool X86TTIImpl::forceScalarizeMaskedGather(VectorType *VTy, Align Alignment) {
+  // Gather / Scatter for vector 2 is not profitable on KNL / SKX
+  // Vector-4 of gather/scatter instruction does not exist on KNL. We can extend
+  // it to 8 elements, but zeroing upper bits of the mask vector will add more
+  // instructions. Right now we give the scalar cost of vector-4 for KNL. TODO:
+  // Check, maybe the gather/scatter instruction is better in the VariableMask
+  // case.
+  unsigned NumElts = cast<FixedVectorType>(VTy)->getNumElements();
+  return NumElts == 1 ||
+         (ST->hasAVX512() && (NumElts == 2 || (NumElts == 4 && !ST->hasVLX())));
+}
+
 bool X86TTIImpl::isLegalMaskedGather(Type *DataTy, Align Alignment) {
   if (!supportsGather())
     return false;
-
-  // This function is called now in two cases: from the Loop Vectorizer
-  // and from the Scalarizer.
-  // When the Loop Vectorizer asks about legality of the feature,
-  // the vectorization factor is not calculated yet. The Loop Vectorizer
-  // sends a scalar type and the decision is based on the width of the
-  // scalar element.
-  // Later on, the cost model will estimate usage this intrinsic based on
-  // the vector type.
-  // The Scalarizer asks again about legality. It sends a vector type.
-  // In this case we can reject non-power-of-2 vectors.
-  // We also reject single element vectors as the type legalizer can't
-  // scalarize it.
-  if (auto *DataVTy = dyn_cast<FixedVectorType>(DataTy)) {
-    unsigned NumElts = DataVTy->getNumElements();
-    if (NumElts == 1)
-      return false;
-    // Gather / Scatter for vector 2 is not profitable on KNL / SKX
-    // Vector-4 of gather/scatter instruction does not exist on KNL.
-    // We can extend it to 8 elements, but zeroing upper bits of
-    // the mask vector will add more instructions. Right now we give the scalar
-    // cost of vector-4 for KNL. TODO: Check, maybe the gather/scatter
-    // instruction is better in the VariableMask case.
-    if (ST->hasAVX512() && (NumElts == 2 || (NumElts == 4 && !ST->hasVLX())))
-      return false;
-  }
   Type *ScalarTy = DataTy->getScalarType();
   if (ScalarTy->isPointerTy())
     return true;

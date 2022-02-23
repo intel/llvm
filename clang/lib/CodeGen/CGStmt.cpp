@@ -385,7 +385,7 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
         cast<OMPTargetTeamsDistributeSimdDirective>(*S));
     break;
   case Stmt::OMPInteropDirectiveClass:
-    llvm_unreachable("Interop directive not supported yet.");
+    EmitOMPInteropDirective(cast<OMPInteropDirective>(*S));
     break;
   case Stmt::OMPDispatchDirectiveClass:
     llvm_unreachable("Dispatch directive not supported yet.");
@@ -2121,10 +2121,9 @@ std::pair<llvm::Value*, llvm::Type *> CodeGenFunction::EmitAsmInputLValue(
     if ((Size <= 64 && llvm::isPowerOf2_64(Size)) ||
         getTargetHooks().isScalarizableAsmOperand(*this, Ty)) {
       Ty = llvm::IntegerType::get(getLLVMContext(), Size);
-      Ty = llvm::PointerType::getUnqual(Ty);
 
-      return {Builder.CreateLoad(
-                  Builder.CreateBitCast(InputValue.getAddress(*this), Ty)),
+      return {Builder.CreateLoad(Builder.CreateElementBitCast(
+                  InputValue.getAddress(*this), Ty)),
               nullptr};
     }
   }
@@ -2542,6 +2541,14 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
     Constraints += InputConstraint;
   }
 
+  // Append the "input" part of inout constraints.
+  for (unsigned i = 0, e = InOutArgs.size(); i != e; i++) {
+    ArgTypes.push_back(InOutArgTypes[i]);
+    ArgElemTypes.push_back(InOutArgElemTypes[i]);
+    Args.push_back(InOutArgs[i]);
+  }
+  Constraints += InOutConstraints;
+
   // Labels
   SmallVector<llvm::BasicBlock *, 16> Transfer;
   llvm::BasicBlock *Fallthrough = nullptr;
@@ -2559,19 +2566,11 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
         ArgElemTypes.push_back(nullptr);
         if (!Constraints.empty())
           Constraints += ',';
-        Constraints += 'X';
+        Constraints += 'i';
       }
       Fallthrough = createBasicBlock("asm.fallthrough");
     }
   }
-
-  // Append the "input" part of inout constraints last.
-  for (unsigned i = 0, e = InOutArgs.size(); i != e; i++) {
-    ArgTypes.push_back(InOutArgTypes[i]);
-    ArgElemTypes.push_back(InOutArgElemTypes[i]);
-    Args.push_back(InOutArgs[i]);
-  }
-  Constraints += InOutConstraints;
 
   bool HasUnwindClobber = false;
 
@@ -2713,8 +2712,8 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
     // ResultTypeRequiresCast.size() elements of RegResults.
     if ((i < ResultTypeRequiresCast.size()) && ResultTypeRequiresCast[i]) {
       unsigned Size = getContext().getTypeSize(ResultRegQualTys[i]);
-      Address A = Builder.CreateBitCast(Dest.getAddress(*this),
-                                        ResultRegTypes[i]->getPointerTo());
+      Address A = Builder.CreateElementBitCast(Dest.getAddress(*this),
+                                               ResultRegTypes[i]);
       if (getTargetHooks().isScalarizableAsmOperand(*this, TruncTy)) {
         Builder.CreateStore(Tmp, A);
         continue;

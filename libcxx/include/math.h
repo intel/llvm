@@ -294,7 +294,7 @@ long double    truncl(long double x);
 #include <__config>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 #include_next <math.h>
@@ -305,9 +305,9 @@ long double    truncl(long double x);
 // back to C++ linkage before including these C++ headers.
 extern "C++" {
 
+#include <limits>
 #include <stdlib.h>
 #include <type_traits>
-#include <limits>
 
 // signbit
 

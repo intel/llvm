@@ -252,7 +252,7 @@ public:
   }
 
   void SourceInitFileCwd(CommandReturnObject &result);
-  void SourceInitFileHome(CommandReturnObject &result, bool is_repl = false);
+  void SourceInitFileHome(CommandReturnObject &result, bool is_repl);
 
   bool AddCommand(llvm::StringRef name, const lldb::CommandObjectSP &cmd_sp,
                   bool can_replace);
@@ -605,6 +605,8 @@ public:
 
   FileSpec GetCurrentSourceDir();
 
+  bool IsInteractive();
+
 protected:
   friend class Debugger;
 
@@ -649,7 +651,7 @@ private:
 
   void FindCommandsForApropos(llvm::StringRef word, StringList &commands_found,
                               StringList &commands_help,
-                              CommandObject::CommandMap &command_map);
+                              const CommandObject::CommandMap &command_map);
 
   // An interruptible wrapper around the stream output
   void PrintCommandOutput(Stream &stream, llvm::StringRef str);

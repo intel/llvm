@@ -27,6 +27,7 @@
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/CmpInstAnalysis.h"
 #include "llvm/Analysis/ConstantFolding.h"
+#include "llvm/Analysis/InstSimplifyFolder.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/OverflowInstAnalysis.h"
@@ -70,7 +71,7 @@ static Value *SimplifyOrInst(Value *, Value *, const SimplifyQuery &, unsigned);
 static Value *SimplifyXorInst(Value *, Value *, const SimplifyQuery &, unsigned);
 static Value *SimplifyCastInst(unsigned, Value *, Type *,
                                const SimplifyQuery &, unsigned);
-static Value *SimplifyGEPInst(Type *, ArrayRef<Value *>, bool,
+static Value *SimplifyGEPInst(Type *, Value *, ArrayRef<Value *>, bool,
                               const SimplifyQuery &, unsigned);
 static Value *SimplifySelectInst(Value *, Value *, Value *,
                                  const SimplifyQuery &, unsigned);
@@ -950,7 +951,7 @@ static Value *simplifyDivRem(Instruction::BinaryOps Opcode, Value *Op0,
 
   // X / undef -> poison
   // X % undef -> poison
-  if (Q.isUndefValue(Op1))
+  if (Q.isUndefValue(Op1) || isa<PoisonValue>(Op1))
     return PoisonValue::get(Ty);
 
   // X / 0 -> poison
@@ -1078,6 +1079,16 @@ static bool isDivZero(Value *X, Value *Y, const SimplifyQuery &Q,
   }
 
   // IsSigned == false.
+
+  // Is the unsigned dividend known to be less than a constant divisor?
+  // TODO: Convert this (and above) to range analysis
+  //      ("computeConstantRangeIncludingKnownBits")?
+  const APInt *C;
+  if (match(Y, m_APInt(C)) &&
+      computeKnownBits(X, Q.DL, 0, Q.AC, Q.CxtI, Q.DT).getMaxValue().ult(*C))
+    return true;
+
+  // Try again for any divisor:
   // Is the dividend unsigned less than the divisor?
   return isICmpTrue(ICmpInst::ICMP_ULT, X, Y, Q, MaxRecurse);
 }
@@ -2407,6 +2418,10 @@ static Value *SimplifyXorInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
   if (Constant *C = foldOrCommuteConstant(Instruction::Xor, Op0, Op1, Q))
     return C;
 
+  // X ^ poison -> poison
+  if (isa<PoisonValue>(Op1))
+    return Op1;
+
   // A ^ undef -> undef
   if (Q.isUndefValue(Op1))
     return Op1;
@@ -2573,8 +2588,14 @@ computePointerICmp(CmpInst::Predicate Pred, Value *LHS, Value *RHS,
   // numerous hazards. AliasAnalysis and its utilities rely on special rules
   // governing loads and stores which don't apply to icmps. Also, AliasAnalysis
   // doesn't need to guarantee pointer inequality when it says NoAlias.
-  Constant *LHSOffset = stripAndComputeConstantOffsets(DL, LHS);
-  Constant *RHSOffset = stripAndComputeConstantOffsets(DL, RHS);
+
+  // Even if an non-inbounds GEP occurs along the path we can still optimize
+  // equality comparisons concerning the result.
+  bool AllowNonInbounds = ICmpInst::isEquality(Pred);
+  Constant *LHSOffset =
+      stripAndComputeConstantOffsets(DL, LHS, AllowNonInbounds);
+  Constant *RHSOffset =
+      stripAndComputeConstantOffsets(DL, RHS, AllowNonInbounds);
 
   // If LHS and RHS are related via constant offsets to the same base
   // value, we can replace it with an icmp which just compares the offsets.
@@ -2644,17 +2665,6 @@ computePointerICmp(CmpInst::Predicate Pred, Value *LHS, Value *RHS,
                                 !CmpInst::isTrueWhenEqual(Pred));
     }
 
-    // Even if an non-inbounds GEP occurs along the path we can still optimize
-    // equality comparisons concerning the result. We avoid walking the whole
-    // chain again by starting where the last calls to
-    // stripAndComputeConstantOffsets left off and accumulate the offsets.
-    Constant *LHSNoBound = stripAndComputeConstantOffsets(DL, LHS, true);
-    Constant *RHSNoBound = stripAndComputeConstantOffsets(DL, RHS, true);
-    if (LHS == RHS)
-      return ConstantExpr::getICmp(Pred,
-                                   ConstantExpr::getAdd(LHSOffset, LHSNoBound),
-                                   ConstantExpr::getAdd(RHSOffset, RHSNoBound));
-
     // If one side of the equality comparison must come from a noalias call
     // (meaning a system memory allocation function), and the other side must
     // come from a pointer that cannot overlap with dynamically-allocated
@@ -2696,7 +2706,9 @@ computePointerICmp(CmpInst::Predicate Pred, Value *LHS, Value *RHS,
 
     // Fold comparisons for non-escaping pointer even if the allocation call
     // cannot be elided. We cannot fold malloc comparison to null. Also, the
-    // dynamic allocation call could be either of the operands.
+    // dynamic allocation call could be either of the operands.  Note that
+    // the other operand can not be based on the alloc - if it were, then
+    // the cmp itself would be a capture.
     Value *MI = nullptr;
     if (isAllocLikeFn(LHS, TLI) &&
         llvm::isKnownNonZero(RHS, DL, 0, nullptr, CxtI, DT))
@@ -4069,9 +4081,9 @@ static Value *simplifyWithOpReplaced(Value *V, Value *Op, Value *RepOp,
                                                  NewOps[1], Q, MaxRecurse - 1));
 
     if (auto *GEP = dyn_cast<GetElementPtrInst>(I))
-      return PreventSelfSimplify(SimplifyGEPInst(GEP->getSourceElementType(),
-                                                 NewOps, GEP->isInBounds(), Q,
-                                                 MaxRecurse - 1));
+      return PreventSelfSimplify(SimplifyGEPInst(
+          GEP->getSourceElementType(), NewOps[0], makeArrayRef(NewOps).slice(1),
+          GEP->isInBounds(), Q, MaxRecurse - 1));
 
     if (isa<SelectInst>(I))
       return PreventSelfSimplify(
@@ -4429,45 +4441,58 @@ Value *llvm::SimplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
 
 /// Given operands for an GetElementPtrInst, see if we can fold the result.
 /// If not, this returns null.
-static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops, bool InBounds,
+static Value *SimplifyGEPInst(Type *SrcTy, Value *Ptr,
+                              ArrayRef<Value *> Indices, bool InBounds,
                               const SimplifyQuery &Q, unsigned) {
   // The type of the GEP pointer operand.
   unsigned AS =
-      cast<PointerType>(Ops[0]->getType()->getScalarType())->getAddressSpace();
+      cast<PointerType>(Ptr->getType()->getScalarType())->getAddressSpace();
 
   // getelementptr P -> P.
-  if (Ops.size() == 1)
-    return Ops[0];
+  if (Indices.empty())
+    return Ptr;
 
   // Compute the (pointer) type returned by the GEP instruction.
-  Type *LastType = GetElementPtrInst::getIndexedType(SrcTy, Ops.slice(1));
+  Type *LastType = GetElementPtrInst::getIndexedType(SrcTy, Indices);
   Type *GEPTy = PointerType::get(LastType, AS);
-  for (Value *Op : Ops) {
-    // If one of the operands is a vector, the result type is a vector of
-    // pointers. All vector operands must have the same number of elements.
-    if (VectorType *VT = dyn_cast<VectorType>(Op->getType())) {
-      GEPTy = VectorType::get(GEPTy, VT->getElementCount());
-      break;
+  if (VectorType *VT = dyn_cast<VectorType>(Ptr->getType()))
+    GEPTy = VectorType::get(GEPTy, VT->getElementCount());
+  else {
+    for (Value *Op : Indices) {
+      // If one of the operands is a vector, the result type is a vector of
+      // pointers. All vector operands must have the same number of elements.
+      if (VectorType *VT = dyn_cast<VectorType>(Op->getType())) {
+        GEPTy = VectorType::get(GEPTy, VT->getElementCount());
+        break;
+      }
     }
   }
 
+  // For opaque pointers an all-zero GEP is a no-op. For typed pointers,
+  // it may be equivalent to a bitcast.
+  if (Ptr->getType()->isOpaquePointerTy() &&
+      all_of(Indices, [](const auto *V) { return match(V, m_Zero()); }))
+    return Ptr;
+
   // getelementptr poison, idx -> poison
   // getelementptr baseptr, poison -> poison
-  if (any_of(Ops, [](const auto *V) { return isa<PoisonValue>(V); }))
+  if (isa<PoisonValue>(Ptr) ||
+      any_of(Indices, [](const auto *V) { return isa<PoisonValue>(V); }))
     return PoisonValue::get(GEPTy);
 
-  if (Q.isUndefValue(Ops[0]))
-    return UndefValue::get(GEPTy);
+  if (Q.isUndefValue(Ptr))
+    // If inbounds, we can choose an out-of-bounds pointer as a base pointer.
+    return InBounds ? PoisonValue::get(GEPTy) : UndefValue::get(GEPTy);
 
   bool IsScalableVec =
-      isa<ScalableVectorType>(SrcTy) || any_of(Ops, [](const Value *V) {
+      isa<ScalableVectorType>(SrcTy) || any_of(Indices, [](const Value *V) {
         return isa<ScalableVectorType>(V->getType());
       });
 
-  if (Ops.size() == 2) {
+  if (Indices.size() == 1) {
     // getelementptr P, 0 -> P.
-    if (match(Ops[1], m_Zero()) && Ops[0]->getType() == GEPTy)
-      return Ops[0];
+    if (match(Indices[0], m_Zero()) && Ptr->getType() == GEPTy)
+      return Ptr;
 
     Type *Ty = SrcTy;
     if (!IsScalableVec && Ty->isSized()) {
@@ -4475,37 +4500,37 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops, bool InBounds,
       uint64_t C;
       uint64_t TyAllocSize = Q.DL.getTypeAllocSize(Ty);
       // getelementptr P, N -> P if P points to a type of zero size.
-      if (TyAllocSize == 0 && Ops[0]->getType() == GEPTy)
-        return Ops[0];
+      if (TyAllocSize == 0 && Ptr->getType() == GEPTy)
+        return Ptr;
 
       // The following transforms are only safe if the ptrtoint cast
       // doesn't truncate the pointers.
-      if (Ops[1]->getType()->getScalarSizeInBits() ==
+      if (Indices[0]->getType()->getScalarSizeInBits() ==
           Q.DL.getPointerSizeInBits(AS)) {
-        auto CanSimplify = [GEPTy, &P, V = Ops[0]]() -> bool {
+        auto CanSimplify = [GEPTy, &P, Ptr]() -> bool {
           return P->getType() == GEPTy &&
-                 getUnderlyingObject(P) == getUnderlyingObject(V);
+                 getUnderlyingObject(P) == getUnderlyingObject(Ptr);
         };
         // getelementptr V, (sub P, V) -> P if P points to a type of size 1.
         if (TyAllocSize == 1 &&
-            match(Ops[1], m_Sub(m_PtrToInt(m_Value(P)),
-                                m_PtrToInt(m_Specific(Ops[0])))) &&
+            match(Indices[0],
+                  m_Sub(m_PtrToInt(m_Value(P)), m_PtrToInt(m_Specific(Ptr)))) &&
             CanSimplify())
           return P;
 
         // getelementptr V, (ashr (sub P, V), C) -> P if P points to a type of
         // size 1 << C.
-        if (match(Ops[1], m_AShr(m_Sub(m_PtrToInt(m_Value(P)),
-                                       m_PtrToInt(m_Specific(Ops[0]))),
-                                 m_ConstantInt(C))) &&
+        if (match(Indices[0], m_AShr(m_Sub(m_PtrToInt(m_Value(P)),
+                                           m_PtrToInt(m_Specific(Ptr))),
+                                     m_ConstantInt(C))) &&
             TyAllocSize == 1ULL << C && CanSimplify())
           return P;
 
         // getelementptr V, (sdiv (sub P, V), C) -> P if P points to a type of
         // size C.
-        if (match(Ops[1], m_SDiv(m_Sub(m_PtrToInt(m_Value(P)),
-                                       m_PtrToInt(m_Specific(Ops[0]))),
-                                 m_SpecificInt(TyAllocSize))) &&
+        if (match(Indices[0], m_SDiv(m_Sub(m_PtrToInt(m_Value(P)),
+                                           m_PtrToInt(m_Specific(Ptr))),
+                                     m_SpecificInt(TyAllocSize))) &&
             CanSimplify())
           return P;
       }
@@ -4513,29 +4538,28 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops, bool InBounds,
   }
 
   if (!IsScalableVec && Q.DL.getTypeAllocSize(LastType) == 1 &&
-      all_of(Ops.slice(1).drop_back(1),
+      all_of(Indices.drop_back(1),
              [](Value *Idx) { return match(Idx, m_Zero()); })) {
     unsigned IdxWidth =
-        Q.DL.getIndexSizeInBits(Ops[0]->getType()->getPointerAddressSpace());
-    if (Q.DL.getTypeSizeInBits(Ops.back()->getType()) == IdxWidth) {
+        Q.DL.getIndexSizeInBits(Ptr->getType()->getPointerAddressSpace());
+    if (Q.DL.getTypeSizeInBits(Indices.back()->getType()) == IdxWidth) {
       APInt BasePtrOffset(IdxWidth, 0);
       Value *StrippedBasePtr =
-          Ops[0]->stripAndAccumulateInBoundsConstantOffsets(Q.DL,
-                                                            BasePtrOffset);
+          Ptr->stripAndAccumulateInBoundsConstantOffsets(Q.DL, BasePtrOffset);
 
       // Avoid creating inttoptr of zero here: While LLVMs treatment of
       // inttoptr is generally conservative, this particular case is folded to
       // a null pointer, which will have incorrect provenance.
 
       // gep (gep V, C), (sub 0, V) -> C
-      if (match(Ops.back(),
+      if (match(Indices.back(),
                 m_Sub(m_Zero(), m_PtrToInt(m_Specific(StrippedBasePtr)))) &&
           !BasePtrOffset.isZero()) {
         auto *CI = ConstantInt::get(GEPTy->getContext(), BasePtrOffset);
         return ConstantExpr::getIntToPtr(CI, GEPTy);
       }
       // gep (gep V, C), (xor V, -1) -> C-1
-      if (match(Ops.back(),
+      if (match(Indices.back(),
                 m_Xor(m_PtrToInt(m_Specific(StrippedBasePtr)), m_AllOnes())) &&
           !BasePtrOffset.isOne()) {
         auto *CI = ConstantInt::get(GEPTy->getContext(), BasePtrOffset - 1);
@@ -4545,17 +4569,18 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops, bool InBounds,
   }
 
   // Check to see if this is constant foldable.
-  if (!all_of(Ops, [](Value *V) { return isa<Constant>(V); }))
+  if (!isa<Constant>(Ptr) ||
+      !all_of(Indices, [](Value *V) { return isa<Constant>(V); }))
     return nullptr;
 
-  auto *CE = ConstantExpr::getGetElementPtr(SrcTy, cast<Constant>(Ops[0]),
-                                            Ops.slice(1), InBounds);
+  auto *CE = ConstantExpr::getGetElementPtr(SrcTy, cast<Constant>(Ptr), Indices,
+                                            InBounds);
   return ConstantFoldConstant(CE, Q.DL);
 }
 
-Value *llvm::SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops, bool InBounds,
-                             const SimplifyQuery &Q) {
-  return ::SimplifyGEPInst(SrcTy, Ops, InBounds, Q, RecursionLimit);
+Value *llvm::SimplifyGEPInst(Type *SrcTy, Value *Ptr, ArrayRef<Value *> Indices,
+                             bool InBounds, const SimplifyQuery &Q) {
+  return ::SimplifyGEPInst(SrcTy, Ptr, Indices, InBounds, Q, RecursionLimit);
 }
 
 /// Given operands for an InsertValueInst, see if we can fold the result.
@@ -5025,11 +5050,6 @@ static Constant *simplifyFPOp(ArrayRef<Value *> Ops, FastMathFlags FMF,
   return nullptr;
 }
 
-// TODO: Move this out to a header file:
-static inline bool canIgnoreSNaN(fp::ExceptionBehavior EB, FastMathFlags FMF) {
-  return (EB == fp::ebIgnore || FMF.noNaNs());
-}
-
 /// Given operands for an FAdd, see if we can fold the result.  If not, this
 /// returns null.
 static Value *
@@ -5106,17 +5126,21 @@ SimplifyFSubInst(Value *Op0, Value *Op1, FastMathFlags FMF,
   if (Constant *C = simplifyFPOp({Op0, Op1}, FMF, Q, ExBehavior, Rounding))
     return C;
 
-  if (!isDefaultFPEnvironment(ExBehavior, Rounding))
-    return nullptr;
-
   // fsub X, +0 ==> X
-  if (match(Op1, m_PosZeroFP()))
-    return Op0;
+  if (canIgnoreSNaN(ExBehavior, FMF) &&
+      (!canRoundingModeBe(Rounding, RoundingMode::TowardNegative) ||
+       FMF.noSignedZeros()))
+    if (match(Op1, m_PosZeroFP()))
+      return Op0;
 
   // fsub X, -0 ==> X, when we know X is not -0
-  if (match(Op1, m_NegZeroFP()) &&
-      (FMF.noSignedZeros() || CannotBeNegativeZero(Op0, Q.TLI)))
-    return Op0;
+  if (canIgnoreSNaN(ExBehavior, FMF))
+    if (match(Op1, m_NegZeroFP()) &&
+        (FMF.noSignedZeros() || CannotBeNegativeZero(Op0, Q.TLI)))
+      return Op0;
+
+  if (!isDefaultFPEnvironment(ExBehavior, Rounding))
+    return nullptr;
 
   // fsub -0.0, (fsub -0.0, X) ==> X
   // fsub -0.0, (fneg X) ==> X
@@ -6271,8 +6295,9 @@ static Value *simplifyInstructionWithOperands(Instruction *I,
     break;
   case Instruction::GetElementPtr: {
     auto *GEPI = cast<GetElementPtrInst>(I);
-    Result = SimplifyGEPInst(GEPI->getSourceElementType(), NewOps,
-                             GEPI->isInBounds(), Q);
+    Result =
+        SimplifyGEPInst(GEPI->getSourceElementType(), NewOps[0],
+                        makeArrayRef(NewOps).slice(1), GEPI->isInBounds(), Q);
     break;
   }
   case Instruction::InsertValue: {
@@ -6454,3 +6479,5 @@ const SimplifyQuery getBestSimplifyQuery(AnalysisManager<T, TArgs...> &AM,
 template const SimplifyQuery getBestSimplifyQuery(AnalysisManager<Function> &,
                                                   Function &);
 }
+
+void InstSimplifyFolder::anchor() {}

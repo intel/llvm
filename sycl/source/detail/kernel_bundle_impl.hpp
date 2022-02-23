@@ -28,12 +28,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-template <class T> struct LessByHash {
-  bool operator()(const T &LHS, const T &RHS) const {
-    return getSyclObjImpl(LHS) < getSyclObjImpl(RHS);
-  }
-};
-
 static bool checkAllDevicesAreInContext(const std::vector<device> &Devices,
                                         const context &Context) {
   const std::vector<device> &ContextDevices = Context.get_devices();

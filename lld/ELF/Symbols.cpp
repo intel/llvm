@@ -15,9 +15,6 @@
 #include "Writer.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Strings.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Path.h"
 #include <cstring>
 
 using namespace llvm;
@@ -34,10 +31,6 @@ std::string lld::toString(const elf::Symbol &sym) {
   if (*suffix == '@')
     ret += suffix;
   return ret;
-}
-
-std::string lld::toELFString(const Archive::Symbol &b) {
-  return demangle(b.getName(), config->demangle);
 }
 
 Defined *ElfSym::bss;
@@ -59,6 +52,7 @@ DenseMap<const Symbol *, std::pair<const InputFile *, const InputFile *>>
     elf::backwardReferences;
 SmallVector<std::tuple<std::string, const InputFile *, const Symbol &>, 0>
     elf::whyExtract;
+SmallVector<SymbolAux, 0> elf::symAux;
 
 static uint64_t getSymVA(const Symbol &sym, int64_t addend) {
   switch (sym.kind()) {
@@ -131,7 +125,6 @@ static uint64_t getSymVA(const Symbol &sym, int64_t addend) {
   case Symbol::SharedKind:
   case Symbol::UndefinedKind:
     return 0;
-  case Symbol::LazyArchiveKind:
   case Symbol::LazyObjectKind:
     llvm_unreachable("lazy symbol reached writer");
   case Symbol::CommonKind:
@@ -153,7 +146,7 @@ uint64_t Symbol::getGotVA() const {
 }
 
 uint64_t Symbol::getGotOffset() const {
-  return gotIndex * target->gotEntrySize;
+  return getGotIdx() * target->gotEntrySize;
 }
 
 uint64_t Symbol::getGotPltVA() const {
@@ -164,15 +157,15 @@ uint64_t Symbol::getGotPltVA() const {
 
 uint64_t Symbol::getGotPltOffset() const {
   if (isInIplt)
-    return pltIndex * target->gotEntrySize;
-  return (pltIndex + target->gotPltHeaderEntriesNum) * target->gotEntrySize;
+    return getPltIdx() * target->gotEntrySize;
+  return (getPltIdx() + target->gotPltHeaderEntriesNum) * target->gotEntrySize;
 }
 
 uint64_t Symbol::getPltVA() const {
   uint64_t outVA = isInIplt
-                       ? in.iplt->getVA() + pltIndex * target->ipltEntrySize
+                       ? in.iplt->getVA() + getPltIdx() * target->ipltEntrySize
                        : in.plt->getVA() + in.plt->headerSize +
-                             pltIndex * target->pltEntrySize;
+                             getPltIdx() * target->pltEntrySize;
 
   // While linking microMIPS code PLT code are always microMIPS
   // code. Set the less-significant bit to track that fact.
@@ -248,38 +241,22 @@ void Symbol::parseSymbolVersion() {
 }
 
 void Symbol::extract() const {
-  if (auto *sym = dyn_cast<LazyArchive>(this)) {
-    cast<ArchiveFile>(sym->file)->extract(sym->sym);
-  } else if (file->lazy) {
+  if (file->lazy) {
     file->lazy = false;
     parseFile(file);
   }
 }
 
-MemoryBufferRef LazyArchive::getMemberBuffer() {
-  Archive::Child c =
-      CHECK(sym.getMember(),
-            "could not get the member for symbol " + toELFString(sym));
-
-  return CHECK(c.getMemoryBufferRef(),
-               "could not get the buffer for the member defining symbol " +
-                   toELFString(sym));
-}
-
 uint8_t Symbol::computeBinding() const {
-  if (config->relocatable)
-    return binding;
   if ((visibility != STV_DEFAULT && visibility != STV_PROTECTED) ||
-      (versionId == VER_NDX_LOCAL && !isLazy()))
+      versionId == VER_NDX_LOCAL)
     return STB_LOCAL;
-  if (!config->gnuUnique && binding == STB_GNU_UNIQUE)
+  if (binding == STB_GNU_UNIQUE && !config->gnuUnique)
     return STB_GLOBAL;
   return binding;
 }
 
 bool Symbol::includeInDynsym() const {
-  if (!config->hasDynSymTab)
-    return false;
   if (computeBinding() == STB_LOCAL)
     return false;
   if (!isDefined() && !isCommon())
@@ -287,26 +264,26 @@ bool Symbol::includeInDynsym() const {
     // expects undefined weak symbols not to exist in .dynsym, e.g.
     // __pthread_mutex_lock reference in _dl_add_to_namespace_list,
     // __pthread_initialize_minimal reference in csu/libc-start.c.
-    return !(config->noDynamicLinker && isUndefWeak());
+    return !(isUndefWeak() && config->noDynamicLinker);
 
   return exportDynamic || inDynamicList;
 }
 
 // Print out a log message for --trace-symbol.
-void elf::printTraceSymbol(const Symbol *sym) {
+void elf::printTraceSymbol(const Symbol &sym, StringRef name) {
   std::string s;
-  if (sym->isUndefined())
+  if (sym.isUndefined())
     s = ": reference to ";
-  else if (sym->isLazy())
+  else if (sym.isLazy())
     s = ": lazy definition of ";
-  else if (sym->isShared())
+  else if (sym.isShared())
     s = ": shared definition of ";
-  else if (sym->isCommon())
+  else if (sym.isCommon())
     s = ": common definition of ";
   else
     s = ": definition of ";
 
-  message(toString(sym->file) + s + sym->getName());
+  message(toString(sym.file) + s + name);
 }
 
 static void recordWhyExtract(const InputFile *reference,
@@ -434,9 +411,6 @@ void Symbol::resolve(const Symbol &other) {
   case Symbol::DefinedKind:
     resolveDefined(cast<Defined>(other));
     break;
-  case Symbol::LazyArchiveKind:
-    resolveLazy(cast<LazyArchive>(other));
-    break;
   case Symbol::LazyObjectKind:
     resolveLazy(cast<LazyObject>(other));
     break;
@@ -461,7 +435,7 @@ void Symbol::resolveUndefined(const Undefined &other) {
   }
 
   if (traced)
-    printTraceSymbol(&other);
+    printTraceSymbol(other, getName());
 
   if (isLazy()) {
     // An undefined weak will not extract archive members. See comment on Lazy
@@ -611,15 +585,14 @@ int Symbol::compare(const Symbol *other) const {
   return 0;
 }
 
-static void reportDuplicate(Symbol *sym, InputFile *newFile,
+static void reportDuplicate(const Symbol &sym, InputFile *newFile,
                             InputSectionBase *errSec, uint64_t errOffset) {
   if (config->allowMultipleDefinition)
     return;
-
-  Defined *d = cast<Defined>(sym);
+  const Defined *d = cast<Defined>(&sym);
   if (!d->section || !errSec) {
-    error("duplicate symbol: " + toString(*sym) + "\n>>> defined in " +
-          toString(sym->file) + "\n>>> defined in " + toString(newFile));
+    error("duplicate symbol: " + toString(sym) + "\n>>> defined in " +
+          toString(sym.file) + "\n>>> defined in " + toString(newFile));
     return;
   }
 
@@ -631,12 +604,12 @@ static void reportDuplicate(Symbol *sym, InputFile *newFile,
   //   >>> defined at baz.c:563
   //   >>>            baz.o in archive libbaz.a
   auto *sec1 = cast<InputSectionBase>(d->section);
-  std::string src1 = sec1->getSrcMsg(*sym, d->value);
+  std::string src1 = sec1->getSrcMsg(sym, d->value);
   std::string obj1 = sec1->getObjMsg(d->value);
-  std::string src2 = errSec->getSrcMsg(*sym, errOffset);
+  std::string src2 = errSec->getSrcMsg(sym, errOffset);
   std::string obj2 = errSec->getObjMsg(errOffset);
 
-  std::string msg = "duplicate symbol: " + toString(*sym) + "\n>>> defined at ";
+  std::string msg = "duplicate symbol: " + toString(sym) + "\n>>> defined at ";
   if (!src1.empty())
     msg += src1 + "\n>>>            ";
   msg += obj1 + "\n>>> defined at ";
@@ -681,7 +654,7 @@ void Symbol::resolveDefined(const Defined &other) {
   if (cmp > 0)
     replace(other);
   else if (cmp == 0)
-    reportDuplicate(this, other.file,
+    reportDuplicate(*this, other.file,
                     dyn_cast_or_null<InputSectionBase>(other.section),
                     other.value);
 }
@@ -697,15 +670,8 @@ template <class LazyT> void Symbol::resolveLazy(const LazyT &other) {
   // For common objects, we want to look for global or weak definitions that
   // should be extracted as the canonical definition instead.
   if (isCommon() && elf::config->fortranCommon) {
-    if (auto *laSym = dyn_cast<LazyArchive>(&other)) {
-      ArchiveFile *archive = cast<ArchiveFile>(laSym->file);
-      const Archive::Symbol &archiveSym = laSym->sym;
-      if (archive->shouldExtractForCommon(archiveSym)) {
-        replaceCommon(*this, other);
-        return;
-      }
-    } else if (auto *loSym = dyn_cast<LazyObject>(&other)) {
-      if (loSym->file->shouldExtractForCommon(loSym->getName())) {
+    if (auto *loSym = dyn_cast<LazyObject>(&other)) {
+      if (loSym->file->shouldExtractForCommon(getName())) {
         replaceCommon(*this, other);
         return;
       }
@@ -749,5 +715,5 @@ void Symbol::resolveShared(const SharedSymbol &other) {
     replace(other);
     binding = bind;
   } else if (traced)
-    printTraceSymbol(&other);
+    printTraceSymbol(other, getName());
 }

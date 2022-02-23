@@ -408,6 +408,7 @@ cc_library(
     copts = llvm_copts,
     deps = [
         ":Support",
+        ":Symbolize",
     ],
 )
 
@@ -462,7 +463,6 @@ cc_library(
         ":DebugInfo",
         ":DebugInfoDWARF",
         ":DebugInfoPDB",
-        ":Debuginfod",
         ":Demangle",
         ":Object",
         ":Support",
@@ -841,6 +841,7 @@ cc_library(
         ":Core",
         ":DebugInfoDWARF",
         ":Support",
+        ":Symbolize",
         ":config",
     ],
 )
@@ -2393,6 +2394,21 @@ cc_library(
 )
 
 cc_library(
+    name = "WindowsDriver",
+    srcs = glob([
+        "lib/WindowsDriver/*.cpp",
+    ]),
+    hdrs = glob([
+        "include/llvm/WindowsDriver/*.h",
+    ]),
+    copts = llvm_copts,
+    deps = [
+        ":Option",
+        ":Support",
+    ],
+)
+
+cc_library(
     name = "WindowsManifest",
     srcs = glob([
         "lib/WindowsManifest/*.cpp",
@@ -2990,6 +3006,8 @@ cc_binary(
     copts = llvm_copts,
     stamp = 0,
     deps = [
+        ":AllTargetsAsmParsers",
+        ":AllTargetsCodeGens",
         ":BinaryFormat",
         ":Object",
         ":Support",
@@ -4241,8 +4259,8 @@ cc_binary(
         ":Option",
         ":Remarks",
         ":Support",
-        ":TextAPI",
         ":TLICheckerOptsTableGen",
+        ":TextAPI",
     ],
 )
 

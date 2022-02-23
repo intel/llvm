@@ -267,10 +267,10 @@ class CXXNameMangler {
   /// that's not a template specialization; otherwise it's the pattern
   /// for that specialization.
   const NamedDecl *Structor;
-  unsigned StructorType;
+  unsigned StructorType = 0;
 
   /// The next substitution sequence number.
-  unsigned SeqID;
+  unsigned SeqID = 0;
 
   class FunctionTypeDepthState {
     unsigned Bits;
@@ -430,32 +430,32 @@ class CXXNameMangler {
 public:
   CXXNameMangler(ItaniumMangleContextImpl &C, raw_ostream &Out_,
                  const NamedDecl *D = nullptr, bool NullOut_ = false)
-    : Context(C), Out(Out_), NullOut(NullOut_),  Structor(getStructor(D)),
-      StructorType(0), SeqID(0), AbiTagsRoot(AbiTags) {
+      : Context(C), Out(Out_), NullOut(NullOut_), Structor(getStructor(D)),
+        AbiTagsRoot(AbiTags) {
     // These can't be mangled without a ctor type or dtor type.
     assert(!D || (!isa<CXXDestructorDecl>(D) &&
                   !isa<CXXConstructorDecl>(D)));
   }
   CXXNameMangler(ItaniumMangleContextImpl &C, raw_ostream &Out_,
                  const CXXConstructorDecl *D, CXXCtorType Type)
-    : Context(C), Out(Out_), Structor(getStructor(D)), StructorType(Type),
-      SeqID(0), AbiTagsRoot(AbiTags) { }
+      : Context(C), Out(Out_), Structor(getStructor(D)), StructorType(Type),
+        AbiTagsRoot(AbiTags) {}
   CXXNameMangler(ItaniumMangleContextImpl &C, raw_ostream &Out_,
                  const CXXDestructorDecl *D, CXXDtorType Type)
-    : Context(C), Out(Out_), Structor(getStructor(D)), StructorType(Type),
-      SeqID(0), AbiTagsRoot(AbiTags) { }
+      : Context(C), Out(Out_), Structor(getStructor(D)), StructorType(Type),
+        AbiTagsRoot(AbiTags) {}
 
   CXXNameMangler(CXXNameMangler &Outer, raw_ostream &Out_)
-      : Context(Outer.Context), Out(Out_), NullOut(false),
-        Structor(Outer.Structor), StructorType(Outer.StructorType),
-        SeqID(Outer.SeqID), FunctionTypeDepth(Outer.FunctionTypeDepth),
-        AbiTagsRoot(AbiTags), Substitutions(Outer.Substitutions) {}
+      : Context(Outer.Context), Out(Out_), Structor(Outer.Structor),
+        StructorType(Outer.StructorType), SeqID(Outer.SeqID),
+        FunctionTypeDepth(Outer.FunctionTypeDepth), AbiTagsRoot(AbiTags),
+        Substitutions(Outer.Substitutions),
+        ModuleSubstitutions(Outer.ModuleSubstitutions) {}
 
   CXXNameMangler(CXXNameMangler &Outer, llvm::raw_null_ostream &Out_)
-      : Context(Outer.Context), Out(Out_), NullOut(true),
-        Structor(Outer.Structor), StructorType(Outer.StructorType),
-        SeqID(Outer.SeqID), FunctionTypeDepth(Outer.FunctionTypeDepth),
-        AbiTagsRoot(AbiTags), Substitutions(Outer.Substitutions) {}
+      : CXXNameMangler(Outer, (raw_ostream &)Out_) {
+    NullOut = true;
+  }
 
   raw_ostream &getStream() { return Out; }
 
@@ -659,8 +659,7 @@ bool ItaniumMangleContextImpl::isUniqueInternalLinkageDecl(
 }
 
 bool ItaniumMangleContextImpl::shouldMangleCXXName(const NamedDecl *D) {
-  const FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
-  if (FD) {
+  if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
     LanguageLinkage L = FD->getLanguageLinkage();
     // Overloadable functions need mangling.
     if (FD->hasAttr<OverloadableAttr>())
@@ -696,21 +695,24 @@ bool ItaniumMangleContextImpl::shouldMangleCXXName(const NamedDecl *D) {
   if (!getASTContext().getLangOpts().CPlusPlus)
     return false;
 
-  const VarDecl *VD = dyn_cast<VarDecl>(D);
-  if (VD && !isa<DecompositionDecl>(D)) {
+  if (const auto *VD = dyn_cast<VarDecl>(D)) {
+    // Decompositions are mangled.
+    if (isa<DecompositionDecl>(VD))
+      return true;
+
     // C variables are not mangled.
     if (VD->isExternC())
       return false;
 
-    // Variables at global scope with non-internal linkage are not mangled
+    // Variables at global scope with non-internal linkage are not mangled.
     const DeclContext *DC = getEffectiveDeclContext(D);
     // Check for extern variable declared locally.
     if (DC->isFunctionOrMethod() && D->hasLinkage())
-      while (!DC->isNamespace() && !DC->isTranslationUnit())
+      while (!DC->isFileContext())
         DC = getEffectiveParentContext(DC);
     if (DC->isTranslationUnit() && D->getFormalLinkage() != InternalLinkage &&
         !CXXNameMangler::shouldHaveAbiTags(*this, VD) &&
-        !isa<VarTemplateSpecializationDecl>(D))
+        !isa<VarTemplateSpecializationDecl>(VD))
       return false;
   }
 
@@ -860,18 +862,9 @@ void CXXNameMangler::mangleFunctionEncodingBareType(const FunctionDecl *FD) {
                          MangleReturnType, FD);
 }
 
-static const DeclContext *IgnoreLinkageSpecDecls(const DeclContext *DC) {
-  while (isa<LinkageSpecDecl>(DC)) {
-    DC = getEffectiveParentContext(DC);
-  }
-
-  return DC;
-}
-
 /// Return whether a given namespace is the 'std' namespace.
 static bool isStd(const NamespaceDecl *NS) {
-  if (!IgnoreLinkageSpecDecls(getEffectiveParentContext(NS))
-                                ->isTranslationUnit())
+  if (!getEffectiveParentContext(NS)->isTranslationUnit())
     return false;
 
   const IdentifierInfo *II = NS->getOriginalNamespace()->getIdentifier();
@@ -976,7 +969,7 @@ void CXXNameMangler::mangleNameWithAbiTags(GlobalDecl GD,
     return;
   }
 
-  DC = IgnoreLinkageSpecDecls(DC);
+  assert(!isa<LinkageSpecDecl>(DC) && "context cannot be LinkageSpecDecl");
 
   if (isLocalContainerContext(DC)) {
     mangleLocalName(GD, AdditionalAbiTags);
@@ -1052,7 +1045,7 @@ void CXXNameMangler::mangleModuleNamePrefix(StringRef Name) {
 void CXXNameMangler::mangleTemplateName(const TemplateDecl *TD,
                                         const TemplateArgument *TemplateArgs,
                                         unsigned NumTemplateArgs) {
-  const DeclContext *DC = IgnoreLinkageSpecDecls(getEffectiveDeclContext(TD));
+  const DeclContext *DC = getEffectiveDeclContext(TD);
 
   if (DC->isTranslationUnit() || isStdNamespace(DC)) {
     mangleUnscopedTemplateName(TD, nullptr);
@@ -1068,7 +1061,7 @@ void CXXNameMangler::mangleUnscopedName(GlobalDecl GD,
   //  <unscoped-name> ::= <unqualified-name>
   //                  ::= St <unqualified-name>   # ::std::
 
-  if (isStdNamespace(IgnoreLinkageSpecDecls(getEffectiveDeclContext(ND))))
+  if (isStdNamespace(getEffectiveDeclContext(ND)))
     Out << "St";
 
   mangleUnqualifiedName(GD, AdditionalAbiTags);
@@ -2028,7 +2021,7 @@ void CXXNameMangler::manglePrefix(const DeclContext *DC, bool NoFunction) {
   //           ::= # empty
   //           ::= <substitution>
 
-  DC = IgnoreLinkageSpecDecls(DC);
+  assert(!isa<LinkageSpecDecl>(DC) && "prefix cannot be LinkageSpecDecl");
 
   if (DC->isTranslationUnit())
     return;
@@ -5910,9 +5903,11 @@ void CXXNameMangler::mangleTemplateParameter(unsigned Depth, unsigned Index) {
 }
 
 void CXXNameMangler::mangleSeqID(unsigned SeqID) {
-  if (SeqID == 1)
+  if (SeqID == 0) {
+    // Nothing.
+  } else if (SeqID == 1) {
     Out << '0';
-  else if (SeqID > 1) {
+  } else {
     SeqID--;
 
     // <seq-id> is encoded in base-36, using digits and upper case letters.
@@ -5986,27 +5981,19 @@ bool CXXNameMangler::mangleSubstitution(uintptr_t Ptr) {
   return true;
 }
 
-static bool isCharType(QualType T) {
-  if (T.isNull())
+/// Returns whether S is a template specialization of std::Name with a single
+/// argument of type A.
+static bool isSpecializedAs(QualType S, llvm::StringRef Name, QualType A) {
+  if (S.isNull())
     return false;
 
-  return T->isSpecificBuiltinType(BuiltinType::Char_S) ||
-    T->isSpecificBuiltinType(BuiltinType::Char_U);
-}
-
-/// Returns whether a given type is a template specialization of a given name
-/// with a single argument of type char.
-static bool isCharSpecialization(QualType T, const char *Name) {
-  if (T.isNull())
-    return false;
-
-  const RecordType *RT = T->getAs<RecordType>();
+  const RecordType *RT = S->getAs<RecordType>();
   if (!RT)
     return false;
 
   const ClassTemplateSpecializationDecl *SD =
     dyn_cast<ClassTemplateSpecializationDecl>(RT->getDecl());
-  if (!SD)
+  if (!SD || !SD->getIdentifier()->isStr(Name))
     return false;
 
   if (!isStdNamespace(getEffectiveDeclContext(SD)))
@@ -6016,26 +6003,37 @@ static bool isCharSpecialization(QualType T, const char *Name) {
   if (TemplateArgs.size() != 1)
     return false;
 
-  if (!isCharType(TemplateArgs[0].getAsType()))
+  if (TemplateArgs[0].getAsType() != A)
     return false;
 
-  return SD->getIdentifier()->getName() == Name;
+  return true;
 }
 
-template <std::size_t StrLen>
-static bool isStreamCharSpecialization(const ClassTemplateSpecializationDecl*SD,
-                                       const char (&Str)[StrLen]) {
-  if (!SD->getIdentifier()->isStr(Str))
+/// Returns whether SD is a template specialization std::Name<char,
+/// std::char_traits<char> [, std::allocator<char>]>
+/// HasAllocator controls whether the 3rd template argument is needed.
+static bool isStdCharSpecialization(const ClassTemplateSpecializationDecl *SD,
+                                    llvm::StringRef Name, bool HasAllocator) {
+  if (!SD->getIdentifier()->isStr(Name))
     return false;
 
   const TemplateArgumentList &TemplateArgs = SD->getTemplateArgs();
-  if (TemplateArgs.size() != 2)
+  if (TemplateArgs.size() != (HasAllocator ? 3 : 2))
     return false;
 
-  if (!isCharType(TemplateArgs[0].getAsType()))
+  QualType A = TemplateArgs[0].getAsType();
+  if (A.isNull())
+    return false;
+  // Plain 'char' is named Char_S or Char_U depending on the target ABI.
+  if (!A->isSpecificBuiltinType(BuiltinType::Char_S) &&
+      !A->isSpecificBuiltinType(BuiltinType::Char_U))
     return false;
 
-  if (!isCharSpecialization(TemplateArgs[1].getAsType(), "char_traits"))
+  if (!isSpecializedAs(TemplateArgs[1].getAsType(), "char_traits", A))
+    return false;
+
+  if (HasAllocator &&
+      !isSpecializedAs(TemplateArgs[2].getAsType(), "allocator", A))
     return false;
 
   return true;
@@ -6048,6 +6046,7 @@ bool CXXNameMangler::mangleStandardSubstitution(const NamedDecl *ND) {
       Out << "St";
       return true;
     }
+    return false;
   }
 
   if (const ClassTemplateDecl *TD = dyn_cast<ClassTemplateDecl>(ND)) {
@@ -6065,6 +6064,7 @@ bool CXXNameMangler::mangleStandardSubstitution(const NamedDecl *ND) {
       Out << "Sb";
       return true;
     }
+    return false;
   }
 
   if (const ClassTemplateSpecializationDecl *SD =
@@ -6075,46 +6075,34 @@ bool CXXNameMangler::mangleStandardSubstitution(const NamedDecl *ND) {
     //    <substitution> ::= Ss # ::std::basic_string<char,
     //                            ::std::char_traits<char>,
     //                            ::std::allocator<char> >
-    if (SD->getIdentifier()->isStr("basic_string")) {
-      const TemplateArgumentList &TemplateArgs = SD->getTemplateArgs();
-
-      if (TemplateArgs.size() != 3)
-        return false;
-
-      if (!isCharType(TemplateArgs[0].getAsType()))
-        return false;
-
-      if (!isCharSpecialization(TemplateArgs[1].getAsType(), "char_traits"))
-        return false;
-
-      if (!isCharSpecialization(TemplateArgs[2].getAsType(), "allocator"))
-        return false;
-
+    if (isStdCharSpecialization(SD, "basic_string", /*HasAllocator=*/true)) {
       Out << "Ss";
       return true;
     }
 
     //    <substitution> ::= Si # ::std::basic_istream<char,
     //                            ::std::char_traits<char> >
-    if (isStreamCharSpecialization(SD, "basic_istream")) {
+    if (isStdCharSpecialization(SD, "basic_istream", /*HasAllocator=*/false)) {
       Out << "Si";
       return true;
     }
 
     //    <substitution> ::= So # ::std::basic_ostream<char,
     //                            ::std::char_traits<char> >
-    if (isStreamCharSpecialization(SD, "basic_ostream")) {
+    if (isStdCharSpecialization(SD, "basic_ostream", /*HasAllocator=*/false)) {
       Out << "So";
       return true;
     }
 
     //    <substitution> ::= Sd # ::std::basic_iostream<char,
     //                            ::std::char_traits<char> >
-    if (isStreamCharSpecialization(SD, "basic_iostream")) {
+    if (isStdCharSpecialization(SD, "basic_iostream", /*HasAllocator=*/false)) {
       Out << "Sd";
       return true;
     }
+    return false;
   }
+
   return false;
 }
 

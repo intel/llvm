@@ -170,18 +170,21 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationVectorComputeCallableFunctionINTEL,
       "VectorComputeCallableFunctionINTEL");
   add(DecorationMediaBlockIOINTEL, "MediaBlockIOINTEL");
+  add(DecorationAliasScopeINTEL, "AliasScopeINTEL");
+  add(DecorationNoAliasINTEL, "NoAliasINTEL");
 
   // From spirv_internal.hpp
   add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
   add(internal::DecorationFuncParamDescINTEL, "FuncParamDescINTEL");
   add(internal::DecorationCallableFunctionINTEL, "CallableFunctionINTEL");
   add(internal::DecorationMathOpDSPModeINTEL, "MathOpDSPModeINTEL");
-  add(internal::DecorationAliasScopeINTEL, "AliasScopeINTEL");
-  add(internal::DecorationNoAliasINTEL, "NoAliasINTEL");
   add(internal::DecorationInitiationIntervalINTEL, "InitiationIntervalINTEL");
   add(internal::DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
   add(internal::DecorationPipelineEnableINTEL, "PipelineEnableINTEL");
   add(internal::DecorationRuntimeAlignedINTEL, "RuntimeAlignedINTEL");
+  add(internal::DecorationHostAccessINTEL, "HostAccessINTEL");
+  add(internal::DecorationInitModeINTEL, "InitModeINTEL");
+  add(internal::DecorationImplementInCSRINTEL, "ImplementInCSRINTEL");
   add(internal::DecorationArgumentAttributeINTEL, "ArgumentAttributeINTEL");
 
   add(DecorationMax, "Max");
@@ -570,13 +573,12 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityLongConstantCompositeINTEL, "LongConstantCompositeINTEL");
   add(CapabilityAtomicFloat16AddEXT, "AtomicFloat16AddEXT");
   add(CapabilityDebugInfoModuleINTEL, "DebugInfoModuleINTEL");
+  add(CapabilityMemoryAccessAliasingINTEL, "MemoryAccessAliasingINTEL");
 
   // From spirv_internal.hpp
   add(internal::CapabilityFPGADSPControlINTEL, "FPGADSPControlINTEL");
   add(internal::CapabilityFastCompositeINTEL, "FastCompositeINTEL");
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
-  add(internal::CapabilityMemoryAccessAliasingINTEL,
-      "MemoryAccessAliasingINTEL");
   add(internal::CapabilityFPGAInvocationPipeliningAttributesINTEL,
       "FPGAInvocationPipeliningAttributesINTEL");
   add(internal::CapabilityTokenTypeINTEL, "TokenTypeINTEL");
@@ -587,6 +589,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityBfloat16ConversionINTEL, "Bfloat16ConversionINTEL");
   add(internal::CapabilityJointMatrixINTEL, "JointMatrixINTEL");
   add(internal::CapabilityHWThreadQueryINTEL, "HWThreadQueryINTEL");
+  add(internal::CapabilityGlobalVariableDecorationsINTEL,
+      "GlobalVariableDecorationsINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

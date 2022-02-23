@@ -124,17 +124,32 @@ static MCInst lowerSubvectorStore(const MachineInstr *MI, unsigned Opcode) {
     .addImm(0);
 }
 
+// The XPLINK ABI requires that a no-op encoding the call type is emitted after
+// each call to a subroutine. This information can be used by the called
+// function to determine its entry point, e.g. for generating a backtrace. The
+// call type is encoded as a register number in the bcr instruction. See
+// enumeration CallType for the possible values.
+void SystemZAsmPrinter::emitCallInformation(CallType CT) {
+  EmitToStreamer(*OutStreamer,
+                 MCInstBuilder(SystemZ::BCRAsm)
+                     .addImm(0)
+                     .addReg(SystemZMC::GR64Regs[static_cast<unsigned>(CT)]));
+}
+
 void SystemZAsmPrinter::emitInstruction(const MachineInstr *MI) {
   SystemZMCInstLower Lower(MF->getContext(), *this);
-  const SystemZSubtarget *Subtarget = &MF->getSubtarget<SystemZSubtarget>();
   MCInst LoweredMI;
   switch (MI->getOpcode()) {
   case SystemZ::Return:
-    if (Subtarget->isTargetXPLINK64())
-      LoweredMI =
-          MCInstBuilder(SystemZ::B).addReg(SystemZ::R7D).addImm(2).addReg(0);
-    else
-      LoweredMI = MCInstBuilder(SystemZ::BR).addReg(SystemZ::R14D);
+    LoweredMI = MCInstBuilder(SystemZ::BR)
+      .addReg(SystemZ::R14D);
+    break;
+
+  case SystemZ::Return_XPLINK:
+    LoweredMI = MCInstBuilder(SystemZ::B)
+      .addReg(SystemZ::R7D)
+      .addImm(2)
+      .addReg(0);
     break;
 
   case SystemZ::CondReturn:
@@ -142,6 +157,15 @@ void SystemZAsmPrinter::emitInstruction(const MachineInstr *MI) {
       .addImm(MI->getOperand(0).getImm())
       .addImm(MI->getOperand(1).getImm())
       .addReg(SystemZ::R14D);
+    break;
+
+  case SystemZ::CondReturn_XPLINK:
+    LoweredMI = MCInstBuilder(SystemZ::BC)
+      .addImm(MI->getOperand(0).getImm())
+      .addImm(MI->getOperand(1).getImm())
+      .addReg(SystemZ::R7D)
+      .addImm(2)
+      .addReg(0);
     break;
 
   case SystemZ::CRBReturn:
@@ -222,18 +246,14 @@ void SystemZAsmPrinter::emitInstruction(const MachineInstr *MI) {
                        .addReg(SystemZ::R7D)
                        .addExpr(Lower.getExpr(MI->getOperand(0),
                                               MCSymbolRefExpr::VK_PLT)));
-    EmitToStreamer(
-        *OutStreamer,
-        MCInstBuilder(SystemZ::BCRAsm).addImm(0).addReg(SystemZ::R3D));
+    emitCallInformation(CallType::BRASL7);
     return;
 
   case SystemZ::CallBASR_XPLINK64:
     EmitToStreamer(*OutStreamer, MCInstBuilder(SystemZ::BASR)
                                      .addReg(SystemZ::R7D)
                                      .addReg(MI->getOperand(0).getReg()));
-    EmitToStreamer(
-        *OutStreamer,
-        MCInstBuilder(SystemZ::BCRAsm).addImm(0).addReg(SystemZ::R0D));
+    emitCallInformation(CallType::BASR76);
     return;
 
   case SystemZ::CallBRASL:
