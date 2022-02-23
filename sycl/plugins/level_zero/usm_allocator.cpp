@@ -106,18 +106,18 @@ public:
   size_t SlabMinSize[3] = {64 * 1024, 64 * 1024, 2 * 1024 * 1024};
 
   // Allocations up to this limit will be subject to chunking/pooling
-  size_t MaxPoolableSize[3] = {0, 32 * 1024, 0};
+  size_t MaxPoolableSize[3] = {2 * 1024 * 1024, 4 * 1024 * 1024, 0};
 
   // When pooling, each bucket will hold a max of 4 unfreed slabs
-  size_t Capacity[3] = {0, 0, 0};
+  size_t Capacity[3] = {4, 4, 0};
 
   // Maximum memory left unfreed in pool
-  size_t MaxPoolSize = 0;
+  size_t MaxPoolSize = 16 * 1024 * 1024;
 
   size_t CurPoolSize = 0;
   size_t CurPoolSizes[3] = {0, 0, 0};
 
-  bool EnableBuffers = false;
+  bool EnableBuffers = true;
 
   // Whether to print pool usage statistics
   int PoolTrace = 0;
@@ -134,17 +134,16 @@ public:
     // pool size for all contexts.
     // Duplicate specifications will result in the right-most taking effect.
     //
-    // Current defaults are to match pre-2021.3 pooling.
     // EnableBuffers:   Apply chunking/pooling to SYCL buffers.
-    //                  Default 0 (false).
+    //                  Default true.
     // MaxPoolSize:     Limit on overall unfreed memory.
-    //                  Default 0MB.
+    //                  Default 16MB.
     // MaxPoolableSize: Maximum allocation size subject to chunking/pooling.
-    //                  Default 32KB.
+    //                  Default 2MB host, 4MB device and 0 shared.
     // Capacity:        Maximum number of unfreed allocations in each bucket.
-    //                  Default 0.
+    //                  Default 4.
     // SlabMinSize:     Minimum allocation size requested from USM.
-    //                  Default 64KB.
+    //                  Default 64KB host and device, 2MB shared.
     //
     // Example of usage:
     // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=1;32M;host:1M,4,64K;device:1M,4,64K;shared:0,0,2M
