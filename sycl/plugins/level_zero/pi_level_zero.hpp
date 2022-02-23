@@ -682,13 +682,6 @@ struct _pi_queue : _pi_object {
   // Therefore it can be accessed without holding a lock on this _pi_queue.
   const pi_device Device;
 
-  // Mutex to be locked on entry to a _pi_queue API call, and unlocked
-  // prior to exit.  Access to all state of a queue is done only after
-  // this lock has been acquired, and this must be released upon exit
-  // from a pi_queue API call.  No other mutexes/locking should be
-  // needed/used for the queue data structures.
-  std::mutex PiQueueMutex;
-
   // Keeps track of the event associated with the last enqueued command into
   // this queue. this is used to add dependency with the last command to add
   // in-order semantics and updated with the latest event each time a new
