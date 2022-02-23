@@ -13,6 +13,7 @@
 #ifndef VECTOR_OPS
 #define VECTOR_OPS
 
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/VectorInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
@@ -446,7 +447,8 @@ def Vector_ShuffleOp :
      PredOpTrait<"first operand v1 and result have same element type",
                  TCresVTEtIsSameAsOpBase<0, 0>>,
      PredOpTrait<"second operand v2 and result have same element type",
-                 TCresVTEtIsSameAsOpBase<0, 1>>]>,
+                 TCresVTEtIsSameAsOpBase<0, 1>>,
+     DeclareOpInterfaceMethods<InferTypeOpInterface>]>,
      Arguments<(ins AnyVector:$v1, AnyVector:$v2, I64ArrayAttr:$mask)>,
      Results<(outs AnyVector:$vector)> {
   let summary = "shuffle operation";
@@ -495,7 +497,7 @@ def Vector_ShuffleOp :
       return vector().getType().cast<VectorType>();
     }
   }];
-  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "operands $mask attr-dict `:` type(operands)";
   let hasVerifier = 1;
 }
 
@@ -675,10 +677,6 @@ def Vector_FMAOp :
     ```
   }];
   let assemblyFormat = "$lhs `,` $rhs `,` $acc attr-dict `:` type($lhs)";
-  let builders = [
-    OpBuilder<(ins "Value":$lhs, "Value":$rhs, "Value":$acc),
-    [{build($_builder, $_state, lhs.getType(), lhs, rhs, acc);}]>
-  ];
   let extraClassDeclaration = [{
     VectorType getVectorType() { return lhs().getType().cast<VectorType>(); }
   }];
@@ -721,8 +719,6 @@ def Vector_InsertElementOp :
   let builders = [
     // 0-D builder.
     OpBuilder<(ins "Value":$source, "Value":$dest)>,
-    // 1-D + position builder.
-    OpBuilder<(ins "Value":$source, "Value":$dest, "Value":$position)>
   ];
   let extraClassDeclaration = [{
     Type getSourceType() { return source().getType(); }
