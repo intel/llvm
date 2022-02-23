@@ -100,4 +100,4 @@ jobs:
 
   windows_default:
     name: Windows
-    using: ./.github/workflows/sycl_windows_build_and_test.yml
+    uses: ./.github/workflows/sycl_windows_build_and_test.yml
