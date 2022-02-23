@@ -119,14 +119,14 @@ static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 // Single-entry cache for piPlatformsGet call.
 static pi_platform PiPlatformCache;
 // TODO/FIXME : Memory leak. Handle with 'piTearDown'.
-static sycl::detail::SpinLock *PiPlatformCacheLock = new sycl::detail::SpinLock;
+static std::mutex *PiPlatformCacheLock = new std::mutex;
 
 // Mapping between surface index and CM-managed surface
 static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap =
     new std::unordered_map<unsigned int, _pi_mem *>;
 // TODO/FIXME : Memory leak. Handle with 'piTearDown'.
-static sycl::detail::SpinLock *PiESimdSurfaceMapLock =
-    new sycl::detail::SpinLock;
+static std::mutex *PiESimdSurfaceMapLock =
+    new std::mutex;
 
 pi_result _pi_mem::addMapping(void *MappedTo, size_t SizeArg,
                               size_t OffsetArg) {
@@ -334,7 +334,7 @@ unsigned int sycl_get_cm_surface_index(void *PtrInput) {
 // index without dependency on '_pi_image' definition
 void sycl_get_cm_buffer_params_index(unsigned int IndexInput, char **BaseAddr,
                                      uint32_t *Width, std::mutex **MtxLock) {
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
   auto MemIter = PiESimdSurfaceMap->find(IndexInput);
 
   assert(MemIter != PiESimdSurfaceMap->end() && "Invalid Surface Index");
@@ -352,7 +352,7 @@ void sycl_get_cm_buffer_params_index(unsigned int IndexInput, char **BaseAddr,
 void sycl_get_cm_image_params_index(unsigned int IndexInput, char **BaseAddr,
                                     uint32_t *Width, uint32_t *Height,
                                     uint32_t *Bpp, std::mutex **MtxLock) {
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
   auto MemIter = PiESimdSurfaceMap->find(IndexInput);
   assert(MemIter != PiESimdSurfaceMap->end() && "Invalid Surface Index");
 
@@ -491,7 +491,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiPlatformCacheLock};
+  std::lock_guard<std::mutex> Lock{*PiPlatformCacheLock};
   if (!PiPlatformCachePopulated) {
     PiPlatformCache = new _pi_platform();
     PiPlatformCache->CmEmuVersion = std::string("0.0.1");
@@ -1084,7 +1084,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   int SurfaceIndexArg;
 
   // TODO : Minimize critical section
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
     // Memory space is already allocated in host memory.
@@ -1177,7 +1177,7 @@ pi_result piMemRelease(pi_mem Mem) {
     } // (Mem->isCmSurface())
 
     // Removing Surface-map entry
-    const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+    std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
     auto MapEntryIt = PiESimdSurfaceMap->find(Mem->SurfaceIndex);
     if (MapEntryIt != PiESimdSurfaceMap->end()) {
       PiESimdSurfaceMap->erase(MapEntryIt);
@@ -1306,7 +1306,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   int SurfaceIndexArg;
 
   // TODO : Minimize critical section
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
     // Memory space is already allocated in host memory.
     // ESIMD_EMULATOR won't create cache for memory space pointed to
@@ -1988,7 +1988,7 @@ pi_result piTearDown(void *) {
       PiESimdDeviceAccess->data);
   delete PiESimdDeviceAccess;
 
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
   for (auto it = PiESimdSurfaceMap->begin(); it != PiESimdSurfaceMap->end();) {
     auto Mem = it->second;
 
