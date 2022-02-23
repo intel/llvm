@@ -3,7 +3,9 @@
     {
       "config": "l0_gen9",
       "name": "L0 GEN9 LLVM Test Suite",
-      "runs-on": ["gen9"],
+      "runs-on": [
+        "gen9"
+      ],
       "image": "${{ inputs.intel_drivers_image }}",
       "container_options": "-u 1001 --device=/dev/dri",
       "check_sycl_all": "level_zero:gpu,host",
@@ -12,7 +14,9 @@
     {
       "config": "ocl_gen9",
       "name": "OCL GEN9 LLVM Test Suite",
-      "runs-on": ["gen9"],
+      "runs-on": [
+        "gen9"
+      ],
       "image": "${{ inputs.intel_drivers_image }}",
       "container_options": "-u 1001 --device=/dev/dri",
       "check_sycl_all": "opencl:gpu,host",
@@ -21,7 +25,9 @@
     {
       "config": "ocl_x64",
       "name": "OCL x64 LLVM Test Suite",
-      "runs-on": ["x64"],
+      "runs-on": [
+        "x64"
+      ],
       "image": "${{ inputs.intel_drivers_image }}",
       "container_options": "-u 1001",
       "check_sycl_all": "opencl:cpu,host",
@@ -30,7 +36,9 @@
     {
       "config": "hip_amdgpu",
       "name": "HIP AMDGPU LLVM Test Suite",
-      "runs-on": ["amdgpu"],
+      "runs-on": [
+        "amdgpu"
+      ],
       "image": "${{ inputs.amdgpu_image }}",
       "container_options": "--device=/dev/dri --device=/dev/kfd",
       "check_sycl_all": "hip:gpu,host",
