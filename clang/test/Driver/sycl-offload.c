@@ -1164,4 +1164,4 @@
 // Emit warning for treating 'c' input as 'c++' when -fsycl is used
 // RUN: %clang -### -fsycl  %s 2>&1 | FileCheck -check-prefix FSYCL-CHECK %s
 // RUN: %clang_cl -### -fsycl  %s 2>&1 | FileCheck -check-prefix FSYCL-CHECK %s
-// FSYCL-CHECK: warning: treating 'c' input as 'c++' when -fsycl is used [-Wsycl-compat]
+// FSYCL-CHECK: warning: treating 'c' input as 'c++' when -fsycl is used [-WExpectedFileType]

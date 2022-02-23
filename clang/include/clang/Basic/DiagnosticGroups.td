@@ -275,6 +275,9 @@ def CPre2xCompat : DiagGroup<"pre-c2x-compat">;
 def CPre2xCompatPedantic : DiagGroup<"pre-c2x-compat-pedantic",
                                      [CPre2xCompat]>;
 
+// Warning group for treating C input as C++ input
+def ExpectedFileType : DiagGroup<"ExpectedFileType">;
+
 // Warnings for C++ code which is not compatible with previous C++ standards.
 def CXXPre14Compat : DiagGroup<"pre-c++14-compat">;
 def : DiagGroup<"c++98-c++11-compat", [CXXPre14Compat]>;
@@ -1239,7 +1242,6 @@ def Sycl2020Compat : DiagGroup<"sycl-2020-compat">;
 def SyclStrict : DiagGroup<"sycl-strict", [ Sycl2017Compat, Sycl2020Compat]>;
 def SyclTarget : DiagGroup<"sycl-target">;
 def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
-def SyclCompat : DiagGroup<"sycl-compat">;
 
 // Backend warnings.
 def BackendInlineAsm : DiagGroup<"inline-asm">;
