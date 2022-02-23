@@ -1057,7 +1057,7 @@ _pi_queue::_pi_queue(ze_command_queue_handle_t Queue,
     }
   }
 
-  // Initialize compute/copy coomand batches.
+  // Initialize compute/copy command batches.
   ComputeCommandBatch.OpenCommandList = CommandListMap.end();
   CopyCommandBatch.OpenCommandList = CommandListMap.end();
   ComputeCommandBatch.QueueBatchSize =
@@ -1410,10 +1410,9 @@ bool _pi_queue::isBatchingAllowed(bool IsCopy) const {
           ((ZeSerialize & ZeSerializeBlock) == 0));
 }
 
-// This function will return one of possibly multiple available copy queues.
+// This function will return one of possibly multiple available native queues.
 // Currently, a round robin strategy is used.
-// This function also sends back the value of CopyQueueIndex and
-// CopyQueueGroupIndex (optional)
+// This function also sends back the value of the queue group ordinal.
 ze_command_queue_handle_t &
 _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
 

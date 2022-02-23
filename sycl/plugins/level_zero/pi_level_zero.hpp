@@ -329,6 +329,8 @@ struct _pi_device : _pi_object {
     // PI device creation.
   }
 
+  // The helper structure that keeps info about a command queue groups of the
+  // device. It is not changed after it is initialized.
   struct queue_group_info_t {
     typedef enum {
       MainCopy,
@@ -650,8 +652,12 @@ struct _pi_queue : _pi_object {
 
   // PI queue is in general a one to many mapping to L0 native queues.
   struct pi_queue_group_t {
-    pi_queue Queue; // capture the instance of the enclosing PI queue.
+    pi_queue Queue;
     pi_queue_group_t() = delete;
+
+    // The Queue argument captures the enclosing PI queue.
+    // The Type argument specifies the type of this queue group.
+    // The actual ZeQueues are populated at PI queue construction.
     pi_queue_group_t(pi_queue Queue, queue_type Type)
         : Queue(Queue), Type(Type) {}
 
@@ -662,11 +668,12 @@ struct _pi_queue : _pi_object {
     // Level Zero command queue handles.
     std::vector<ze_command_queue_handle_t> ZeQueues;
 
-    // This function will return one of possibly multiple available queues.
-    // Currently, a round robin strategy is used.
+    // This function will return one of possibly multiple available native
+    // queues. Currently, a round robin strategy is used. This function also
+    // sends back the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
 
-    // These indicies are to filter specific range of the queues to use,
+    // These indices are to filter specific range of the queues to use,
     // and to organize round-robin across them.
     uint32_t UpperIndex{0};
     uint32_t LowerIndex{0};
