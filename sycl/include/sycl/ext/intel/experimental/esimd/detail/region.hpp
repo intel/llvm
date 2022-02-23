@@ -24,6 +24,9 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
+/// @cond ESIMD_DETAIL
+// TODO move to detail?
+
 // The common base type of region types.
 template <bool Is2D, typename T, int SizeY, int StrideY, int SizeX, int StrideX>
 struct region_base {
@@ -130,6 +133,8 @@ template <typename T> T getBaseRegion(T Reg) { return Reg; }
 template <typename T, typename U> T getBaseRegion(std::pair<T, U> Reg) {
   return Reg.second;
 }
+
+/// @endcond ESIMD_DETAIL
 
 } // namespace esimd
 } // namespace experimental

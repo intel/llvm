@@ -369,11 +369,11 @@ void collectCompositeElementsDefaultValuesRecursive(
 
   // Assume that we encountered some scalar element
   size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
-  if (auto IntConst = dyn_cast<ConstantInt>(C)) {
+  if (auto *IntConst = dyn_cast<ConstantInt>(C)) {
     auto Val = IntConst->getValue().getZExtValue();
     std::copy_n(reinterpret_cast<char *>(&Val), NumBytes,
                 std::back_inserter(DefaultValues));
-  } else if (auto FPConst = dyn_cast<ConstantFP>(C)) {
+  } else if (auto *FPConst = dyn_cast<ConstantFP>(C)) {
     auto Val = FPConst->getValue();
 
     if (NumBytes == 2) {
@@ -383,12 +383,12 @@ void collectCompositeElementsDefaultValuesRecursive(
       std::copy_n(reinterpret_cast<char *>(&Storage), NumBytes,
                   std::back_inserter(DefaultValues));
     } else if (NumBytes == 4) {
-      float v = Val.convertToFloat();
-      std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
+      float V = Val.convertToFloat();
+      std::copy_n(reinterpret_cast<char *>(&V), NumBytes,
                   std::back_inserter(DefaultValues));
     } else if (NumBytes == 8) {
-      double v = Val.convertToDouble();
-      std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
+      double V = Val.convertToDouble();
+      std::copy_n(reinterpret_cast<char *>(&V), NumBytes,
                   std::back_inserter(DefaultValues));
     } else {
       llvm_unreachable("Unexpected constant floating point type");

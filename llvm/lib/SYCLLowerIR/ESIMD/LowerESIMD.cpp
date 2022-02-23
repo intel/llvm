@@ -820,20 +820,21 @@ static void translatePackMask(CallInst &CI) {
   Type *TTy = nullptr;
   APInt Val = parseTemplateArg(FE, 0, TTy, Context);
   unsigned N = Val.getZExtValue();
-
+  Value *Result = CI.getArgOperand(0);
+  assert(Result->getType()->isIntOrIntVectorTy());
+  Value *Zero = ConstantInt::get(Result->getType(), 0);
   IRBuilder<> Builder(&CI);
-  llvm::Value *Trunc = Builder.CreateTrunc(
-      CI.getArgOperand(0),
-      llvm::FixedVectorType::get(llvm::Type::getInt1Ty(Context), N));
-  llvm::Type *Ty = llvm::Type::getIntNTy(Context, N);
+  // TODO CM_COMPAT
+  // In CM non LSB bits in mask elements are ignored, so e.g. '2' is treated as
+  // 'false' there. ESIMD adopts C++ semantics, where any non-zero is 'true'.
+  // For CM this ICmpInst should be replaced with truncation to i1.
+  Result = Builder.CreateICmp(ICmpInst::ICMP_NE, Result, Zero);
+  Result = Builder.CreateBitCast(Result, llvm::Type::getIntNTy(Context, N));
 
-  llvm::Value *BitCast = Builder.CreateBitCast(Trunc, Ty);
-  llvm::Value *Result = BitCast;
   if (N != 32) {
-    Result = Builder.CreateCast(llvm::Instruction::ZExt, BitCast,
+    Result = Builder.CreateCast(llvm::Instruction::ZExt, Result,
                                 llvm::Type::getInt32Ty(Context));
   }
-
   Result->setName(CI.getName());
   cast<llvm::Instruction>(Result)->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(Result);

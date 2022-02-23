@@ -24,6 +24,7 @@
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstBuilder.h"
+#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
@@ -447,8 +448,16 @@ public:
   bool isFenceArg() const {
     if (!isImm())
       return false;
-    const MCExpr *Val = getImm();
-    auto *SVal = dyn_cast<MCSymbolRefExpr>(Val);
+
+    int64_t Imm;
+    RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
+    if (evaluateConstantImm(getImm(), Imm, VK)) {
+      // Only accept 0 as a constant immediate.
+      return VK == RISCVMCExpr::VK_RISCV_None && Imm == 0;
+    }
+
+    auto *SVal = dyn_cast<MCSymbolRefExpr>(getImm());
+
     if (!SVal || SVal->getKind() != MCSymbolRefExpr::VK_None)
       return false;
 
@@ -897,6 +906,17 @@ public:
 
   void addFenceArgOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
+
+    int64_t Constant = 0;
+    RISCVMCExpr::VariantKind VK = RISCVMCExpr::VK_RISCV_None;
+    if (evaluateConstantImm(getImm(), Constant, VK)) {
+      if (Constant == 0) {
+        Inst.addOperand(MCOperand::createImm(Constant));
+        return;
+      }
+      llvm_unreachable("FenceArg must contain only [iorw] or be 0");
+    }
+
     // isFenceArg has validated the operand, meaning this cast is safe
     auto SE = cast<MCSymbolRefExpr>(getImm());
 
@@ -904,7 +924,7 @@ public:
     for (char c : SE->getSymbol().getName()) {
       switch (c) {
       default:
-        llvm_unreachable("FenceArg must contain only [iorw]");
+        llvm_unreachable("FenceArg must contain only [iorw] or be 0");
       case 'i':
         Imm |= RISCVFenceField::I;
         break;
@@ -1208,9 +1228,8 @@ bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   }
   case Match_InvalidFenceArg: {
     SMLoc ErrorLoc = ((RISCVOperand &)*Operands[ErrorInfo]).getStartLoc();
-    return Error(
-        ErrorLoc,
-        "operand must be formed of letters selected in-order from 'iorw'");
+    return Error(ErrorLoc, "operand must be formed of letters selected "
+                           "in-order from 'iorw' or be 0");
   }
   case Match_InvalidFRMArg: {
     SMLoc ErrorLoc = ((RISCVOperand &)*Operands[ErrorInfo]).getStartLoc();
@@ -2266,8 +2285,8 @@ void RISCVAsmParser::emitLoadImm(MCRegister DestReg, int64_t Value,
     if (Inst.Opc == RISCV::LUI) {
       emitToStreamer(
           Out, MCInstBuilder(RISCV::LUI).addReg(DestReg).addImm(Inst.Imm));
-    } else if (Inst.Opc == RISCV::ADDUW) {
-      emitToStreamer(Out, MCInstBuilder(RISCV::ADDUW)
+    } else if (Inst.Opc == RISCV::ADD_UW) {
+      emitToStreamer(Out, MCInstBuilder(RISCV::ADD_UW)
                               .addReg(DestReg)
                               .addReg(SrcReg)
                               .addReg(RISCV::X0));

@@ -951,7 +951,7 @@ static Value *simplifyDivRem(Instruction::BinaryOps Opcode, Value *Op0,
 
   // X / undef -> poison
   // X % undef -> poison
-  if (Q.isUndefValue(Op1))
+  if (Q.isUndefValue(Op1) || isa<PoisonValue>(Op1))
     return PoisonValue::get(Ty);
 
   // X / 0 -> poison
@@ -2417,6 +2417,10 @@ static Value *SimplifyXorInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
                               unsigned MaxRecurse) {
   if (Constant *C = foldOrCommuteConstant(Instruction::Xor, Op0, Op1, Q))
     return C;
+
+  // X ^ poison -> poison
+  if (isa<PoisonValue>(Op1))
+    return Op1;
 
   // A ^ undef -> undef
   if (Q.isUndefValue(Op1))
@@ -4468,6 +4472,12 @@ static Value *SimplifyGEPInst(Type *SrcTy, Value *Ptr,
       }
     }
   }
+
+  // For opaque pointers an all-zero GEP is a no-op. For typed pointers,
+  // it may be equivalent to a bitcast.
+  if (Ptr->getType()->isOpaquePointerTy() &&
+      all_of(Indices, [](const auto *V) { return match(V, m_Zero()); }))
+    return Ptr;
 
   // getelementptr poison, idx -> poison
   // getelementptr baseptr, poison -> poison

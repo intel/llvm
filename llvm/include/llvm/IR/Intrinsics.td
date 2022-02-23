@@ -582,6 +582,10 @@ def int_experimental_noalias_scope_decl
 def int_stackprotector : DefaultAttrsIntrinsic<[], [llvm_ptr_ty, llvm_ptrptr_ty], []>;
 def int_stackguard : DefaultAttrsIntrinsic<[llvm_ptr_ty], [], []>;
 
+// A cover for instrumentation based profiling.
+def int_instrprof_cover : Intrinsic<[], [llvm_ptr_ty, llvm_i64_ty,
+                                         llvm_i32_ty, llvm_i32_ty]>;
+
 // A counter increment for instrumentation based profiling.
 def int_instrprof_increment : Intrinsic<[],
                                         [llvm_ptr_ty, llvm_i64_ty,
@@ -1497,6 +1501,18 @@ let IntrProperties =
                                 llvm_i32_ty]>;
   def int_vp_frem : DefaultAttrsIntrinsic<[ llvm_anyvector_ty ],
                               [ LLVMMatchType<0>,
+                                LLVMMatchType<0>,
+                                LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
+                                llvm_i32_ty]>;
+
+  def int_vp_fneg : DefaultAttrsIntrinsic<[ llvm_anyvector_ty ],
+                              [ LLVMMatchType<0>,
+                                LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
+                                llvm_i32_ty]>;
+
+  def int_vp_fma : DefaultAttrsIntrinsic<[ llvm_anyvector_ty ],
+                              [ LLVMMatchType<0>,
+                                LLVMMatchType<0>,
                                 LLVMMatchType<0>,
                                 LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                                 llvm_i32_ty]>;

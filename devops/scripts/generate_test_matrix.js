@@ -9,15 +9,10 @@ module.exports = ({core, process}) => {
 
       const ltsConfigs = inputs.lts_config.split(';');
 
-      console.log(inputs);
-      console.log(ltsConfigs);
-
       const enabledLTSConfigs = [];
 
       testConfigs.lts.forEach(v => {
-        console.log(v);
         if (ltsConfigs.includes(v.config)) {
-          console.log("BOO");
           enabledLTSConfigs.push(v);
         }
       });

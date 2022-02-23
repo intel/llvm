@@ -562,9 +562,11 @@ struct _pi_context : _pi_object {
 
   // Get index of the free slot in the available pool. If there is no available
   // pool then create new one. The HostVisible parameter tells if we need a
-  // slot for a host-visible event.
+  // slot for a host-visible event. The ProfilingEnabled tells is we need a
+  // slot for an event with profiling capabilities.
   pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &,
-                                           bool HostVisible);
+                                           bool HostVisible,
+                                           bool ProfilingEnabled);
 
   // Decrement number of events living in the pool upon event destroy
   // and return the pool to the cache if there are no unreleased events.
@@ -601,9 +603,14 @@ private:
   // head. In case there is no next pool, a new pool is created and made the
   // head.
   //
-  std::list<ze_event_pool_handle_t> ZeDeviceScopeEventPoolCache;
   // Cache of event pools to which host-visible events are added to.
-  std::list<ze_event_pool_handle_t> ZeHostVisibleEventPoolCache;
+  std::vector<std::list<ze_event_pool_handle_t>> ZeEventPoolCache{4};
+  auto getZeEventPoolCache(bool HostVisible, bool WithProfiling) {
+    if (HostVisible)
+      return WithProfiling ? &ZeEventPoolCache[0] : &ZeEventPoolCache[1];
+    else
+      return WithProfiling ? &ZeEventPoolCache[2] : &ZeEventPoolCache[3];
+  }
 
   // This map will be used to determine if a pool is full or not
   // by storing number of empty slots available in the pool.
@@ -625,7 +632,7 @@ struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue,
             std::vector<ze_command_queue_handle_t> &CopyQueues,
             pi_context Context, pi_device Device, bool OwnZeCommandQueue,
-            pi_queue_properties PiQueueProperties = 0);
+            pi_queue_properties Properties = 0);
 
   // Level Zero compute command queue handle.
   ze_command_queue_handle_t ZeComputeCommandQueue;
@@ -731,7 +738,7 @@ struct _pi_queue : _pi_object {
   bool isBatchingAllowed(bool IsCopy) const;
 
   // Keeps the properties of this queue.
-  pi_queue_properties PiQueueProperties;
+  pi_queue_properties Properties;
 
   // Returns true if the queue is a in-order queue.
   bool isInOrderQueue() const;
@@ -803,6 +810,9 @@ struct _pi_queue : _pi_object {
   // externally, and can wait for internal references to complete, and do proper
   // cleanup of the queue.
   std::atomic<pi_uint32> RefCountExternal{1};
+
+  // Indicates that the queue is healthy and all operations on it are OK.
+  bool Healthy{true};
 };
 
 struct _pi_mem : _pi_object {
@@ -983,10 +993,16 @@ struct _pi_event : _pi_object {
   // than by just this one event, depending on the mode (see EventsScope).
   //
   pi_event HostVisibleEvent = {nullptr};
-  bool IsHostVisible() const { return this == HostVisibleEvent; }
+  bool isHostVisible() const { return this == HostVisibleEvent; }
 
   // Get the host-visible event or create one and enqueue its signal.
   pi_result getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent);
+
+  // Tells if this event is with profiling capabilities.
+  bool isProfilingEnabled() const {
+    return !Queue || // tentatively assume user events are profiling enabled
+           (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
+  }
 
   // Level Zero command list where the command signaling this event was appended
   // to. This is currently used to remember/destroy the command list after all

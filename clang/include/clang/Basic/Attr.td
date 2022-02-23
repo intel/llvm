@@ -1691,7 +1691,6 @@ def : MutualExclusions<[Likely, Unlikely]>;
 def NoMerge : DeclOrStmtAttr {
   let Spellings = [Clang<"nomerge">];
   let Documentation = [NoMergeDocs];
-  let InheritEvenIfAlreadyPresent = 1;
   let Subjects = SubjectList<[Function, Stmt], ErrorDiag,
                              "functions and statements">;
   let SimpleHandler = 1;
@@ -2062,12 +2061,14 @@ def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
 def SYCLIntelFPGALoopCount : StmtAttr {
   let Spellings = [CXX11<"intel", "loop_count_min">,
                    CXX11<"intel", "loop_count_max">,
-                   CXX11<"intel", "loop_count_avg">];
+                   CXX11<"intel", "loop_count_avg">,
+                   CXX11<"intel", "loop_count">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Accessors = [Accessor<"isMin", [CXX11<"intel", "loop_count_min">]>,
                    Accessor<"isMax", [CXX11<"intel", "loop_count_max">]>,
-                   Accessor<"isAvg", [CXX11<"intel", "loop_count_avg">]>];
+                   Accessor<"isAvg", [CXX11<"intel", "loop_count_avg">]>,
+                   Accessor<"isCount", [CXX11<"intel", "loop_count">]>];
   let Args = [ExprArgument<"NTripCount">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let IsStmtDependent = 1;
@@ -3222,6 +3223,19 @@ def VectorCall : DeclOrTypeAttr {
                    Keyword<"_vectorcall">];
 //  let Subjects = [Function, ObjCMethod];
   let Documentation = [VectorCallDocs];
+}
+
+def ZeroCallUsedRegs : InheritableAttr {
+  let Spellings = [GCC<"zero_call_used_regs">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Args = [
+    EnumArgument<"ZeroCallUsedRegs", "ZeroCallUsedRegsKind",
+                 ["skip", "used-gpr-arg", "used-gpr", "used-arg", "used",
+                  "all-gpr-arg", "all-gpr", "all-arg", "all"],
+                 ["Skip", "UsedGPRArg", "UsedGPR", "UsedArg", "Used",
+                  "AllGPRArg", "AllGPR", "AllArg", "All"]>
+  ];
+  let Documentation = [ZeroCallUsedRegsDocs];
 }
 
 def Pascal : DeclOrTypeAttr {

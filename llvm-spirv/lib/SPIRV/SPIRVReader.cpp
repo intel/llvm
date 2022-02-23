@@ -3582,6 +3582,16 @@ transDecorationsToMetadataList(llvm::LLVMContext *Context,
       OPs.push_back(LinkTypeMD);
       break;
     }
+    case spv::internal::DecorationHostAccessINTEL: {
+      const auto *const HostAccDeco =
+          static_cast<const SPIRVDecorateHostAccessINTEL *>(Deco);
+      auto *const AccModeMD = ConstantAsMetadata::get(ConstantInt::get(
+          Type::getInt32Ty(*Context), HostAccDeco->getAccessMode()));
+      auto *const NameMD = MDString::get(*Context, HostAccDeco->getVarName());
+      OPs.push_back(AccModeMD);
+      OPs.push_back(NameMD);
+      break;
+    }
     case DecorationMergeINTEL: {
       const auto MergeAttrLits = Deco->getVecLiteral();
       std::string FirstString = getString(MergeAttrLits);

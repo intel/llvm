@@ -732,7 +732,7 @@ public:
     }
 
     if (Ops.Ty->isConstantMatrixType()) {
-      llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+      llvm::MatrixBuilder MB(Builder);
       // We need to check the types of the operands of the operator to get the
       // correct matrix dimensions.
       auto *BO = cast<BinaryOperator>(Ops.E);
@@ -1816,7 +1816,7 @@ Value *ScalarExprEmitter::VisitMatrixSubscriptExpr(MatrixSubscriptExpr *E) {
 
   const auto *MatrixTy = E->getBase()->getType()->castAs<ConstantMatrixType>();
   unsigned NumRows = MatrixTy->getNumRows();
-  llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+  llvm::MatrixBuilder MB(Builder);
   Value *Idx = MB.CreateIndex(RowIdx, ColumnIdx, NumRows);
   if (CGF.CGM.getCodeGenOpts().OptimizationLevel > 0)
     MB.CreateIndexAssumption(Idx, MatrixTy->getNumElementsFlattened());
@@ -2114,7 +2114,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
         if (ScalableDst == PredType &&
             FixedSrc->getElementType() == Builder.getInt8Ty()) {
           DstTy = llvm::ScalableVectorType::get(Builder.getInt8Ty(), 2);
-          ScalableDst = dyn_cast<llvm::ScalableVectorType>(DstTy);
+          ScalableDst = cast<llvm::ScalableVectorType>(DstTy);
           NeedsBitCast = true;
         }
         if (FixedSrc->getElementType() == ScalableDst->getElementType()) {
@@ -2140,7 +2140,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
         if (ScalableSrc == PredType &&
             FixedDst->getElementType() == Builder.getInt8Ty()) {
           SrcTy = llvm::ScalableVectorType::get(Builder.getInt8Ty(), 2);
-          ScalableSrc = dyn_cast<llvm::ScalableVectorType>(SrcTy);
+          ScalableSrc = cast<llvm::ScalableVectorType>(SrcTy);
           Src = Builder.CreateBitCast(Src, SrcTy);
         }
         if (ScalableSrc->getElementType() == FixedDst->getElementType()) {
@@ -3284,7 +3284,7 @@ Value *ScalarExprEmitter::EmitDiv(const BinOpInfo &Ops) {
   }
 
   if (Ops.Ty->isConstantMatrixType()) {
-    llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+    llvm::MatrixBuilder MB(Builder);
     // We need to check the types of the operands of the operator to get the
     // correct matrix dimensions.
     auto *BO = cast<BinaryOperator>(Ops.E);
@@ -3678,7 +3678,7 @@ Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
   }
 
   if (op.Ty->isConstantMatrixType()) {
-    llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+    llvm::MatrixBuilder MB(Builder);
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
     return MB.CreateAdd(op.LHS, op.RHS);
   }
@@ -3828,7 +3828,7 @@ Value *ScalarExprEmitter::EmitSub(const BinOpInfo &op) {
     }
 
     if (op.Ty->isConstantMatrixType()) {
-      llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+      llvm::MatrixBuilder MB(Builder);
       CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
       return MB.CreateSub(op.LHS, op.RHS);
     }
