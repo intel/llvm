@@ -1,4 +1,4 @@
-module.exports = ({ core, process }) => {
+module.exports = ({core, process}) => {
   const fs = require('fs');
   fs.readFile('./test_configs.json', 'utf8', (err, data) => {
     if (err) {
@@ -31,6 +31,5 @@ module.exports = ({ core, process }) => {
 
       core.setOutput('lts', ltsString);
     }
-
   });
 }
