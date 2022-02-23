@@ -265,6 +265,10 @@ protected:
   /// Returns the unknown associated with row.
   Unknown &unknownFromRow(unsigned row);
 
+  /// Add a new row to the tableau and the associated data structures. The row
+  /// is initialized to zero.
+  unsigned addZeroRow(bool makeRestricted = false);
+
   /// Add a new row to the tableau and the associated data structures.
   /// The new row is considered to be a constraint; the new Unknown lives in
   /// con.
@@ -434,7 +438,13 @@ public:
   unsigned getSnapshot() { return SimplexBase::getSnapshotBasis(); }
 
   /// Return the lexicographically minimum rational solution to the constraints.
-  presburger_utils::MaybeOptimum<SmallVector<Fraction, 8>> getRationalLexMin();
+  presburger_utils::MaybeOptimum<SmallVector<Fraction, 8>> findRationalLexMin();
+
+  /// Return the lexicographically minimum integer solution to the constraints.
+  ///
+  /// Note: this should be used only when the lexmin is really needed. To obtain
+  /// any integer sample, use Simplex::findIntegerSample as that is more robust.
+  presburger_utils::MaybeOptimum<SmallVector<int64_t, 8>> findIntegerLexMin();
 
 protected:
   /// Returns the current sample point, which may contain non-integer (rational)
@@ -445,6 +455,15 @@ protected:
   /// or unbounded.
   presburger_utils::MaybeOptimum<SmallVector<Fraction, 8>>
   getRationalSample() const;
+
+  /// Given a row that has a non-integer sample value, add an inequality such
+  /// that this fractional sample value is cut away from the polytope. The added
+  /// inequality will be such that no integer points are removed.
+  ///
+  /// Returns whether the cut constraint could be enforced, i.e. failure if the
+  /// cut made the polytope empty, and success if it didn't. Failure status
+  /// indicates that the polytope didn't have any integer points.
+  LogicalResult addCut(unsigned row);
 
   /// Undo the addition of the last constraint. This is only called while
   /// rolling back.
@@ -459,6 +478,10 @@ protected:
   /// Get a constraint row that is violated, if one exists.
   /// Otherwise, return an empty optional.
   Optional<unsigned> maybeGetViolatedRow() const;
+
+  /// Get a row corresponding to a var that has a non-integral sample value, if
+  /// one exists. Otherwise, return an empty optional.
+  Optional<unsigned> maybeGetNonIntegeralVarRow() const;
 
   /// Given two potential pivot columns for a row, return the one that results
   /// in the lexicographically smallest sample vector.
@@ -557,6 +580,16 @@ public:
   /// Returns an integer sample point if one exists, or None
   /// otherwise. This should only be called for bounded sets.
   Optional<SmallVector<int64_t, 8>> findIntegerSample();
+
+  enum class IneqType { Redundant, Cut, Separate };
+
+  /// Returns the type of the inequality with coefficients `coeffs`.
+  ///
+  /// Possible types are:
+  /// Redundant   The inequality is satisfied in the polytope
+  /// Cut         The inequality is satisfied by some points, but not by others
+  /// Separate    The inequality is not satisfied by any point
+  IneqType findIneqType(ArrayRef<int64_t> coeffs);
 
   /// Check if the specified inequality already holds in the polytope.
   bool isRedundantInequality(ArrayRef<int64_t> coeffs);

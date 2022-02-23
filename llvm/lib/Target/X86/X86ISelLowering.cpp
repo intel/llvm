@@ -38424,16 +38424,27 @@ static SDValue combineX86ShufflesRecursively(
   APInt OpUndef, OpZero;
   APInt OpDemandedElts = APInt::getAllOnes(VT.getVectorNumElements());
   bool IsOpVariableMask = isTargetShuffleVariableMask(Op.getOpcode());
-  if (!getTargetShuffleInputs(Op, OpDemandedElts, OpInputs, OpMask, OpUndef,
-                              OpZero, DAG, Depth, false))
+  if (getTargetShuffleInputs(Op, OpDemandedElts, OpInputs, OpMask, OpUndef,
+                             OpZero, DAG, Depth, false)) {
+    // Shuffle inputs must not be larger than the shuffle result.
+    // TODO: Relax this for single input faux shuffles (e.g. trunc).
+    if (llvm::any_of(OpInputs, [VT](SDValue OpInput) {
+          return OpInput.getValueSizeInBits() > VT.getSizeInBits();
+        }))
+      return SDValue();
+  } else if (Op.getOpcode() == ISD::EXTRACT_SUBVECTOR &&
+             (RootSizeInBits % Op.getOperand(0).getValueSizeInBits()) == 0 &&
+             !isNullConstant(Op.getOperand(1))) {
+    SDValue SrcVec = Op.getOperand(0);
+    int ExtractIdx = Op.getConstantOperandVal(1);
+    unsigned NumElts = VT.getVectorNumElements();
+    OpInputs.assign({SrcVec});
+    OpMask.assign(NumElts, SM_SentinelUndef);
+    std::iota(OpMask.begin(), OpMask.end(), ExtractIdx);
+    OpZero = OpUndef = APInt::getNullValue(NumElts);
+  } else {
     return SDValue();
-
-  // Shuffle inputs must not be larger than the shuffle result.
-  // TODO: Relax this for single input faux shuffles (trunc/extract_subvector).
-  if (llvm::any_of(OpInputs, [VT](SDValue OpInput) {
-        return OpInput.getValueSizeInBits() > VT.getSizeInBits();
-      }))
-    return SDValue();
+  }
 
   // If the shuffle result was smaller than the root, we need to adjust the
   // mask indices and pad the mask with undefs.
@@ -38704,6 +38715,8 @@ static SDValue combineX86ShufflesRecursively(
   // FIXME: should we rerun resolveTargetShuffleInputsAndMask() now?
 
   // Widen any subvector shuffle inputs we've collected.
+  // TODO: Remove this to avoid generating temporary nodes, we should only
+  // widen once combineX86ShuffleChain has found a match.
   if (any_of(Ops, [RootSizeInBits](SDValue Op) {
         return Op.getValueSizeInBits() < RootSizeInBits;
       })) {
@@ -52593,7 +52606,8 @@ static SDValue combineAddOfPMADDWD(SelectionDAG &DAG, SDValue N0, SDValue N1,
 /// Try to fold those constants into an 'add' instruction to reduce instruction
 /// count. We do this with CMOV rather the generic 'select' because there are
 /// earlier folds that may be used to turn select-of-constants into logic hacks.
-static SDValue pushAddIntoCmovOfConsts(SDNode *N, SelectionDAG &DAG) {
+static SDValue pushAddIntoCmovOfConsts(SDNode *N, SelectionDAG &DAG,
+                                       const X86Subtarget &Subtarget) {
   // If an operand is zero, add-of-0 gets simplified away, so that's clearly
   // better because we eliminate 1-2 instructions. This transform is still
   // an improvement without zero operands because we trade 2 move constants and
@@ -52616,6 +52630,11 @@ static SDValue pushAddIntoCmovOfConsts(SDNode *N, SelectionDAG &DAG) {
   if (!isSuitableCmov(Cmov))
     std::swap(Cmov, OtherOp);
   if (!isSuitableCmov(Cmov))
+    return SDValue();
+
+  // Don't remove a load folding opportunity for the add. That would neutralize
+  // any improvements from removing constant materializations.
+  if (X86::mayFoldLoad(OtherOp, Subtarget))
     return SDValue();
 
   EVT VT = N->getValueType(0);
@@ -52660,7 +52679,7 @@ static SDValue combineAdd(SDNode *N, SelectionDAG &DAG,
   SDValue Op1 = N->getOperand(1);
   SDLoc DL(N);
 
-  if (SDValue Select = pushAddIntoCmovOfConsts(N, DAG))
+  if (SDValue Select = pushAddIntoCmovOfConsts(N, DAG, Subtarget))
     return Select;
 
   if (SDValue MAdd = matchPMADDWD(DAG, Op0, Op1, DL, VT, Subtarget))
@@ -53434,8 +53453,8 @@ static SDValue combineExtractSubvector(SDNode *N, SelectionDAG &DAG,
   // If we're extracting the lowest subvector and we're the only user,
   // we may be able to perform this with a smaller vector width.
   unsigned InOpcode = InVec.getOpcode();
-  if (IdxVal == 0 && InVec.hasOneUse()) {
-    if (VT == MVT::v2f64 && InVecVT == MVT::v4f64) {
+  if (InVec.hasOneUse()) {
+    if (IdxVal == 0 && VT == MVT::v2f64 && InVecVT == MVT::v4f64) {
       // v2f64 CVTDQ2PD(v4i32).
       if (InOpcode == ISD::SINT_TO_FP &&
           InVec.getOperand(0).getValueType() == MVT::v4i32) {
@@ -53452,7 +53471,8 @@ static SDValue combineExtractSubvector(SDNode *N, SelectionDAG &DAG,
         return DAG.getNode(X86ISD::VFPEXT, SDLoc(N), VT, InVec.getOperand(0));
       }
     }
-    if ((InOpcode == ISD::ANY_EXTEND ||
+    if (IdxVal == 0 &&
+        (InOpcode == ISD::ANY_EXTEND ||
          InOpcode == ISD::ANY_EXTEND_VECTOR_INREG ||
          InOpcode == ISD::ZERO_EXTEND ||
          InOpcode == ISD::ZERO_EXTEND_VECTOR_INREG ||
@@ -53467,7 +53487,7 @@ static SDValue combineExtractSubvector(SDNode *N, SelectionDAG &DAG,
       unsigned ExtOp = getOpcode_EXTEND_VECTOR_INREG(InOpcode);
       return DAG.getNode(ExtOp, DL, VT, Ext);
     }
-    if (InOpcode == ISD::VSELECT &&
+    if (IdxVal == 0 && InOpcode == ISD::VSELECT &&
         InVec.getOperand(0).getValueType().is256BitVector() &&
         InVec.getOperand(1).getValueType().is256BitVector() &&
         InVec.getOperand(2).getValueType().is256BitVector()) {
@@ -53477,13 +53497,20 @@ static SDValue combineExtractSubvector(SDNode *N, SelectionDAG &DAG,
       SDValue Ext2 = extractSubVector(InVec.getOperand(2), 0, DAG, DL, 128);
       return DAG.getNode(InOpcode, DL, VT, Ext0, Ext1, Ext2);
     }
-    if (InOpcode == ISD::TRUNCATE && Subtarget.hasVLX() &&
+    if (IdxVal == 0 && InOpcode == ISD::TRUNCATE && Subtarget.hasVLX() &&
         (VT.is128BitVector() || VT.is256BitVector())) {
       SDLoc DL(N);
       SDValue InVecSrc = InVec.getOperand(0);
       unsigned Scale = InVecSrc.getValueSizeInBits() / InSizeInBits;
       SDValue Ext = extractSubVector(InVecSrc, 0, DAG, DL, Scale * SizeInBits);
       return DAG.getNode(InOpcode, DL, VT, Ext);
+    }
+    if (InOpcode == X86ISD::MOVDDUP &&
+        (VT.is128BitVector() || VT.is256BitVector())) {
+      SDLoc DL(N);
+      SDValue Ext0 =
+          extractSubVector(InVec.getOperand(0), IdxVal, DAG, DL, SizeInBits);
+      return DAG.getNode(InOpcode, DL, VT, Ext0);
     }
   }
 
