@@ -5780,7 +5780,8 @@ bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
 }
 
 // Shared by all memory read/write/copy PI interfaces.
-// PI interfaces must not have queue's mutex locked on entry.
+// PI interfaces must have queue's and destination buffer's mutexes locked for
+// exclusive use and source buffer's mutex locked for shared use on entry.
 static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
                                       pi_queue Queue, void *Dst,
                                       pi_bool BlockingWrite, size_t Size,
@@ -5839,7 +5840,8 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
 }
 
 // Shared by all memory read/write/copy rect PI interfaces.
-// PI interfaces must not have queue's mutex locked on entry.
+// PI interfaces must have queue's and destination buffer's mutexes locked for
+// exclusive use and source buffer's mutex locked for shared use on entry.
 static pi_result enqueueMemCopyRectHelper(
     pi_command_type CommandType, pi_queue Queue, void *SrcBuffer,
     void *DstBuffer, pi_buff_rect_offset SrcOrigin,
@@ -6031,9 +6033,7 @@ pi_result piEnqueueMemBufferCopyRect(
 
 } // extern "C"
 
-//
-// Caller of this must assure that the Queue is non-null and has not
-// acquired the lock.
+// PI interfaces must have queue's and buffer's mutexes locked on entry.
 static pi_result
 enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
                      const void *Pattern, size_t PatternSize, size_t Size,
@@ -6451,7 +6451,8 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
 }
 
 // Helper function to implement image read/write/copy.
-// Caller must hold a lock on the Queue passed in.
+// PI interfaces must have queue's and destination image's mutexes locked for
+// exclusive use and source image's mutex locked for shared use on entry.
 static pi_result enqueueMemImageCommandHelper(
     pi_command_type CommandType, pi_queue Queue,
     const void *Src, // image or ptr
