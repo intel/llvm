@@ -187,7 +187,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
   // this by pre-building the device image and extracting kernel info. We can't
   // do the same to user images, since they may contain references to undefined
   // symbols (e.g. when kernel_bundle is supposed to be joined with another).
-  std::vector<kernel_id> KernelIDs{};
+  auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
   auto DevImgImpl = std::make_shared<device_image_impl>(
       nullptr, TargetContext, Devices, State, KernelIDs, PiProgram);
   device_image_plain DevImg{DevImgImpl};
