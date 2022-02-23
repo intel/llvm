@@ -3529,17 +3529,17 @@ static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
 // a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
 // attribute, check to see if values of reqd_work_group_size arguments are
 // equal or less than values of max_work_group_size attribute arguments.
-static bool checkWorkGroupSizeAttrValues(const Expr *LHS, const Expr *RHS) {
+static bool checkWorkGroupSizeAttrValues(const Expr *RWGS, const Expr *MWGS) {
   // If any of the operand is still value dependent, we can't test anything.
-  const auto *LHSCE = dyn_cast<ConstantExpr>(LHS);
-  const auto *RHSCE = dyn_cast<ConstantExpr>(RHS);
+  const auto *RWGSCE = dyn_cast<ConstantExpr>(RWGS);
+  const auto *MWGSCE = dyn_cast<ConstantExpr>(MWGS);
 
-  if (!LHSCE || !RHSCE)
+  if (!RWGSCE || !MWGSCE)
     return false;
 
   // Otherwise, check if value of reqd_work_group_size argument is
-  // equal or less than value of max_work_group_size attribute argument.
-  return LHSCE->getResultAsAPSInt() > RHSCE->getResultAsAPSInt();
+  // greater than value of max_work_group_size attribute argument.
+  return RWGSCE->getResultAsAPSInt() > MWGSCE->getResultAsAPSInt();
 }
 
 void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
