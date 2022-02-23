@@ -169,6 +169,8 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_memcpy", DeviceLibExt::cl_intel_devicelib_cstring},
     {"__devicelib_memset", DeviceLibExt::cl_intel_devicelib_cstring},
     {"__devicelib_memcmp", DeviceLibExt::cl_intel_devicelib_cstring},
+    {"__devicelib_assert_read", DeviceLibExt::cl_intel_devicelib_assert},
+    {"__devicelib_assert_fail", DeviceLibExt::cl_intel_devicelib_assert},
 };
 
 // Each fallback device library corresponds to one bit in "require mask" which
