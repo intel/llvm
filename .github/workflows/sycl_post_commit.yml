@@ -97,3 +97,7 @@ jobs:
       with:
         name: sycl_linux_${{ matrix.config }}
         path: llvm_sycl.tar.gz
+
+  windows_default:
+    name: Windows
+    using: ./.github/workflows/sycl_windows_build_and_test.yml
