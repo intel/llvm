@@ -399,8 +399,6 @@ static bool PiPlatformCachePopulated = false;
 static bool PiDriverGlobalOffsetExtensionFound = false;
 static bool PiDriverModuleProgramExtensionFound = false;
 
-// TODO:: In the following 2 methods we may want to distinguish read access vs.
-// write (as it is OK for multiple threads to read the map without locking it).
 pi_result
 _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
                                             size_t &Index, bool HostVisible,
