@@ -839,7 +839,9 @@ struct _pi_mem : _pi_object {
     size_t Size;
   };
 
-  std::mutex Mutex;
+  // Protects accesses to all the non-const member variables.  Exclusive access
+  // is required to modify any of these members.
+  std::shared_mutex Mutex;
 
   // Interface of the _pi_mem object
 

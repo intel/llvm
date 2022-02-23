@@ -3593,7 +3593,7 @@ pi_result piMemGetInfo(pi_mem Mem,
   (void)ParamValueSize;
   (void)ParamValue;
   (void)ParamValueSizeRet;
-  std::lock_guard<std::mutex> Guard(Mem->Mutex);
+  std::shared_lock Guard(Mem->Mutex);
   die("piMemGetInfo: not implemented");
   return {};
 }
@@ -3601,7 +3601,7 @@ pi_result piMemGetInfo(pi_mem Mem,
 pi_result piMemRetain(pi_mem Mem) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
 
-  std::lock_guard<std::mutex> Guard(Mem->Mutex);
+  std::scoped_lock Guard(Mem->Mutex);
   ++(Mem->RefCount);
   return PI_SUCCESS;
 }
@@ -3641,7 +3641,7 @@ pi_result piMemRelease(pi_mem Mem) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
   bool RefCountZero = false;
   {
-    std::lock_guard<std::mutex> Guard(Mem->Mutex);
+    std::scoped_lock Guard(Mem->Mutex);
     if (--(Mem->RefCount) == 0) {
       if (Mem->isImage()) {
         ZE_CALL(zeImageDestroy, (pi_cast<ze_image_handle_t>(Mem->getZeHandle())));
@@ -3845,7 +3845,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
 pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
-  std::lock_guard<std::mutex> Guard(Mem->Mutex);
+  std::shared_lock Guard(Mem->Mutex);
   *NativeHandle = pi_cast<pi_native_handle>(Mem->getZeHandle());
   return PI_SUCCESS;
 }
@@ -6223,7 +6223,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
     }
 
     // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> Guard(Buffer->Mutex);
+    std::scoped_lock Guard(Buffer->Mutex);
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
       if (!Buffer->HostPtrImported &&
@@ -6311,7 +6311,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   _pi_mem::Mapping MapInfo = {};
   {
     // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> Guard(MemObj->Mutex);
+    std::scoped_lock Guard(MemObj->Mutex);
     if (pi_result Res = MemObj->removeMapping(MappedPtr, MapInfo))
       return Res;
 
@@ -6346,7 +6346,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
       }
     }
 
-    std::lock_guard<std::mutex> Guard(MemObj->Mutex);
+    std::shared_lock Guard(MemObj->Mutex);
     if (MemObj->MapHostPtr)
       memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
              MapInfo.Size);
@@ -6404,7 +6404,7 @@ pi_result piMemImageGetInfo(pi_mem Image, pi_image_info ParamName,
   (void)ParamValue;
   (void)ParamValueSizeRet;
 
-  std::lock_guard<std::mutex> Guard(Image->Mutex);
+  std::shared_lock Guard(Image->Mutex);
   die("piMemImageGetInfo: not implemented");
   return {};
 }
@@ -6690,7 +6690,7 @@ pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
                 BufferCreateInfo && RetMem,
             PI_INVALID_VALUE);
 
-  std::lock_guard<std::mutex> Guard(Buffer->Mutex);
+  std::shared_lock Guard(Buffer->Mutex);
 
   if (Flags != PI_MEM_FLAGS_ACCESS_RW) {
     die("piMemBufferPartition: Level-Zero implements only read-write buffer,"
