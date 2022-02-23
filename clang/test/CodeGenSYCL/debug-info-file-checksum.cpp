@@ -9,7 +9,7 @@
 
 // CHECK: !DICompileUnit({{.*}} file: ![[#FILE:]]
 // CHECK: ![[#FILE:]] = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}Inputs{{.+}}checksum.cpp"
-// CHECK-SAME: checksumkind: CSK_MD5, checksum: "6fa01f2a7dc60f546497eeee5f4e3fd2"
+// CHECK-SAME: checksumkind: CSK_MD5, checksum: "259269f735d83ec32c46a11352458493"
 
 // RUN: %clang_cc1 -fsycl-is-device %S/Inputs/checksum-with-footer.cpp \
 // RUN: -triple spir64-unknown-unknown \
@@ -19,4 +19,4 @@
 
 // CHECKSUM: distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !1
 // CHECKSUM: !1 = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}Inputs{{.+}}checksum.cpp"
-// CHECKSUM-SAME: checksumkind: CSK_MD5, checksum: "6fa01f2a7dc60f546497eeee5f4e3fd2")
+// CHECKSUM-SAME: checksumkind: CSK_MD5, checksum: "259269f735d83ec32c46a11352458493")
