@@ -189,18 +189,36 @@ public:
   template <int KIND>
   ExtValue genval(const Fortran::evaluate::Negate<Fortran::evaluate::Type<
                       Fortran::common::TypeCategory::Integer, KIND>> &op) {
-    TODO(getLoc(), "genval Negate integer");
+    mlir::Value input = genunbox(op.left());
+    // Like LLVM, integer negation is the binary op "0 - value"
+    mlir::Value zero = genIntegerConstant<KIND>(builder.getContext(), 0);
+    return builder.create<mlir::arith::SubIOp>(getLoc(), zero, input);
   }
 
   template <int KIND>
   ExtValue genval(const Fortran::evaluate::Negate<Fortran::evaluate::Type<
                       Fortran::common::TypeCategory::Real, KIND>> &op) {
-    TODO(getLoc(), "genval Negate real");
+    return builder.create<mlir::arith::NegFOp>(getLoc(), genunbox(op.left()));
   }
   template <int KIND>
   ExtValue genval(const Fortran::evaluate::Negate<Fortran::evaluate::Type<
                       Fortran::common::TypeCategory::Complex, KIND>> &op) {
-    TODO(getLoc(), "genval Negate complex");
+    return builder.create<fir::NegcOp>(getLoc(), genunbox(op.left()));
+  }
+
+  template <typename OpTy>
+  mlir::Value createBinaryOp(const ExtValue &left, const ExtValue &right) {
+    assert(fir::isUnboxedValue(left) && fir::isUnboxedValue(right));
+    mlir::Value lhs = fir::getBase(left);
+    mlir::Value rhs = fir::getBase(right);
+    assert(lhs.getType() == rhs.getType() && "types must be the same");
+    return builder.create<OpTy>(getLoc(), lhs, rhs);
+  }
+
+  template <typename OpTy, typename A>
+  mlir::Value createBinaryOp(const A &ex) {
+    ExtValue left = genval(ex.left());
+    return createBinaryOp<OpTy>(left, genval(ex.right()));
   }
 
 #undef GENBIN
@@ -208,7 +226,7 @@ public:
   template <int KIND>                                                          \
   ExtValue genval(const Fortran::evaluate::GenBinEvOp<Fortran::evaluate::Type< \
                       Fortran::common::TypeCategory::GenBinTyCat, KIND>> &x) { \
-    TODO(getLoc(), "genval GenBinEvOp");                                       \
+    return createBinaryOp<GenBinFirOp>(x);                                     \
   }
 
   GENBIN(Add, Integer, mlir::arith::AddIOp)

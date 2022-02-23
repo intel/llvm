@@ -104,7 +104,7 @@ func @extract_element(%arg0: vector<4x4xf32>) {
 // -----
 
 func @extract_vector_type(%arg0: index) {
-  // expected-error@+1 {{expected vector type}}
+  // expected-error@+1 {{invalid kind of type specified}}
   %1 = vector.extract %arg0[] : index
 }
 
@@ -1133,6 +1133,13 @@ func @reduce_unsupported_type(%arg0: vector<16xf32>) -> f32 {
 func @reduce_unsupported_rank(%arg0: vector<4x16xf32>) -> f32 {
   // expected-error@+1 {{'vector.reduction' op unsupported reduction rank: 2}}
   %0 = vector.reduction <add>, %arg0 : vector<4x16xf32> into f32
+}
+
+// -----
+
+func @multi_reduce_invalid_type(%arg0: vector<4x16xf32>) -> f32 {
+  // expected-error@+1 {{'vector.multi_reduction' op inferred type(s) 'vector<4xf32>' are incompatible with return type(s) of operation 'vector<16xf32>'}}
+  %0 = vector.multi_reduction <mul>, %arg0 [1] : vector<4x16xf32> to vector<16xf32>
 }
 
 // -----
