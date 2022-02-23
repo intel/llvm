@@ -1684,6 +1684,9 @@ def warn_weak_vtable : Warning<
   "%0 has no out-of-line virtual method definitions; its vtable will be "
   "emitted in every translation unit">,
   InGroup<DiagGroup<"weak-vtables">>, DefaultIgnore;
+def warn_weak_template_vtable : Warning<
+  "this warning is no longer in use and will be removed in the next release">,
+  InGroup<DiagGroup<"weak-template-vtables">>, DefaultIgnore;
 
 def ext_using_undefined_std : ExtWarn<
   "using directive refers to implicitly-defined namespace 'std'">;
@@ -4068,6 +4071,9 @@ def warn_vector_mode_deprecated : Warning<
   "specifying vector types with the 'mode' attribute is deprecated; "
   "use the 'vector_size' attribute instead">,
   InGroup<DeprecatedAttributes>;
+def warn_deprecated_noreturn_spelling : Warning<
+  "the '[[_Noreturn]]' attribute spelling is deprecated in C2x; use "
+  "'[[noreturn]]' instead">, InGroup<DeprecatedAttributes>;
 def err_complex_mode_vector_type : Error<
   "type of machine mode does not support base vector types">;
 def err_enum_mode_vector_type : Error<
@@ -4707,6 +4713,8 @@ def err_ovl_no_viable_object_call : Error<
   "no matching function for call to object of type %0">;
 def err_ovl_ambiguous_object_call : Error<
   "call to object of type %0 is ambiguous">;
+def err_ovl_ambiguous_subscript_call : Error<
+  "call to subscript operator of type %0 is ambiguous">;
 def err_ovl_deleted_object_call : Error<
   "call to deleted function call operator in type %0">;
 def note_ovl_surrogate_cand : Note<"conversion candidate of type %0">;
@@ -6616,7 +6624,8 @@ def err_arithmetic_nonfragile_interface : Error<
   "this architecture and platform">;
 
 def warn_deprecated_comma_subscript : Warning<
-  "top-level comma expression in array subscript is deprecated">,
+  "top-level comma expression in array subscript is deprecated "
+  "in C++20 and unsupported in C++2b">,
   InGroup<DeprecatedCommaSubscript>;
 
 def ext_subscript_non_lvalue : Extension<
@@ -9019,6 +9028,12 @@ def err_operator_overload_static : Error<
   "overloaded %0 cannot be a static member function">;
 def err_operator_overload_default_arg : Error<
   "parameter of overloaded %0 cannot have a default argument">;
+
+def ext_subscript_overload : ExtWarn<
+  "overloaded %0 with %select{no|a defaulted|more than one}1 parameter is a C++2b extension">, InGroup<CXXPre2bCompat>, DefaultIgnore;
+def error_subscript_overload : Error<
+  "overloaded %0 cannot have %select{no|a defaulted|more than one}1 parameter before C++2b">;
+
 def err_operator_overload_must_be : Error<
   "overloaded %0 must be a %select{unary|binary|unary or binary}2 operator "
   "(has %1 parameter%s1)">;
@@ -11171,6 +11186,10 @@ def err_coroutine_promise_final_suspend_requires_nothrow : Error<
 def note_coroutine_function_declare_noexcept : Note<
   "must be declared with 'noexcept'"
 >;
+def warn_always_inline_coroutine : Warning<
+  "this coroutine may be split into pieces; not every piece is guaranteed to be inlined"
+  >,
+  InGroup<AlwaysInlineCoroutine>;
 } // end of coroutines issue category
 
 let CategoryName = "Documentation Issue" in {

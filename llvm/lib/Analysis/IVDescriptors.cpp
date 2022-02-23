@@ -917,12 +917,18 @@ bool RecurrenceDescriptor::isFirstOrderRecurrence(
         SinkCandidate->mayReadFromMemory() || SinkCandidate->isTerminator())
       return false;
 
-    // Do not try to sink an instruction multiple times (if multiple operands
-    // are first order recurrences).
-    // TODO: We can support this case, by sinking the instruction after the
-    // 'deepest' previous instruction.
-    if (SinkAfter.find(SinkCandidate) != SinkAfter.end())
-      return false;
+    // Try to sink an instruction after the 'deepest' previous instruction,
+    // which has multiple operands for first order recurrences.
+    auto It = SinkAfter.find(SinkCandidate);
+    if (It != SinkAfter.end()) {
+      auto LastPrev = It->second;
+      if (LastPrev->getParent() != Previous->getParent())
+        return false;
+
+      // If LastPrev comes after the current Previous, SinkCandidate already
+      // gets sunk past Previous and nothing left to do.
+      return Previous->comesBefore(LastPrev);
+    }
 
     // If we reach a PHI node that is not dominated by Previous, we reached a
     // header PHI. No need for sinking.
@@ -1428,10 +1434,14 @@ bool InductionDescriptor::isInductionPHI(
 
   ConstantInt *CV = ConstStep->getValue();
   const DataLayout &DL = Phi->getModule()->getDataLayout();
-  int64_t Size = static_cast<int64_t>(DL.getTypeAllocSize(ElementType));
-  if (!Size)
+  TypeSize TySize = DL.getTypeAllocSize(ElementType);
+  // TODO: We could potentially support this for scalable vectors if we can
+  // prove at compile time that the constant step is always a multiple of
+  // the scalable type.
+  if (TySize.isZero() || TySize.isScalable())
     return false;
 
+  int64_t Size = static_cast<int64_t>(TySize.getFixedSize());
   int64_t CVSize = CV->getSExtValue();
   if (CVSize % Size)
     return false;

@@ -110,6 +110,7 @@ func @erf_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
 // CHECK-DAG:           %[[VAL_12:.*]] = arith.constant 1.17549435E-38 : f32
 // CHECK-DAG:           %[[VAL_13:.*]] = arith.constant 127 : i32
 // CHECK-DAG:           %[[VAL_14:.*]] = arith.constant -127 : i32
+// CHECK:           %[[IS_NAN:.*]] = arith.cmpf uno, %[[VAL_0]], %[[VAL_0]] : f32
 // CHECK:           %[[VAL_15:.*]] = arith.mulf %[[VAL_0]], %[[VAL_2]] : f32
 // CHECK:           %[[VAL_16:.*]] = math.floor %[[VAL_15]] : f32
 // CHECK:           %[[VAL_17:.*]] = arith.mulf %[[VAL_16]], %[[VAL_1]] : f32
@@ -136,7 +137,8 @@ func @erf_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
 // CHECK:           %[[VAL_38:.*]] = arith.select %[[VAL_36]], %[[VAL_30]], %[[VAL_37]] : f32
 // CHECK:           %[[VAL_39:.*]] = arith.select %[[VAL_34]], %[[VAL_10]], %[[VAL_38]] : f32
 // CHECK:           %[[VAL_40:.*]] = arith.select %[[VAL_33]], %[[VAL_9]], %[[VAL_39]] : f32
-// CHECK:           return %[[VAL_40]] : f32
+// CHECK:           %[[VAL_41:.*]] = arith.select %[[IS_NAN]], %[[VAL_0]], %[[VAL_40]] : f32
+// CHECK:           return %[[VAL_41]] : f32
 func @exp_scalar(%arg0: f32) -> f32 {
   %0 = math.exp %arg0 : f32
   return %0 : f32
@@ -146,7 +148,7 @@ func @exp_scalar(%arg0: f32) -> f32 {
 // CHECK-SAME:                     %[[VAL_0:.*]]: vector<8xf32>) -> vector<8xf32> {
 // CHECK:           %[[VAL_1:.*]] = arith.constant dense<0.693147182> : vector<8xf32>
 // CHECK-NOT:       exp
-// CHECK-COUNT-3:   select
+// CHECK-COUNT-4:   select
 // CHECK:           %[[VAL_40:.*]] = arith.select
 // CHECK:           return %[[VAL_40]] : vector<8xf32>
 func @exp_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
@@ -161,9 +163,9 @@ func @exp_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
 // CHECK-DAG:           %[[CST_ONE:.*]] = arith.constant 1.000000e+00 : f32
 // CHECK:           %[[BEGIN_EXP_X:.*]] = arith.mulf %[[X]], %[[CST_LOG2E]] : f32
 // CHECK-NOT:       exp
-// CHECK-COUNT-3:   select
+// CHECK-COUNT-4:   select
 // CHECK:           %[[EXP_X:.*]] = arith.select
-// CHECK:           %[[VAL_58:.*]] = arith.cmpf oeq, %[[EXP_X]], %[[CST_ONE]] : f32
+// CHECK:           %[[IS_ONE_OR_NAN:.*]] = arith.cmpf ueq, %[[EXP_X]], %[[CST_ONE]] : f32
 // CHECK:           %[[VAL_59:.*]] = arith.subf %[[EXP_X]], %[[CST_ONE]] : f32
 // CHECK:           %[[VAL_60:.*]] = arith.cmpf oeq, %[[VAL_59]], %[[CST_MINUSONE]] : f32
 // CHECK-NOT:       log
@@ -174,7 +176,7 @@ func @exp_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
 // CHECK:           %[[VAL_106:.*]] = arith.mulf %[[VAL_59]], %[[VAL_105]] : f32
 // CHECK:           %[[VAL_107:.*]] = arith.select %[[VAL_104]], %[[EXP_X]], %[[VAL_106]] : f32
 // CHECK:           %[[VAL_108:.*]] = arith.select %[[VAL_60]], %[[CST_MINUSONE]], %[[VAL_107]] : f32
-// CHECK:           %[[VAL_109:.*]] = arith.select %[[VAL_58]], %[[X]], %[[VAL_108]] : f32
+// CHECK:           %[[VAL_109:.*]] = arith.select %[[IS_ONE_OR_NAN]], %[[X]], %[[VAL_108]] : f32
 // CHECK:           return %[[VAL_109]] : f32
 // CHECK:         }
 func @expm1_scalar(%arg0: f32) -> f32 {
@@ -186,7 +188,7 @@ func @expm1_scalar(%arg0: f32) -> f32 {
 // CHECK-SAME:                       %[[VAL_0:.*]]: vector<8x8xf32>) -> vector<8x8xf32> {
 // CHECK:           %[[VAL_1:.*]] = arith.constant dense<-1.000000e+00> : vector<8x8xf32>
 // CHECK-NOT:       exp
-// CHECK-COUNT-4:   select
+// CHECK-COUNT-5:   select
 // CHECK-NOT:       log
 // CHECK-COUNT-5:   select
 // CHECK-NOT:       expm1
@@ -542,7 +544,9 @@ func @atan_scalar(%arg0: f32) -> f32 {
 // CHECK-DAG:  %[[N3:.+]] = arith.constant -0.0106783099
 // CHECK-DAG:  %[[N4:.+]] = arith.constant 1.00209987
 // CHECK-DAG:  %[[HALF_PI:.+]] = arith.constant 1.57079637
-// CHECK-DAG:  %[[RATIO:.+]] = arith.divf %arg0, %arg1
+// CHECK-DAG:  %[[ARG0:.+]] = arith.extf %arg0 : f16 to f32
+// CHECK-DAG:  %[[ARG1:.+]] = arith.extf %arg1 : f16 to f32
+// CHECK-DAG:  %[[RATIO:.+]] = arith.divf %[[ARG0]], %[[ARG1]]
 // CHECK-DAG:  %[[ABS:.+]] = math.abs %[[RATIO]]
 // CHECK-DAG:  %[[DIV:.+]] = arith.divf %cst, %[[ABS]]
 // CHECK-DAG:  %[[CMP:.+]] = arith.cmpf olt, %[[ABS]], %[[DIV]]
@@ -562,30 +566,31 @@ func @atan_scalar(%arg0: f32) -> f32 {
 // CHECK-DAG: %[[SUB_PI:.+]] = arith.subf %[[ATAN]], %[[PI]]
 // CHECK-DAG: %[[CMP_ATAN:.+]] = arith.cmpf ogt, %[[ATAN]], %[[ZERO]]
 // CHECK-DAG: %[[ATAN_ADJUST:.+]] = arith.select %[[CMP_ATAN]], %[[SUB_PI]], %[[ADD_PI]]
-// CHECK-DAG: %[[X_NEG:.+]] = arith.cmpf ogt, %arg1, %[[ZERO]]
+// CHECK-DAG: %[[X_NEG:.+]] = arith.cmpf ogt, %[[ARG1]], %[[ZERO]]
 // CHECK-DAG: %[[ATAN_EST:.+]] = arith.select %[[X_NEG]], %[[ATAN]], %[[ATAN_ADJUST]]
 
 // Handle PI / 2 edge case:
-// CHECK-DAG: %[[X_ZERO:.+]] = arith.cmpf oeq, %arg1, %[[ZERO]]
-// CHECK-DAG: %[[Y_POS:.+]] = arith.cmpf ogt, %arg0, %[[ZERO]]
+// CHECK-DAG: %[[X_ZERO:.+]] = arith.cmpf oeq, %[[ARG1]], %[[ZERO]]
+// CHECK-DAG: %[[Y_POS:.+]] = arith.cmpf ogt, %[[ARG0]], %[[ZERO]]
 // CHECK-DAG: %[[IS_HALF_PI:.+]] = arith.andi %[[X_ZERO]], %[[Y_POS]]
 // CHECK-DAG: %[[EDGE1:.+]] = arith.select %[[IS_HALF_PI]], %[[HALF_PI]], %[[ATAN_EST]]
 
 // Handle -PI / 2 edge case:
 // CHECK-DAG: %[[NEG_HALF_PI:.+]] = arith.constant -1.57079637
-// CHECK-DAG: %[[Y_NEG:.+]] = arith.cmpf olt, %arg0, %[[ZERO]]
+// CHECK-DAG: %[[Y_NEG:.+]] = arith.cmpf olt, %[[ARG0]], %[[ZERO]]
 // CHECK-DAG: %[[IS_NEG_HALF_PI:.+]] = arith.andi %[[X_ZERO]], %[[Y_NEG]]
 // CHECK-DAG: %[[EDGE2:.+]] = arith.select %[[IS_NEG_HALF_PI]], %[[NEG_HALF_PI]], %[[EDGE1]]
 
 // Handle Nan edgecase:
-// CHECK-DAG: %[[Y_ZERO:.+]] = arith.cmpf oeq, %arg0, %[[ZERO]]
+// CHECK-DAG: %[[Y_ZERO:.+]] = arith.cmpf oeq, %[[ARG0]], %[[ZERO]]
 // CHECK-DAG: %[[X_Y_ZERO:.+]] = arith.andi %[[X_ZERO]], %[[Y_ZERO]]
 // CHECK-DAG: %[[NAN:.+]] = arith.constant 0x7FC00000
 // CHECK-DAG: %[[EDGE3:.+]] = arith.select %[[X_Y_ZERO]], %[[NAN]], %[[EDGE2]]
-// CHECK: return %[[EDGE3]]
+// CHECK: %[[RET:.+]] = arith.truncf %[[EDGE3]]
+// CHECK: return %[[RET]]
 
-func @atan2_scalar(%arg0: f32, %arg1: f32) -> f32 {
-  %0 = math.atan2 %arg0, %arg1 : f32
-  return %0 : f32
+func @atan2_scalar(%arg0: f16, %arg1: f16) -> f16 {
+  %0 = math.atan2 %arg0, %arg1 : f16
+  return %0 : f16
 }
 

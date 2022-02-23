@@ -22,6 +22,7 @@
 #include "flang/Lower/SymbolMap.h"
 #include "flang/Lower/Todo.h"
 #include "flang/Optimizer/Support/FIRContext.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "llvm/Support/CommandLine.h"
@@ -98,9 +99,8 @@ public:
     TODO_NOLOC("Not implemented genType SomeExpr. Needed for more complex "
                "expression lowering");
   }
-  mlir::Type genType(Fortran::lower::SymbolRef) override final {
-    TODO_NOLOC("Not implemented genType SymbolRef. Needed for more complex "
-               "expression lowering");
+  mlir::Type genType(Fortran::lower::SymbolRef sym) override final {
+    return Fortran::lower::translateSymbolToFIRType(*this, sym);
   }
   mlir::Type genType(Fortran::common::TypeCategory tc) override final {
     TODO_NOLOC("Not implemented genType TypeCategory. Needed for more complex "
@@ -131,6 +131,10 @@ public:
   mlir::Location toLocation() { return toLocation(currentPosition); }
   void setCurrentEval(Fortran::lower::pft::Evaluation &eval) {
     evalPtr = &eval;
+  }
+  Fortran::lower::pft::Evaluation &getEval() {
+    assert(evalPtr && "current evaluation not set");
+    return *evalPtr;
   }
 
   mlir::Location getCurrentLocation() override final { return toLocation(); }
@@ -181,6 +185,29 @@ public:
            !currentBlock->back().hasTrait<mlir::OpTrait::IsTerminator>();
   }
 
+  /// Unconditionally switch code insertion to a new block.
+  void startBlock(mlir::Block *newBlock) {
+    assert(newBlock && "missing block");
+    // Default termination for the current block is a fallthrough branch to
+    // the new block.
+    if (blockIsUnterminated())
+      genFIRBranch(newBlock);
+    // Some blocks may be re/started more than once, and might not be empty.
+    // If the new block already has (only) a terminator, set the insertion
+    // point to the start of the block.  Otherwise set it to the end.
+    // Note that setting the insertion point causes the subsequent function
+    // call to check the existence of terminator in the newBlock.
+    builder->setInsertionPointToStart(newBlock);
+    if (blockIsUnterminated())
+      builder->setInsertionPointToEnd(newBlock);
+  }
+
+  /// Conditionally switch code insertion to a new block.
+  void maybeStartBlock(mlir::Block *newBlock) {
+    if (newBlock)
+      startBlock(newBlock);
+  }
+
   /// Emit return and cleanup after the function has been translated.
   void endNewFunction(Fortran::lower::pft::FunctionLikeUnit &funit) {
     setCurrentPosition(Fortran::lower::pft::stmtSourceLoc(funit.endStmt));
@@ -191,9 +218,66 @@ public:
     funit.finalBlock = nullptr;
     LLVM_DEBUG(llvm::dbgs() << "*** Lowering result:\n\n"
                             << *builder->getFunction() << '\n');
+    // FIXME: Simplification should happen in a normal pass, not here.
+    mlir::IRRewriter rewriter(*builder);
+    (void)mlir::simplifyRegions(rewriter,
+                                {builder->getRegion()}); // remove dead code
     delete builder;
     builder = nullptr;
     localSymbols.clear();
+  }
+
+  /// Map mlir function block arguments to the corresponding Fortran dummy
+  /// variables. When the result is passed as a hidden argument, the Fortran
+  /// result is also mapped. The symbol map is used to hold this mapping.
+  void mapDummiesAndResults(Fortran::lower::pft::FunctionLikeUnit &funit,
+                            const Fortran::lower::CalleeInterface &callee) {
+    assert(builder && "require a builder object at this point");
+    using PassBy = Fortran::lower::CalleeInterface::PassEntityBy;
+    auto mapPassedEntity = [&](const auto arg) -> void {
+      if (arg.passBy == PassBy::AddressAndLength) {
+        // // TODO: now that fir call has some attributes regarding character
+        // // return, PassBy::AddressAndLength should be retired.
+        // mlir::Location loc = toLocation();
+        // fir::factory::CharacterExprHelper charHelp{*builder, loc};
+        // mlir::Value box =
+        //     charHelp.createEmboxChar(arg.firArgument, arg.firLength);
+        // addSymbol(arg.entity->get(), box);
+      } else {
+        if (arg.entity.has_value()) {
+          addSymbol(arg.entity->get(), arg.firArgument);
+        } else {
+          // assert(funit.parentHasHostAssoc());
+          // funit.parentHostAssoc().internalProcedureBindings(*this,
+          //                                                   localSymbols);
+        }
+      }
+    };
+    for (const Fortran::lower::CalleeInterface::PassedEntity &arg :
+         callee.getPassedArguments())
+      mapPassedEntity(arg);
+
+    // Allocate local skeleton instances of dummies from other entry points.
+    // Most of these locals will not survive into final generated code, but
+    // some will.  It is illegal to reference them at run time if they do.
+    for (const Fortran::semantics::Symbol *arg :
+         funit.nonUniversalDummyArguments) {
+      if (lookupSymbol(*arg))
+        continue;
+      mlir::Type type = genType(*arg);
+      // TODO: Account for VALUE arguments (and possibly other variants).
+      type = builder->getRefType(type);
+      addSymbol(*arg, builder->create<fir::UndefOp>(toLocation(), type));
+    }
+    if (std::optional<Fortran::lower::CalleeInterface::PassedEntity>
+            passedResult = callee.getPassedResult()) {
+      mapPassedEntity(*passedResult);
+      // FIXME: need to make sure things are OK here. addSymbol may not be OK
+      if (funit.primaryResult &&
+          passedResult->entity->get() != *funit.primaryResult)
+        addSymbol(*funit.primaryResult,
+                  getSymbolAddress(passedResult->entity->get()));
+    }
   }
 
   /// Instantiate variable \p var and add it to the symbol map.
@@ -212,11 +296,48 @@ public:
     assert(builder && "FirOpBuilder did not instantiate");
     builder->setInsertionPointToStart(&func.front());
 
+    mapDummiesAndResults(funit, callee);
+
     for (const Fortran::lower::pft::Variable &var :
          funit.getOrderedSymbolTable()) {
       const Fortran::semantics::Symbol &sym = var.getSymbol();
-      if (!sym.IsFuncResult() || !funit.primaryResult)
+      if (!sym.IsFuncResult() || !funit.primaryResult) {
         instantiateVar(var);
+      } else if (&sym == funit.primaryResult) {
+        instantiateVar(var);
+      }
+    }
+
+    // Create most function blocks in advance.
+    createEmptyGlobalBlocks(funit.evaluationList);
+
+    // Reinstate entry block as the current insertion point.
+    builder->setInsertionPointToEnd(&func.front());
+  }
+
+  /// Create global blocks for the current function.  This eliminates the
+  /// distinction between forward and backward targets when generating
+  /// branches.  A block is "global" if it can be the target of a GOTO or
+  /// other source code branch.  A block that can only be targeted by a
+  /// compiler generated branch is "local".  For example, a DO loop preheader
+  /// block containing loop initialization code is global.  A loop header
+  /// block, which is the target of the loop back edge, is local.  Blocks
+  /// belong to a region.  Any block within a nested region must be replaced
+  /// with a block belonging to that region.  Branches may not cross region
+  /// boundaries.
+  void createEmptyGlobalBlocks(
+      std::list<Fortran::lower::pft::Evaluation> &evaluationList) {
+    mlir::Region *region = &builder->getRegion();
+    for (Fortran::lower::pft::Evaluation &eval : evaluationList) {
+      if (eval.isNewBlock)
+        eval.block = builder->createBlock(region);
+      if (eval.isConstruct() || eval.isDirective()) {
+        if (eval.lowerAsUnstructured()) {
+          createEmptyGlobalBlocks(eval.getNestedEvaluations());
+        } else if (eval.hasNestedEvaluations()) {
+          TODO(toLocation(), "Constructs with nested evaluations");
+        }
+      }
     }
   }
 
@@ -253,6 +374,22 @@ private:
     return {};
   }
 
+  /// Add the symbol to the local map and return `true`. If the symbol is
+  /// already in the map and \p forced is `false`, the map is not updated.
+  /// Instead the value `false` is returned.
+  bool addSymbol(const Fortran::semantics::SymbolRef sym, mlir::Value val,
+                 bool forced = false) {
+    if (!forced && lookupSymbol(sym))
+      return false;
+    localSymbols.addSymbol(sym, val, forced);
+    return true;
+  }
+
+  void genFIRBranch(mlir::Block *targetBlock) {
+    assert(targetBlock && "missing unconditional target block");
+    builder->create<cf::BranchOp>(toLocation(), targetBlock);
+  }
+
   //===--------------------------------------------------------------------===//
   // Termination of symbolically referenced execution units
   //===--------------------------------------------------------------------===//
@@ -266,10 +403,47 @@ private:
   }
   void genFIR(const Fortran::parser::EndProgramStmt &) { genExitRoutine(); }
 
+  /// END of procedure-like constructs
+  ///
+  /// Generate the cleanup block before the procedure exits
+  void genReturnSymbol(const Fortran::semantics::Symbol &functionSymbol) {
+    const Fortran::semantics::Symbol &resultSym =
+        functionSymbol.get<Fortran::semantics::SubprogramDetails>().result();
+    Fortran::lower::SymbolBox resultSymBox = lookupSymbol(resultSym);
+    mlir::Location loc = toLocation();
+    if (!resultSymBox) {
+      mlir::emitError(loc, "failed lowering function return");
+      return;
+    }
+    mlir::Value resultVal = resultSymBox.match(
+        [&](const fir::CharBoxValue &x) -> mlir::Value {
+          TODO(loc, "Function return CharBoxValue");
+        },
+        [&](const auto &) -> mlir::Value {
+          mlir::Value resultRef = resultSymBox.getAddr();
+          mlir::Type resultType = genType(resultSym);
+          mlir::Type resultRefType = builder->getRefType(resultType);
+          // A function with multiple entry points returning different types
+          // tags all result variables with one of the largest types to allow
+          // them to share the same storage.  Convert this to the actual type.
+          if (resultRef.getType() != resultRefType)
+            TODO(loc, "Convert to actual type");
+          return builder->create<fir::LoadOp>(loc, resultRef);
+        });
+    builder->create<mlir::ReturnOp>(loc, resultVal);
+  }
+
   void genFIRProcedureExit(Fortran::lower::pft::FunctionLikeUnit &funit,
                            const Fortran::semantics::Symbol &symbol) {
+    if (mlir::Block *finalBlock = funit.finalBlock) {
+      // The current block must end with a terminator.
+      if (blockIsUnterminated())
+        builder->create<mlir::cf::BranchOp>(toLocation(), finalBlock);
+      // Set insertion point to final block.
+      builder->setInsertionPoint(finalBlock, finalBlock->end());
+    }
     if (Fortran::semantics::IsFunction(symbol)) {
-      TODO(toLocation(), "Function lowering");
+      genReturnSymbol(symbol);
     } else {
       genExitRoutine();
     }
@@ -583,7 +757,24 @@ private:
   }
 
   void genFIR(const Fortran::parser::ReturnStmt &stmt) {
-    TODO(toLocation(), "ReturnStmt lowering");
+    Fortran::lower::pft::FunctionLikeUnit *funit =
+        getEval().getOwningProcedure();
+    assert(funit && "not inside main program, function or subroutine");
+    if (funit->isMainProgram()) {
+      genExitRoutine();
+      return;
+    }
+    mlir::Location loc = toLocation();
+    if (stmt.v) {
+      TODO(loc, "Alternate return statement");
+    }
+    // Branch to the last block of the SUBROUTINE, which has the actual return.
+    if (!funit->finalBlock) {
+      mlir::OpBuilder::InsertPoint insPt = builder->saveInsertionPoint();
+      funit->finalBlock = builder->createBlock(&builder->getRegion());
+      builder->restoreInsertionPoint(insPt);
+    }
+    builder->create<mlir::cf::BranchOp>(loc, funit->finalBlock);
   }
 
   void genFIR(const Fortran::parser::CycleStmt &) {
@@ -595,7 +786,7 @@ private:
   }
 
   void genFIR(const Fortran::parser::GotoStmt &) {
-    TODO(toLocation(), "GotoStmt lowering");
+    genFIRBranch(getEval().controlSuccessor->block);
   }
 
   void genFIR(const Fortran::parser::AssociateStmt &) {
@@ -626,10 +817,6 @@ private:
     TODO(toLocation(), "EndDoStmt lowering");
   }
 
-  void genFIR(const Fortran::parser::EndFunctionStmt &) {
-    TODO(toLocation(), "EndFunctionStmt lowering");
-  }
-
   void genFIR(const Fortran::parser::EndIfStmt &) {
     TODO(toLocation(), "EndIfStmt lowering");
   }
@@ -643,6 +830,7 @@ private:
   }
 
   // Nop statements - No code, or code is generated at the construct level.
+  void genFIR(const Fortran::parser::EndFunctionStmt &) {}   // nop
   void genFIR(const Fortran::parser::EndSubroutineStmt &) {} // nop
 
   void genFIR(const Fortran::parser::EntryStmt &) {
@@ -671,6 +859,14 @@ private:
 
   void genFIR(Fortran::lower::pft::Evaluation &eval,
               bool unstructuredContext = true) {
+    if (unstructuredContext) {
+      // When transitioning from unstructured to structured code,
+      // the structured code could be a target that starts a new block.
+      maybeStartBlock(eval.isConstruct() && eval.lowerAsStructured()
+                          ? eval.getFirstNestedEvaluation().block
+                          : eval.block);
+    }
+
     setCurrentEval(eval);
     setCurrentPosition(eval.position);
     eval.visit([&](const auto &stmt) { genFIR(stmt); });

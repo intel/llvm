@@ -275,13 +275,25 @@ bool llvm::haveNoCommonBitsSet(const Value *LHS, const Value *RHS,
   assert(LHS->getType()->isIntOrIntVectorTy() &&
          "LHS and RHS should be integers");
   // Look for an inverted mask: (X & ~M) op (Y & M).
-  Value *M;
-  if (match(LHS, m_c_And(m_Not(m_Value(M)), m_Value())) &&
-      match(RHS, m_c_And(m_Specific(M), m_Value())))
-    return true;
-  if (match(RHS, m_c_And(m_Not(m_Value(M)), m_Value())) &&
-      match(LHS, m_c_And(m_Specific(M), m_Value())))
-    return true;
+  {
+    Value *M;
+    if (match(LHS, m_c_And(m_Not(m_Value(M)), m_Value())) &&
+        match(RHS, m_c_And(m_Specific(M), m_Value())))
+      return true;
+    if (match(RHS, m_c_And(m_Not(m_Value(M)), m_Value())) &&
+        match(LHS, m_c_And(m_Specific(M), m_Value())))
+      return true;
+  }
+  // Look for: (A & B) op ~(A | B)
+  {
+    Value *A, *B;
+    if (match(LHS, m_And(m_Value(A), m_Value(B))) &&
+        match(RHS, m_Not(m_c_Or(m_Specific(A), m_Specific(B)))))
+      return true;
+    if (match(RHS, m_And(m_Value(A), m_Value(B))) &&
+        match(LHS, m_Not(m_c_Or(m_Specific(A), m_Specific(B)))))
+      return true;
+  }
   IntegerType *IT = cast<IntegerType>(LHS->getType()->getScalarType());
   KnownBits LHSKnown(IT->getBitWidth());
   KnownBits RHSKnown(IT->getBitWidth());
@@ -451,7 +463,12 @@ static void computeKnownBitsMul(const Value *Op0, const Value *Op1, bool NSW,
     }
   }
 
-  Known = KnownBits::mul(Known, Known2);
+  bool SelfMultiply = Op0 == Op1;
+  // TODO: SelfMultiply can be poison, but not undef.
+  if (SelfMultiply)
+    SelfMultiply &=
+        isGuaranteedNotToBeUndefOrPoison(Op0, Q.AC, Q.CxtI, Q.DT, Depth + 1);
+  Known = KnownBits::mul(Known, Known2, SelfMultiply);
 
   // Only make use of no-wrap flags if we failed to compute the sign bit
   // directly.  This matters if the multiplication always overflows, in
@@ -5125,10 +5142,10 @@ static bool isGuaranteedNotToBeUndefOrPoison(const Value *V,
     auto *TI = Dominator->getBlock()->getTerminator();
 
     Value *Cond = nullptr;
-    if (auto BI = dyn_cast<BranchInst>(TI)) {
+    if (auto BI = dyn_cast_or_null<BranchInst>(TI)) {
       if (BI->isConditional())
         Cond = BI->getCondition();
-    } else if (auto SI = dyn_cast<SwitchInst>(TI)) {
+    } else if (auto SI = dyn_cast_or_null<SwitchInst>(TI)) {
       Cond = SI->getCondition();
     }
 
@@ -7131,7 +7148,8 @@ Optional<int64_t> llvm::isPointerOffset(const Value *Ptr1, const Value *Ptr2,
   // potentially variable) indices.  After that they handle some constant
   // offset, which determines their offset from each other.  At this point, we
   // handle no other case.
-  if (!GEP1 || !GEP2 || GEP1->getOperand(0) != GEP2->getOperand(0))
+  if (!GEP1 || !GEP2 || GEP1->getOperand(0) != GEP2->getOperand(0) ||
+      GEP1->getSourceElementType() != GEP2->getSourceElementType())
     return None;
 
   // Skip any common indices and track the GEP types.

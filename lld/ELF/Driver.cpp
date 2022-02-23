@@ -49,9 +49,11 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/LTO/LTO.h"
+#include "llvm/Object/Archive.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compression.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/Parallel.h"
@@ -95,7 +97,6 @@ bool elf::link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
     inputSections.clear();
     outputSections.clear();
     memoryBuffers.clear();
-    archiveFiles.clear();
     binaryFiles.clear();
     bitcodeFiles.clear();
     lazyBitcodeFiles.clear();
@@ -227,30 +228,34 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
       return;
     }
 
-    std::unique_ptr<Archive> file =
-        CHECK(Archive::create(mbref), path + ": failed to parse archive");
+    auto members = getArchiveMembers(mbref);
+    archiveFiles.emplace_back(path, members.size());
 
-    // If an archive file has no symbol table, it may be intentional (used as a
-    // group of lazy object files where the symbol table is not useful), or the
-    // user is attempting LTO and using a default ar command that doesn't
-    // understand the LLVM bitcode file. Treat the archive as a group of lazy
-    // object files.
-    if (!file->isEmpty() && !file->hasSymbolTable()) {
-      for (const std::pair<MemoryBufferRef, uint64_t> &p :
-           getArchiveMembers(mbref)) {
-        auto magic = identify_magic(p.first.getBuffer());
-        if (magic == file_magic::bitcode ||
-            magic == file_magic::elf_relocatable)
-          files.push_back(createLazyFile(p.first, path, p.second));
-        else
-          error(path + ": archive member '" + p.first.getBufferIdentifier() +
-                "' is neither ET_REL nor LLVM bitcode");
-      }
-      return;
+    // Handle archives and --start-lib/--end-lib using the same code path. This
+    // scans all the ELF relocatable object files and bitcode files in the
+    // archive rather than just the index file, with the benefit that the
+    // symbols are only loaded once. For many projects archives see high
+    // utilization rates and it is a net performance win. --start-lib scans
+    // symbols in the same order that llvm-ar adds them to the index, so in the
+    // common case the semantics are identical. If the archive symbol table was
+    // created in a different order, or is incomplete, this strategy has
+    // different semantics. Such output differences are considered user error.
+    //
+    // All files within the archive get the same group ID to allow mutual
+    // references for --warn-backrefs.
+    bool saved = InputFile::isInGroup;
+    InputFile::isInGroup = true;
+    for (const std::pair<MemoryBufferRef, uint64_t> &p : members) {
+      auto magic = identify_magic(p.first.getBuffer());
+      if (magic == file_magic::bitcode || magic == file_magic::elf_relocatable)
+        files.push_back(createLazyFile(p.first, path, p.second));
+      else
+        warn(path + ": archive member '" + p.first.getBufferIdentifier() +
+             "' is neither ET_REL nor LLVM bitcode");
     }
-
-    // Handle the regular case.
-    files.push_back(make<ArchiveFile>(std::move(file)));
+    InputFile::isInGroup = saved;
+    if (!saved)
+      ++InputFile::nextGroupId;
     return;
   }
   case file_magic::elf_shared_object:
@@ -326,9 +331,6 @@ static void checkOptions() {
 
   if (!config->shared && !config->auxiliaryList.empty())
     error("-f may not be used without -shared");
-
-  if (!config->relocatable && !config->defineCommon)
-    error("-no-define-common not supported in non relocatable output");
 
   if (config->strip == StripPolicy::All && config->emitRelocs)
     error("--strip-all and --emit-relocs may not be used together");
@@ -475,7 +477,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   ELFOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
 
-  // Interpret the flags early because error()/warn() depend on them.
+  // Interpret these flags early because error()/warn() depend on them.
   errorHandler().errorLimit = args::getInteger(args, OPT_error_limit, 20);
   errorHandler().fatalWarnings =
       args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false);
@@ -989,8 +991,6 @@ static void readConfigs(opt::InputArgList &args) {
   config->chroot = args.getLastArgValue(OPT_chroot);
   config->compressDebugSections = getCompressDebugSections(args);
   config->cref = args.hasArg(OPT_cref);
-  config->defineCommon = args.hasFlag(OPT_define_common, OPT_no_define_common,
-                                      !args.hasArg(OPT_relocatable));
   config->optimizeBBJumps =
       args.hasFlag(OPT_optimize_bb_jumps, OPT_no_optimize_bb_jumps, false);
   config->demangle = args.hasFlag(OPT_demangle, OPT_no_demangle, true);
@@ -1468,13 +1468,16 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
 
   // Iterate over argv to process input files and positional arguments.
   InputFile::isInGroup = false;
+  bool hasInput = false;
   for (auto *arg : args) {
     switch (arg->getOption().getID()) {
     case OPT_library:
       addLibrary(arg->getValue());
+      hasInput = true;
       break;
     case OPT_INPUT:
       addFile(arg->getValue(), /*withLOption=*/false);
+      hasInput = true;
       break;
     case OPT_defsym: {
       StringRef from;
@@ -1563,7 +1566,7 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
     }
   }
 
-  if (files.empty() && errorCount() == 0)
+  if (files.empty() && !hasInput && errorCount() == 0)
     error("no input files");
 }
 
@@ -1665,11 +1668,15 @@ static void excludeLibs(opt::InputArgList &args) {
   bool all = libs.count("ALL");
 
   auto visit = [&](InputFile *file) {
-    if (!file->archiveName.empty())
-      if (all || libs.count(path::filename(file->archiveName)))
-        for (Symbol *sym : file->getSymbols())
-          if (!sym->isUndefined() && !sym->isLocal() && sym->file == file)
-            sym->versionId = VER_NDX_LOCAL;
+    if (file->archiveName.empty() ||
+        !(all || libs.count(path::filename(file->archiveName))))
+      return;
+    ArrayRef<Symbol *> symbols = file->getSymbols();
+    if (isa<ELFFileBase>(file))
+      symbols = cast<ELFFileBase>(file)->getGlobalSymbols();
+    for (Symbol *sym : symbols)
+      if (!sym->isUndefined() && sym->file == file)
+        sym->versionId = VER_NDX_LOCAL;
   };
 
   for (ELFFileBase *file : objectFiles)
@@ -1719,10 +1726,7 @@ static void handleLibcall(StringRef name) {
     return;
 
   MemoryBufferRef mb;
-  if (auto *lo = dyn_cast<LazyObject>(sym))
-    mb = lo->file->mb;
-  else
-    mb = cast<LazyArchive>(sym)->getMemberBuffer();
+  mb = cast<LazyObject>(sym)->file->mb;
 
   if (isBitcode(mb))
     sym->extract();
@@ -1820,20 +1824,21 @@ static void replaceCommonSymbols() {
   }
 }
 
-// If all references to a DSO happen to be weak, the DSO is not added
-// to DT_NEEDED. If that happens, we need to eliminate shared symbols
-// created from the DSO. Otherwise, they become dangling references
-// that point to a non-existent DSO.
-static void demoteSharedSymbols() {
-  llvm::TimeTraceScope timeScope("Demote shared symbols");
+// If all references to a DSO happen to be weak, the DSO is not added to
+// DT_NEEDED. If that happens, replace ShardSymbol with Undefined to avoid
+// dangling references to an unneeded DSO. Use a weak binding to avoid
+// --no-allow-shlib-undefined diagnostics. Similarly, demote lazy symbols.
+static void demoteSharedAndLazySymbols() {
+  llvm::TimeTraceScope timeScope("Demote shared and lazy symbols");
   for (Symbol *sym : symtab->symbols()) {
     auto *s = dyn_cast<SharedSymbol>(sym);
     if (!(s && !s->getFile().isNeeded) && !sym->isLazy())
       continue;
 
     bool used = sym->used;
+    uint8_t binding = sym->isLazy() ? sym->binding : uint8_t(STB_WEAK);
     sym->replace(
-        Undefined{nullptr, sym->getName(), STB_WEAK, sym->stOther, sym->type});
+        Undefined{nullptr, sym->getName(), binding, sym->stOther, sym->type});
     sym->used = used;
     sym->versionId = VER_NDX_GLOBAL;
   }
@@ -2500,7 +2505,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   // Garbage collection and removal of shared symbols from unused shared objects.
   invokeELFT(markLive);
-  demoteSharedSymbols();
+  demoteSharedAndLazySymbols();
 
   // Make copies of any input sections that need to be copied into each
   // partition.

@@ -49,6 +49,8 @@ public:
   virtual uint64_t getOffset(uint64_t off) const = 0;
   // The offset from the beginning of the file.
   uint64_t getVA(uint64_t off) const;
+  // Return a user-friendly string for use in diagnostics.
+  std::string getLocation(uint64_t off) const;
   // Whether the data at \p off in this InputSection is live.
   virtual bool isLive(uint64_t off) const = 0;
   virtual void markLive(uint64_t off) = 0;
@@ -281,6 +283,7 @@ constexpr const char binding[] = "__binding";
 constexpr const char bitcodeBundle[] = "__bundle";
 constexpr const char cString[] = "__cstring";
 constexpr const char cfString[] = "__cfstring";
+constexpr const char cgProfile[] = "__cg_profile";
 constexpr const char codeSignature[] = "__code_signature";
 constexpr const char common[] = "__common";
 constexpr const char compactUnwind[] = "__compact_unwind";

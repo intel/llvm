@@ -95,8 +95,8 @@ include(CheckCXXCompilerFlag)
 
 check_c_compiler_flag("" LLVM_RUNTIMES_LINKING_WORKS)
 if (NOT LLVM_RUNTIMES_LINKING_WORKS)
-  # The compiler driver may be implicitly trying to link against libunwind, which
-  # might not work if libunwind doesn't exist yet. Try to check if
+  # The compiler driver may be implicitly trying to link against libunwind,
+  # which might not work if libunwind doesn't exist yet. Try to check if
   # --unwindlib=none is supported, and use that if possible.
   # Don't add this if not necessary to fix linking, as it can break using
   # e.g. ASAN/TSAN.
@@ -176,6 +176,23 @@ if(LLVM_INCLUDE_TESTS)
     set(LIT_ARGS_DEFAULT "${LIT_ARGS_DEFAULT} --no-progress-bar")
   endif()
   set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
+endif()
+
+# llvm-libgcc incorporates both compiler-rt and libunwind as subprojects with very
+# specific flags, which causes clashes when they're independently built too.
+if("llvm-libgcc" IN_LIST runtimes)
+  if("compiler-rt" IN_LIST runtimes OR "compiler-rt" IN_LIST LLVM_ENABLE_PROJECTS)
+    message(FATAL_ERROR
+      "Attempting to build both compiler-rt and llvm-libgcc will cause irreconcilable "
+      "target clashes. Please choose one or the other, but not both.")
+  endif()
+
+  if("libunwind" IN_LIST runtimes)
+    message(
+      FATAL_ERROR
+      "Attempting to build both libunwind and llvm-libgcc will cause irreconcilable "
+      "target clashes. Please choose one or the other, but not both.")
+  endif()
 endif()
 
 # We do this in two loops so that HAVE_* is set for each runtime before the

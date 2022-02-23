@@ -2515,6 +2515,10 @@ public:
     case ISD::FMAXNUM_IEEE:
     case ISD::FMINIMUM:
     case ISD::FMAXIMUM:
+    case ISD::AVGFLOORS:
+    case ISD::AVGFLOORU:
+    case ISD::AVGCEILS:
+    case ISD::AVGCEILU:
       return true;
     default: return false;
     }
@@ -2853,6 +2857,14 @@ public:
   /// VT2. e.g. on x86, it's profitable to narrow from i32 to i8 but not from
   /// i32 to i16.
   virtual bool isNarrowingProfitable(EVT /*VT1*/, EVT /*VT2*/) const {
+    return false;
+  }
+
+  /// Return true if pulling a binary operation into a select with an identity
+  /// constant is profitable. This is the inverse of an IR transform.
+  /// Example: X + (Cond ? Y : 0) --> Cond ? (X + Y) : X
+  virtual bool shouldFoldSelectWithIdentityConstant(unsigned BinOpcode,
+                                                    EVT VT) const {
     return false;
   }
 

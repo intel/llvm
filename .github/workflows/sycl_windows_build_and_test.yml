@@ -1,0 +1,65 @@
+name: SYCL Windows Test
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    name: Build
+    runs-on: windows-2022
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: src
+        fetch-depth: 1
+    - name: Install dependencies
+      shell: cmd
+      run: |
+        choco install -y cuda --version 11.6.0.51123
+        choco install -y ninja
+        choco install -y sccache --version 0.2.15
+        refreshenv
+        echo CUDA_PATH=%CUDA_PATH%
+        echo CUDA_PATH=%CUDA_PATH% >> %GITHUB_ENV%
+    - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
+      with:
+        arch: amd64
+    - name: Setup Cache
+      uses: actions/cache@v2
+      if: ${{ github.event_name != 'pull_request' }}
+      id: cache
+      with:
+        path: cache
+        key: sycl-win-build-${{ github.sha }}
+        restore-keys: |
+          sycl-win-build-
+    - name: Build
+      shell: cmd
+      env:
+        CUDA_PATH: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
+        CUDA_TOOLKIT_ROOT_DIR: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
+      # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
+      # TODO enable sccache, when problems with PDB are resolved
+      run: |
+        mkdir build
+        mkdir install
+        IF NOT EXIST cache MKDIR cache
+        set SCCACHE_DIR=%GITHUB_WORKSPACE%\cache
+        set PATH=C:\ProgramData\chocolatey\lib\sccache\tools\sccache-v0.2.15-x86_64-pc-windows-msvc;%PATH%
+        python.exe src/buildbot/configure.py -o build ^
+          --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
+          --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
+          --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
+          --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
+          --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
+          --cuda
+        cmake --build build --target sycl-toolchain
+        sccache --show-stats
+    - name: Install
+      shell: cmd
+      run: cmake --build build --target deploy-sycl-toolchain
+    - name: Upload toolchain
+      uses: actions/upload-artifact@v2
+      with:
+        name: sycl_windows_default
+        path: install/**/*

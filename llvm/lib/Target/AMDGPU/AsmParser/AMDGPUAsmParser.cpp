@@ -20,10 +20,12 @@
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
@@ -3369,7 +3371,6 @@ AMDGPUAsmParser::validateEarlyClobberLimitations(const MCInst &Inst,
   assert(DstIdx != -1);
   const MCOperand &Dst = Inst.getOperand(DstIdx);
   assert(Dst.isReg());
-  const unsigned DstReg = mc2PseudoReg(Dst.getReg());
 
   const int SrcIndices[] = { Src0Idx, Src1Idx, Src2Idx };
 
@@ -3377,8 +3378,8 @@ AMDGPUAsmParser::validateEarlyClobberLimitations(const MCInst &Inst,
     if (SrcIdx == -1) break;
     const MCOperand &Src = Inst.getOperand(SrcIdx);
     if (Src.isReg()) {
-      const unsigned SrcReg = mc2PseudoReg(Src.getReg());
-      if (isRegIntersect(DstReg, SrcReg, TRI)) {
+      if (TRI->regsOverlap(Dst.getReg(), Src.getReg())) {
+        const unsigned SrcReg = mc2PseudoReg(Src.getReg());
         Error(getRegLoc(SrcReg, Operands),
           "destination must be different than all sources");
         return false;
@@ -3641,7 +3642,7 @@ bool AMDGPUAsmParser::validateMFMA(const MCInst &Inst,
   if (TRI->getRegClass(Desc.OpInfo[0].RegClass).getSizeInBits() <= 128)
     return true;
 
-  if (isRegIntersect(Src2Reg, DstReg, TRI)) {
+  if (TRI->regsOverlap(Src2Reg, DstReg)) {
     Error(getRegLoc(mc2PseudoReg(Src2Reg), Operands),
           "source 2 operand must not partially overlap with dst");
     return false;
@@ -6175,7 +6176,7 @@ AMDGPUAsmParser::parseHwregBody(OperandInfoTy &HwReg,
   // The register may be specified by name or using a numeric code
   HwReg.Loc = getLoc();
   if (isToken(AsmToken::Identifier) &&
-      (HwReg.Id = getHwregId(getTokenStr())) >= 0) {
+      (HwReg.Id = getHwregId(getTokenStr(), getSTI())) >= 0) {
     HwReg.IsSymbolic = true;
     lex(); // skip register name
   } else if (!parseExpr(HwReg.Id, "a register name")) {

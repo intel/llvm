@@ -111,7 +111,11 @@ Expected<unsigned> BitstreamCursor::skipRecord(unsigned AbbrevID) {
     return Code;
   }
 
-  const BitCodeAbbrev *Abbv = getAbbrev(AbbrevID);
+  Expected<const BitCodeAbbrev *> MaybeAbbv = getAbbrev(AbbrevID);
+  if (!MaybeAbbv)
+    return MaybeAbbv.takeError();
+
+  const BitCodeAbbrev *Abbv = MaybeAbbv.get();
   const BitCodeAbbrevOp &CodeOp = Abbv->getOperandInfo(0);
   unsigned Code;
   if (CodeOp.isLiteral())
@@ -216,8 +220,12 @@ Expected<unsigned> BitstreamCursor::readRecord(unsigned AbbrevID,
     uint32_t Code = MaybeCode.get();
     Expected<uint32_t> MaybeNumElts = ReadVBR(6);
     if (!MaybeNumElts)
-      return MaybeNumElts.takeError();
+      return error(
+          ("Failed to read size: " + toString(MaybeNumElts.takeError()))
+              .c_str());
     uint32_t NumElts = MaybeNumElts.get();
+    if (!isSizePlausible(NumElts))
+      return error("Size is not plausible");
     Vals.reserve(Vals.size() + NumElts);
 
     for (unsigned i = 0; i != NumElts; ++i)
@@ -228,7 +236,10 @@ Expected<unsigned> BitstreamCursor::readRecord(unsigned AbbrevID,
     return Code;
   }
 
-  const BitCodeAbbrev *Abbv = getAbbrev(AbbrevID);
+  Expected<const BitCodeAbbrev *> MaybeAbbv = getAbbrev(AbbrevID);
+  if (!MaybeAbbv)
+    return MaybeAbbv.takeError();
+  const BitCodeAbbrev *Abbv = MaybeAbbv.get();
 
   // Read the record code first.
   assert(Abbv->getNumOperandInfos() != 0 && "no record code in abbreviation?");
@@ -266,8 +277,12 @@ Expected<unsigned> BitstreamCursor::readRecord(unsigned AbbrevID,
       // Array case.  Read the number of elements as a vbr6.
       Expected<uint32_t> MaybeNumElts = ReadVBR(6);
       if (!MaybeNumElts)
-        return MaybeNumElts.takeError();
+        return error(
+            ("Failed to read size: " + toString(MaybeNumElts.takeError()))
+                .c_str());
       uint32_t NumElts = MaybeNumElts.get();
+      if (!isSizePlausible(NumElts))
+        return error("Size is not plausible");
       Vals.reserve(Vals.size() + NumElts);
 
       // Get the element encoding.
@@ -320,13 +335,9 @@ Expected<unsigned> BitstreamCursor::readRecord(unsigned AbbrevID,
     size_t CurBitPos = GetCurrentBitNo();
     const size_t NewEnd = CurBitPos + alignTo(NumElts, 4) * 8;
 
-    // If this would read off the end of the bitcode file, just set the
-    // record to empty and return.
-    if (!canSkipToPos(NewEnd/8)) {
-      Vals.append(NumElts, 0);
-      skipToEnd();
-      break;
-    }
+    // Make sure the bitstream is large enough to contain the blob.
+    if (!canSkipToPos(NewEnd/8))
+      return error("Blob ends too soon");
 
     // Otherwise, inform the streamer that we need these bytes in memory.  Skip
     // over tail padding first, in case jumping to NewEnd invalidates the Blob

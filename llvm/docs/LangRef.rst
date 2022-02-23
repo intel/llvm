@@ -2108,12 +2108,15 @@ example:
     function with a tail call. The prototype of a thunk should not be used for
     optimization purposes. The caller is expected to cast the thunk prototype to
     match the thunk target prototype.
-``uwtable``
+``uwtable[(sync|async)]``
     This attribute indicates that the ABI being targeted requires that
     an unwind table entry be produced for this function even if we can
     show that no exceptions passes by it. This is normally the case for
     the ELF x86-64 abi, but it can be disabled for some compilation
-    units.
+    units. The optional parameter describes what kind of unwind tables
+    to generate: ``sync`` for normal unwind tables, ``async`` for asynchronous
+    (instruction precise) unwind tables. Without the parameter, the attribute
+    ``uwtable`` is equivalent to ``uwtable(async)``.
 ``nocf_check``
     This attribute indicates that no control-flow check will be performed on
     the attributed entity. It disables -fcf-protection=<> for a specific
@@ -2506,6 +2509,15 @@ void, in which case the operand bundle is ignored.
 
 The operand bundle is needed to ensure the call is immediately followed by the
 marker instruction and the ObjC runtime call in the final output.
+
+.. _ob_ptrauth:
+
+Pointer Authentication Operand Bundles
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Pointer Authentication operand bundles are characterized by the
+``"ptrauth"`` operand bundle tag.  They are described in the
+`Pointer Authentication <PointerAuth.html#operand-bundle>`__ document.
 
 .. _moduleasm:
 
@@ -7215,8 +7227,9 @@ functions is small.
 - "frame-pointer": **Max**. The value can be 0, 1, or 2. A synthesized function
   will get the "frame-pointer" function attribute, with value being "none",
   "non-leaf", or "all", respectively.
-- "uwtable": **Max**. The value can be 0 or 1. If the value is 1, a synthesized
-  function will get the ``uwtable`` function attribute.
+- "uwtable": **Max**. The value can be 0, 1, or 2. If the value is 1, a synthesized
+  function will get the ``uwtable(sync)`` function attribute, if the value is 2,
+  a synthesized function will get the ``uwtable(async)`` function attribute.
 
 Objective-C Garbage Collection Module Flags Metadata
 ----------------------------------------------------
@@ -18599,7 +18612,7 @@ operation.
 Semantics:
 """"""""""
 
-The '``llvm.vp.fadd``' intrinsic performs floating-point addition (:ref:`add <i_fadd>`)
+The '``llvm.vp.fadd``' intrinsic performs floating-point addition (:ref:`fadd <i_fadd>`)
 of the first and second vector operand on each enabled lane.  The result on
 disabled lanes is undefined.  The operation is performed in the default
 floating-point environment.
@@ -18648,7 +18661,7 @@ operation.
 Semantics:
 """"""""""
 
-The '``llvm.vp.fsub``' intrinsic performs floating-point subtraction (:ref:`add <i_fsub>`)
+The '``llvm.vp.fsub``' intrinsic performs floating-point subtraction (:ref:`fsub <i_fsub>`)
 of the first and second vector operand on each enabled lane.  The result on
 disabled lanes is undefined.  The operation is performed in the default
 floating-point environment.
@@ -18697,7 +18710,7 @@ operation.
 Semantics:
 """"""""""
 
-The '``llvm.vp.fmul``' intrinsic performs floating-point multiplication (:ref:`add <i_fmul>`)
+The '``llvm.vp.fmul``' intrinsic performs floating-point multiplication (:ref:`fmul <i_fmul>`)
 of the first and second vector operand on each enabled lane.  The result on
 disabled lanes is undefined.  The operation is performed in the default
 floating-point environment.
@@ -18746,7 +18759,7 @@ operation.
 Semantics:
 """"""""""
 
-The '``llvm.vp.fdiv``' intrinsic performs floating-point division (:ref:`add <i_fdiv>`)
+The '``llvm.vp.fdiv``' intrinsic performs floating-point division (:ref:`fdiv <i_fdiv>`)
 of the first and second vector operand on each enabled lane.  The result on
 disabled lanes is undefined.  The operation is performed in the default
 floating-point environment.
@@ -18795,7 +18808,7 @@ operation.
 Semantics:
 """"""""""
 
-The '``llvm.vp.frem``' intrinsic performs floating-point remainder (:ref:`add <i_frem>`)
+The '``llvm.vp.frem``' intrinsic performs floating-point remainder (:ref:`frem <i_frem>`)
 of the first and second vector operand on each enabled lane.  The result on
 disabled lanes is undefined.  The operation is performed in the default
 floating-point environment.
@@ -18811,6 +18824,102 @@ Examples:
       %t = frem <4 x float> %a, %b
       %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
 
+
+.. _int_vp_fneg:
+
+'``llvm.vp.fneg.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.fneg.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.fneg.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.fneg.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated floating-point negation of a vector of floating-point values.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of floating-point type.
+The second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.fneg``' intrinsic performs floating-point negation (:ref:`fneg <i_fneg>`)
+of the first vector operand on each enabled lane.  The result on disabled lanes
+is undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.fneg.v4f32(<4 x float> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = fneg <4 x float> %a
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+
+
+.. _int_vp_fma:
+
+'``llvm.vp.fma.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.fma.v16f32 (<16 x float> <left_op>, <16 x float> <middle_op>, <16 x float> <right_op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.fma.nxv4f32 (<vscale x 4 x float> <left_op>, <vscale x 4 x float> <middle_op>, <vscale x 4 x float> <right_op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.fma.v256f64 (<256 x double> <left_op>, <256 x double> <middle_op>, <256 x double> <right_op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated floating-point fused multiply-add of two vectors of floating-point values.
+
+
+Arguments:
+""""""""""
+
+The first three operands and the result have the same vector of floating-point type. The
+fourth operand is the vector mask and has the same number of elements as the
+result vector type. The fifth operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.fma``' intrinsic performs floating-point fused multiply-add (:ref:`llvm.fma <int_fma>`)
+of the first, second, and third vector operand on each enabled lane.  The result on
+disabled lanes is undefined.  The operation is performed in the default
+floating-point environment.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.fma.v4f32(<4 x float> %a, <4 x float> %b, <4 x float> %c, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x float> @llvm.fma(<4 x float> %a, <4 x float> %b, <4 x float> %c)
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
 
 
 .. _int_vp_reduce_add:
@@ -19942,6 +20051,61 @@ Examples:
      ;; For all lanes below %evl, the call above is lane-wise equivalent to the call below.
 
      call void @llvm.masked.scatter.v8i8.v8p0i8(<8 x i8> %val, <8 x i8*> %ptrs, i32 1, <8 x i1> %mask)
+
+.. _int_vp_fptosi:
+
+'``llvm.vp.fptosi.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.fptosi.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.fptosi.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.fptosi.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.fptosi``' intrinsic converts the :ref:`floating-point
+<t_floating>` operand to the signed integer return type.
+The operation has a mask and an explicit vector length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.fptosi``' intrinsic takes a value to cast as its first operand.
+The value to cast must be a vector of :ref:`floating-point <t_floating>` type.
+The return type is the type to cast the value to. The return type must be
+vector of :ref:`integer <t_integer>` type.  The second operand is the vector
+mask. The return type, the value to cast, and the vector mask have the same
+number of elements.  The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.fptosi``' intrinsic converts its :ref:`floating-point
+<t_floating>` operand into the nearest (rounding towards zero) signed integer
+value where the lane position is below the explicit vector length and the
+vector mask is true.  Masked-off lanes are undefined. On enabled lanes where
+conversion takes place and the value cannot fit in the return type, the result
+on that lane is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.fptosi.v4i32.v4f32(<4 x float> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = fptosi <4 x float> %a to <4 x i32>
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
 
 
 .. _int_mload_mstore:
@@ -23953,3 +24117,43 @@ Semantics:
 
 The '``llvm.preserve.struct.access.index``' intrinsic produces the same result
 as a getelementptr with base ``base`` and access operands ``{0, gep_index}``.
+
+'``llvm.fptrunc.round``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <ty2>
+      @llvm.fptrunc.round(<type> <value>, metadata <rounding mode>)
+
+Overview:
+"""""""""
+
+The '``llvm.fptrunc.round``' intrinsic truncates
+:ref:`floating-point <t_floating>` ``value`` to type ``ty2``
+with a specified rounding mode.
+
+Arguments:
+""""""""""
+
+The '``llvm.fptrunc.round``' intrinsic takes a :ref:`floating-point
+<t_floating>` value to cast and a :ref:`floating-point <t_floating>` type
+to cast it to. This argument must be larger in size than the result.
+
+The second argument specifies the rounding mode as described in the constrained
+intrinsics section.
+For this intrinsic, the "round.dynamic" mode is not supported.
+
+Semantics:
+""""""""""
+
+The '``llvm.fptrunc.round``' intrinsic casts a ``value`` from a larger
+:ref:`floating-point <t_floating>` type to a smaller :ref:`floating-point
+<t_floating>` type.
+This intrinsic is assumed to execute in the default :ref:`floating-point
+environment <floatenv>` *except* for the rounding mode.
+This intrinsic is not supported on all targets. Some targets may not support
+all rounding modes.

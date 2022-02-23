@@ -764,7 +764,7 @@ static bool addSanitizerDynamicList(const ToolChain &TC, const ArgList &Args,
   return false;
 }
 
-static const char *getAsNeededOption(const ToolChain &TC, bool as_needed) {
+const char *tools::getAsNeededOption(const ToolChain &TC, bool as_needed) {
   assert(!TC.getTriple().isOSAIX() &&
          "AIX linker does not support any form of --as-needed option yet.");
 
@@ -779,11 +779,6 @@ static const char *getAsNeededOption(const ToolChain &TC, bool as_needed) {
 
 void tools::linkSanitizerRuntimeDeps(const ToolChain &TC,
                                      ArgStringList &CmdArgs) {
-  // Fuchsia never needs these.  Any sanitizer runtimes with system
-  // dependencies use the `.deplibs` feature instead.
-  if (TC.getTriple().isOSFuchsia())
-    return;
-
   // Force linking against the system libraries sanitizers depends on
   // (see PR15823 why this is necessary).
   CmdArgs.push_back(getAsNeededOption(TC, false));
@@ -2024,8 +2019,9 @@ void tools::addOpenMPDeviceRTL(const Driver &D,
       Triple.isAMDGCN() ? options::OPT_libomptarget_amdgpu_bc_path_EQ
                         : options::OPT_libomptarget_nvptx_bc_path_EQ;
 
-  StringRef ArchPrefix = Triple.isAMDGCN() ? "amdgcn" : "nvptx";
-  std::string LibOmpTargetName = "libomptarget-" + BitcodeSuffix.str() + ".bc";
+  StringRef ArchPrefix = Triple.isAMDGCN() ? "amdgpu" : "nvptx";
+  std::string LibOmpTargetName =
+      ("libomptarget-" + ArchPrefix + "-" + BitcodeSuffix + ".bc").str();
 
   // First check whether user specifies bc library
   if (const Arg *A = DriverArgs.getLastArg(LibomptargetBCPathOpt)) {

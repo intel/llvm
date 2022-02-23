@@ -285,9 +285,11 @@ public:
             return true; // no offset to apply!
 
           SmallVector<Value *, 8> indices(op_cursor, op_end);
-
           Type *src_elem_ty =
               cast<GEPOperator>(constant_expr)->getSourceElementType();
+
+          // DataLayout::getIndexedOffsetInType assumes the indices are
+          // instances of ConstantInt.
           uint64_t offset =
               m_target_data.getIndexedOffsetInType(src_elem_ty, indices);
 
@@ -466,12 +468,20 @@ static bool CanResolveConstant(llvm::Constant *constant) {
       case Instruction::BitCast:
         return CanResolveConstant(constant_expr->getOperand(0));
       case Instruction::GetElementPtr: {
+        // Check that the base can be constant-resolved.
         ConstantExpr::const_op_iterator op_cursor = constant_expr->op_begin();
         Constant *base = dyn_cast<Constant>(*op_cursor);
-        if (!base)
+        if (!base || !CanResolveConstant(base))
           return false;
 
-        return CanResolveConstant(base);
+        // Check that all other operands are just ConstantInt.
+        for (Value *op : make_range(constant_expr->op_begin() + 1,
+                                    constant_expr->op_end())) {
+          ConstantInt *constant_int = dyn_cast<ConstantInt>(op);
+          if (!constant_int)
+            return false;
+        }
+        return true;
       }
       }
     } else {
@@ -1183,16 +1193,6 @@ bool IRInterpreter::Interpret(llvm::Module &module, llvm::Function &function,
 
       const Value *pointer_operand = load_inst->getPointerOperand();
 
-      Type *pointer_ty = pointer_operand->getType();
-      PointerType *pointer_ptr_ty = dyn_cast<PointerType>(pointer_ty);
-      if (!pointer_ptr_ty) {
-        LLDB_LOGF(log, "getPointerOperand()->getType() is not a PointerType");
-        error.SetErrorToGenericError();
-        error.SetErrorString(interpreter_internal_error);
-        return false;
-      }
-      Type *target_ty = pointer_ptr_ty->getElementType();
-
       lldb::addr_t D = frame.ResolveValue(load_inst, module);
       lldb::addr_t P = frame.ResolveValue(pointer_operand, module);
 
@@ -1221,6 +1221,7 @@ bool IRInterpreter::Interpret(llvm::Module &module, llvm::Function &function,
         return false;
       }
 
+      Type *target_ty = load_inst->getType();
       size_t target_size = data_layout.getTypeStoreSize(target_ty);
       lldb_private::DataBufferHeap buffer(target_size, 0);
 
@@ -1266,12 +1267,6 @@ bool IRInterpreter::Interpret(llvm::Module &module, llvm::Function &function,
       const Value *value_operand = store_inst->getValueOperand();
       const Value *pointer_operand = store_inst->getPointerOperand();
 
-      Type *pointer_ty = pointer_operand->getType();
-      PointerType *pointer_ptr_ty = dyn_cast<PointerType>(pointer_ty);
-      if (!pointer_ptr_ty)
-        return false;
-      Type *target_ty = pointer_ptr_ty->getElementType();
-
       lldb::addr_t D = frame.ResolveValue(value_operand, module);
       lldb::addr_t P = frame.ResolveValue(pointer_operand, module);
 
@@ -1300,6 +1295,7 @@ bool IRInterpreter::Interpret(llvm::Module &module, llvm::Function &function,
         return false;
       }
 
+      Type *target_ty = value_operand->getType();
       size_t target_size = data_layout.getTypeStoreSize(target_ty);
       lldb_private::DataBufferHeap buffer(target_size, 0);
 
@@ -1380,21 +1376,7 @@ bool IRInterpreter::Interpret(llvm::Module &module, llvm::Function &function,
       lldb_private::DiagnosticManager diagnostics;
       lldb_private::EvaluateExpressionOptions options;
 
-      // We generally receive a function pointer which we must dereference
-      llvm::Type *prototype = val->getType();
-      if (!prototype->isPointerTy()) {
-        error.SetErrorToGenericError();
-        error.SetErrorString("call need function pointer");
-        return false;
-      }
-
-      // Dereference the function pointer
-      prototype = prototype->getPointerElementType();
-      if (!(prototype->isFunctionTy() || prototype->isFunctionVarArg())) {
-        error.SetErrorToGenericError();
-        error.SetErrorString("call need function pointer");
-        return false;
-      }
+      llvm::FunctionType *prototype = call_inst->getFunctionType();
 
       // Find number of arguments
       const int numArgs = call_inst->arg_size();

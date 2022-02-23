@@ -19,8 +19,10 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/ValueHandle.h"
 
 namespace llvm {
+namespace memtag {
 // For an alloca valid between lifetime markers Start and Ends, call the
 // Callback for all possible exits out of the lifetime in the containing
 // function, which can return from the instructions in RetVec.
@@ -47,8 +49,7 @@ bool forAllReachableExits(const DominatorTree &DT, const PostDominatorTree &PDT,
     // TODO(fmayer): We don't support diamond shapes, where multiple lifetime
     // ends together dominate the RI, but none of them does by itself.
     // Check how often this happens and decide whether to support this here.
-    if (std::any_of(Ends.begin(), Ends.end(),
-                    [&](Instruction *End) { return DT.dominates(End, RI); }))
+    if (llvm::any_of(Ends, [&](auto *End) { return DT.dominates(End, RI); }))
       ++NumCoveredExits;
   }
   // If there's a mix of covered and non-covered exits, just put the untag
@@ -72,6 +73,38 @@ bool isStandardLifetime(const SmallVectorImpl<IntrinsicInst *> &LifetimeStart,
 
 Instruction *getUntagLocationIfFunctionExit(Instruction &Inst);
 
+struct AllocaInfo {
+  AllocaInst *AI;
+  TrackingVH<Instruction> OldAI; // Track through RAUW to replace debug uses.
+  SmallVector<IntrinsicInst *, 2> LifetimeStart;
+  SmallVector<IntrinsicInst *, 2> LifetimeEnd;
+  SmallVector<DbgVariableIntrinsic *, 2> DbgVariableIntrinsics;
+};
+
+struct StackInfo {
+  MapVector<AllocaInst *, AllocaInfo> AllocasToInstrument;
+  SmallVector<Instruction *, 4> UnrecognizedLifetimes;
+  SmallVector<Instruction *, 8> RetVec;
+  bool CallsReturnTwice = false;
+};
+
+class StackInfoBuilder {
+public:
+  StackInfoBuilder(std::function<bool(const AllocaInst &)> IsInterestingAlloca)
+      : IsInterestingAlloca(IsInterestingAlloca) {}
+
+  void visit(Instruction &Inst);
+  StackInfo &get() { return Info; };
+
+private:
+  StackInfo Info;
+  std::function<bool(const AllocaInst &)> IsInterestingAlloca;
+};
+
+uint64_t getAllocaSizeInBytes(const AllocaInst &AI);
+bool alignAndPadAlloca(memtag::AllocaInfo &Info, llvm::Align Align);
+
+} // namespace memtag
 } // namespace llvm
 
 #endif

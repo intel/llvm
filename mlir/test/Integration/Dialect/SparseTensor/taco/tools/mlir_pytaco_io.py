@@ -31,17 +31,6 @@ _MTX_FILENAME_SUFFIX = ".mtx"
 _TNS_FILENAME_SUFFIX = ".tns"
 
 
-def _write_tns(file: TextIO, tensor: Tensor) -> None:
-  """Outputs a tensor to a file using .tns format."""
-  coords, non_zeros = tensor.get_coordinates_and_values()
-  assert len(coords) == len(non_zeros)
-  # Output a coordinate and the corresponding value in a line.
-  for c, v in zip(coords, non_zeros):
-    # The coordinates are 1-based in the text file and 0-based in memory.
-    plus_one_to_str = lambda x: str(x + 1)
-    file.write(f"{' '.join(map(plus_one_to_str,c))} {v}\n")
-
-
 def read(filename: str, fmt: Format) -> Tensor:
   """Inputs a tensor from a given file.
 
@@ -62,8 +51,6 @@ def read(filename: str, fmt: Format) -> Tensor:
     raise ValueError("Expected string filename ends with "
                      f"{_MTX_FILENAME_SUFFIX} or {_TNS_FILENAME_SUFFIX}: "
                      f"{filename}.")
-  if not isinstance(fmt, Format) or fmt.is_dense():
-    raise ValueError(f"Expected a sparse Format object: {fmt}.")
 
   return Tensor.from_file(filename, fmt, DType(Type.FLOAT64))
 
@@ -88,7 +75,4 @@ def write(filename: str, tensor: Tensor) -> None:
   if not isinstance(tensor, Tensor):
     raise ValueError(f"Expected a Tensor object: {tensor}.")
 
-  # TODO: combine the evaluation and the outputing into one step.
-  tensor._sync_value()
-  with open(filename, "w") as file:
-    return _write_tns(file, tensor)
+  tensor.to_file(filename)

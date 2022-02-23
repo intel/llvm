@@ -236,7 +236,8 @@ static Value *constructPointer(Type *ResTy, Type *PtrElemTy, Value *Ptr,
   }
 
   // Ensure the result has the requested type.
-  Ptr = IRB.CreateBitOrPointerCast(Ptr, ResTy, Ptr->getName() + ".cast");
+  Ptr = IRB.CreatePointerBitCastOrAddrSpaceCast(Ptr, ResTy,
+                                                Ptr->getName() + ".cast");
 
   LLVM_DEBUG(dbgs() << "Constructed pointer: " << *Ptr << "\n");
   return Ptr;
@@ -259,7 +260,8 @@ static bool genericValueTraversal(
     StateTy &State,
     function_ref<bool(Value &, const Instruction *, StateTy &, bool)>
         VisitValueCB,
-    const Instruction *CtxI, bool UseValueSimplify = true, int MaxValues = 16,
+    const Instruction *CtxI, bool &UsedAssumedInformation,
+    bool UseValueSimplify = true, int MaxValues = 16,
     function_ref<Value *(Value *)> StripCB = nullptr,
     bool Intraprocedural = false) {
 
@@ -319,7 +321,6 @@ static bool genericValueTraversal(
 
     // Look through select instructions, visit assumed potential values.
     if (auto *SI = dyn_cast<SelectInst>(V)) {
-      bool UsedAssumedInformation = false;
       Optional<Constant *> C = A.getAssumedConstant(
           *SI->getCondition(), QueryingAA, UsedAssumedInformation);
       bool NoValueYet = !C.hasValue();
@@ -346,6 +347,7 @@ static bool genericValueTraversal(
         BasicBlock *IncomingBB = PHI->getIncomingBlock(u);
         if (LivenessAA->isEdgeDead(IncomingBB, PHI->getParent())) {
           AnyDead = true;
+          UsedAssumedInformation |= !LivenessAA->isAtFixpoint();
           continue;
         }
         Worklist.push_back(
@@ -357,7 +359,7 @@ static bool genericValueTraversal(
     if (auto *Arg = dyn_cast<Argument>(V)) {
       if (!Intraprocedural && !Arg->hasPassPointeeByValueCopyAttr()) {
         SmallVector<Item> CallSiteValues;
-        bool AllCallSitesKnown = true;
+        bool UsedAssumedInformation = false;
         if (A.checkForAllCallSites(
                 [&](AbstractCallSite ACS) {
                   // Callbacks might not have a corresponding call site operand,
@@ -368,7 +370,7 @@ static bool genericValueTraversal(
                   CallSiteValues.push_back({CSOp, ACS.getInstruction()});
                   return true;
                 },
-                *Arg->getParent(), true, &QueryingAA, AllCallSitesKnown)) {
+                *Arg->getParent(), true, &QueryingAA, UsedAssumedInformation)) {
           Worklist.append(CallSiteValues);
           continue;
         }
@@ -376,7 +378,6 @@ static bool genericValueTraversal(
     }
 
     if (UseValueSimplify && !isa<Constant>(V)) {
-      bool UsedAssumedInformation = false;
       Optional<Value *> SimpleV =
           A.getAssumedSimplified(*V, QueryingAA, UsedAssumedInformation);
       if (!SimpleV.hasValue())
@@ -411,6 +412,7 @@ bool AA::getAssumedUnderlyingObjects(Attributor &A, const Value &Ptr,
                                      SmallVectorImpl<Value *> &Objects,
                                      const AbstractAttribute &QueryingAA,
                                      const Instruction *CtxI,
+                                     bool &UsedAssumedInformation,
                                      bool Intraprocedural) {
   auto StripCB = [&](Value *V) { return getUnderlyingObject(V); };
   SmallPtrSet<Value *, 8> SeenObjects;
@@ -423,7 +425,7 @@ bool AA::getAssumedUnderlyingObjects(Attributor &A, const Value &Ptr,
   };
   if (!genericValueTraversal<decltype(Objects)>(
           A, IRPosition::value(Ptr), QueryingAA, Objects, VisitValueCB, CtxI,
-          true, 32, StripCB, Intraprocedural))
+          UsedAssumedInformation, true, 32, StripCB, Intraprocedural))
     return false;
   return true;
 }
@@ -569,9 +571,9 @@ static void clampCallSiteArgumentStates(Attributor &A, const AAType &QueryingAA,
     return T->isValidState();
   };
 
-  bool AllCallSitesKnown;
+  bool UsedAssumedInformation = false;
   if (!A.checkForAllCallSites(CallSiteCheck, QueryingAA, true,
-                              AllCallSitesKnown))
+                              UsedAssumedInformation))
     S.indicatePessimisticFixpoint();
   else if (T.hasValue())
     S ^= *T;
@@ -786,9 +788,6 @@ namespace llvm {
 namespace AA {
 namespace PointerInfo {
 
-/// An access kind description as used by AAPointerInfo.
-struct OffsetAndSize;
-
 struct State;
 
 } // namespace PointerInfo
@@ -806,7 +805,7 @@ struct DenseMapInfo<AAPointerInfo::Access> : DenseMapInfo<Instruction *> {
 
 /// Helper that allows OffsetAndSize as a key in a DenseMap.
 template <>
-struct DenseMapInfo<AA::PointerInfo ::OffsetAndSize>
+struct DenseMapInfo<AAPointerInfo ::OffsetAndSize>
     : DenseMapInfo<std::pair<int64_t, int64_t>> {};
 
 /// Helper for AA::PointerInfo::Acccess DenseMap/Set usage ignoring everythign
@@ -821,38 +820,6 @@ struct AccessAsInstructionInfo : DenseMapInfo<Instruction *> {
 };
 
 } // namespace llvm
-
-/// Helper to represent an access offset and size, with logic to deal with
-/// uncertainty and check for overlapping accesses.
-struct AA::PointerInfo::OffsetAndSize : public std::pair<int64_t, int64_t> {
-  using BaseTy = std::pair<int64_t, int64_t>;
-  OffsetAndSize(int64_t Offset, int64_t Size) : BaseTy(Offset, Size) {}
-  OffsetAndSize(const BaseTy &P) : BaseTy(P) {}
-  int64_t getOffset() const { return first; }
-  int64_t getSize() const { return second; }
-  static OffsetAndSize getUnknown() { return OffsetAndSize(Unknown, Unknown); }
-
-  /// Return true if offset or size are unknown.
-  bool offsetOrSizeAreUnknown() const {
-    return getOffset() == OffsetAndSize::Unknown ||
-           getSize() == OffsetAndSize::Unknown;
-  }
-
-  /// Return true if this offset and size pair might describe an address that
-  /// overlaps with \p OAS.
-  bool mayOverlap(const OffsetAndSize &OAS) const {
-    // Any unknown value and we are giving up -> overlap.
-    if (offsetOrSizeAreUnknown() || OAS.offsetOrSizeAreUnknown())
-      return true;
-
-    // Check if one offset point is in the other interval [offset, offset+size].
-    return OAS.getOffset() + OAS.getSize() > getOffset() &&
-           OAS.getOffset() < getOffset() + getSize();
-  }
-
-  /// Constant used to represent unknown offset or sizes.
-  static constexpr int64_t Unknown = 1 << 31;
-};
 
 /// Implementation of the DenseMapInfo.
 ///
@@ -987,14 +954,14 @@ struct AA::PointerInfo::State : public AbstractState {
   using Accesses = DenseSet<AAPointerInfo::Access, AccessAsInstructionInfo>;
 
   /// We store all accesses in bins denoted by their offset and size.
-  using AccessBinsTy = DenseMap<OffsetAndSize, Accesses>;
+  using AccessBinsTy = DenseMap<AAPointerInfo::OffsetAndSize, Accesses>;
 
   AccessBinsTy::const_iterator begin() const { return AccessBins.begin(); }
   AccessBinsTy::const_iterator end() const { return AccessBins.end(); }
 
 protected:
   /// The bins with all the accesses for the associated pointer.
-  DenseMap<OffsetAndSize, Accesses> AccessBins;
+  DenseMap<AAPointerInfo::OffsetAndSize, Accesses> AccessBins;
 
   /// Add a new access to the state at offset \p Offset and with size \p Size.
   /// The access is associated with \p I, writes \p Content (if anything), and
@@ -1005,7 +972,7 @@ protected:
                          AAPointerInfo::AccessKind Kind, Type *Ty,
                          Instruction *RemoteI = nullptr,
                          Accesses *BinPtr = nullptr) {
-    OffsetAndSize Key{Offset, Size};
+    AAPointerInfo::OffsetAndSize Key{Offset, Size};
     Accesses &Bin = BinPtr ? *BinPtr : AccessBins[Key];
     AAPointerInfo::Access Acc(&I, RemoteI ? RemoteI : &I, Content, Kind, Ty);
     // Check if we have an access for this instruction in this bin, if not,
@@ -1024,12 +991,32 @@ protected:
 
   /// See AAPointerInfo::forallInterferingAccesses.
   bool forallInterferingAccesses(
+      AAPointerInfo::OffsetAndSize OAS,
+      function_ref<bool(const AAPointerInfo::Access &, bool)> CB) const {
+    if (!isValidState())
+      return false;
+
+    for (auto &It : AccessBins) {
+      AAPointerInfo::OffsetAndSize ItOAS = It.getFirst();
+      if (!OAS.mayOverlap(ItOAS))
+        continue;
+      bool IsExact = OAS == ItOAS && !OAS.offsetOrSizeAreUnknown();
+      for (auto &Access : It.getSecond())
+        if (!CB(Access, IsExact))
+          return false;
+    }
+    return true;
+  }
+
+  /// See AAPointerInfo::forallInterferingAccesses.
+  bool forallInterferingAccesses(
       Instruction &I,
       function_ref<bool(const AAPointerInfo::Access &, bool)> CB) const {
     if (!isValidState())
       return false;
+
     // First find the offset and size of I.
-    OffsetAndSize OAS(-1, -1);
+    AAPointerInfo::OffsetAndSize OAS(-1, -1);
     for (auto &It : AccessBins) {
       for (auto &Access : It.getSecond()) {
         if (Access.getRemoteInst() == &I) {
@@ -1040,21 +1027,13 @@ protected:
       if (OAS.getSize() != -1)
         break;
     }
+    // No access for I was found, we are done.
     if (OAS.getSize() == -1)
       return true;
 
     // Now that we have an offset and size, find all overlapping ones and use
     // the callback on the accesses.
-    for (auto &It : AccessBins) {
-      OffsetAndSize ItOAS = It.getFirst();
-      if (!OAS.mayOverlap(ItOAS))
-        continue;
-      bool IsExact = OAS == ItOAS && !OAS.offsetOrSizeAreUnknown();
-      for (auto &Access : It.getSecond())
-        if (!CB(Access, IsExact))
-          return false;
-    }
-    return true;
+    return forallInterferingAccesses(OAS, CB);
   }
 
 private:
@@ -1083,6 +1062,12 @@ struct AAPointerInfoImpl
     return AAPointerInfo::manifest(A);
   }
 
+  bool forallInterferingAccesses(
+      OffsetAndSize OAS,
+      function_ref<bool(const AAPointerInfo::Access &, bool)> CB)
+      const override {
+    return State::forallInterferingAccesses(OAS, CB);
+  }
   bool forallInterferingAccesses(
       LoadInst &LI, function_ref<bool(const AAPointerInfo::Access &, bool)> CB)
       const override {
@@ -1305,7 +1290,7 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
   bool handleAccess(Attributor &A, Instruction &I, Value &Ptr,
                     Optional<Value *> Content, AccessKind Kind, int64_t Offset,
                     ChangeStatus &Changed, Type *Ty,
-                    int64_t Size = AA::PointerInfo::OffsetAndSize::Unknown) {
+                    int64_t Size = OffsetAndSize::Unknown) {
     using namespace AA::PointerInfo;
     // No need to find a size if one is given or the offset is unknown.
     if (Offset != OffsetAndSize::Unknown && Size == OffsetAndSize::Unknown &&
@@ -1321,7 +1306,7 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
 
   /// Helper struct, will support ranges eventually.
   struct OffsetInfo {
-    int64_t Offset = AA::PointerInfo::OffsetAndSize::Unknown;
+    int64_t Offset = OffsetAndSize::Unknown;
 
     bool operator==(const OffsetInfo &OI) const { return Offset == OI.Offset; }
   };
@@ -1893,17 +1878,18 @@ ChangeStatus AAReturnedValuesImpl::updateImpl(Attributor &A) {
     return true;
   };
 
+  bool UsedAssumedInformation = false;
   auto ReturnInstCB = [&](Instruction &I) {
     ReturnInst &Ret = cast<ReturnInst>(I);
     return genericValueTraversal<ReturnInst>(
         A, IRPosition::value(*Ret.getReturnValue()), *this, Ret, ReturnValueCB,
-        &I, /* UseValueSimplify */ true, /* MaxValues */ 16,
+        &I, UsedAssumedInformation, /* UseValueSimplify */ true,
+        /* MaxValues */ 16,
         /* StripCB */ nullptr, /* Intraprocedural */ true);
   };
 
   // Discover returned values from all live returned instructions in the
   // associated function.
-  bool UsedAssumedInformation = false;
   if (!A.checkForAllInstructions(ReturnInstCB, *this, {Instruction::Ret},
                                  UsedAssumedInformation))
     return indicatePessimisticFixpoint();
@@ -2419,8 +2405,10 @@ struct AANonNullFloating : public AANonNullImpl {
     };
 
     StateType T;
+    bool UsedAssumedInformation = false;
     if (!genericValueTraversal<StateType>(A, getIRPosition(), *this, T,
-                                          VisitValueCB, getCtxI()))
+                                          VisitValueCB, getCtxI(),
+                                          UsedAssumedInformation))
       return indicatePessimisticFixpoint();
 
     return clampStateAndIndicateChange(getState(), T);
@@ -2498,14 +2486,15 @@ struct AANoRecurseFunction final : AANoRecurseImpl {
           DepClassTy::NONE);
       return NoRecurseAA.isKnownNoRecurse();
     };
-    bool AllCallSitesKnown;
-    if (A.checkForAllCallSites(CallSitePred, *this, true, AllCallSitesKnown)) {
+    bool UsedAssumedInformation = false;
+    if (A.checkForAllCallSites(CallSitePred, *this, true,
+                               UsedAssumedInformation)) {
       // If we know all call sites and all are known no-recurse, we are done.
       // If all known call sites, which might not be all that exist, are known
       // to be no-recurse, we are not done but we can continue to assume
       // no-recurse. If one of the call sites we have not visited will become
       // live, another update is triggered.
-      if (AllCallSitesKnown)
+      if (!UsedAssumedInformation)
         indicateOptimisticFixpoint();
       return ChangeStatus::UNCHANGED;
     }
@@ -2691,40 +2680,38 @@ struct AAUndefinedBehaviorImpl : public AAUndefinedBehavior {
       return true;
     };
 
-    auto InspectReturnInstForUB =
-        [&](Value &V, const SmallSetVector<ReturnInst *, 4> RetInsts) {
-          // Check if a return instruction always cause UB or not
-          // Note: It is guaranteed that the returned position of the anchor
-          //       scope has noundef attribute when this is called.
-          //       We also ensure the return position is not "assumed dead"
-          //       because the returned value was then potentially simplified to
-          //       `undef` in AAReturnedValues without removing the `noundef`
-          //       attribute yet.
+    auto InspectReturnInstForUB = [&](Instruction &I) {
+      auto &RI = cast<ReturnInst>(I);
+      // Either we stopped and the appropriate action was taken,
+      // or we got back a simplified return value to continue.
+      Optional<Value *> SimplifiedRetValue =
+          stopOnUndefOrAssumed(A, RI.getReturnValue(), &I);
+      if (!SimplifiedRetValue.hasValue() || !SimplifiedRetValue.getValue())
+        return true;
 
-          // When the returned position has noundef attriubte, UB occur in the
-          // following cases.
-          //   (1) Returned value is known to be undef.
-          //   (2) The value is known to be a null pointer and the returned
-          //       position has nonnull attribute (because the returned value is
-          //       poison).
-          bool FoundUB = false;
-          if (isa<UndefValue>(V)) {
-            FoundUB = true;
-          } else {
-            if (isa<ConstantPointerNull>(V)) {
-              auto &NonNullAA = A.getAAFor<AANonNull>(
-                  *this, IRPosition::returned(*getAnchorScope()),
-                  DepClassTy::NONE);
-              if (NonNullAA.isKnownNonNull())
-                FoundUB = true;
-            }
-          }
+      // Check if a return instruction always cause UB or not
+      // Note: It is guaranteed that the returned position of the anchor
+      //       scope has noundef attribute when this is called.
+      //       We also ensure the return position is not "assumed dead"
+      //       because the returned value was then potentially simplified to
+      //       `undef` in AAReturnedValues without removing the `noundef`
+      //       attribute yet.
 
-          if (FoundUB)
-            for (ReturnInst *RI : RetInsts)
-              KnownUBInsts.insert(RI);
-          return true;
-        };
+      // When the returned position has noundef attriubte, UB occurs in the
+      // following cases.
+      //   (1) Returned value is known to be undef.
+      //   (2) The value is known to be a null pointer and the returned
+      //       position has nonnull attribute (because the returned value is
+      //       poison).
+      if (isa<ConstantPointerNull>(*SimplifiedRetValue)) {
+        auto &NonNullAA = A.getAAFor<AANonNull>(
+            *this, IRPosition::returned(*getAnchorScope()), DepClassTy::NONE);
+        if (NonNullAA.isKnownNonNull())
+          KnownUBInsts.insert(&I);
+      }
+
+      return true;
+    };
 
     bool UsedAssumedInformation = false;
     A.checkForAllInstructions(InspectMemAccessInstForUB, *this,
@@ -2747,8 +2734,9 @@ struct AAUndefinedBehaviorImpl : public AAUndefinedBehavior {
         auto &RetPosNoUndefAA =
             A.getAAFor<AANoUndef>(*this, ReturnIRP, DepClassTy::NONE);
         if (RetPosNoUndefAA.isKnownNoUndef())
-          A.checkForAllReturnedValuesAndReturnInsts(InspectReturnInstForUB,
-                                                    *this);
+          A.checkForAllInstructions(InspectReturnInstForUB, *this,
+                                    {Instruction::Ret}, UsedAssumedInformation,
+                                    /* CheckBBLivenessOnly */ true);
       }
     }
 
@@ -3146,10 +3134,10 @@ struct AANoAliasArgument final
 
     // If the argument is never passed through callbacks, no-alias cannot break
     // synchronization.
-    bool AllCallSitesKnown;
+    bool UsedAssumedInformation = false;
     if (A.checkForAllCallSites(
             [](AbstractCallSite ACS) { return !ACS.isCallbackCall(); }, *this,
-            true, AllCallSitesKnown))
+            true, UsedAssumedInformation))
       return Base::updateImpl(A);
 
     // TODO: add no-alias but make sure it doesn't break synchronization by
@@ -3727,9 +3715,8 @@ struct AAIsDeadReturned : public AAIsDeadValueImpl {
       return areAllUsesAssumedDead(A, *ACS.getInstruction());
     };
 
-    bool AllCallSitesKnown;
     if (!A.checkForAllCallSites(PredForCallSite, *this, true,
-                                AllCallSitesKnown))
+                                UsedAssumedInformation))
       return indicatePessimisticFixpoint();
 
     return ChangeStatus::UNCHANGED;
@@ -4312,8 +4299,10 @@ struct AADereferenceableFloating : AADereferenceableImpl {
     };
 
     DerefState T;
+    bool UsedAssumedInformation = false;
     if (!genericValueTraversal<DerefState>(A, getIRPosition(), *this, T,
-                                           VisitValueCB, getCtxI()))
+                                           VisitValueCB, getCtxI(),
+                                           UsedAssumedInformation))
       return indicatePessimisticFixpoint();
 
     return clampStateAndIndicateChange(getState(), T);
@@ -4578,8 +4567,10 @@ struct AAAlignFloating : AAAlignImpl {
     };
 
     StateType T;
+    bool UsedAssumedInformation = false;
     if (!genericValueTraversal<StateType>(A, getIRPosition(), *this, T,
-                                          VisitValueCB, getCtxI()))
+                                          VisitValueCB, getCtxI(),
+                                          UsedAssumedInformation))
       return indicatePessimisticFixpoint();
 
     // TODO: If we know we visited all incoming values, thus no are assumed
@@ -5359,7 +5350,9 @@ struct AAValueSimplifyImpl : AAValueSimplify {
 
     Value &Ptr = *L.getPointerOperand();
     SmallVector<Value *, 8> Objects;
-    if (!AA::getAssumedUnderlyingObjects(A, Ptr, Objects, AA, &L))
+    bool UsedAssumedInformation = false;
+    if (!AA::getAssumedUnderlyingObjects(A, Ptr, Objects, AA, &L,
+                                         UsedAssumedInformation))
       return false;
 
     const auto *TLI =
@@ -5371,7 +5364,6 @@ struct AAValueSimplifyImpl : AAValueSimplify {
       if (isa<ConstantPointerNull>(Obj)) {
         // A null pointer access can be undefined but any offset from null may
         // be OK. We do not try to optimize the latter.
-        bool UsedAssumedInformation = false;
         if (!NullPointerIsDefined(L.getFunction(),
                                   Ptr.getType()->getPointerAddressSpace()) &&
             A.getAssumedSimplified(Ptr, AA, UsedAssumedInformation) == Obj)
@@ -5477,14 +5469,14 @@ struct AAValueSimplifyArgument final : AAValueSimplifyImpl {
 
     // Generate a answer specific to a call site context.
     bool Success;
-    bool AllCallSitesKnown;
+    bool UsedAssumedInformation = false;
     if (hasCallBaseContext() &&
         getCallBaseContext()->getCalledFunction() == Arg->getParent())
       Success = PredForCallSite(
           AbstractCallSite(&getCallBaseContext()->getCalledOperandUse()));
     else
       Success = A.checkForAllCallSites(PredForCallSite, *this, true,
-                                       AllCallSitesKnown);
+                                       UsedAssumedInformation);
 
     if (!Success)
       if (!askSimplifiedValueForOtherAAs(A))
@@ -5754,8 +5746,10 @@ struct AAValueSimplifyFloating : AAValueSimplifyImpl {
     };
 
     bool Dummy = false;
+    bool UsedAssumedInformation = false;
     if (!genericValueTraversal<bool>(A, getIRPosition(), *this, Dummy,
                                      VisitValueCB, getCtxI(),
+                                     UsedAssumedInformation,
                                      /* UseValueSimplify */ false))
       if (!askSimplifiedValueForOtherAAs(A))
         return indicatePessimisticFixpoint();
@@ -6167,7 +6161,8 @@ ChangeStatus AAHeapToStackFunction::updateImpl(Attributor &A) {
       // branches etc.
       SmallVector<Value *, 8> Objects;
       if (!AA::getAssumedUnderlyingObjects(A, *DI.CB->getArgOperand(0), Objects,
-                                           *this, DI.CB)) {
+                                           *this, DI.CB,
+                                           UsedAssumedInformation)) {
         LLVM_DEBUG(
             dbgs()
             << "[H2S] Unexpected failure in getAssumedUnderlyingObjects!\n");
@@ -6445,10 +6440,10 @@ struct AAPrivatizablePtrArgument final : public AAPrivatizablePtrImpl {
   Optional<Type *> identifyPrivatizableType(Attributor &A) override {
     // If this is a byval argument and we know all the call sites (so we can
     // rewrite them), there is no need to check them explicitly.
-    bool AllCallSitesKnown;
+    bool UsedAssumedInformation = false;
     if (getIRPosition().hasAttr(Attribute::ByVal) &&
         A.checkForAllCallSites([](AbstractCallSite ACS) { return true; }, *this,
-                               true, AllCallSitesKnown))
+                               true, UsedAssumedInformation))
       return getAssociatedValue().getType()->getPointerElementType();
 
     Optional<Type *> Ty;
@@ -6498,7 +6493,8 @@ struct AAPrivatizablePtrArgument final : public AAPrivatizablePtrImpl {
       return !Ty.hasValue() || Ty.getValue();
     };
 
-    if (!A.checkForAllCallSites(CallSiteCheck, *this, true, AllCallSitesKnown))
+    if (!A.checkForAllCallSites(CallSiteCheck, *this, true,
+                                UsedAssumedInformation))
       return nullptr;
     return Ty;
   }
@@ -6545,9 +6541,9 @@ struct AAPrivatizablePtrArgument final : public AAPrivatizablePtrImpl {
       return TTI->areTypesABICompatible(
           CB->getCaller(), CB->getCalledFunction(), ReplacementTypes);
     };
-    bool AllCallSitesKnown;
+    bool UsedAssumedInformation = false;
     if (!A.checkForAllCallSites(CallSiteCheck, *this, true,
-                                AllCallSitesKnown)) {
+                                UsedAssumedInformation)) {
       LLVM_DEBUG(
           dbgs() << "[AAPrivatizablePtr] ABI incompatibility detected for "
                  << Fn.getName() << "\n");
@@ -6674,7 +6670,7 @@ struct AAPrivatizablePtrArgument final : public AAPrivatizablePtrImpl {
     };
 
     if (!A.checkForAllCallSites(IsCompatiblePrivArgOfOtherCallSite, *this, true,
-                                AllCallSitesKnown))
+                                UsedAssumedInformation))
       return indicatePessimisticFixpoint();
 
     return ChangeStatus::UNCHANGED;
@@ -6749,8 +6745,8 @@ struct AAPrivatizablePtrArgument final : public AAPrivatizablePtrImpl {
 
     Type *PrivPtrType = PrivType->getPointerTo();
     if (Base->getType() != PrivPtrType)
-      Base = BitCastInst::CreateBitOrPointerCast(Base, PrivPtrType, "",
-                                                 ACS.getInstruction());
+      Base = BitCastInst::CreatePointerBitCastOrAddrSpaceCast(
+          Base, PrivPtrType, "", ACS.getInstruction());
 
     // Traverse the type, build GEPs and loads.
     if (auto *PrivStructType = dyn_cast<StructType>(PrivType)) {
@@ -6817,14 +6813,16 @@ struct AAPrivatizablePtrArgument final : public AAPrivatizablePtrImpl {
             Function &ReplacementFn, Function::arg_iterator ArgIt) {
           BasicBlock &EntryBB = ReplacementFn.getEntryBlock();
           Instruction *IP = &*EntryBB.getFirstInsertionPt();
-          Instruction *AI = new AllocaInst(PrivatizableType.getValue(), 0,
+          const DataLayout &DL = IP->getModule()->getDataLayout();
+          unsigned AS = DL.getAllocaAddrSpace();
+          Instruction *AI = new AllocaInst(PrivatizableType.getValue(), AS,
                                            Arg->getName() + ".priv", IP);
           createInitialization(PrivatizableType.getValue(), *AI, ReplacementFn,
                                ArgIt->getArgNo(), *IP);
 
           if (AI->getType() != Arg->getType())
-            AI =
-                BitCastInst::CreateBitOrPointerCast(AI, Arg->getType(), "", IP);
+            AI = BitCastInst::CreatePointerBitCastOrAddrSpaceCast(
+                AI, Arg->getType(), "", IP);
           Arg->replaceAllUsesWith(AI);
 
           for (CallInst *CI : TailCalls)
@@ -7772,7 +7770,9 @@ void AAMemoryLocationImpl::categorizePtrValue(
                     << getMemoryLocationsAsStr(State.getAssumed()) << "]\n");
 
   SmallVector<Value *, 8> Objects;
+  bool UsedAssumedInformation = false;
   if (!AA::getAssumedUnderlyingObjects(A, Ptr, Objects, *this, &I,
+                                       UsedAssumedInformation,
                                        /* Intraprocedural */ true)) {
     LLVM_DEBUG(
         dbgs() << "[AAMemoryLocation] Pointer locations not categorized\n");
@@ -8588,8 +8588,10 @@ struct AAValueConstantRangeFloating : AAValueConstantRangeImpl {
 
     IntegerRangeState T(getBitWidth());
 
+    bool UsedAssumedInformation = false;
     if (!genericValueTraversal<IntegerRangeState>(A, getIRPosition(), *this, T,
                                                   VisitValueCB, getCtxI(),
+                                                  UsedAssumedInformation,
                                                   /* UseValueSimplify */ false))
       return indicatePessimisticFixpoint();
 
@@ -9400,8 +9402,10 @@ struct AANoUndefFloating : public AANoUndefImpl {
     };
 
     StateType T;
+    bool UsedAssumedInformation = false;
     if (!genericValueTraversal<StateType>(A, getIRPosition(), *this, T,
-                                          VisitValueCB, getCtxI()))
+                                          VisitValueCB, getCtxI(),
+                                          UsedAssumedInformation))
       return indicatePessimisticFixpoint();
 
     return clampStateAndIndicateChange(getState(), T);
@@ -9518,9 +9522,10 @@ struct AACallEdgesCallSite : public AACallEdgesImpl {
     // Process any value that we might call.
     auto ProcessCalledOperand = [&](Value *V) {
       bool DummyValue = false;
+      bool UsedAssumedInformation = false;
       if (!genericValueTraversal<bool>(A, IRPosition::value(*V), *this,
                                        DummyValue, VisitValue, nullptr,
-                                       false)) {
+                                       UsedAssumedInformation, false)) {
         // If we haven't gone through all values, assume that there are unknown
         // callees.
         setHasUnknownCallee(true, Change);
@@ -9584,7 +9589,8 @@ struct AACallEdgesFunction : public AACallEdgesImpl {
     // Visit all callable instructions.
     bool UsedAssumedInformation = false;
     if (!A.checkForAllCallLikeInstructions(ProcessCallInst, *this,
-                                           UsedAssumedInformation)) {
+                                           UsedAssumedInformation,
+                                           /* CheckBBLivenessOnly */ true)) {
       // If we haven't looked at all call like instructions, assume that there
       // are unknown callees.
       setHasUnknownCallee(true, Change);
@@ -9938,12 +9944,13 @@ struct AAAssumptionInfoFunction final : AAAssumptionInfoImpl {
       return !getAssumed().empty() || !getKnown().empty();
     };
 
-    bool AllCallSitesKnown;
+    bool UsedAssumedInformation = false;
     // Get the intersection of all assumptions held by this node's predecessors.
     // If we don't know all the call sites then this is either an entry into the
     // call graph or an empty node. This node is known to only contain its own
     // assumptions and can be propagated to its successors.
-    if (!A.checkForAllCallSites(CallSitePred, *this, true, AllCallSitesKnown))
+    if (!A.checkForAllCallSites(CallSitePred, *this, true,
+                                UsedAssumedInformation))
       return indicatePessimisticFixpoint();
 
     return Changed ? ChangeStatus::CHANGED : ChangeStatus::UNCHANGED;

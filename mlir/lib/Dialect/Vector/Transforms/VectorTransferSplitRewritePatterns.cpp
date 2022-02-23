@@ -255,7 +255,7 @@ createFullPartialLinalgCopy(RewriterBase &b, vector::TransferReadOp xferOp,
       [&](OpBuilder &b, Location loc) {
         Value res = memref;
         if (compatibleMemRefType != xferOp.getShapedType())
-          res = b.create<memref::CastOp>(loc, memref, compatibleMemRefType);
+          res = b.create<memref::CastOp>(loc, compatibleMemRefType, memref);
         scf::ValueVector viewAndIndices{res};
         viewAndIndices.insert(viewAndIndices.end(), xferOp.indices().begin(),
                               xferOp.indices().end());
@@ -271,7 +271,7 @@ createFullPartialLinalgCopy(RewriterBase &b, vector::TransferReadOp xferOp,
             alloc);
         b.create<memref::CopyOp>(loc, copyArgs.first, copyArgs.second);
         Value casted =
-            b.create<memref::CastOp>(loc, alloc, compatibleMemRefType);
+            b.create<memref::CastOp>(loc, compatibleMemRefType, alloc);
         scf::ValueVector viewAndIndices{casted};
         viewAndIndices.insert(viewAndIndices.end(), xferOp.getTransferRank(),
                               zero);
@@ -309,7 +309,7 @@ static scf::IfOp createFullPartialVectorTransferRead(
       [&](OpBuilder &b, Location loc) {
         Value res = memref;
         if (compatibleMemRefType != xferOp.getShapedType())
-          res = b.create<memref::CastOp>(loc, memref, compatibleMemRefType);
+          res = b.create<memref::CastOp>(loc, compatibleMemRefType, memref);
         scf::ValueVector viewAndIndices{res};
         viewAndIndices.insert(viewAndIndices.end(), xferOp.indices().begin(),
                               xferOp.indices().end());
@@ -324,7 +324,7 @@ static scf::IfOp createFullPartialVectorTransferRead(
                 loc, MemRefType::get({}, vector.getType()), alloc));
 
         Value casted =
-            b.create<memref::CastOp>(loc, alloc, compatibleMemRefType);
+            b.create<memref::CastOp>(loc, compatibleMemRefType, alloc);
         scf::ValueVector viewAndIndices{casted};
         viewAndIndices.insert(viewAndIndices.end(), xferOp.getTransferRank(),
                               zero);
@@ -360,7 +360,7 @@ getLocationToWriteFullVec(RewriterBase &b, vector::TransferWriteOp xferOp,
           [&](OpBuilder &b, Location loc) {
             Value res = memref;
             if (compatibleMemRefType != xferOp.getShapedType())
-              res = b.create<memref::CastOp>(loc, memref, compatibleMemRefType);
+              res = b.create<memref::CastOp>(loc, compatibleMemRefType, memref);
             scf::ValueVector viewAndIndices{res};
             viewAndIndices.insert(viewAndIndices.end(),
                                   xferOp.indices().begin(),
@@ -369,7 +369,7 @@ getLocationToWriteFullVec(RewriterBase &b, vector::TransferWriteOp xferOp,
           },
           [&](OpBuilder &b, Location loc) {
             Value casted =
-                b.create<memref::CastOp>(loc, alloc, compatibleMemRefType);
+                b.create<memref::CastOp>(loc, compatibleMemRefType, alloc);
             scf::ValueVector viewAndIndices{casted};
             viewAndIndices.insert(viewAndIndices.end(),
                                   xferOp.getTransferRank(), zero);
@@ -514,7 +514,7 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
   SmallVector<bool, 4> bools(xferOp.getTransferRank(), true);
   auto inBoundsAttr = b.getBoolArrayAttr(bools);
   if (options.vectorTransferSplit == VectorTransferSplit::ForceInBounds) {
-    xferOp->setAttr(xferOp.getInBoundsAttrName(), inBoundsAttr);
+    xferOp->setAttr(xferOp.getInBoundsAttrStrName(), inBoundsAttr);
     return success();
   }
 
@@ -585,7 +585,7 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
     for (unsigned i = 0, e = returnTypes.size(); i != e; ++i)
       xferReadOp.setOperand(i, fullPartialIfOp.getResult(i));
 
-    xferOp->setAttr(xferOp.getInBoundsAttrName(), inBoundsAttr);
+    xferOp->setAttr(xferOp.getInBoundsAttrStrName(), inBoundsAttr);
 
     return success();
   }

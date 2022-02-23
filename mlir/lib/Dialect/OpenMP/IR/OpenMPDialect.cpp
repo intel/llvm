@@ -172,48 +172,47 @@ LogicalResult ParallelOp::verify() {
   return success();
 }
 
-static void printParallelOp(OpAsmPrinter &p, ParallelOp op) {
+void ParallelOp::print(OpAsmPrinter &p) {
   p << " ";
-  if (auto ifCond = op.if_expr_var())
+  if (auto ifCond = if_expr_var())
     p << "if(" << ifCond << " : " << ifCond.getType() << ") ";
 
-  if (auto threads = op.num_threads_var())
+  if (auto threads = num_threads_var())
     p << "num_threads(" << threads << " : " << threads.getType() << ") ";
 
-  printDataVars(p, op.private_vars(), "private");
-  printDataVars(p, op.firstprivate_vars(), "firstprivate");
-  printDataVars(p, op.shared_vars(), "shared");
-  printDataVars(p, op.copyin_vars(), "copyin");
+  printDataVars(p, private_vars(), "private");
+  printDataVars(p, firstprivate_vars(), "firstprivate");
+  printDataVars(p, shared_vars(), "shared");
+  printDataVars(p, copyin_vars(), "copyin");
 
-  if (!op.allocate_vars().empty())
-    printAllocateAndAllocator(p, op.allocate_vars(), op.allocators_vars());
+  if (!allocate_vars().empty())
+    printAllocateAndAllocator(p, allocate_vars(), allocators_vars());
 
-  if (auto def = op.default_val())
+  if (auto def = default_val())
     p << "default(" << stringifyClauseDefault(*def).drop_front(3) << ") ";
 
-  if (auto bind = op.proc_bind_val())
+  if (auto bind = proc_bind_val())
     p << "proc_bind(" << stringifyClauseProcBindKind(*bind) << ") ";
 
   p << ' ';
-  p.printRegion(op.getRegion());
+  p.printRegion(getRegion());
 }
 
-static void printTargetOp(OpAsmPrinter &p, TargetOp op) {
+void TargetOp::print(OpAsmPrinter &p) {
   p << " ";
-  if (auto ifCond = op.if_expr())
+  if (auto ifCond = if_expr())
     p << "if(" << ifCond << " : " << ifCond.getType() << ") ";
 
-  if (auto device = op.device())
+  if (auto device = this->device())
     p << "device(" << device << " : " << device.getType() << ") ";
 
-  if (auto threads = op.thread_limit())
+  if (auto threads = thread_limit())
     p << "thread_limit(" << threads << " : " << threads.getType() << ") ";
 
-  if (op.nowait()) {
+  if (nowait())
     p << "nowait ";
-  }
 
-  p.printRegion(op.getRegion());
+  p.printRegion(getRegion());
 }
 
 //===----------------------------------------------------------------------===//
@@ -971,8 +970,7 @@ static ParseResult parseClauses(OpAsmParser &parser, OperationState &result,
 /// clause ::= if | num-threads | private | firstprivate | shared | copyin |
 ///            allocate | default | proc-bind
 ///
-static ParseResult parseParallelOp(OpAsmParser &parser,
-                                   OperationState &result) {
+ParseResult ParallelOp::parse(OpAsmParser &parser, OperationState &result) {
   SmallVector<ClauseType> clauses = {
       ifClause,           numThreadsClause, privateClause,
       firstprivateClause, sharedClause,     copyinClause,
@@ -1000,7 +998,7 @@ static ParseResult parseParallelOp(OpAsmParser &parser,
 /// clause-list ::= clause | clause clause-list
 /// clause ::= if | device | thread_limit | nowait
 ///
-static ParseResult parseTargetOp(OpAsmParser &parser, OperationState &result) {
+ParseResult TargetOp::parse(OpAsmParser &parser, OperationState &result) {
   SmallVector<ClauseType> clauses = {ifClause, deviceClause, threadLimitClause,
                                      nowaitClause};
 
@@ -1031,9 +1029,7 @@ static ParseResult parseTargetOp(OpAsmParser &parser, OperationState &result) {
 /// clause-list ::= clause clause-list | empty
 /// clause ::= private | firstprivate | lastprivate | reduction | allocate |
 ///            nowait
-static ParseResult parseSectionsOp(OpAsmParser &parser,
-                                   OperationState &result) {
-
+ParseResult SectionsOp::parse(OpAsmParser &parser, OperationState &result) {
   SmallVector<ClauseType> clauses = {privateClause,     firstprivateClause,
                                      lastprivateClause, reductionClause,
                                      allocateClause,    nowaitClause};
@@ -1053,23 +1049,23 @@ static ParseResult parseSectionsOp(OpAsmParser &parser,
   return success();
 }
 
-static void printSectionsOp(OpAsmPrinter &p, SectionsOp op) {
+void SectionsOp::print(OpAsmPrinter &p) {
   p << " ";
-  printDataVars(p, op.private_vars(), "private");
-  printDataVars(p, op.firstprivate_vars(), "firstprivate");
-  printDataVars(p, op.lastprivate_vars(), "lastprivate");
+  printDataVars(p, private_vars(), "private");
+  printDataVars(p, firstprivate_vars(), "firstprivate");
+  printDataVars(p, lastprivate_vars(), "lastprivate");
 
-  if (!op.reduction_vars().empty())
-    printReductionVarList(p, op.reductions(), op.reduction_vars());
+  if (!reduction_vars().empty())
+    printReductionVarList(p, reductions(), reduction_vars());
 
-  if (!op.allocate_vars().empty())
-    printAllocateAndAllocator(p, op.allocate_vars(), op.allocators_vars());
+  if (!allocate_vars().empty())
+    printAllocateAndAllocator(p, allocate_vars(), allocators_vars());
 
-  if (op.nowait())
+  if (nowait())
     p << "nowait";
 
   p << ' ';
-  p.printRegion(op.region());
+  p.printRegion(region());
 }
 
 LogicalResult SectionsOp::verify() {
@@ -1108,8 +1104,7 @@ LogicalResult SectionsOp::verify() {
 /// clause-list ::= clause clause-list | empty
 /// clause ::= private | firstprivate | lastprivate | linear | schedule |
 //             collapse | nowait | ordered | order | reduction
-static ParseResult parseWsLoopOp(OpAsmParser &parser, OperationState &result) {
-
+ParseResult WsLoopOp::parse(OpAsmParser &parser, OperationState &result) {
   // Parse an opening `(` followed by induction variables followed by `)`
   SmallVector<OpAsmParser::OperandType> ivs;
   if (parser.parseRegionArgumentList(ivs, /*requiredOperandCount=*/-1,
@@ -1166,43 +1161,43 @@ static ParseResult parseWsLoopOp(OpAsmParser &parser, OperationState &result) {
   return success();
 }
 
-static void printWsLoopOp(OpAsmPrinter &p, WsLoopOp op) {
-  auto args = op.getRegion().front().getArguments();
-  p << " (" << args << ") : " << args[0].getType() << " = (" << op.lowerBound()
-    << ") to (" << op.upperBound() << ") ";
-  if (op.inclusive()) {
+void WsLoopOp::print(OpAsmPrinter &p) {
+  auto args = getRegion().front().getArguments();
+  p << " (" << args << ") : " << args[0].getType() << " = (" << lowerBound()
+    << ") to (" << upperBound() << ") ";
+  if (inclusive()) {
     p << "inclusive ";
   }
-  p << "step (" << op.step() << ") ";
+  p << "step (" << step() << ") ";
 
-  printDataVars(p, op.private_vars(), "private");
-  printDataVars(p, op.firstprivate_vars(), "firstprivate");
-  printDataVars(p, op.lastprivate_vars(), "lastprivate");
+  printDataVars(p, private_vars(), "private");
+  printDataVars(p, firstprivate_vars(), "firstprivate");
+  printDataVars(p, lastprivate_vars(), "lastprivate");
 
-  if (!op.linear_vars().empty())
-    printLinearClause(p, op.linear_vars(), op.linear_step_vars());
+  if (!linear_vars().empty())
+    printLinearClause(p, linear_vars(), linear_step_vars());
 
-  if (auto sched = op.schedule_val())
-    printScheduleClause(p, sched.getValue(), op.schedule_modifier(),
-                        op.simd_modifier(), op.schedule_chunk_var());
+  if (auto sched = schedule_val())
+    printScheduleClause(p, sched.getValue(), schedule_modifier(),
+                        simd_modifier(), schedule_chunk_var());
 
-  if (auto collapse = op.collapse_val())
+  if (auto collapse = collapse_val())
     p << "collapse(" << collapse << ") ";
 
-  if (op.nowait())
+  if (nowait())
     p << "nowait ";
 
-  if (auto ordered = op.ordered_val())
+  if (auto ordered = ordered_val())
     p << "ordered(" << ordered << ") ";
 
-  if (auto order = op.order_val())
+  if (auto order = order_val())
     p << "order(" << stringifyClauseOrderKind(*order) << ") ";
 
-  if (!op.reduction_vars().empty())
-    printReductionVarList(p, op.reductions(), op.reduction_vars());
+  if (!reduction_vars().empty())
+    printReductionVarList(p, reductions(), reduction_vars());
 
   p << ' ';
-  p.printRegion(op.region(), /*printEntryBlockArgs=*/false);
+  p.printRegion(region(), /*printEntryBlockArgs=*/false);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1439,8 +1434,7 @@ LogicalResult OrderedRegionOp::verify() {
 ///
 /// operation ::= `omp.atomic.read` atomic-clause-list address `->` result-type
 /// address ::= operand `:` type
-static ParseResult parseAtomicReadOp(OpAsmParser &parser,
-                                     OperationState &result) {
+ParseResult AtomicReadOp::parse(OpAsmParser &parser, OperationState &result) {
   OpAsmParser::OperandType x, v;
   Type addressType;
   SmallVector<ClauseType> clauses = {memoryOrderClause, hintClause};
@@ -1456,14 +1450,13 @@ static ParseResult parseAtomicReadOp(OpAsmParser &parser,
   return success();
 }
 
-/// Printer for AtomicReadOp
-static void printAtomicReadOp(OpAsmPrinter &p, AtomicReadOp op) {
-  p << " " << op.v() << " = " << op.x() << " ";
-  if (auto mo = op.memory_order())
+void AtomicReadOp::print(OpAsmPrinter &p) {
+  p << " " << v() << " = " << x() << " ";
+  if (auto mo = memory_order())
     p << "memory_order(" << stringifyClauseMemoryOrderKind(*mo) << ") ";
-  if (op.hintAttr())
-    printSynchronizationHint(p << " ", op, op.hintAttr());
-  p << ": " << op.x().getType();
+  if (hintAttr())
+    printSynchronizationHint(p << " ", *this, hintAttr());
+  p << ": " << x().getType();
 }
 
 /// Verifier for AtomicReadOp
@@ -1491,8 +1484,7 @@ LogicalResult AtomicReadOp::verify() {
 /// operands ::= address `,` value
 /// address ::= operand `:` type
 /// value ::= operand `:` type
-static ParseResult parseAtomicWriteOp(OpAsmParser &parser,
-                                      OperationState &result) {
+ParseResult AtomicWriteOp::parse(OpAsmParser &parser, OperationState &result) {
   OpAsmParser::OperandType address, value;
   Type addrType, valueType;
   SmallVector<ClauseType> clauses = {memoryOrderClause, hintClause};
@@ -1509,14 +1501,13 @@ static ParseResult parseAtomicWriteOp(OpAsmParser &parser,
   return success();
 }
 
-/// Printer for AtomicWriteOp
-static void printAtomicWriteOp(OpAsmPrinter &p, AtomicWriteOp op) {
-  p << " " << op.address() << " = " << op.value() << " ";
-  if (auto mo = op.memory_order())
+void AtomicWriteOp::print(OpAsmPrinter &p) {
+  p << " " << address() << " = " << value() << " ";
+  if (auto mo = memory_order())
     p << "memory_order(" << stringifyClauseMemoryOrderKind(*mo) << ") ";
-  if (op.hintAttr())
-    printSynchronizationHint(p, op, op.hintAttr());
-  p << ": " << op.address().getType() << ", " << op.value().getType();
+  if (hintAttr())
+    printSynchronizationHint(p, *this, hintAttr());
+  p << ": " << address().getType() << ", " << value().getType();
 }
 
 /// Verifier for AtomicWriteOp
@@ -1537,66 +1528,30 @@ LogicalResult AtomicWriteOp::verify() {
 
 /// Parser for AtomicUpdateOp
 ///
-/// operation ::= `omp.atomic.update` atomic-clause-list region
-static ParseResult parseAtomicUpdateOp(OpAsmParser &parser,
-                                       OperationState &result) {
+/// operation ::= `omp.atomic.update` atomic-clause-list ssa-id-and-type region
+ParseResult AtomicUpdateOp::parse(OpAsmParser &parser, OperationState &result) {
   SmallVector<ClauseType> clauses = {memoryOrderClause, hintClause};
   SmallVector<int> segments;
-  OpAsmParser::OperandType x, y, z;
-  Type xType, exprType;
-  StringRef binOp;
+  OpAsmParser::OperandType x, expr;
+  Type xType;
 
-  // x = y `op` z : xtype, exprtype
-  if (parser.parseOperand(x) || parser.parseEqual() || parser.parseOperand(y) ||
-      parser.parseKeyword(&binOp) || parser.parseOperand(z) ||
-      parseClauses(parser, result, clauses, segments) || parser.parseColon() ||
-      parser.parseType(xType) || parser.parseComma() ||
-      parser.parseType(exprType) ||
-      parser.resolveOperand(x, xType, result.operands)) {
+  if (parseClauses(parser, result, clauses, segments) ||
+      parser.parseOperand(x) || parser.parseColon() ||
+      parser.parseType(xType) ||
+      parser.resolveOperand(x, xType, result.operands) ||
+      parser.parseRegion(*result.addRegion()))
     return failure();
-  }
-
-  auto binOpEnum = AtomicBinOpKindToEnum(binOp.upper());
-  if (!binOpEnum)
-    return parser.emitError(parser.getNameLoc())
-           << "invalid atomic bin op in atomic update\n";
-  auto attr =
-      parser.getBuilder().getI64IntegerAttr((int64_t)binOpEnum.getValue());
-  result.addAttribute("binop", attr);
-
-  OpAsmParser::OperandType expr;
-  if (x.name == y.name && x.number == y.number) {
-    expr = z;
-    result.addAttribute("isXBinopExpr", parser.getBuilder().getUnitAttr());
-  } else if (x.name == z.name && x.number == z.number) {
-    expr = y;
-  } else {
-    return parser.emitError(parser.getNameLoc())
-           << "atomic update variable " << x.name
-           << " not found in the RHS of the assignment statement in an"
-              " atomic.update operation";
-  }
-  return parser.resolveOperand(expr, exprType, result.operands);
+  return success();
 }
 
-/// Printer for AtomicUpdateOp
-static void printAtomicUpdateOp(OpAsmPrinter &p, AtomicUpdateOp op) {
-  p << " " << op.x() << " = ";
-  Value y, z;
-  if (op.isXBinopExpr()) {
-    y = op.x();
-    z = op.expr();
-  } else {
-    y = op.expr();
-    z = op.x();
-  }
-  p << y << " " << AtomicBinOpKindToString(op.binop()).lower() << " " << z
-    << " ";
-  if (auto mo = op.memory_order())
+void AtomicUpdateOp::print(OpAsmPrinter &p) {
+  p << " ";
+  if (auto mo = memory_order())
     p << "memory_order(" << stringifyClauseMemoryOrderKind(*mo) << ") ";
-  if (op.hintAttr())
-    printSynchronizationHint(p, op, op.hintAttr());
-  p << ": " << op.x().getType() << ", " << op.expr().getType();
+  if (hintAttr())
+    printSynchronizationHint(p, *this, hintAttr());
+  p << x() << " : " << x().getType();
+  p.printRegion(region());
 }
 
 /// Verifier for AtomicUpdateOp
@@ -1608,6 +1563,22 @@ LogicalResult AtomicUpdateOp::verify() {
           "memory-order must not be acq_rel or acquire for atomic updates");
     }
   }
+
+  if (region().getNumArguments() != 1)
+    return emitError("the region must accept exactly one argument");
+
+  if (x().getType().cast<PointerLikeType>().getElementType() !=
+      region().getArgument(0).getType()) {
+    return emitError("the type of the operand must be a pointer type whose "
+                     "element type is the same as that of the region argument");
+  }
+
+  YieldOp yieldOp = *region().getOps<YieldOp>().begin();
+
+  if (yieldOp.results().size() != 1)
+    return emitError("only updated value must be returned");
+  if (yieldOp.results().front().getType() != region().getArgument(0).getType())
+    return emitError("input and yielded value must have the same type");
   return success();
 }
 
@@ -1615,9 +1586,8 @@ LogicalResult AtomicUpdateOp::verify() {
 // AtomicCaptureOp
 //===----------------------------------------------------------------------===//
 
-/// Parser for AtomicCaptureOp
-static LogicalResult parseAtomicCaptureOp(OpAsmParser &parser,
-                                          OperationState &result) {
+ParseResult AtomicCaptureOp::parse(OpAsmParser &parser,
+                                   OperationState &result) {
   SmallVector<ClauseType> clauses = {memoryOrderClause, hintClause};
   SmallVector<int> segments;
   if (parseClauses(parser, result, clauses, segments) ||
@@ -1626,13 +1596,12 @@ static LogicalResult parseAtomicCaptureOp(OpAsmParser &parser,
   return success();
 }
 
-/// Printer for AtomicCaptureOp
-static void printAtomicCaptureOp(OpAsmPrinter &p, AtomicCaptureOp op) {
-  if (op.memory_order())
-    p << "memory_order(" << op.memory_order() << ") ";
-  if (op.hintAttr())
-    printSynchronizationHint(p, op, op.hintAttr());
-  p.printRegion(op.region());
+void AtomicCaptureOp::print(OpAsmPrinter &p) {
+  if (memory_order())
+    p << "memory_order(" << memory_order() << ") ";
+  if (hintAttr())
+    printSynchronizationHint(p, *this, hintAttr());
+  p.printRegion(region());
 }
 
 /// Verifier for AtomicCaptureOp

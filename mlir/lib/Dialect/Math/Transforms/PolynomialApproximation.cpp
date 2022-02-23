@@ -23,11 +23,15 @@
 #include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/Dialect/X86Vector/X86VectorDialect.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
 using namespace mlir::math;
@@ -277,6 +281,65 @@ Value makePolynomialCalculation(ImplicitLocOpBuilder &builder,
   }
   return res;
 }
+} // namespace
+
+//----------------------------------------------------------------------------//
+// Helper function/pattern to insert casts for reusing F32 bit expansion.
+//----------------------------------------------------------------------------//
+
+template <typename T>
+LogicalResult insertCasts(Operation *op, PatternRewriter &rewriter) {
+  // Conservatively only allow where the operand and result types are exactly 1.
+  Type origType = op->getResultTypes().front();
+  for (Type t : llvm::drop_begin(op->getResultTypes()))
+    if (origType != t)
+      return rewriter.notifyMatchFailure(op, "required all types to match");
+  for (Type t : op->getOperandTypes())
+    if (origType != t)
+      return rewriter.notifyMatchFailure(op, "required all types to match");
+
+  // Skip if already F32  or larger than 32 bits.
+  if (getElementTypeOrSelf(origType).isF32() ||
+      getElementTypeOrSelf(origType).getIntOrFloatBitWidth() > 32)
+    return failure();
+
+  // Create F32 equivalent type.
+  Type newType;
+  if (auto shaped = origType.dyn_cast<ShapedType>()) {
+    newType = shaped.clone(rewriter.getF32Type());
+  } else if (origType.isa<FloatType>()) {
+    newType = rewriter.getF32Type();
+  } else {
+    return rewriter.notifyMatchFailure(op,
+                                       "unable to find F32 equivalent type");
+  }
+
+  Location loc = op->getLoc();
+  SmallVector<Value> operands;
+  for (auto operand : op->getOperands())
+    operands.push_back(rewriter.create<arith::ExtFOp>(loc, newType, operand));
+  auto result = rewriter.create<math::Atan2Op>(loc, newType, operands);
+  rewriter.replaceOpWithNewOp<arith::TruncFOp>(op, origType, result);
+  return success();
+}
+
+namespace {
+// Pattern to cast to F32 to reuse F32 expansion as fallback for single-result
+// op.
+// TODO: Consider revising to avoid adding multiple casts for a subgraph that is
+// all in lower precision. Currently this is only fallback support and performs
+// simplistic casting.
+template <typename T>
+struct ReuseF32Expansion : public OpRewritePattern<T> {
+public:
+  using OpRewritePattern<T>::OpRewritePattern;
+  LogicalResult matchAndRewrite(T op, PatternRewriter &rewriter) const final {
+    static_assert(
+        T::template hasTrait<mlir::OpTrait::SameOperandsAndResultType>(),
+        "requires same operands and result types");
+    return insertCasts<T>(op, rewriter);
+  }
+};
 } // namespace
 
 //----------------------------------------------------------------------------//
@@ -867,6 +930,8 @@ ExpApproximation::matchAndRewrite(math::ExpOp op,
 
   Value x = op.getOperand();
 
+  Value isNan = builder.create<arith::CmpFOp>(arith::CmpFPredicate::UNO, x, x);
+
   // Reduced y = x - floor(x / ln(2)) * ln(2) = x - k * ln(2)
   Value xL2Inv = mul(x, cstLog2E);
   Value kF32 = floor(xL2Inv);
@@ -887,7 +952,7 @@ ExpApproximation::matchAndRewrite(math::ExpOp op,
   auto i32Vec = broadcast(builder.getI32Type(), shape);
 
   // exp2(k)
-  Value k = builder.create<arith::FPToSIOp>(kF32, i32Vec);
+  Value k = builder.create<arith::FPToSIOp>(i32Vec, kF32);
   Value exp2KValue = exp2I32(builder, k);
 
   // exp(x) = exp(y) * exp2(k)
@@ -922,13 +987,15 @@ ExpApproximation::matchAndRewrite(math::ExpOp op,
   Value isComputable = builder.create<arith::AndIOp>(rightBound, leftBound);
 
   expY = builder.create<arith::SelectOp>(
-      isNegInfinityX, zerof32Const,
+      isNan, x,
       builder.create<arith::SelectOp>(
-          isPosInfinityX, constPosInfinity,
+          isNegInfinityX, zerof32Const,
           builder.create<arith::SelectOp>(
-              isComputable, expY,
-              builder.create<arith::SelectOp>(isPostiveX, constPosInfinity,
-                                              underflow))));
+              isPosInfinityX, constPosInfinity,
+              builder.create<arith::SelectOp>(
+                  isComputable, expY,
+                  builder.create<arith::SelectOp>(isPostiveX, constPosInfinity,
+                                                  underflow)))));
 
   rewriter.replaceOp(op, expY);
 
@@ -970,8 +1037,8 @@ ExpM1Approximation::matchAndRewrite(math::ExpM1Op op,
   Value cstNegOne = bcast(f32Cst(builder, -1.0f));
   Value x = op.getOperand();
   Value u = builder.create<math::ExpOp>(x);
-  Value uEqOne =
-      builder.create<arith::CmpFOp>(arith::CmpFPredicate::OEQ, u, cstOne);
+  Value uEqOneOrNaN =
+      builder.create<arith::CmpFOp>(arith::CmpFPredicate::UEQ, u, cstOne);
   Value uMinusOne = builder.create<arith::SubFOp>(u, cstOne);
   Value uMinusOneEqNegOne = builder.create<arith::CmpFOp>(
       arith::CmpFPredicate::OEQ, uMinusOne, cstNegOne);
@@ -987,7 +1054,7 @@ ExpM1Approximation::matchAndRewrite(math::ExpM1Op op,
       uMinusOne, builder.create<arith::DivFOp>(x, logU));
   expm1 = builder.create<arith::SelectOp>(isInf, u, expm1);
   Value approximation = builder.create<arith::SelectOp>(
-      uEqOne, x,
+      uEqOneOrNaN, x,
       builder.create<arith::SelectOp>(uMinusOneEqNegOne, cstNegOne, expm1));
   rewriter.replaceOp(op, approximation);
   return success();
@@ -1042,7 +1109,7 @@ LogicalResult SinAndCosApproximation<isSine, OpTy>::matchAndRewrite(
 
   auto i32Vec = broadcast(builder.getI32Type(), shape);
   auto fPToSingedInteger = [&](Value a) -> Value {
-    return builder.create<arith::FPToSIOp>(a, i32Vec);
+    return builder.create<arith::FPToSIOp>(i32Vec, a);
   };
 
   auto modulo4 = [&](Value a) -> Value {
@@ -1209,6 +1276,7 @@ void mlir::populateMathPolynomialApproximationPatterns(
   patterns.add<AtanApproximation, Atan2Approximation, TanhApproximation,
                LogApproximation, Log2Approximation, Log1pApproximation,
                ErfPolynomialApproximation, ExpApproximation, ExpM1Approximation,
+               ReuseF32Expansion<math::Atan2Op>,
                SinAndCosApproximation<true, math::SinOp>,
                SinAndCosApproximation<false, math::CosOp>>(
       patterns.getContext());

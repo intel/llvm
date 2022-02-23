@@ -1917,9 +1917,7 @@ gentbl_cc_library(
 
 cc_library(
     name = "SparseTensor",
-    srcs = glob([
-        "lib/Dialect/SparseTensor/IR/*.cpp",
-    ]),
+    srcs = ["lib/Dialect/SparseTensor/IR/SparseTensorDialect.cpp"],
     hdrs = ["include/mlir/Dialect/SparseTensor/IR/SparseTensor.h"],
     includes = ["include"],
     deps = [
@@ -1996,6 +1994,7 @@ cc_library(
         ":StandardOpsTransforms",
         ":TensorTransforms",
         ":VectorToLLVM",
+        ":VectorTransforms",
     ],
 )
 
@@ -2394,6 +2393,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":Affine",
+        ":AffineUtils",
         ":ArithmeticDialect",
         ":ConversionPassIncGen",
         ":IR",
@@ -2580,6 +2580,7 @@ td_library(
     ],
     includes = ["include"],
     deps = [
+        ":CastInterfacesTdFiles",
         ":ControlFlowInterfacesTdFiles",
         ":InferTypeOpInterfaceTdFiles",
         ":SideEffectInterfacesTdFiles",
@@ -2906,11 +2907,29 @@ cc_library(
     ],
 )
 
+gentbl_cc_library(
+    name = "VectorPassIncGen",
+    strip_include_prefix = "include",
+    tbl_outs = [
+        (
+            [
+                "-gen-pass-decls",
+                "-name=Vector",
+            ],
+            "include/mlir/Dialect/Vector/Transforms/Passes.h.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "include/mlir/Dialect/Vector/Transforms/Passes.td",
+    deps = [":PassBaseTdFiles"],
+)
+
 cc_library(
     name = "VectorTransforms",
     srcs = glob(
         [
             "lib/Dialect/Vector/Transforms/*.cpp",
+            "lib/Dialect/Vector/Transforms/*.h",
         ],
     ),
     hdrs = glob([
@@ -2923,16 +2942,20 @@ cc_library(
         ":Analysis",
         ":ArithmeticDialect",
         ":BufferizationDialect",
+        ":BufferizationTransforms",
         ":DialectUtils",
         ":IR",
         ":LinalgOps",
         ":MemRefDialect",
+        ":Pass",
         ":SCFDialect",
         ":StandardOps",
         ":Support",
         ":TensorDialect",
+        ":Transforms",
         ":VectorInterfaces",
         ":VectorOps",
+        ":VectorPassIncGen",
         ":VectorUtils",
         "//llvm:Support",
     ],
@@ -3537,6 +3560,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":ArithmeticToLLVM",
+        ":ControlFlowToLLVM",
         ":ConversionPassIncGen",
         ":GPUCommonTransforms",
         ":GPUDialect",
@@ -4621,6 +4645,7 @@ cc_library(
     hdrs = [
         "include/mlir/Dialect/Tensor/Transforms/BufferizableOpInterfaceImpl.h",
         "include/mlir/Dialect/Tensor/Transforms/Passes.h",
+        "include/mlir/Dialect/Tensor/Transforms/Transforms.h",
     ],
     includes = ["include"],
     deps = [
@@ -4628,6 +4653,7 @@ cc_library(
         ":Async",
         ":BufferizationDialect",
         ":BufferizationTransforms",
+        ":DialectUtils",
         ":IR",
         ":MemRefDialect",
         ":ParallelLoopMapperAttrGen",
@@ -4668,23 +4694,18 @@ cc_library(
         "lib/Transforms/Utils/*.cpp",
         "lib/Transforms/Utils/*.h",
     ]),
-    hdrs = glob([
-        "include/mlir/Transforms/*.h",
-    ]),
+    hdrs = glob(
+        [
+            "include/mlir/Transforms/*.h",
+        ],
+        exclude = ["include/mlir/Transforms/Passes.h"],
+    ),
     includes = ["include"],
     deps = [
-        ":Affine",
-        ":AffineAnalysis",
-        ":Analysis",
-        ":ArithmeticDialect",
         ":ControlFlowInterfaces",
         ":IR",
-        ":MemRefDialect",
-        ":Pass",
         ":Rewrite",
-        ":SCFDialect",
         ":SideEffectInterfaces",
-        ":StandardOps",
         ":Support",
         ":TransformsPassIncGen",
         "//llvm:Support",
@@ -4876,25 +4897,14 @@ cc_library(
     hdrs = glob(["include/mlir/Transforms/*.h"]),
     includes = ["include"],
     deps = [
-        ":Affine",
-        ":AffineAnalysis",
-        ":AllocationOpInterface",
         ":Analysis",
-        ":ArithmeticDialect",
-        ":BufferizationDialect",
         ":ControlFlowInterfaces",
         ":CopyOpInterface",
         ":IR",
-        ":LinalgOps",
         ":LoopLikeInterface",
-        ":MemRefDialect",
         ":Pass",
         ":Rewrite",
-        ":SCFDialect",
-        ":SideEffectInterfaces",
-        ":StandardOps",
         ":Support",
-        ":TensorDialect",
         ":TransformUtils",
         ":TransformsPassIncGen",
         "//llvm:Support",
@@ -5471,17 +5481,11 @@ cc_library(
     ),
     includes = ["include"],
     deps = [
-        ":Affine",
-        ":ArithmeticDialect",
-        ":BufferizationDialect",
         ":CallOpInterfaces",
         ":ControlFlowInterfaces",
         ":DataLayoutInterfaces",
         ":IR",
-        ":LinalgOps",
-        ":SCFDialect",
         ":SideEffectInterfaces",
-        ":StandardOps",
         ":Support",
         ":ViewLikeInterface",
         "//llvm:Support",
@@ -5497,7 +5501,6 @@ cc_library(
     hdrs = ["include/mlir/Translation.h"],
     includes = ["include"],
     deps = [
-        ":Analysis",
         ":IR",
         ":Parser",
         ":Support",
@@ -5784,29 +5787,15 @@ cc_library(
     ],
 )
 
-# TODO(jpienaar): Update this.
 cc_library(
     name = "MlirOptLib",
     srcs = ["lib/Support/MlirOptMain.cpp"],
     hdrs = ["include/mlir/Support/MlirOptMain.h"],
     includes = ["include"],
     deps = [
-        ":Analysis",
-        ":ConversionPasses",
-        ":GPUToGPURuntimeTransforms",
-        ":GPUToNVVMTransforms",
-        ":GPUToROCDLTransforms",
-        ":GPUToSPIRV",
-        ":GPUTransforms",
         ":IR",
         ":Parser",
         ":Pass",
-        ":SCFTransforms",
-        ":ShapeToStandard",
-        ":ShapeTransforms",
-        ":StandardOpsTransforms",
-        ":StandardToLLVM",
-        ":StandardToSPIRV",
         ":Support",
         "//llvm:Support",
     ],
@@ -5947,6 +5936,7 @@ cc_library(
         ":VectorToROCDL",
         ":VectorToSCF",
         ":VectorToSPIRV",
+        ":VectorTransforms",
         ":X86Vector",
         ":X86VectorTransforms",
     ],
@@ -5997,6 +5987,7 @@ cc_binary(
         "//mlir/test:TestShapeDialect",
         "//mlir/test:TestStandardOps",
         "//mlir/test:TestStandardToLLVM",
+        "//mlir/test:TestTensor",
         "//mlir/test:TestTosaDialect",
         "//mlir/test:TestTransforms",
         "//mlir/test:TestTypeDialect",
@@ -7096,9 +7087,11 @@ cc_library(
         ":StandardOpsTransforms",
         ":Support",
         ":TensorDialect",
+        ":TensorTilingInterfaceImpl",
         ":TensorTransforms",
         ":TensorUtils",
         ":TransformUtils",
+        ":Transforms",
         ":VectorOps",
         ":VectorToSCF",
         ":VectorTransforms",

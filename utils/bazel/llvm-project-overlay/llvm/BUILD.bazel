@@ -408,6 +408,7 @@ cc_library(
     copts = llvm_copts,
     deps = [
         ":Support",
+        ":Symbolize",
     ],
 )
 
@@ -462,7 +463,6 @@ cc_library(
         ":DebugInfo",
         ":DebugInfoDWARF",
         ":DebugInfoPDB",
-        ":Debuginfod",
         ":Demangle",
         ":Object",
         ":Support",
@@ -841,6 +841,7 @@ cc_library(
         ":Core",
         ":DebugInfoDWARF",
         ":Support",
+        ":Symbolize",
         ":config",
     ],
 )
@@ -2389,6 +2390,21 @@ cc_library(
         ":Object",
         ":Support",
         ":config",
+    ],
+)
+
+cc_library(
+    name = "WindowsDriver",
+    srcs = glob([
+        "lib/WindowsDriver/*.cpp",
+    ]),
+    hdrs = glob([
+        "include/llvm/WindowsDriver/*.h",
+    ]),
+    copts = llvm_copts,
+    deps = [
+        ":Option",
+        ":Support",
     ],
 )
 

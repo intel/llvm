@@ -2154,6 +2154,9 @@ IntrinsicProcTable::Implementation::HandleC_F_Pointer(
         fptr.intent = common::Intent::Out;
         fptr.attrs.set(characteristics::DummyDataObject::Attr::Pointer);
         dummies.emplace_back("fptr"s, std::move(fptr));
+      } else {
+        context.messages().Say(
+            "FPTR= argument to C_F_POINTER() must have a type"_err_en_US);
       }
       if (arguments[2] && fptrRank == 0) {
         context.messages().Say(
@@ -2162,23 +2165,22 @@ IntrinsicProcTable::Implementation::HandleC_F_Pointer(
         context.messages().Say(
             "SHAPE= argument to C_F_POINTER() must appear when FPTR= is an array"_err_en_US);
       }
-      if (arguments[2]) {
-        DynamicType shapeType{
-            TypeCategory::Integer, defaults_.sizeIntegerKind()};
-        if (auto type{arguments[2]->GetType()}) {
-          if (type->category() == TypeCategory::Integer) {
-            shapeType = *type;
-          }
-        }
-        characteristics::DummyDataObject shape{
-            characteristics::TypeAndShape{shapeType, 1}};
-        shape.intent = common::Intent::In;
-        shape.attrs.set(characteristics::DummyDataObject::Attr::Optional);
-        dummies.emplace_back("shape"s, std::move(shape));
-      }
     }
   }
-  if (dummies.size() == 3) {
+  if (dummies.size() == 2) {
+    DynamicType shapeType{TypeCategory::Integer, defaults_.sizeIntegerKind()};
+    if (arguments[2]) {
+      if (auto type{arguments[2]->GetType()}) {
+        if (type->category() == TypeCategory::Integer) {
+          shapeType = *type;
+        }
+      }
+    }
+    characteristics::DummyDataObject shape{
+        characteristics::TypeAndShape{shapeType, 1}};
+    shape.intent = common::Intent::In;
+    shape.attrs.set(characteristics::DummyDataObject::Attr::Optional);
+    dummies.emplace_back("shape"s, std::move(shape));
     return SpecificCall{
         SpecificIntrinsic{"__builtin_c_f_pointer"s,
             characteristics::Procedure{std::move(dummies), attrs}},
@@ -2260,22 +2262,18 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
                         "procedure designator"_err_en_US,
                         pointerSymbol->name(), targetName),
                     *pointerSymbol);
-              } else {
+              } else if (targetSymbol) {
                 // object pointer and target
-                if (const Symbol * targetSymbol{GetLastSymbol(*targetExpr)}) {
-                  if (!(targetSymbol->attrs().test(semantics::Attr::POINTER) ||
-                          targetSymbol->attrs().test(
-                              semantics::Attr::TARGET))) {
-                    AttachDeclaration(
-                        context.messages().Say(
-                            "TARGET= argument '%s' must have either "
-                            "the POINTER or the TARGET "
-                            "attribute"_err_en_US,
-                            targetName),
-                        *targetSymbol);
+                SymbolVector symbols{GetSymbolVector(*targetExpr)};
+                CHECK(!symbols.empty());
+                if (!GetLastTarget(symbols)) {
+                  parser::Message *msg{context.messages().Say(
+                      "TARGET= argument '%s' must have either the POINTER or the TARGET attribute"_err_en_US,
+                      targetExpr->AsFortran())};
+                  for (SymbolRef ref : symbols) {
+                    msg = AttachDeclaration(msg, *ref);
                   }
                 }
-
                 if (const auto pointerType{pointerArg->GetType()}) {
                   if (const auto targetType{targetArg->GetType()}) {
                     ok = pointerType->IsTkCompatibleWith(*targetType);

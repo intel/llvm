@@ -245,8 +245,8 @@ ArchSpec ScriptedProcess::GetArchitecture() {
   return GetTarget().GetArchitecture();
 }
 
-Status ScriptedProcess::GetMemoryRegionInfo(lldb::addr_t load_addr,
-                                            MemoryRegionInfo &region) {
+Status ScriptedProcess::DoGetMemoryRegionInfo(lldb::addr_t load_addr,
+                                              MemoryRegionInfo &region) {
   CheckInterpreterAndScriptObject();
 
   Status error;
@@ -302,6 +302,9 @@ bool ScriptedProcess::DoUpdateThreadList(ThreadList &old_thread_list,
         error);
 
   StructuredData::DictionarySP thread_info_sp = GetInterface().GetThreadsInfo();
+
+  // FIXME: Need to sort the dictionary otherwise the thread ids won't match the
+  // thread indices.
 
   if (!thread_info_sp)
     return ScriptedInterface::ErrorWithMessage<bool>(
@@ -359,6 +362,7 @@ bool ScriptedProcess::DoUpdateThreadList(ThreadList &old_thread_list,
 void ScriptedProcess::RefreshStateAfterStop() {
   // Let all threads recover from stopping and do any clean up based on the
   // previous thread state (if any).
+  m_thread_list.RefreshStateAfterStop();
 }
 
 bool ScriptedProcess::GetProcessInfo(ProcessInstanceInfo &info) {

@@ -680,7 +680,7 @@ static void checkNoThrow(Sema &S, const Stmt *E,
         QualType::DestructionKind::DK_cxx_destructor) {
       const auto *T =
           cast<RecordType>(ReturnType.getCanonicalType().getTypePtr());
-      checkDeclNoexcept(dyn_cast<CXXRecordDecl>(T->getDecl())->getDestructor(),
+      checkDeclNoexcept(cast<CXXRecordDecl>(T->getDecl())->getDestructor(),
                         /*IsDtor=*/true);
     }
   } else
@@ -1080,6 +1080,14 @@ void Sema::CheckCompletedCoroutineBody(FunctionDecl *FD, Stmt *&Body) {
     // Nothing todo. the body is already a transformed coroutine body statement.
     return;
   }
+
+  // The always_inline attribute doesn't reliably apply to a coroutine,
+  // because the coroutine will be split into pieces and some pieces
+  // might be called indirectly, as in a virtual call. Even the ramp
+  // function cannot be inlined at -O0, due to pipeline ordering
+  // problems (see https://llvm.org/PR53413). Tell the user about it.
+  if (FD->hasAttr<AlwaysInlineAttr>())
+    Diag(FD->getLocation(), diag::warn_always_inline_coroutine);
 
   // [stmt.return.coroutine]p1:
   //   A coroutine shall not enclose a return statement ([stmt.return]).
@@ -1569,7 +1577,6 @@ bool CoroutineStmtBuilder::makeGroDeclAndReturnStmt() {
     if (Res.isInvalid())
       return false;
 
-    this->ResultDecl = Res.get();
     return true;
   }
 
@@ -1582,51 +1589,11 @@ bool CoroutineStmtBuilder::makeGroDeclAndReturnStmt() {
     return false;
   }
 
-  auto *GroDecl = VarDecl::Create(
-      S.Context, &FD, FD.getLocation(), FD.getLocation(),
-      &S.PP.getIdentifierTable().get("__coro_gro"), GroType,
-      S.Context.getTrivialTypeSourceInfo(GroType, Loc), SC_None);
-  GroDecl->setImplicit();
-
-  S.CheckVariableDeclarationType(GroDecl);
-  if (GroDecl->isInvalidDecl())
-    return false;
-
-  InitializedEntity Entity = InitializedEntity::InitializeVariable(GroDecl);
-  ExprResult Res =
-      S.PerformCopyInitialization(Entity, SourceLocation(), ReturnValue);
-  if (Res.isInvalid())
-    return false;
-
-  Res = S.ActOnFinishFullExpr(Res.get(), /*DiscardedValue*/ false);
-  if (Res.isInvalid())
-    return false;
-
-  S.AddInitializerToDecl(GroDecl, Res.get(),
-                         /*DirectInit=*/false);
-
-  S.FinalizeDeclaration(GroDecl);
-
-  // Form a declaration statement for the return declaration, so that AST
-  // visitors can more easily find it.
-  StmtResult GroDeclStmt =
-      S.ActOnDeclStmt(S.ConvertDeclToDeclGroup(GroDecl), Loc, Loc);
-  if (GroDeclStmt.isInvalid())
-    return false;
-
-  this->ResultDecl = GroDeclStmt.get();
-
-  ExprResult declRef = S.BuildDeclRefExpr(GroDecl, GroType, VK_LValue, Loc);
-  if (declRef.isInvalid())
-    return false;
-
-  StmtResult ReturnStmt = S.BuildReturnStmt(Loc, declRef.get());
+  StmtResult ReturnStmt = S.BuildReturnStmt(Loc, ReturnValue);
   if (ReturnStmt.isInvalid()) {
     noteMemberDeclaredHere(S, ReturnValue, Fn);
     return false;
   }
-  if (cast<clang::ReturnStmt>(ReturnStmt.get())->getNRVOCandidate() == GroDecl)
-    GroDecl->setNRVOVariable(true);
 
   this->ReturnStmt = ReturnStmt.get();
   return true;

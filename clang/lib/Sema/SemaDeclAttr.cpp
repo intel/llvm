@@ -2251,6 +2251,21 @@ static void handleNoReturnAttr(Sema &S, Decl *D, const ParsedAttr &Attrs) {
   D->addAttr(::new (S.Context) NoReturnAttr(S.Context, Attrs));
 }
 
+static void handleStandardNoReturnAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+  // The [[_Noreturn]] spelling is deprecated in C2x, so if that was used,
+  // issue an appropriate diagnostic. However, don't issue a diagnostic if the
+  // attribute name comes from a macro expansion. We don't want to punish users
+  // who write [[noreturn]] after including <stdnoreturn.h> (where 'noreturn'
+  // is defined as a macro which expands to '_Noreturn').
+  if (!S.getLangOpts().CPlusPlus &&
+      A.getSemanticSpelling() == CXX11NoReturnAttr::C2x_Noreturn &&
+      !(A.getLoc().isMacroID() &&
+        S.getSourceManager().isInSystemMacro(A.getLoc())))
+    S.Diag(A.getLoc(), diag::warn_deprecated_noreturn_spelling) << A.getRange();
+
+  D->addAttr(::new (S.Context) CXX11NoReturnAttr(S.Context, A));
+}
+
 static void handleNoCfCheckAttr(Sema &S, Decl *D, const ParsedAttr &Attrs) {
   if (!S.getLangOpts().CFProtectionBranch)
     S.Diag(Attrs.getLoc(), diag::warn_nocf_check_attribute_ignored);
@@ -9749,6 +9764,24 @@ static void handleOpenCLAccessAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) OpenCLAccessAttr(S.Context, AL));
 }
 
+static void handleZeroCallUsedRegsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // Check that the argument is a string literal.
+  StringRef KindStr;
+  SourceLocation LiteralLoc;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, KindStr, &LiteralLoc))
+    return;
+
+  ZeroCallUsedRegsAttr::ZeroCallUsedRegsKind Kind;
+  if (!ZeroCallUsedRegsAttr::ConvertStrToZeroCallUsedRegsKind(KindStr, Kind)) {
+    S.Diag(LiteralLoc, diag::warn_attribute_type_not_supported)
+        << AL << KindStr;
+    return;
+  }
+
+  D->dropAttr<ZeroCallUsedRegsAttr>();
+  D->addAttr(ZeroCallUsedRegsAttr::Create(S.Context, Kind, AL));
+}
+
 static constexpr std::pair<Decl::Kind, StringRef>
 MakeDeclContextDesc(Decl::Kind K, StringRef SR) {
   return std::pair<Decl::Kind, StringRef>{K, SR};
@@ -10477,6 +10510,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_NoReturn:
     handleNoReturnAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_CXX11NoReturn:
+    handleStandardNoReturnAttr(S, D, AL);
+    break;
   case ParsedAttr::AT_AnyX86NoCfCheck:
     handleNoCfCheckAttr(S, D, AL);
     break;
@@ -10719,6 +10755,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_InternalLinkage:
     handleInternalLinkageAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_ZeroCallUsedRegs:
+    handleZeroCallUsedRegsAttr(S, D, AL);
     break;
 
   // Microsoft attributes:

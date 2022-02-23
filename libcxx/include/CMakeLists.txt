@@ -26,6 +26,7 @@ set(files
   __algorithm/generate.h
   __algorithm/generate_n.h
   __algorithm/half_positive.h
+  __algorithm/in_fun_result.h
   __algorithm/in_in_out_result.h
   __algorithm/in_in_result.h
   __algorithm/in_out_out_result.h
@@ -63,6 +64,8 @@ set(files
   __algorithm/pop_heap.h
   __algorithm/prev_permutation.h
   __algorithm/push_heap.h
+  __algorithm/ranges_min_element.h
+  __algorithm/ranges_swap_ranges.h
   __algorithm/remove.h
   __algorithm/remove_copy.h
   __algorithm/remove_copy_if.h
@@ -96,6 +99,7 @@ set(files
   __algorithm/unique_copy.h
   __algorithm/unwrap_iter.h
   __algorithm/upper_bound.h
+  __assert
   __availability
   __bit/bit_cast.h
   __bit/byteswap.h
@@ -216,7 +220,6 @@ set(files
   __functional/unary_negate.h
   __functional/unwrap_ref.h
   __functional/weak_result_type.h
-  __functional_base
   __hash_table
   __ios/fpos.h
   __iterator/access.h
@@ -244,6 +247,7 @@ set(files
   __iterator/next.h
   __iterator/ostream_iterator.h
   __iterator/ostreambuf_iterator.h
+  __iterator/permutable.h
   __iterator/prev.h
   __iterator/projected.h
   __iterator/readable_traits.h
@@ -276,7 +280,6 @@ set(files
   __memory/voidify.h
   __mutex_base
   __node_handle
-  __nullptr
   __numeric/accumulate.h
   __numeric/adjacent_difference.h
   __numeric/exclusive_scan.h
@@ -344,7 +347,9 @@ set(files
   __ranges/non_propagating_cache.h
   __ranges/owning_view.h
   __ranges/range_adaptor.h
+  __ranges/rbegin.h
   __ranges/ref_view.h
+  __ranges/rend.h
   __ranges/reverse_view.h
   __ranges/single_view.h
   __ranges/size.h
@@ -397,6 +402,7 @@ set(files
   __utility/swap.h
   __utility/to_underlying.h
   __utility/transaction.h
+  __utility/unreachable.h
   __variant/monostate.h
   algorithm
   any
@@ -448,7 +454,6 @@ set(files
   experimental/algorithm
   experimental/coroutine
   experimental/deque
-  experimental/filesystem
   experimental/forward_list
   experimental/functional
   experimental/iterator

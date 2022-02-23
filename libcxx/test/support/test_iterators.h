@@ -32,7 +32,6 @@ public:
     typedef It                                                 pointer;
     typedef typename std::iterator_traits<It>::reference       reference;
 
-    TEST_CONSTEXPR cpp17_output_iterator() : it_() {}
     TEST_CONSTEXPR explicit cpp17_output_iterator(It it) : it_(std::move(it)) {}
     template <class U>
         TEST_CONSTEXPR cpp17_output_iterator(const cpp17_output_iterator<U>& u) :it_(u.it_) {}
@@ -492,7 +491,8 @@ private:
     const T *current_;
 };
 
-#ifdef TEST_SUPPORTS_RANGES
+#if TEST_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_CONCEPTS)
+
 template <class It>
 class cpp20_input_iterator
 {
@@ -677,7 +677,8 @@ private:
     difference_type stride_count_ = 0;
     difference_type stride_displacement_ = 0;
 };
-#endif // TEST_SUPPORTS_RANGES
+
+#endif // TEST_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_CONCEPTS)
 
 #if TEST_STD_VER > 17
 template <class It>

@@ -192,6 +192,7 @@ bool getAssumedUnderlyingObjects(Attributor &A, const Value &Ptr,
                                  SmallVectorImpl<Value *> &Objects,
                                  const AbstractAttribute &QueryingAA,
                                  const Instruction *CtxI,
+                                 bool &UsedAssumedInformation,
                                  bool Intraprocedural = false);
 
 /// Collect all potential values of the one stored by \p SI into
@@ -1824,23 +1825,24 @@ public:
   /// This method will evaluate \p Pred on call sites and return
   /// true if \p Pred holds in every call sites. However, this is only possible
   /// all call sites are known, hence the function has internal linkage.
-  /// If true is returned, \p AllCallSitesKnown is set if all possible call
-  /// sites of the function have been visited.
+  /// If true is returned, \p UsedAssumedInformation is set if assumed
+  /// information was used to skip or simplify potential call sites.
   bool checkForAllCallSites(function_ref<bool(AbstractCallSite)> Pred,
                             const AbstractAttribute &QueryingAA,
-                            bool RequireAllCallSites, bool &AllCallSitesKnown);
+                            bool RequireAllCallSites,
+                            bool &UsedAssumedInformation);
 
   /// Check \p Pred on all call sites of \p Fn.
   ///
   /// This method will evaluate \p Pred on call sites and return
   /// true if \p Pred holds in every call sites. However, this is only possible
   /// all call sites are known, hence the function has internal linkage.
-  /// If true is returned, \p AllCallSitesKnown is set if all possible call
-  /// sites of the function have been visited.
+  /// If true is returned, \p UsedAssumedInformation is set if assumed
+  /// information was used to skip or simplify potential call sites.
   bool checkForAllCallSites(function_ref<bool(AbstractCallSite)> Pred,
                             const Function &Fn, bool RequireAllCallSites,
                             const AbstractAttribute *QueryingAA,
-                            bool &AllCallSitesKnown);
+                            bool &UsedAssumedInformation);
 
   /// Check \p Pred on all values potentially returned by \p F.
   ///
@@ -4791,6 +4793,48 @@ struct AAPointerInfo : public AbstractAttribute {
 
   /// See AbstractAttribute::getIdAddr()
   const char *getIdAddr() const override { return &ID; }
+
+  /// Helper to represent an access offset and size, with logic to deal with
+  /// uncertainty and check for overlapping accesses.
+  struct OffsetAndSize : public std::pair<int64_t, int64_t> {
+    using BaseTy = std::pair<int64_t, int64_t>;
+    OffsetAndSize(int64_t Offset, int64_t Size) : BaseTy(Offset, Size) {}
+    OffsetAndSize(const BaseTy &P) : BaseTy(P) {}
+    int64_t getOffset() const { return first; }
+    int64_t getSize() const { return second; }
+    static OffsetAndSize getUnknown() {
+      return OffsetAndSize(Unknown, Unknown);
+    }
+
+    /// Return true if offset or size are unknown.
+    bool offsetOrSizeAreUnknown() const {
+      return getOffset() == OffsetAndSize::Unknown ||
+             getSize() == OffsetAndSize::Unknown;
+    }
+
+    /// Return true if this offset and size pair might describe an address that
+    /// overlaps with \p OAS.
+    bool mayOverlap(const OffsetAndSize &OAS) const {
+      // Any unknown value and we are giving up -> overlap.
+      if (offsetOrSizeAreUnknown() || OAS.offsetOrSizeAreUnknown())
+        return true;
+
+      // Check if one offset point is in the other interval [offset,
+      // offset+size].
+      return OAS.getOffset() + OAS.getSize() > getOffset() &&
+             OAS.getOffset() < getOffset() + getSize();
+    }
+
+    /// Constant used to represent unknown offset or sizes.
+    static constexpr int64_t Unknown = 1 << 31;
+  };
+
+  /// Call \p CB on all accesses that might interfere with \p OAS and return
+  /// true if all such accesses were known and the callback returned true for
+  /// all of them, false otherwise. An access interferes with an offset-size
+  /// pair if it might read or write that memory region.
+  virtual bool forallInterferingAccesses(
+      OffsetAndSize OAS, function_ref<bool(const Access &, bool)> CB) const = 0;
 
   /// Call \p CB on all accesses that might interfere with \p LI and return true
   /// if all such accesses were known and the callback returned true for all of

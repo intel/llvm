@@ -16,7 +16,6 @@
 #define SANITIZER_COMMON_H
 
 #include "sanitizer_flags.h"
-#include "sanitizer_interface_internal.h"
 #include "sanitizer_internal_defs.h"
 #include "sanitizer_libc.h"
 #include "sanitizer_list.h"
@@ -286,7 +285,7 @@ void SetStackSizeLimitInBytes(uptr limit);
 bool AddressSpaceIsUnlimited();
 void SetAddressSpaceUnlimited();
 void AdjustStackSize(void *attr);
-void PlatformPrepareForSandboxing(__sanitizer_sandbox_arguments *args);
+void PlatformPrepareForSandboxing(void *args);
 void SetSandboxingCallback(void (*f)());
 
 void InitializeCoverage(bool enabled, const char *coverage_dir);
@@ -959,7 +958,7 @@ struct SignalContext {
   uptr sp;
   uptr bp;
   bool is_memory_access;
-  enum WriteFlag { UNKNOWN, READ, WRITE } write_flag;
+  enum WriteFlag { Unknown, Read, Write } write_flag;
 
   // In some cases the kernel cannot provide the true faulting address; `addr`
   // will be zero then.  This field allows to distinguish between these cases

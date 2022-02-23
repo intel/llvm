@@ -19,6 +19,12 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
       lts_config: "ocl_gen9;ocl_x64;hip_amdgpu"
+
+  windows_default:
+    name: Windows (experimental)
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_windows_build_and_test.yml
+
   ubuntu2004_docker_build_push:
     if: github.repository == 'intel/llvm'
     runs-on: ubuntu-latest
@@ -64,5 +70,5 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: new_pm
       build_artifact_suffix: new_pm
-      build_configure_extra_args: '--hip --hip-amd-arch=gfx906 --cuda --cmake-opt=-DLLVM_ENABLE_NEW_PASS_MANAGER=ON'
+      build_configure_extra_args: '--hip --cuda --cmake-opt=-DLLVM_ENABLE_NEW_PASS_MANAGER=ON'
       lts_config: "hip_amdgpu;ocl_x64"
