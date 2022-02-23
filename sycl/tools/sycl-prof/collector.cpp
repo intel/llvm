@@ -18,7 +18,6 @@
 #include <thread>
 #include <unistd.h>
 
-
 namespace chrono = std::chrono;
 
 Writer *GWriter = nullptr;
