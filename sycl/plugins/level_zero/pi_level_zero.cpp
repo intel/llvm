@@ -6338,7 +6338,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
       }
     }
 
-    std::shared_lock Guard(MemObj->Mutex);
+    std::scoped_lock Guard(MemObj->Mutex);
     if (MemObj->MapHostPtr)
       memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
              MapInfo.Size);

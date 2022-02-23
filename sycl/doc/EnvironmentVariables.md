@@ -64,7 +64,7 @@ Note that all device selectors will throw an exception if the filtered list of d
 | `SYCL_ENABLE_PCI` | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 0. |
 | `SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR` | Any(\*) | Disable USM allocator in Level Zero plugin (each memory request will go directly to Level Zero runtime) |
 | `SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY` | Any(\*) | Enable support of the kernels with indirect access and corresponding deferred release of memory allocations in the Level Zero plugin. |
-| `SYCL_PI_SINGLE_THREAD_MODE` | Any(\*) | A single-threaded app has an opportunity to enable this mode to avoid overhead from mutex locking. |
+| `SYCL_PI_SINGLE_THREAD_MODE` | Any(\*) | A single-threaded app has an opportunity to enable this mode to avoid overhead from mutex locking in the Level Zero plugin. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
