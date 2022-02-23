@@ -1,4 +1,4 @@
-# Bfloat16 math functions Extension for DPC++: = SYCL_ONEAPI_bf16_math
+# Bfloat16 math functions extension for DPC++: = SYCL_ONEAPI_bf16_math
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 :dpcpp: pass:[DPC++]
@@ -42,7 +42,7 @@ SYCL specification refer to that revision.
 
 This document proposes extending the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions to support the `bfloat16` type introduced in the `SYCL_EXT_INTEL_BF16_CONVERSION` extension. This proposal assumes that devices which support the `SYCL_EXT_INTEL_BF16_CONVERSION` extension have the `bfloat16` scalar data type: `bfloat16`, and the `bfloat16` vector data types: `bfloat16_1`, `bfloat16_2`, `bfloat16_3`, `bfloat16_4`, `bfloat16_8` and `bfloat16_16` available at compile-time, in line with corresponding `half` types that are available at compile time on devices that
 have `aspect::fp16` as described in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:opencl:extension-fp16. Therefore the `fma`, `fmin`, `fmax` and `fabs` functions should support all of these vector and scalar types which we refer to as `genbfloat16`. Initially this experimental extension may also support the corresponding storage types for each of these `genbfloat16` types, namely `short`, `short3`, `short4`, `short8`, and `short16`.
-The descriptions of the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions can be found in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions. This proposal does not propose any changes to the expected behavior of these math functions beyond the new support for the `genbfloat16` types. A discussion issue has been raised at the bottom of this document on whether the specified maximum precision error should change for these functions for the new types.
+The descriptions of the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions can be found in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions. This proposal does not propose any changes to the expected behavior of these math functions beyond the new support for the `genbfloat16` types. A discussion issue has been raised at the bottom of this document on whether the specified maximum precision error should change for these functions when they use the `genbfloat16` data types.
 
 ## Feature test macro
 
