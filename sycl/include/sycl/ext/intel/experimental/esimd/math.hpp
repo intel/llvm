@@ -1472,7 +1472,7 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
 #undef __ESIMD_UNARY_INTRINSIC_DEF
 
 #define __ESIMD_BINARY_INTRINSIC_DEF(COND, name, iname)                        \
-  /** Vector version.                                                       */ \
+  /** (vector, vector) version.                                             */ \
   template <class T, int N, class U, class Sat = saturation_off_tag,           \
             class = std::enable_if_t<COND>>                                    \
   __ESIMD_API simd<T, N> name(simd<T, N> src0, simd<U, N> src1,                \
@@ -1486,13 +1486,18 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
       return esimd::saturate<T>(simd<T, N>(res_raw));                          \
   }                                                                            \
                                                                                \
-  /** Scalar version.                                                       */ \
+  /** (vector, scalar) version.                                             */ \
+  template <class T, int N, class U, class Sat = saturation_off_tag,           \
+            class = std::enable_if_t<COND>>                                    \
+  __ESIMD_API simd<T, N> name(simd<T, N> src0, U src1, Sat sat = {}) {         \
+    return name<T, N, U>(src0, simd<U, N>(src1), sat);                         \
+  }                                                                            \
+                                                                               \
+  /** (scalar, scalar) version.                                             */ \
   template <class T, class U, class Sat = saturation_off_tag,                  \
             class = std::enable_if_t<COND>>                                    \
   __ESIMD_API T name(T src0, U src1, Sat sat = {}) {                           \
-    simd<T, 1> src0_vec = src0;                                                \
-    simd<U, 1> src1_vec = src1;                                                \
-    simd<T, 1> res = name<T, 1, U>(src0_vec, src1_vec, sat);                   \
+    simd<T, 1> res = name<T, 1, U>(simd<T, 1>(src0), simd<U, 1>(src1), sat);   \
     return res[0];                                                             \
   }
 
