@@ -8,6 +8,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
+// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // ranges::next(it)
 
@@ -36,7 +37,7 @@ constexpr bool test() {
     check<bidirectional_iterator<int*>>(range+n, range+n+1);
     check<random_access_iterator<int*>>(range+n, range+n+1);
     check<contiguous_iterator<int*>>(   range+n, range+n+1);
-    check<output_iterator<int*>>(       range+n, range+n+1);
+    check<cpp17_output_iterator<int*>>( range+n, range+n+1);
     check<int*>(                        range+n, range+n+1);
   }
 

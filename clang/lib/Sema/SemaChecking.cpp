@@ -1042,9 +1042,15 @@ static bool checkOpenCLBlockArgs(Sema &S, Expr *BlockArg) {
 }
 
 static bool checkOpenCLSubgroupExt(Sema &S, CallExpr *Call) {
-  if (!S.getOpenCLOptions().isSupported("cl_khr_subgroups", S.getLangOpts())) {
+  // OpenCL device can support extension but not the feature as extension
+  // requires subgroup independent forward progress, but subgroup independent
+  // forward progress is optional in OpenCL C 3.0 __opencl_c_subgroups feature.
+  if (!S.getOpenCLOptions().isSupported("cl_khr_subgroups", S.getLangOpts()) &&
+      !S.getOpenCLOptions().isSupported("__opencl_c_subgroups",
+                                        S.getLangOpts())) {
     S.Diag(Call->getBeginLoc(), diag::err_opencl_requires_extension)
-        << 1 << Call->getDirectCallee() << "cl_khr_subgroups";
+        << 1 << Call->getDirectCallee()
+        << "cl_khr_subgroups or __opencl_c_subgroups";
     return true;
   }
   return false;
@@ -2253,6 +2259,28 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
            diag::err_builtin_invalid_arg_type)
           << 1 << /* float ty*/ 5 << ArgTy;
 
+      return ExprError();
+    }
+    break;
+  }
+
+  // These builtins restrict the element type to integer
+  // types only.
+  case Builtin::BI__builtin_elementwise_add_sat:
+  case Builtin::BI__builtin_elementwise_sub_sat: {
+    if (SemaBuiltinElementwiseMath(TheCall))
+      return ExprError();
+
+    const Expr *Arg = TheCall->getArg(0);
+    QualType ArgTy = Arg->getType();
+    QualType EltTy = ArgTy;
+
+    if (auto *VecTy = EltTy->getAs<VectorType>())
+      EltTy = VecTy->getElementType();
+
+    if (!EltTy->isIntegerType()) {
+      Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_type)
+          << 1 << /* integer ty */ 6 << ArgTy;
       return ExprError();
     }
     break;
@@ -3601,6 +3629,8 @@ static bool isPPC_64Builtin(unsigned BuiltinID) {
   case PPC::BI__builtin_divde:
   case PPC::BI__builtin_divdeu:
   case PPC::BI__builtin_bpermd:
+  case PPC::BI__builtin_pdepd:
+  case PPC::BI__builtin_pextd:
   case PPC::BI__builtin_ppc_ldarx:
   case PPC::BI__builtin_ppc_stdcx:
   case PPC::BI__builtin_ppc_tdw:
@@ -3760,6 +3790,10 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case PPC::BI__builtin_pack_vector_int128:
     return SemaFeatureCheck(*this, TheCall, "vsx",
                             diag::err_ppc_builtin_only_on_arch, "7");
+  case PPC::BI__builtin_pdepd:
+  case PPC::BI__builtin_pextd:
+    return SemaFeatureCheck(*this, TheCall, "isa-v31-instructions",
+                            diag::err_ppc_builtin_only_on_arch, "10");
   case PPC::BI__builtin_altivec_vgnb:
      return SemaBuiltinConstantArgRange(TheCall, 1, 2, 7);
   case PPC::BI__builtin_altivec_vec_replace_elt:
@@ -4012,7 +4046,7 @@ bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
     }
 
     if (!HasFeature) {
-      std::string FeatureStrs = "";
+      std::string FeatureStrs;
       for (StringRef OF : ReqOpFeatures) {
         // If the feature is 64bit, alter the string so it will print better in
         // the diagnostic.
@@ -11421,7 +11455,7 @@ void CheckFreeArgumentsCast(Sema &S, const std::string &CalleeName,
 /// Alerts the user that they are attempting to free a non-malloc'd object.
 void Sema::CheckFreeArguments(const CallExpr *E) {
   const std::string CalleeName =
-      dyn_cast<FunctionDecl>(E->getCalleeDecl())->getQualifiedNameAsString();
+      cast<FunctionDecl>(E->getCalleeDecl())->getQualifiedNameAsString();
 
   { // Prefer something that doesn't involve a cast to make things simpler.
     const Expr *Arg = E->getArg(0)->IgnoreParenCasts();

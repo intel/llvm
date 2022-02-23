@@ -47,7 +47,7 @@ constexpr const ::llvm::StringLiteral
 //===----------------------------------------------------------------------===//
 
 // Default constructor for BufferizationOptions.
-BufferizationOptions::BufferizationOptions() {}
+BufferizationOptions::BufferizationOptions() = default;
 
 BufferizableOpInterface
 BufferizationOptions::dynCastBufferizableOp(Operation *op) const {
@@ -87,12 +87,13 @@ BufferizationState::getAliasingOpOperand(OpResult result) const {
 }
 
 /// Determine which OpResult will alias with `opOperand` if the op is bufferized
-/// in place. Return an empty OpResult if the op is not bufferizable.
-OpResult BufferizationState::getAliasingOpResult(OpOperand &opOperand) const {
+/// in place. Return an empty vector if the op is not bufferizable.
+SmallVector<OpResult>
+BufferizationState::getAliasingOpResult(OpOperand &opOperand) const {
   if (auto bufferizableOp =
           dyn_cast<BufferizableOpInterface>(opOperand.getOwner()))
     return bufferizableOp.getAliasingOpResult(opOperand, *this);
-  return OpResult();
+  return {};
 }
 
 /// Return true if `opOperand` bufferizes to a memory read. Return `true` if the
@@ -144,8 +145,9 @@ bool BufferizationState::isValueRead(Value value) const {
     OpOperand *uMaybeReading = workingSet.pop_back_val();
     // Skip over all ops that neither read nor write (but create an alias).
     if (bufferizesToAliasOnly(*uMaybeReading))
-      for (OpOperand &use : getAliasingOpResult(*uMaybeReading).getUses())
-        workingSet.push_back(&use);
+      for (OpResult opResult : getAliasingOpResult(*uMaybeReading))
+        for (OpOperand &use : opResult.getUses())
+          workingSet.push_back(&use);
     if (bufferizesToMemoryRead(*uMaybeReading))
       return true;
   }
@@ -266,9 +268,10 @@ FailureOr<Value> BufferizationState::getBuffer(
       }))
     return resultBuffer;
   // Do not copy if the copied data is never read.
-  OpResult aliasingOpResult = getAliasingOpResult(opOperand);
-  if (aliasingOpResult && !bufferizesToMemoryRead(opOperand) &&
-      !isValueRead(aliasingOpResult))
+  SmallVector<OpResult> aliasingOpResults = getAliasingOpResult(opOperand);
+  if (!aliasingOpResults.empty() && !bufferizesToMemoryRead(opOperand) &&
+      llvm::none_of(aliasingOpResults,
+                    [&](OpResult opResult) { return isValueRead(opResult); }))
     return resultBuffer;
   // Do not copy if this op does not read the data, but writes it.
   if (bufferizesToMemoryWrite(opOperand) && !bufferizesToMemoryRead(opOperand))
@@ -290,14 +293,13 @@ FailureOr<Value> BufferizationState::getBuffer(
 void bufferization::replaceOpWithBufferizedValues(RewriterBase &rewriter,
                                                   Operation *op,
                                                   ValueRange values) {
+  assert(values.size() == op->getNumResults() &&
+         "expected one value per OpResult");
   OpBuilder::InsertionGuard g(rewriter);
 
   // Replace all OpResults with the given values.
+  SmallVector<Value> replacements;
   for (OpResult opResult : op->getOpResults()) {
-    // Skip OpResult if it has no uses.
-    if (opResult.getUses().empty())
-      continue;
-
     Value replacement = values[opResult.getResultNumber()];
     if (opResult.getType().isa<TensorType>()) {
       // The OpResult is a tensor. Such values are replaced with memrefs during
@@ -312,10 +314,10 @@ void bufferization::replaceOpWithBufferizedValues(RewriterBase &rewriter,
       replacement = rewriter.create<bufferization::ToTensorOp>(
           replacement.getLoc(), replacement);
     }
-    opResult.replaceAllUsesWith(replacement);
+    replacements.push_back(replacement);
   }
 
-  rewriter.eraseOp(op);
+  rewriter.replaceOp(op, replacements);
 }
 
 AlwaysCopyBufferizationState::AlwaysCopyBufferizationState(
@@ -464,11 +466,12 @@ bufferization::createAlloc(OpBuilder &b, Location loc, MemRefType type,
                            ValueRange dynShape,
                            const BufferizationOptions &options) {
   if (options.allocationFn)
-    return (*options.allocationFn)(b, loc, type, dynShape);
+    return (*options.allocationFn)(b, loc, type, dynShape,
+                                   options.bufferAlignment);
 
   // Default bufferallocation via AllocOp.
   Value allocated = b.create<memref::AllocOp>(
-      loc, type, dynShape, b.getI64IntegerAttr(kBufferAlignments));
+      loc, type, dynShape, b.getI64IntegerAttr(options.bufferAlignment));
   return allocated;
 }
 

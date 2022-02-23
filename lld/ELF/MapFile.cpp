@@ -19,15 +19,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "MapFile.h"
+#include "Driver.h"
 #include "InputFiles.h"
 #include "LinkerScript.h"
 #include "OutputSections.h"
-#include "SymbolTable.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
-#include "lld/Common/Strings.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/raw_ostream.h"
@@ -307,7 +308,19 @@ void elf::writeArchiveStats() {
   }
 
   os << "members\textracted\tarchive\n";
-  for (const ArchiveFile *f : archiveFiles)
-    os << f->getMemberCount() << '\t' << f->getExtractedMemberCount() << '\t'
-       << f->getName() << '\n';
+
+  SmallVector<StringRef, 0> archives;
+  DenseMap<CachedHashStringRef, unsigned> all, extracted;
+  for (ELFFileBase *file : objectFiles)
+    if (file->archiveName.size())
+      ++extracted[CachedHashStringRef(file->archiveName)];
+  for (BitcodeFile *file : bitcodeFiles)
+    if (file->archiveName.size())
+      ++extracted[CachedHashStringRef(file->archiveName)];
+  for (std::pair<StringRef, unsigned> f : driver->archiveFiles) {
+    unsigned &v = extracted[CachedHashString(f.first)];
+    os << f.second << '\t' << v << '\t' << f.first << '\n';
+    // If the archive occurs multiple times, other instances have a count of 0.
+    v = 0;
+  }
 }

@@ -48,10 +48,6 @@ namespace detail {
 // accesses and thus reuse validity checks etc.
 struct LocalAccessorMarker {};
 
-// Shared Local Memory Binding Table Index (aka surface index).
-static inline constexpr SurfaceIndex SLM_BTI = 254;
-static inline constexpr SurfaceIndex INVALID_BTI =
-    static_cast<SurfaceIndex>(-1);
 } // namespace detail
 
 /// @endcond ESIMD_DETAIL
@@ -66,23 +62,19 @@ static inline constexpr SurfaceIndex INVALID_BTI =
 ///
 template <typename AccessorTy>
 __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
-#ifdef __SYCL_DEVICE_ONLY__
   if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy>) {
     return detail::SLM_BTI;
   } else {
+#ifdef __SYCL_DEVICE_ONLY__
     const auto mem_obj = detail::AccessorPrivateProxy::getNativeImageObj(acc);
     return __esimd_get_surface_index(mem_obj);
+#else  // __SYCL_DEVICE_ONLY__
+    return __esimd_get_surface_index(acc);
+#endif // __SYCL_DEVICE_ONLY__
   }
-#else
-  throw sycl::feature_not_supported();
-#endif
 }
 
-#ifdef __SYCL_DEVICE_ONLY__
 #define __ESIMD_GET_SURF_HANDLE(acc) get_surface_index(acc)
-#else
-#define __ESIMD_GET_SURF_HANDLE(acc) acc
-#endif // __SYCL_DEVICE_ONLY__
 
 // TODO @Pennycook
 // {quote}
@@ -266,21 +258,15 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
+#else  // __SYCL_DEVICE_ONLY__
+  auto surf_ind = __esimd_get_surface_index(acc);
 #endif // __SYCL_DEVICE_ONLY__
 
   if constexpr (Flags::template alignment<simd<T, N>> >=
                 detail::OperandSize::OWORD) {
-#if defined(__SYCL_DEVICE_ONLY__)
     return __esimd_oword_ld<T, N>(surf_ind, offset >> 4);
-#else
-    return __esimd_oword_ld<T, N>(acc, offset >> 4);
-#endif // __SYCL_DEVICE_ONLY__
   } else {
-#if defined(__SYCL_DEVICE_ONLY__)
     return __esimd_oword_ld_unaligned<T, N>(surf_ind, offset);
-#else
-    return __esimd_oword_ld_unaligned<T, N>(acc, offset);
-#endif // __SYCL_DEVICE_ONLY__
   }
 }
 
@@ -336,10 +322,10 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
+#else //
+  auto surf_ind = __esimd_get_surface_index(acc);
+#endif
   __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
-#else
-  __esimd_oword_st<T, N>(acc, offset >> 4, vals.data());
-#endif // __SYCL_DEVICE_ONLY__
 }
 
 /// @} sycl_esimd_memory
@@ -820,24 +806,7 @@ __ESIMD_API void sbarrier(split_barrier_action flag) { __esimd_sbarrier(flag); }
 /// @{
 
 /// Declare per-work-group slm size.
-/// @param size the requested size of the shared local memory for current work
-/// group. Must be compile-time constant.
-#ifdef __SYCL_DEVICE_ONLY__
-// TODO slm_init should call __esimd_slm_init (TBD) and declared as __ESIMD_API
-// on both host and device. Currently __ESIMD_API on device leads to:
-// "... cannot call an undefined function without SYCL_EXTERNAL attribute"
-__ESIMD_INTRIN
-#else
-__ESIMD_API
-#endif
-void slm_init(uint32_t size)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  throw sycl::feature_not_supported();
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 
 /// Gather operation over the Shared Local Memory.
 /// This API has almost the same interface as the @ref accessor_gather
@@ -1252,9 +1221,335 @@ raw_send_store(simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
                                         numSrc0, sfid, exDesc, msgDesc,
                                         msgSrc0.data());
 }
+
 /// @} sycl_esimd_raw_send
 
+/// @defgroup sycl_esimd_memory_nbarrier Named barrier APIs.
+/// @ingroup sycl_esimd_memory
+
+/// @addtogroup sycl_esimd_memory_nbarrier
+/// @{
+
+/// Wait on a named barrier
+/// Available only on PVC
+///
+/// @param id  - named barrier id
+__ESIMD_API void nbarrier_wait(uint8_t id) {
+  __esimd_nbarrier(0 /*wait*/, id, 0 /*thread count*/);
+}
+
+/// Initialize number of named barriers for a kernel
+/// Available only on PVC
+///
+/// @tparam NbarCount  - number of named barriers
+template <uint8_t NbarCount> __ESIMD_API void nbarrier_init() {
+  __esimd_nbarrier_init(NbarCount);
+}
+
+/// Perform signal operation for the given named barrier
+/// Available only on PVC
+///
+/// @param barrier_id  - named barrier id
+///
+/// @param producer_consumer_mode  - 2-bit flag to indicate if it's producer
+/// mode (0x1) or consumer mode (0x2). User must ensure the input value is set
+/// correctly and higher order bits are cleared.
+///
+/// @param num_producers  - number of producers
+///
+/// @param num_consumers  - number of consumers
+__ESIMD_API void nbarrier_signal(uint8_t barrier_id,
+                                 uint8_t producer_consumer_mode,
+                                 uint32_t num_producers,
+                                 uint32_t num_consumers) {
+  constexpr uint32_t gateway = 3;
+  constexpr uint32_t barrier = 4;
+  constexpr uint32_t descriptor = 1 << 25 | // Message length: 1 register
+                                  0 << 12 | // Fence Data Ports: No fence
+                                  barrier;  // Barrier subfunction
+
+  detail::vector_type_t<uint32_t, 8> payload = 0;
+  payload[2] = (num_consumers & 0xff) << 24 | (num_producers & 0xff) << 16 |
+               producer_consumer_mode << 14 | (barrier_id & 0b11111) << 0;
+
+  __esimd_raw_send_nbarrier_signal<uint32_t, 8>(
+      0 /*sendc*/, gateway, descriptor, payload, 1 /*pred*/);
+}
+
+/// @} sycl_esimd_memory_nbarrier
+
 #undef __ESIMD_GET_SURF_HANDLE
+
+/// @cond EXCLUDE
+
+namespace detail {
+
+// ----- Outlined implementations of simd_obj_impl class memory access APIs.
+
+template <typename T, int N, class T1, class SFINAE>
+template <typename Flags, int ChunkSize, typename>
+void simd_obj_impl<T, N, T1, SFINAE>::copy_from(
+    const simd_obj_impl<T, N, T1, SFINAE>::element_type *Addr,
+    Flags) SYCL_ESIMD_FUNCTION {
+  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
+
+  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
+  constexpr unsigned NumBlocks = Size / BlockSize;
+  constexpr unsigned RemSize = Size % BlockSize;
+
+  if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
+    if constexpr (NumBlocks > 0) {
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      ForHelper<NumBlocks>::unroll([BlockN, Addr, this](unsigned Block) {
+        select<BlockN, 1>(Block * BlockN) =
+            block_load<UT, BlockN, Flags>(Addr + (Block * BlockN), Flags{});
+      });
+    }
+    if constexpr (RemSize > 0) {
+      constexpr unsigned RemN = RemSize / sizeof(T);
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      select<RemN, 1>(NumBlocks * BlockN) =
+          block_load<UT, RemN, Flags>(Addr + (NumBlocks * BlockN), Flags{});
+    }
+  } else if constexpr (sizeof(T) == 8) {
+    simd<int32_t, N * 2> BC(reinterpret_cast<const int32_t *>(Addr), Flags{});
+    bit_cast_view<int32_t>() = BC;
+  } else {
+    constexpr unsigned NumChunks = N / ChunkSize;
+    if constexpr (NumChunks > 0) {
+      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
+      ForHelper<NumChunks>::unroll([Addr, &Offsets, this](unsigned Block) {
+        select<ChunkSize, 1>(Block * ChunkSize) =
+            gather<UT, ChunkSize>(Addr + (Block * ChunkSize), Offsets);
+      });
+    }
+    constexpr unsigned RemN = N % ChunkSize;
+    if constexpr (RemN > 0) {
+      if constexpr (RemN == 1) {
+        select<1, 1>(NumChunks * ChunkSize) = Addr[NumChunks * ChunkSize];
+      } else if constexpr (RemN == 8 || RemN == 16) {
+        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+        select<RemN, 1>(NumChunks * ChunkSize) =
+            gather<UT, RemN>(Addr + (NumChunks * ChunkSize), Offsets);
+      } else {
+        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
+        simd_mask_type<N1> Pred(0);
+        Pred.template select<RemN, 1>() = 1;
+        simd<uint32_t, N1> Offsets(0u, sizeof(T));
+        simd<UT, N1> Vals =
+            gather<UT, N1>(Addr + (NumChunks * ChunkSize), Offsets, Pred);
+        select<RemN, 1>(NumChunks * ChunkSize) =
+            Vals.template select<RemN, 1>();
+      }
+    }
+  }
+}
+
+template <typename T, int N, class T1, class SFINAE>
+template <typename AccessorT, typename Flags, int ChunkSize, typename>
+ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
+                              sycl::access::target::global_buffer, void>
+simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
+                                           Flags) SYCL_ESIMD_FUNCTION {
+  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
+  static_assert(sizeof(UT) == sizeof(T));
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
+
+  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
+  constexpr unsigned NumBlocks = Size / BlockSize;
+  constexpr unsigned RemSize = Size % BlockSize;
+
+  if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
+    if constexpr (NumBlocks > 0) {
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      ForHelper<NumBlocks>::unroll([BlockN, acc, offset, this](unsigned Block) {
+        select<BlockN, 1>(Block * BlockN) =
+            block_load<UT, BlockN, AccessorT, Flags>(
+                acc, offset + (Block * BlockSize), Flags{});
+      });
+    }
+    if constexpr (RemSize > 0) {
+      constexpr unsigned RemN = RemSize / sizeof(T);
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      select<RemN, 1>(NumBlocks * BlockN) =
+          block_load<UT, RemN, AccessorT, Flags>(
+              acc, offset + (NumBlocks * BlockSize), Flags{});
+    }
+  } else if constexpr (sizeof(T) == 8) {
+    simd<int32_t, N * 2> BC(acc, offset, Flags{});
+    bit_cast_view<int32_t>() = BC;
+  } else {
+    constexpr unsigned NumChunks = N / ChunkSize;
+    if constexpr (NumChunks > 0) {
+      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
+      ForHelper<NumChunks>::unroll(
+          [acc, offset, &Offsets, this](unsigned Block) {
+            select<ChunkSize, 1>(Block * ChunkSize) =
+                gather<UT, ChunkSize, AccessorT>(
+                    acc, Offsets, offset + (Block * ChunkSize * sizeof(T)));
+          });
+    }
+    constexpr unsigned RemN = N % ChunkSize;
+    if constexpr (RemN > 0) {
+      if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
+        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+        select<RemN, 1>(NumChunks * ChunkSize) = gather<UT, RemN, AccessorT>(
+            acc, Offsets, offset + (NumChunks * ChunkSize * sizeof(T)));
+      } else {
+        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
+        simd_mask_type<N1> Pred(0);
+        Pred.template select<RemN, 1>() = 1;
+        simd<uint32_t, N1> Offsets(0u, sizeof(T));
+        simd<UT, N1> Vals = gather<UT, N1>(
+            acc, Offsets, offset + (NumChunks * ChunkSize * sizeof(T)), Pred);
+        select<RemN, 1>(NumChunks * ChunkSize) =
+            Vals.template select<RemN, 1>();
+      }
+    }
+  }
+}
+
+template <typename T, int N, class T1, class SFINAE>
+template <typename Flags, int ChunkSize, typename>
+void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
+    simd_obj_impl<T, N, T1, SFINAE>::element_type *Addr,
+    Flags) const SYCL_ESIMD_FUNCTION {
+  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
+
+  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
+  constexpr unsigned NumBlocks = Size / BlockSize;
+  constexpr unsigned RemSize = Size % BlockSize;
+
+  simd<UT, N> Tmp{data()};
+  if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
+    if constexpr (NumBlocks > 0) {
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      ForHelper<NumBlocks>::unroll([BlockN, Addr, &Tmp](unsigned Block) {
+        block_store<UT, BlockN>(Addr + (Block * BlockN),
+                                Tmp.template select<BlockN, 1>(Block * BlockN));
+      });
+    }
+    if constexpr (RemSize > 0) {
+      constexpr unsigned RemN = RemSize / sizeof(T);
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      block_store<UT, RemN>(Addr + (NumBlocks * BlockN),
+                            Tmp.template select<RemN, 1>(NumBlocks * BlockN));
+    }
+  } else if constexpr (sizeof(T) == 8) {
+    simd<int32_t, N * 2> BC = Tmp.template bit_cast_view<int32_t>();
+    BC.copy_to(reinterpret_cast<int32_t *>(Addr), Flags{});
+  } else {
+    constexpr unsigned NumChunks = N / ChunkSize;
+    if constexpr (NumChunks > 0) {
+      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
+      ForHelper<NumChunks>::unroll([Addr, &Offsets, &Tmp](unsigned Block) {
+        scatter<UT, ChunkSize>(
+            Addr + (Block * ChunkSize), Offsets,
+            Tmp.template select<ChunkSize, 1>(Block * ChunkSize));
+      });
+    }
+    constexpr unsigned RemN = N % ChunkSize;
+    if constexpr (RemN > 0) {
+      if constexpr (RemN == 1) {
+        Addr[NumChunks * ChunkSize] = Tmp[NumChunks * ChunkSize];
+      } else if constexpr (RemN == 8 || RemN == 16) {
+        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+        scatter<UT, RemN>(Addr + (NumChunks * ChunkSize), Offsets,
+                          Tmp.template select<RemN, 1>(NumChunks * ChunkSize));
+      } else {
+        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
+        simd_mask_type<N1> Pred(0);
+        Pred.template select<RemN, 1>() = 1;
+        simd<UT, N1> Vals;
+        Vals.template select<RemN, 1>() =
+            Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
+        simd<uint32_t, N1> Offsets(0u, sizeof(T));
+        scatter<UT, N1>(Addr + (NumChunks * ChunkSize), Offsets, Vals, Pred);
+      }
+    }
+  }
+}
+
+template <typename T, int N, class T1, class SFINAE>
+template <typename AccessorT, typename Flags, int ChunkSize, typename>
+ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
+                              sycl::access::target::global_buffer, void>
+simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
+                                         Flags) const SYCL_ESIMD_FUNCTION {
+  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
+
+  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
+  constexpr unsigned NumBlocks = Size / BlockSize;
+  constexpr unsigned RemSize = Size % BlockSize;
+
+  simd<UT, N> Tmp{data()};
+
+  if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
+    if constexpr (NumBlocks > 0) {
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      ForHelper<NumBlocks>::unroll([BlockN, acc, offset, &Tmp](unsigned Block) {
+        block_store<UT, BlockN, AccessorT>(
+            acc, offset + (Block * BlockSize),
+            Tmp.template select<BlockN, 1>(Block * BlockN));
+      });
+    }
+    if constexpr (RemSize > 0) {
+      constexpr unsigned RemN = RemSize / sizeof(T);
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      block_store<UT, RemN, AccessorT>(
+          acc, offset + (NumBlocks * BlockSize),
+          Tmp.template select<RemN, 1>(NumBlocks * BlockN));
+    }
+  } else if constexpr (sizeof(T) == 8) {
+    simd<int32_t, N * 2> BC = Tmp.template bit_cast_view<int32_t>();
+    BC.copy_to(acc, offset, Flags{});
+  } else {
+    constexpr unsigned NumChunks = N / ChunkSize;
+    if constexpr (NumChunks > 0) {
+      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
+      ForHelper<NumChunks>::unroll([acc, offset, &Offsets,
+                                    &Tmp](unsigned Block) {
+        scatter<UT, ChunkSize, AccessorT>(
+            acc, Offsets, Tmp.template select<ChunkSize, 1>(Block * ChunkSize),
+            offset + (Block * ChunkSize * sizeof(T)));
+      });
+    }
+    constexpr unsigned RemN = N % ChunkSize;
+    if constexpr (RemN > 0) {
+      if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
+        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+        scatter<UT, RemN, AccessorT>(
+            acc, Offsets, Tmp.template select<RemN, 1>(NumChunks * ChunkSize),
+            offset + (NumChunks * ChunkSize * sizeof(T)));
+      } else {
+        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
+        simd_mask_type<N1> Pred(0);
+        Pred.template select<RemN, 1>() = 1;
+        simd<UT, N1> Vals;
+        Vals.template select<RemN, 1>() =
+            Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
+        simd<uint32_t, N1> Offsets(0u, sizeof(T));
+        scatter<UT, N1, AccessorT>(acc, Offsets, Vals,
+                                   offset + (NumChunks * ChunkSize * sizeof(T)),
+                                   Pred);
+      }
+    }
+  }
+}
+
+} // namespace detail
+/// @endcond EXCLUDE
 
 } // namespace esimd
 } // namespace experimental

@@ -65,7 +65,7 @@ struct vector_aligned_tag {
   template <typename VT> static constexpr unsigned alignment = alignof(VT);
 };
 
-/// overaligned_tag type. Flag of this type should be used in load and store
+/// \c overaligned_tag type. Flag of this type should be used in load and store
 /// operations when memory address is aligned by the user-provided alignment
 /// value N.
 /// @tparam N is the alignment value. N must be a power of two.
@@ -99,9 +99,9 @@ static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
 
 /// @} sycl_esimd_core_align
 
-/// @cond ESIMD_DETAIL
-
 namespace detail {
+
+/// @cond ESIMD_DETAIL
 
 // Functions to support efficient simd constructors - avoiding internal loop
 // over elements.
@@ -129,7 +129,7 @@ constexpr vector_type_t<T, N> make_vector(T Base, T Stride) {
 
 /// @endcond ESIMD_DETAIL
 
-/// @addtogroup sycl_esimd_core
+/// @addtogroup sycl_esimd_core_vectors
 /// @{
 
 /// This is a base class for all ESIMD simd classes with real storage (simd,
@@ -156,6 +156,8 @@ constexpr vector_type_t<T, N> make_vector(T Base, T Stride) {
 ///
 template <typename RawTy, int N, class Derived, class SFINAE>
 class simd_obj_impl {
+  /// @cond ESIMD_DETAIL
+
   // For the is_simd_obj_impl_derivative helper to work correctly, all derived
   // classes must be templated by element type and number of elements. If fewer
   // template arguments are needed, template aliases can be used
@@ -165,6 +167,8 @@ class simd_obj_impl {
   template <typename, typename> friend class simd_view_impl;
   template <typename, int> friend class simd;
   template <typename, int> friend class simd_mask_impl;
+
+  /// @endcond ESIMD_DETAIL
 
 public:
   /// Element type of the derived (user) class.
@@ -180,6 +184,7 @@ public:
   static constexpr int length = N;
 
 protected:
+  /// @cond ESIMD_DETAIL
   using Ty = element_type;
 
   template <bool UseSet = true>
@@ -210,6 +215,8 @@ private:
   const Derived &cast_this_to_derived() const {
     return reinterpret_cast<const Derived &>(*this);
   }
+
+  /// @endcond ESIMD_DETAIL
 
 public:
   /// Default constructor. Values of the constructed object's elements are
@@ -373,35 +380,38 @@ public:
 
   /// Merges given two objects with a mask and writes resulting data into this
   /// object.
-  /// @param Val1 The first object, provides elements for lanes with zero
+  /// @param Val1 The first object, provides elements for lanes with non-zero
   ///   corresponding predicates.
-  /// @param Val2 The second object, provides elements for lanes with non-zero
+  /// @param Val2 The second object, provides elements for lanes with zero
   ///   corresponding predicates.
-  /// @param Mask The mask.
+  /// @param Mask The merge mask.
   void merge(const Derived &Val1, Derived Val2, const simd_mask_type<N> &Mask) {
     Val2.merge(Val1, Mask);
     set(Val2.data());
   }
 
-  /// View this \c simd_obj_impl object in a different element type and
-  /// potentially a different number of elements, if the new element type size
-  /// is different.
-  /// @tparam EltTy The new element type.
-  /// @return A simd_view object providing the alternative view of entire
-  ///   \c this object.
+  /// Create a 1-dimensional view of this object.
+  /// @tparam EltTy The element type of the new view.
+  /// @return A new \c simd_view object which spans this entire object, but
+  ///   potentially with a different element type and different number of
+  ///   elements, if the sizes of this object's element type and the new one
+  ///   don't match.
   template <typename EltTy> auto bit_cast_view() &[[clang::lifetimebound]] {
     using TopRegionTy = compute_format_type_t<Derived, EltTy>;
     using RetTy = simd_view<Derived, TopRegionTy>;
     return RetTy{cast_this_to_derived(), TopRegionTy{0}};
   }
 
-  /// Create a 2-dimensional view (\c simd_view object) of this object.
+  /// Create a 2-dimensional view of this object.
   /// <code>sizeof(EltTy)*Height*Width</code> must be equal to the byte size of
   /// this object.
-  /// @tparam ElTy Element type of the view. Can mismatch current type.
+  /// @tparam ElTy Element type of the view.
   /// @tparam Height Height of the view in rows.
   /// @tparam Width Width of the view in elements.
-  /// @return The 2D view.
+  /// @return A new 2D \c simd_view object which spans this entire object, but
+  ///   potentially with a different element type and different number of
+  ///   elements, if the sizes of this object's element type and the new one
+  ///   don't match.
   template <typename EltTy, int Height, int Width>
   auto bit_cast_view() &[[clang::lifetimebound]] {
     using TopRegionTy = compute_format_type_2d_t<Derived, EltTy, Height, Width>;
@@ -536,7 +546,7 @@ public:
   ///
   /// *Example 1*. Source object has 32 elements, \c Rep is 2, \c VS is 17, \c W
   /// is 3 and \c HS is 4. Selected elements are depicted with their index
-  /// (mathing their values) /// instead of a dot:
+  /// (matching their values) instead of a dot:
   /// @code
   /// simd<int, 32> Source(0/*Base*/, 1/*Step*/);
   /// simd<int, 6> Result = Source.replicate_vs_w_hs<2,17,3,4>(1);
@@ -760,7 +770,10 @@ public:
 
 #define __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(BINOP, OPASSIGN, COND)              \
                                                                                \
-  /*  OPASSIGN simd_obj_impl */                                                \
+  /** \c OPASSIGN @ref simd version.                                        */ \
+  /** @tparam T1 Element type of the argument object (auto-deduced).        */ \
+  /** @tparam SimdT The argument object type(auto-deduced).                 */ \
+  /** @param RHS The argument object.                                       */ \
   template <class T1, class SimdT,                                             \
             class = std::enable_if_t<(is_simd_type_v<Derived> ==               \
                                       is_simd_type_v<SimdT>)&&COND>>           \
@@ -773,7 +786,11 @@ public:
     return cast_this_to_derived();                                             \
   }                                                                            \
                                                                                \
-  /*  OPASSIGN simd_view */                                                    \
+  /** \c OPASSIGN @ref simd_view version.                                   */ \
+  /** @tparam SimdT1 The type of the object "viewed" by the argument        */ \
+  /**         (auto-deduced).                                               */ \
+  /** @tparam RegionT1 Region type of the argument object (auto-deduced).   */ \
+  /** @param RHS The argument object.                                       */ \
   template <class SimdT1, class RegionT1,                                      \
             class T1 = typename RegionT1::element_type,                        \
             class = std::enable_if_t<                                          \
@@ -789,7 +806,9 @@ public:
     return cast_this_to_derived();                                             \
   }                                                                            \
                                                                                \
-  /*  OPASSIGN SCALAR */                                                       \
+  /** \c OPASSIGN  scalar version.                                          */ \
+  /** @tparam T1 The type of the scalar argument (auto-deduced).            */ \
+  /** @param RHS The argument.                                              */ \
   template <class T1, class = std::enable_if_t<COND>>                          \
   Derived &operator OPASSIGN(T1 RHS) {                                         \
     if constexpr (is_simd_type_v<Derived>) {                                   \
@@ -804,10 +823,17 @@ public:
 // must be integral
 #define __ESIMD_BITWISE_OP_FILTER                                              \
   std::is_integral_v<element_type> &&std::is_integral_v<T1>
-
+  /// Bitwise-\c xor compound assignment. Available only when elements of both
+  /// this object and the argument are integral.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(^, ^=, __ESIMD_BITWISE_OP_FILTER)
+  /// Bitwise-\c or compound assignment. Available only when elements of both
+  /// this object and the argument are integral.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(|, |=, __ESIMD_BITWISE_OP_FILTER)
+  /// Bitwise-\c and compound assignment. Available only when elements of both
+  /// this object and the argument are integral.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(&, &=, __ESIMD_BITWISE_OP_FILTER)
+  /// Modulo operation compound assignment. Available only when elements of both
+  /// this object and the argument are integral.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(%, %=, __ESIMD_BITWISE_OP_FILTER)
 #undef __ESIMD_BITWISE_OP_FILTER
 
@@ -817,7 +843,12 @@ public:
   std::is_integral_v<element_type> &&std::is_integral_v<T1>                    \
       &&__SEIEED::is_simd_type_v<Derived>
 
+  /// Shift left compound assignment. Available only when elements of both
+  /// this object and the source are integral. Not available for \c simd_mask.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(<<, <<=, __ESIMD_SHIFT_OP_FILTER)
+  /// Logical shift right compound assignment. Available only when elements of
+  /// both this object and the source are integral. Not available for
+  /// \c simd_mask.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(>>, >>=, __ESIMD_SHIFT_OP_FILTER)
 #undef __ESIMD_SHIFT_OP_FILTER
 
@@ -827,11 +858,16 @@ public:
 #define __ESIMD_ARITH_OP_FILTER                                                \
   __SEIEED::is_simd_type_v<Derived> &&__SEIEED::is_vectorizable_v<T1>
 
+  /// Addition operation compound assignment.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(+, +=, __ESIMD_ARITH_OP_FILTER)
+  /// Subtraction operation compound assignment.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(-, -=, __ESIMD_ARITH_OP_FILTER)
+  /// Multiplication operation compound assignment.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(*, *=, __ESIMD_ARITH_OP_FILTER)
+  /// Division operation compound assignment.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(/, /=, __ESIMD_ARITH_OP_FILTER)
 #undef __ESIMD_ARITH_OP_FILTER
+#undef __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN
 
   // Getter for the test proxy member, if enabled
   __ESIMD_DECLARE_TEST_PROXY_ACCESS
@@ -852,273 +888,9 @@ protected:
 #endif
   }
 };
+/// @} sycl_esimd_core_vectors
 
-// ----------- Outlined implementations of simd_obj_impl class APIs.
-
-template <typename T, int N, class T1, class SFINAE>
-template <typename Flags, int ChunkSize, typename>
-void simd_obj_impl<T, N, T1, SFINAE>::copy_from(
-    const simd_obj_impl<T, N, T1, SFINAE>::element_type *Addr,
-    Flags) SYCL_ESIMD_FUNCTION {
-  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
-  constexpr unsigned Size = sizeof(T) * N;
-  constexpr unsigned Align = Flags::template alignment<T1>;
-
-  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
-  constexpr unsigned NumBlocks = Size / BlockSize;
-  constexpr unsigned RemSize = Size % BlockSize;
-
-  if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
-    if constexpr (NumBlocks > 0) {
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      ForHelper<NumBlocks>::unroll([BlockN, Addr, this](unsigned Block) {
-        select<BlockN, 1>(Block * BlockN) =
-            block_load<UT, BlockN, Flags>(Addr + (Block * BlockN), Flags{});
-      });
-    }
-    if constexpr (RemSize > 0) {
-      constexpr unsigned RemN = RemSize / sizeof(T);
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      select<RemN, 1>(NumBlocks * BlockN) =
-          block_load<UT, RemN, Flags>(Addr + (NumBlocks * BlockN), Flags{});
-    }
-  } else if constexpr (sizeof(T) == 8) {
-    simd<int32_t, N * 2> BC(reinterpret_cast<const int32_t *>(Addr), Flags{});
-    bit_cast_view<int32_t>() = BC;
-  } else {
-    constexpr unsigned NumChunks = N / ChunkSize;
-    if constexpr (NumChunks > 0) {
-      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
-      ForHelper<NumChunks>::unroll([Addr, &Offsets, this](unsigned Block) {
-        select<ChunkSize, 1>(Block * ChunkSize) =
-            gather<UT, ChunkSize>(Addr + (Block * ChunkSize), Offsets);
-      });
-    }
-    constexpr unsigned RemN = N % ChunkSize;
-    if constexpr (RemN > 0) {
-      if constexpr (RemN == 1) {
-        select<1, 1>(NumChunks * ChunkSize) = Addr[NumChunks * ChunkSize];
-      } else if constexpr (RemN == 8 || RemN == 16) {
-        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
-        select<RemN, 1>(NumChunks * ChunkSize) =
-            gather<UT, RemN>(Addr + (NumChunks * ChunkSize), Offsets);
-      } else {
-        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
-        simd_mask_type<N1> Pred(0);
-        Pred.template select<RemN, 1>() = 1;
-        simd<uint32_t, N1> Offsets(0u, sizeof(T));
-        simd<UT, N1> Vals =
-            gather<UT, N1>(Addr + (NumChunks * ChunkSize), Offsets, Pred);
-        select<RemN, 1>(NumChunks * ChunkSize) =
-            Vals.template select<RemN, 1>();
-      }
-    }
-  }
-}
-
-template <typename T, int N, class T1, class SFINAE>
-template <typename AccessorT, typename Flags, int ChunkSize, typename>
-ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
-                              sycl::access::target::global_buffer, void>
-simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
-                                           Flags) SYCL_ESIMD_FUNCTION {
-  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
-  static_assert(sizeof(UT) == sizeof(T));
-  constexpr unsigned Size = sizeof(T) * N;
-  constexpr unsigned Align = Flags::template alignment<T1>;
-
-  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
-  constexpr unsigned NumBlocks = Size / BlockSize;
-  constexpr unsigned RemSize = Size % BlockSize;
-
-  if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
-    if constexpr (NumBlocks > 0) {
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      ForHelper<NumBlocks>::unroll([BlockN, acc, offset, this](unsigned Block) {
-        select<BlockN, 1>(Block * BlockN) =
-            block_load<UT, BlockN, AccessorT, Flags>(
-                acc, offset + (Block * BlockSize), Flags{});
-      });
-    }
-    if constexpr (RemSize > 0) {
-      constexpr unsigned RemN = RemSize / sizeof(T);
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      select<RemN, 1>(NumBlocks * BlockN) =
-          block_load<UT, RemN, AccessorT, Flags>(
-              acc, offset + (NumBlocks * BlockSize), Flags{});
-    }
-  } else if constexpr (sizeof(T) == 8) {
-    simd<int32_t, N * 2> BC(acc, offset, Flags{});
-    bit_cast_view<int32_t>() = BC;
-  } else {
-    constexpr unsigned NumChunks = N / ChunkSize;
-    if constexpr (NumChunks > 0) {
-      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
-      ForHelper<NumChunks>::unroll(
-          [acc, offset, &Offsets, this](unsigned Block) {
-            select<ChunkSize, 1>(Block * ChunkSize) =
-                gather<UT, ChunkSize, AccessorT>(
-                    acc, Offsets, offset + (Block * ChunkSize * sizeof(T)));
-          });
-    }
-    constexpr unsigned RemN = N % ChunkSize;
-    if constexpr (RemN > 0) {
-      if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
-        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
-        select<RemN, 1>(NumChunks * ChunkSize) = gather<UT, RemN, AccessorT>(
-            acc, Offsets, offset + (NumChunks * ChunkSize * sizeof(T)));
-      } else {
-        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
-        simd_mask_type<N1> Pred(0);
-        Pred.template select<RemN, 1>() = 1;
-        simd<uint32_t, N1> Offsets(0u, sizeof(T));
-        simd<UT, N1> Vals = gather<UT, N1>(
-            acc, Offsets, offset + (NumChunks * ChunkSize * sizeof(T)), Pred);
-        select<RemN, 1>(NumChunks * ChunkSize) =
-            Vals.template select<RemN, 1>();
-      }
-    }
-  }
-}
-
-template <typename T, int N, class T1, class SFINAE>
-template <typename Flags, int ChunkSize, typename>
-void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
-    simd_obj_impl<T, N, T1, SFINAE>::element_type *Addr,
-    Flags) const SYCL_ESIMD_FUNCTION {
-  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
-  constexpr unsigned Size = sizeof(T) * N;
-  constexpr unsigned Align = Flags::template alignment<T1>;
-
-  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
-  constexpr unsigned NumBlocks = Size / BlockSize;
-  constexpr unsigned RemSize = Size % BlockSize;
-
-  simd<UT, N> Tmp{data()};
-  if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
-    if constexpr (NumBlocks > 0) {
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      ForHelper<NumBlocks>::unroll([BlockN, Addr, &Tmp](unsigned Block) {
-        block_store<UT, BlockN>(Addr + (Block * BlockN),
-                                Tmp.template select<BlockN, 1>(Block * BlockN));
-      });
-    }
-    if constexpr (RemSize > 0) {
-      constexpr unsigned RemN = RemSize / sizeof(T);
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      block_store<UT, RemN>(Addr + (NumBlocks * BlockN),
-                            Tmp.template select<RemN, 1>(NumBlocks * BlockN));
-    }
-  } else if constexpr (sizeof(T) == 8) {
-    simd<int32_t, N * 2> BC = Tmp.template bit_cast_view<int32_t>();
-    BC.copy_to(reinterpret_cast<int32_t *>(Addr), Flags{});
-  } else {
-    constexpr unsigned NumChunks = N / ChunkSize;
-    if constexpr (NumChunks > 0) {
-      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
-      ForHelper<NumChunks>::unroll([Addr, &Offsets, &Tmp](unsigned Block) {
-        scatter<UT, ChunkSize>(
-            Addr + (Block * ChunkSize), Offsets,
-            Tmp.template select<ChunkSize, 1>(Block * ChunkSize));
-      });
-    }
-    constexpr unsigned RemN = N % ChunkSize;
-    if constexpr (RemN > 0) {
-      if constexpr (RemN == 1) {
-        Addr[NumChunks * ChunkSize] = Tmp[NumChunks * ChunkSize];
-      } else if constexpr (RemN == 8 || RemN == 16) {
-        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
-        scatter<UT, RemN>(Addr + (NumChunks * ChunkSize), Offsets,
-                          Tmp.template select<RemN, 1>(NumChunks * ChunkSize));
-      } else {
-        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
-        simd_mask_type<N1> Pred(0);
-        Pred.template select<RemN, 1>() = 1;
-        simd<UT, N1> Vals;
-        Vals.template select<RemN, 1>() =
-            Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
-        simd<uint32_t, N1> Offsets(0u, sizeof(T));
-        scatter<UT, N1>(Addr + (NumChunks * ChunkSize), Offsets, Vals, Pred);
-      }
-    }
-  }
-}
-
-template <typename T, int N, class T1, class SFINAE>
-template <typename AccessorT, typename Flags, int ChunkSize, typename>
-ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
-                              sycl::access::target::global_buffer, void>
-simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
-                                         Flags) const SYCL_ESIMD_FUNCTION {
-  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
-  constexpr unsigned Size = sizeof(T) * N;
-  constexpr unsigned Align = Flags::template alignment<T1>;
-
-  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
-  constexpr unsigned NumBlocks = Size / BlockSize;
-  constexpr unsigned RemSize = Size % BlockSize;
-
-  simd<UT, N> Tmp{data()};
-
-  if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
-    if constexpr (NumBlocks > 0) {
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      ForHelper<NumBlocks>::unroll([BlockN, acc, offset, &Tmp](unsigned Block) {
-        block_store<UT, BlockN, AccessorT>(
-            acc, offset + (Block * BlockSize),
-            Tmp.template select<BlockN, 1>(Block * BlockN));
-      });
-    }
-    if constexpr (RemSize > 0) {
-      constexpr unsigned RemN = RemSize / sizeof(T);
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      block_store<UT, RemN, AccessorT>(
-          acc, offset + (NumBlocks * BlockSize),
-          Tmp.template select<RemN, 1>(NumBlocks * BlockN));
-    }
-  } else if constexpr (sizeof(T) == 8) {
-    simd<int32_t, N * 2> BC = Tmp.template bit_cast_view<int32_t>();
-    BC.copy_to(acc, offset, Flags{});
-  } else {
-    constexpr unsigned NumChunks = N / ChunkSize;
-    if constexpr (NumChunks > 0) {
-      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
-      ForHelper<NumChunks>::unroll([acc, offset, &Offsets,
-                                    &Tmp](unsigned Block) {
-        scatter<UT, ChunkSize, AccessorT>(
-            acc, Offsets, Tmp.template select<ChunkSize, 1>(Block * ChunkSize),
-            offset + (Block * ChunkSize * sizeof(T)));
-      });
-    }
-    constexpr unsigned RemN = N % ChunkSize;
-    if constexpr (RemN > 0) {
-      if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
-        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
-        scatter<UT, RemN, AccessorT>(
-            acc, Offsets, Tmp.template select<RemN, 1>(NumChunks * ChunkSize),
-            offset + (NumChunks * ChunkSize * sizeof(T)));
-      } else {
-        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
-        simd_mask_type<N1> Pred(0);
-        Pred.template select<RemN, 1>() = 1;
-        simd<UT, N1> Vals;
-        Vals.template select<RemN, 1>() =
-            Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
-        simd<uint32_t, N1> Offsets(0u, sizeof(T));
-        scatter<UT, N1, AccessorT>(acc, Offsets, Vals,
-                                   offset + (NumChunks * ChunkSize * sizeof(T)),
-                                   Pred);
-      }
-    }
-  }
-}
 } // namespace detail
-
-/// @} sycl_esimd_core
 
 } // namespace esimd
 } // namespace experimental

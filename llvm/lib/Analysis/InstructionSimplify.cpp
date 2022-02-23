@@ -951,7 +951,7 @@ static Value *simplifyDivRem(Instruction::BinaryOps Opcode, Value *Op0,
 
   // X / undef -> poison
   // X % undef -> poison
-  if (Q.isUndefValue(Op1))
+  if (Q.isUndefValue(Op1) || isa<PoisonValue>(Op1))
     return PoisonValue::get(Ty);
 
   // X / 0 -> poison
@@ -2418,6 +2418,10 @@ static Value *SimplifyXorInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
   if (Constant *C = foldOrCommuteConstant(Instruction::Xor, Op0, Op1, Q))
     return C;
 
+  // X ^ poison -> poison
+  if (isa<PoisonValue>(Op1))
+    return Op1;
+
   // A ^ undef -> undef
   if (Q.isUndefValue(Op1))
     return Op1;
@@ -2584,8 +2588,14 @@ computePointerICmp(CmpInst::Predicate Pred, Value *LHS, Value *RHS,
   // numerous hazards. AliasAnalysis and its utilities rely on special rules
   // governing loads and stores which don't apply to icmps. Also, AliasAnalysis
   // doesn't need to guarantee pointer inequality when it says NoAlias.
-  Constant *LHSOffset = stripAndComputeConstantOffsets(DL, LHS);
-  Constant *RHSOffset = stripAndComputeConstantOffsets(DL, RHS);
+
+  // Even if an non-inbounds GEP occurs along the path we can still optimize
+  // equality comparisons concerning the result.
+  bool AllowNonInbounds = ICmpInst::isEquality(Pred);
+  Constant *LHSOffset =
+      stripAndComputeConstantOffsets(DL, LHS, AllowNonInbounds);
+  Constant *RHSOffset =
+      stripAndComputeConstantOffsets(DL, RHS, AllowNonInbounds);
 
   // If LHS and RHS are related via constant offsets to the same base
   // value, we can replace it with an icmp which just compares the offsets.
@@ -2654,17 +2664,6 @@ computePointerICmp(CmpInst::Predicate Pred, Value *LHS, Value *RHS,
         return ConstantInt::get(GetCompareTy(LHS),
                                 !CmpInst::isTrueWhenEqual(Pred));
     }
-
-    // Even if an non-inbounds GEP occurs along the path we can still optimize
-    // equality comparisons concerning the result. We avoid walking the whole
-    // chain again by starting where the last calls to
-    // stripAndComputeConstantOffsets left off and accumulate the offsets.
-    Constant *LHSNoBound = stripAndComputeConstantOffsets(DL, LHS, true);
-    Constant *RHSNoBound = stripAndComputeConstantOffsets(DL, RHS, true);
-    if (LHS == RHS)
-      return ConstantExpr::getICmp(Pred,
-                                   ConstantExpr::getAdd(LHSOffset, LHSNoBound),
-                                   ConstantExpr::getAdd(RHSOffset, RHSNoBound));
 
     // If one side of the equality comparison must come from a noalias call
     // (meaning a system memory allocation function), and the other side must
@@ -4469,6 +4468,12 @@ static Value *SimplifyGEPInst(Type *SrcTy, Value *Ptr,
     }
   }
 
+  // For opaque pointers an all-zero GEP is a no-op. For typed pointers,
+  // it may be equivalent to a bitcast.
+  if (Ptr->getType()->isOpaquePointerTy() &&
+      all_of(Indices, [](const auto *V) { return match(V, m_Zero()); }))
+    return Ptr;
+
   // getelementptr poison, idx -> poison
   // getelementptr baseptr, poison -> poison
   if (isa<PoisonValue>(Ptr) ||
@@ -5045,11 +5050,6 @@ static Constant *simplifyFPOp(ArrayRef<Value *> Ops, FastMathFlags FMF,
   return nullptr;
 }
 
-// TODO: Move this out to a header file:
-static inline bool canIgnoreSNaN(fp::ExceptionBehavior EB, FastMathFlags FMF) {
-  return (EB == fp::ebIgnore || FMF.noNaNs());
-}
-
 /// Given operands for an FAdd, see if we can fold the result.  If not, this
 /// returns null.
 static Value *
@@ -5126,17 +5126,21 @@ SimplifyFSubInst(Value *Op0, Value *Op1, FastMathFlags FMF,
   if (Constant *C = simplifyFPOp({Op0, Op1}, FMF, Q, ExBehavior, Rounding))
     return C;
 
-  if (!isDefaultFPEnvironment(ExBehavior, Rounding))
-    return nullptr;
-
   // fsub X, +0 ==> X
-  if (match(Op1, m_PosZeroFP()))
-    return Op0;
+  if (canIgnoreSNaN(ExBehavior, FMF) &&
+      (!canRoundingModeBe(Rounding, RoundingMode::TowardNegative) ||
+       FMF.noSignedZeros()))
+    if (match(Op1, m_PosZeroFP()))
+      return Op0;
 
   // fsub X, -0 ==> X, when we know X is not -0
-  if (match(Op1, m_NegZeroFP()) &&
-      (FMF.noSignedZeros() || CannotBeNegativeZero(Op0, Q.TLI)))
-    return Op0;
+  if (canIgnoreSNaN(ExBehavior, FMF))
+    if (match(Op1, m_NegZeroFP()) &&
+        (FMF.noSignedZeros() || CannotBeNegativeZero(Op0, Q.TLI)))
+      return Op0;
+
+  if (!isDefaultFPEnvironment(ExBehavior, Rounding))
+    return nullptr;
 
   // fsub -0.0, (fsub -0.0, X) ==> X
   // fsub -0.0, (fneg X) ==> X

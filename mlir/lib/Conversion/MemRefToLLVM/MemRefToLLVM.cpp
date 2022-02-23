@@ -18,6 +18,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+#include "llvm/ADT/SmallBitVector.h"
 
 using namespace mlir;
 
@@ -433,7 +434,7 @@ struct LoadStoreOpLowering : public ConvertOpToLLVMPattern<Derived> {
 ///      +---------------------------------+
 ///      |   <code before the AtomicRMWOp> |
 ///      |   <compute initial %loaded>     |
-///      |   br loop(%loaded)              |
+///      |   cf.br loop(%loaded)              |
 ///      +---------------------------------+
 ///             |
 ///  -------|   |
@@ -444,7 +445,7 @@ struct LoadStoreOpLowering : public ConvertOpToLLVMPattern<Derived> {
 ///  |   |   %pair = cmpxchg              |
 ///  |   |   %ok = %pair[0]               |
 ///  |   |   %new = %pair[1]              |
-///  |   |   cond_br %ok, end, loop(%new) |
+///  |   |   cf.cond_br %ok, end, loop(%new) |
 ///  |   +--------------------------------+
 ///  |          |        |
 ///  |-----------        |
@@ -793,8 +794,7 @@ struct MemRefCastOpLowering : public ConvertOpToLLVMPattern<memref::CastOp> {
               .getResult();
       // rank = ConstantOp srcRank
       auto rankVal = rewriter.create<LLVM::ConstantOp>(
-          loc, typeConverter->convertType(rewriter.getIntegerType(64)),
-          rewriter.getI64IntegerAttr(rank));
+          loc, getIndexType(), rewriter.getIndexAttr(rank));
       // undef = UndefOp
       UnrankedMemRefDescriptor memRefDesc =
           UnrankedMemRefDescriptor::undef(rewriter, loc, targetStructType);
@@ -857,12 +857,18 @@ struct MemRefCopyOpLowering : public ConvertOpToLLVMPattern<memref::CopyOp> {
         rewriter.create<LLVM::MulOp>(loc, numElements, sizeInBytes);
 
     Value srcBasePtr = srcDesc.alignedPtr(rewriter, loc);
+    Value srcOffset = srcDesc.offset(rewriter, loc);
+    Value srcPtr = rewriter.create<LLVM::GEPOp>(loc, srcBasePtr.getType(),
+                                                srcBasePtr, srcOffset);
     MemRefDescriptor targetDesc(adaptor.target());
     Value targetBasePtr = targetDesc.alignedPtr(rewriter, loc);
+    Value targetOffset = targetDesc.offset(rewriter, loc);
+    Value targetPtr = rewriter.create<LLVM::GEPOp>(loc, targetBasePtr.getType(),
+                                                   targetBasePtr, targetOffset);
     Value isVolatile = rewriter.create<LLVM::ConstantOp>(
         loc, typeConverter->convertType(rewriter.getI1Type()),
         rewriter.getBoolAttr(false));
-    rewriter.create<LLVM::MemcpyOp>(loc, targetBasePtr, srcBasePtr, totalSize,
+    rewriter.create<LLVM::MemcpyOp>(loc, targetPtr, srcPtr, totalSize,
                                     isVolatile);
     rewriter.eraseOp(op);
 
@@ -914,9 +920,10 @@ struct MemRefCopyOpLowering : public ConvertOpToLLVMPattern<memref::CopyOp> {
     auto sourcePtr = promote(unrankedSource);
     auto targetPtr = promote(unrankedTarget);
 
+    unsigned typeSize =
+        mlir::DataLayout::closest(op).getTypeSize(srcType.getElementType());
     auto elemSize = rewriter.create<LLVM::ConstantOp>(
-        loc, getIndexType(),
-        rewriter.getIndexAttr(srcType.getElementTypeBitWidth() / 8));
+        loc, getIndexType(), rewriter.getIndexAttr(typeSize));
     auto copyFn = LLVM::lookupOrCreateMemRefCopyFn(
         op->getParentOfType<ModuleOp>(), getIndexType(), sourcePtr.getType());
     rewriter.create<LLVM::CallOp>(loc, copyFn,
@@ -932,10 +939,18 @@ struct MemRefCopyOpLowering : public ConvertOpToLLVMPattern<memref::CopyOp> {
     auto srcType = op.source().getType().cast<BaseMemRefType>();
     auto targetType = op.target().getType().cast<BaseMemRefType>();
 
-    if (srcType.hasRank() &&
-        srcType.cast<MemRefType>().getLayout().isIdentity() &&
-        targetType.hasRank() &&
-        targetType.cast<MemRefType>().getLayout().isIdentity())
+    auto isContiguousMemrefType = [](BaseMemRefType type) {
+      auto memrefType = type.dyn_cast<mlir::MemRefType>();
+      // We can use memcpy for memrefs if they have an identity layout or are
+      // contiguous with an arbitrary offset. Ignore empty memrefs, which is a
+      // special case handled by memrefCopy.
+      return memrefType &&
+             (memrefType.getLayout().isIdentity() ||
+              (memrefType.hasStaticShape() && memrefType.getNumElements() > 0 &&
+               isStaticShapeAndContiguousRowMajor(memrefType)));
+    };
+
+    if (isContiguousMemrefType(srcType) && isContiguousMemrefType(targetType))
       return lowerToMemCopyIntrinsic(op, adaptor, rewriter);
 
     return lowerToMemCopyFunctionCall(op, adaptor, rewriter);
@@ -1502,10 +1517,10 @@ struct SubViewOpLowering : public ConvertOpToLLVMPattern<memref::SubViewOp> {
     SmallVector<OpFoldResult> mixedStrides = subViewOp.getMixedStrides();
     assert(mixedSizes.size() == mixedStrides.size() &&
            "expected sizes and strides of equal length");
-    llvm::SmallDenseSet<unsigned> unusedDims = subViewOp.getDroppedDims();
+    llvm::SmallBitVector unusedDims = subViewOp.getDroppedDims();
     for (int i = inferredShapeRank - 1, j = resultShapeRank - 1;
          i >= 0 && j >= 0; --i) {
-      if (unusedDims.contains(i))
+      if (unusedDims.test(i))
         continue;
 
       // `i` may overflow subViewOp.getMixedSizes because of trailing semantics.

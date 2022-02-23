@@ -8,6 +8,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
+// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // ranges::advance(it, n)
 
@@ -55,7 +56,7 @@ constexpr bool test() {
     check<true,  random_access_iterator<int*>>(range, n, range+n);
     check<true,  contiguous_iterator<int*>>(   range, n, range+n);
     check<true,  int*>(                        range, n, range+n);
-    check<true,  output_iterator<int*> >(      range, n, range+n);
+    check<true,  cpp17_output_iterator<int*> >(range, n, range+n);
   }
 
   // Check advancing backward

@@ -30,7 +30,6 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
@@ -63,7 +62,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
-#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -341,8 +339,9 @@ Function *Function::createWithDefaultAttr(FunctionType *Ty,
                                           Module *M) {
   auto *F = new Function(Ty, Linkage, AddrSpace, N, M);
   AttrBuilder B(F->getContext());
-  if (M->getUwtable())
-    B.addAttribute(Attribute::UWTable);
+  UWTableKind UWTable = M->getUwtable();
+  if (UWTable != UWTableKind::None)
+    B.addUWTableAttr(UWTable);
   switch (M->getFramePointer()) {
   case FramePointerKind::None:
     // 0 ("none") is the default.

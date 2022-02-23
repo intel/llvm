@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts, libcpp-has-no-incomplete-ranges
+// UNSUPPORTED: libcpp-no-concepts
+// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 // REQUIRES: stdlib=libc++
 
 // [algorithms.requirements]/2
@@ -100,7 +101,7 @@ int a[10];
 //static_assert(test(std::ranges::max_element, a));
 //static_assert(test(std::ranges::merge, a, a, a));
 //static_assert(test(std::ranges::min, a));
-//static_assert(test(std::ranges::min_element, a));
+static_assert(test(std::ranges::min_element, a));
 //static_assert(test(std::ranges::minmax, a));
 //static_assert(test(std::ranges::minmax_element, a));
 //static_assert(test(std::ranges::mismatch, a, a));
@@ -142,7 +143,7 @@ int a[10];
 //static_assert(test(std::ranges::stable_partition, a, odd));
 //static_assert(test(std::ranges::stable_sort, a));
 //static_assert(test(std::ranges::starts_with, a, a));
-//static_assert(test(std::ranges::swap_ranges, a, a));
+static_assert(test(std::ranges::swap_ranges, a, a));
 //static_assert(test(std::ranges::transform, a, a, triple));
 //static_assert(test(std::ranges::unique, a));
 //static_assert(test(std::ranges::unique_copy, a, a));
@@ -178,8 +179,8 @@ static_assert(test(std::ranges::uninitialized_value_construct_n, a, 10));
 static_assert(test(std::ranges::advance, p, 5));
 static_assert(test(std::ranges::advance, p, 5, a+10));
 static_assert(test(std::ranges::advance, p, a+10));
-//static_assert(test(std::ranges::distance, a));
-//static_assert(test(std::ranges::distance, a, a+10));
+static_assert(test(std::ranges::distance, a));
+static_assert(test(std::ranges::distance, a, a+10));
 static_assert(test(std::ranges::next, a));
 static_assert(test(std::ranges::next, a, 5));
 static_assert(test(std::ranges::next, a, 5, a+10));

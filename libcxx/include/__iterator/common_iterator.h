@@ -10,8 +10,8 @@
 #ifndef _LIBCPP___ITERATOR_COMMON_ITERATOR_H
 #define _LIBCPP___ITERATOR_COMMON_ITERATOR_H
 
+#include <__assert>
 #include <__config>
-#include <__debug>
 #include <__iterator/concepts.h>
 #include <__iterator/incrementable_traits.h>
 #include <__iterator/iter_move.h>
@@ -22,12 +22,12 @@
 #include <variant>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_RANGES)
+#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
 
 template<class _Iter>
 concept __can_use_postfix_proxy =
@@ -148,7 +148,7 @@ public:
       auto __tmp = *this;
       ++*this;
       return __tmp;
-    } else if constexpr (requires (_Iter& __i) { { *__i++ } -> __referenceable; } ||
+    } else if constexpr (requires (_Iter& __i) { { *__i++ } -> __can_reference; } ||
                          !__can_use_postfix_proxy<_Iter>) {
       return _VSTD::__unchecked_get<_Iter>(__hold_)++;
     } else {
@@ -276,7 +276,7 @@ struct iterator_traits<common_iterator<_Iter, _Sent>> {
   using reference = iter_reference_t<_Iter>;
 };
 
-#endif // !defined(_LIBCPP_HAS_NO_RANGES)
+#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS)
 
 _LIBCPP_END_NAMESPACE_STD
 

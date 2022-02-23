@@ -14,8 +14,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "ARMErrataFix.h"
-
-#include "Config.h"
 #include "LinkerScript.h"
 #include "OutputSections.h"
 #include "Relocations.h"
@@ -25,7 +23,6 @@
 #include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Strings.h"
 #include "llvm/Support/Endian.h"
-#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 
 using namespace llvm;
@@ -209,7 +206,7 @@ static bool branchDestInFirstRegion(const InputSection *isec, uint64_t off,
                                     uint32_t instr, const Relocation *r) {
   uint64_t sourceAddr = isec->getVA(0) + off;
   assert((sourceAddr & 0xfff) == 0xffe);
-  uint64_t destAddr = sourceAddr;
+  uint64_t destAddr;
   // If there is a branch relocation at the same offset we must use this to
   // find the destination address as the branch could be indirected via a thunk
   // or the PLT.

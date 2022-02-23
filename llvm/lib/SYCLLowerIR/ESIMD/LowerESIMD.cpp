@@ -23,6 +23,7 @@
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/GenXIntrinsics/GenXIntrinsics.h"
+#include "llvm/GenXIntrinsics/GenXMetadata.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -445,6 +446,9 @@ public:
         {"raw_send2_noresult",
          {"raw.send2.noresult",
           {a(0), a(1), ai1(2), a(3), a(4), a(5), a(6), a(7)}}},
+        {"nbarrier", {"nbarrier", {a(0), a(1), a(2)}}},
+        {"raw_send_nbarrier_signal",
+         {"raw.send.noresult", {a(0), ai1(4), a(1), a(2), a(3)}}},
         {"sat", {"sat", {a(0)}}},
         {"fptoui_sat", {"fptoui.sat", {a(0)}}},
         {"fptosi_sat", {"fptosi.sat", {a(0)}}},
@@ -820,20 +824,21 @@ static void translatePackMask(CallInst &CI) {
   Type *TTy = nullptr;
   APInt Val = parseTemplateArg(FE, 0, TTy, Context);
   unsigned N = Val.getZExtValue();
-
+  Value *Result = CI.getArgOperand(0);
+  assert(Result->getType()->isIntOrIntVectorTy());
+  Value *Zero = ConstantInt::get(Result->getType(), 0);
   IRBuilder<> Builder(&CI);
-  llvm::Value *Trunc = Builder.CreateTrunc(
-      CI.getArgOperand(0),
-      llvm::FixedVectorType::get(llvm::Type::getInt1Ty(Context), N));
-  llvm::Type *Ty = llvm::Type::getIntNTy(Context, N);
+  // TODO CM_COMPAT
+  // In CM non LSB bits in mask elements are ignored, so e.g. '2' is treated as
+  // 'false' there. ESIMD adopts C++ semantics, where any non-zero is 'true'.
+  // For CM this ICmpInst should be replaced with truncation to i1.
+  Result = Builder.CreateICmp(ICmpInst::ICMP_NE, Result, Zero);
+  Result = Builder.CreateBitCast(Result, llvm::Type::getIntNTy(Context, N));
 
-  llvm::Value *BitCast = Builder.CreateBitCast(Trunc, Ty);
-  llvm::Value *Result = BitCast;
   if (N != 32) {
-    Result = Builder.CreateCast(llvm::Instruction::ZExt, BitCast,
+    Result = Builder.CreateCast(llvm::Instruction::ZExt, Result,
                                 llvm::Type::getInt32Ty(Context));
   }
-
   Result->setName(CI.getName());
   cast<llvm::Instruction>(Result)->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(Result);
@@ -882,6 +887,34 @@ static void translateUnPackMask(CallInst &CI) {
   if (llvm::Instruction *TransCInst = dyn_cast<llvm::Instruction>(TransCI))
     TransCInst->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(TransCI);
+}
+
+// This function sets VCNamedBarrierCount attribute to set
+// the number of named barriers required by a kernel
+static void translateNbarrierInit(CallInst &CI) {
+  auto *F = CI.getFunction();
+
+  auto *ArgV = CI.getArgOperand(0);
+  assert(isa<ConstantInt>(ArgV) &&
+         "integral constant expected for nbarrier count");
+
+  auto NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
+  assert(NewVal != 0 && "zero nbarrier count being requested");
+
+  if (llvm::MDNode *Node = getSLMSizeMDNode(F)) {
+    if (llvm::Value *OldCount =
+            getVal(Node->getOperand(genx::KernelMDOp::NBarrierCnt))) {
+      assert(isa<llvm::ConstantInt>(OldCount) && "integer constant expected");
+      llvm::Value *NewCount =
+          llvm::ConstantInt::get(OldCount->getType(), NewVal);
+      uint64_t OldVal = cast<llvm::ConstantInt>(OldCount)->getZExtValue();
+      if (OldVal < NewVal)
+        Node->replaceOperandWith(genx::KernelMDOp::NBarrierCnt,
+                                 getMD(NewCount));
+    }
+  } else {
+    llvm_unreachable("esimd_nbarrier_init can only be called by a kernel");
+  }
 }
 
 static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
@@ -1405,7 +1438,10 @@ void generateKernelMetadata(Module &M) {
         getMD(llvm::ConstantInt::getNullValue(I32Ty)), // SLM size in bytes
         getMD(llvm::ConstantInt::getNullValue(I32Ty)), // arg offsets
         IOKinds,
-        ArgDescs};
+        ArgDescs,
+        getMD(llvm::ConstantInt::getNullValue(I32Ty)), // named barrier count
+        getMD(llvm::ConstantInt::getNullValue(I32Ty))  // regular barrier count
+    };
 
     // Add this kernel to the root.
     Kernels->addOperand(MDNode::get(Ctx, MDArgs));
@@ -1520,9 +1556,14 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
       // TODO FIXME slm_init should be made top-level __esimd_slm_init
-      if (Name.startswith("N2cl4sycl3ext5intel12experimental5esimd8slm_init")) {
+      if (Name.startswith("__esimd_slm_init")) {
         // tag the kernel with meta-data SLMSize, and remove this builtin
         translateSLMInit(*CI);
+        ToErase.push_back(CI);
+        continue;
+      }
+      if (Name.startswith("__esimd_nbarrier_init")) {
+        translateNbarrierInit(*CI);
         ToErase.push_back(CI);
         continue;
       }

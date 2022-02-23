@@ -1527,6 +1527,8 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case Intrinsic::experimental_constrained_trunc:
   case Intrinsic::experimental_constrained_nearbyint:
   case Intrinsic::experimental_constrained_rint:
+  case Intrinsic::experimental_constrained_fcmp:
+  case Intrinsic::experimental_constrained_fcmps:
     return true;
   default:
     return false;
@@ -1798,12 +1800,12 @@ static bool mayFoldConstrained(ConstrainedFPIntrinsic *CI,
 
   // If evaluation raised FP exception, the result can depend on rounding
   // mode. If the latter is unknown, folding is not possible.
-  if (!ORM || *ORM == RoundingMode::Dynamic)
+  if (ORM && *ORM == RoundingMode::Dynamic)
     return false;
 
   // If FP exceptions are ignored, fold the call, even if such exception is
   // raised.
-  if (!EB || *EB != fp::ExceptionBehavior::ebStrict)
+  if (EB && *EB != fp::ExceptionBehavior::ebStrict)
     return true;
 
   // Leave the calculation for runtime so that exception flags be correctly set
@@ -2301,6 +2303,25 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
   return nullptr;
 }
 
+static Constant *evaluateCompare(const ConstrainedFPIntrinsic *Call) {
+  APFloat::opStatus St = APFloat::opOK;
+  auto *FCmp = cast<ConstrainedFPCmpIntrinsic>(Call);
+  FCmpInst::Predicate Cond = FCmp->getPredicate();
+  const APFloat &Op1 = cast<ConstantFP>(FCmp->getOperand(0))->getValueAPF();
+  const APFloat &Op2 = cast<ConstantFP>(FCmp->getOperand(1))->getValueAPF();
+  if (FCmp->isSignaling()) {
+    if (Op1.isNaN() || Op2.isNaN())
+      St = APFloat::opInvalidOp;
+  } else {
+    if (Op1.isSignaling() || Op2.isSignaling())
+      St = APFloat::opInvalidOp;
+  }
+  bool Result = FCmpInst::compare(Op1, Op2, Cond);
+  if (mayFoldConstrained(const_cast<ConstrainedFPCmpIntrinsic *>(FCmp), St))
+    return ConstantInt::get(Call->getType(), Result);
+  return nullptr;
+}
+
 static Constant *ConstantFoldScalarCall2(StringRef Name,
                                          Intrinsic::ID IntrinsicID,
                                          Type *Ty,
@@ -2329,8 +2350,6 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
   }
 
   if (const auto *Op1 = dyn_cast<ConstantFP>(Operands[0])) {
-    if (!Ty->isFloatingPointTy())
-      return nullptr;
     const APFloat &Op1V = Op1->getValueAPF();
 
     if (const auto *Op2 = dyn_cast<ConstantFP>(Operands[1])) {
@@ -2360,6 +2379,9 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
         case Intrinsic::experimental_constrained_frem:
           St = Res.mod(Op2V);
           break;
+        case Intrinsic::experimental_constrained_fcmp:
+        case Intrinsic::experimental_constrained_fcmps:
+          return evaluateCompare(ConstrIntr);
         }
         if (mayFoldConstrained(const_cast<ConstrainedFPIntrinsic *>(ConstrIntr),
                                St))
@@ -2484,6 +2506,11 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
     case Intrinsic::smin:
     case Intrinsic::umax:
     case Intrinsic::umin:
+      // This is the same as for binary ops - poison propagates.
+      // TODO: Poison handling should be consolidated.
+      if (isa<PoisonValue>(Operands[0]) || isa<PoisonValue>(Operands[1]))
+        return PoisonValue::get(Ty);
+
       if (!C0 && !C1)
         return UndefValue::get(Ty);
       if (!C0 || !C1)
@@ -2550,6 +2577,11 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
     }
     case Intrinsic::uadd_sat:
     case Intrinsic::sadd_sat:
+      // This is the same as for binary ops - poison propagates.
+      // TODO: Poison handling should be consolidated.
+      if (isa<PoisonValue>(Operands[0]) || isa<PoisonValue>(Operands[1]))
+        return PoisonValue::get(Ty);
+
       if (!C0 && !C1)
         return UndefValue::get(Ty);
       if (!C0 || !C1)
@@ -2560,6 +2592,11 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
         return ConstantInt::get(Ty, C0->sadd_sat(*C1));
     case Intrinsic::usub_sat:
     case Intrinsic::ssub_sat:
+      // This is the same as for binary ops - poison propagates.
+      // TODO: Poison handling should be consolidated.
+      if (isa<PoisonValue>(Operands[0]) || isa<PoisonValue>(Operands[1]))
+        return PoisonValue::get(Ty);
+
       if (!C0 && !C1)
         return UndefValue::get(Ty);
       if (!C0 || !C1)

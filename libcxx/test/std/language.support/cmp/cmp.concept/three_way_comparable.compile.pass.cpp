@@ -27,10 +27,10 @@ static_assert(std::three_way_comparable<char const*>);
 static_assert(std::three_way_comparable<char volatile*>);
 static_assert(std::three_way_comparable<char const volatile*>);
 static_assert(std::three_way_comparable<wchar_t&>);
-#ifndef _LIBCPP_HAS_NO_CHAR8_T
+#ifndef TEST_HAS_NO_CHAR8_T
 static_assert(std::three_way_comparable<char8_t const&>);
 #endif
-#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
+#ifndef TEST_HAS_NO_UNICODE_CHARS
 static_assert(std::three_way_comparable<char16_t volatile&>);
 static_assert(std::three_way_comparable<char32_t const volatile&>);
 #endif
