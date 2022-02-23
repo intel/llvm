@@ -3209,7 +3209,7 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
   bool RefCountZero = false;
   {
     // Lock automatically releases when this goes out of scope.
-    auto Lock = ((Queue == LockedQueue) ? std::unique_lock<std::shared_mutex>()
+    auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
                                         : std::unique_lock(Queue->Mutex));
 
     Queue->RefCount--;
@@ -4070,7 +4070,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
     // potential if there was some other code that holds more than one of these
     // locks simultaneously with "exclusive" access.  However, there is no such
     // code like that, so this is also not a danger.
-    std::vector<std::shared_lock<std::shared_mutex>> Guards(NumInputPrograms);
+    std::vector<std::shared_lock<pi_shared_mutex>> Guards(NumInputPrograms);
     for (pi_uint32 I = 0; I < NumInputPrograms; I++) {
       std::shared_lock Guard(InputPrograms[I]->Mutex);
       Guards[I].swap(Guard);
@@ -5182,7 +5182,7 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
   // part of the cleanup operations.
   if (Queue) {
     // Lock automatically releases when this goes out of scope.
-    auto Lock = ((Queue == LockedQueue) ? std::unique_lock<std::shared_mutex>()
+    auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
                                         : std::unique_lock(Queue->Mutex));
 
     if (ZeCommandList) {
@@ -5273,7 +5273,7 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
       // scope.
       // TODO: this code needs to be moved out of the guard.
       auto Lock = ((DepEvent->Queue == LockedQueue)
-                       ? std::unique_lock<std::shared_mutex>()
+                       ? std::unique_lock<pi_shared_mutex>()
                        : std::unique_lock(DepEvent->Queue->Mutex));
 
       if (DepEvent->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
@@ -6329,7 +6329,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
       {
         // Lock automatically releases when this goes out of scope.
-        std::scoped_lock lock(Queue->Mutex);
+        std::shared_lock lock(Queue->Mutex);
         TmpLastCommandEvent = Queue->LastCommandEvent;
       }
 

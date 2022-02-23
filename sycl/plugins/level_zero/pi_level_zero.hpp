@@ -199,6 +199,42 @@ template <class T> struct ZeCache : private T {
   }
 };
 
+// A single-threaded app has an opportunity to enable this mode to avoid
+// overhead from mutex locking.
+static const bool SingleThreadMode = [] {
+  return std::getenv("SYCL_PI_SINGLE_THREAD_MODE") != nullptr;
+}();
+
+// Class which acts like shared_mutex if SingleThreadMode variable is not set.
+// If SingleThreadMode variable is set then mutex operations are turned into
+// nop.
+class pi_shared_mutex : public std::shared_mutex {
+public:
+  void lock() {
+    if (!SingleThreadMode)
+      std::shared_mutex::lock();
+  }
+  bool try_lock() {
+    return SingleThreadMode ? true : std::shared_mutex::try_lock();
+  }
+  void unlock() {
+    if (!SingleThreadMode)
+      std::shared_mutex::unlock();
+  }
+
+  void lock_shared() {
+    if (!SingleThreadMode)
+      std::shared_mutex::lock_shared();
+  }
+  bool try_lock_shared() {
+    return SingleThreadMode ? true : std::shared_mutex::try_lock_shared();
+  }
+  void unlock_shared() {
+    if (!SingleThreadMode)
+      std::shared_mutex::unlock_shared();
+  }
+};
+
 // Base class to store common data
 struct _pi_object {
   _pi_object() : RefCount{1} {}
@@ -220,7 +256,7 @@ struct _pi_object {
   // access to Obj3 in a scope use the following approach:
   //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
   //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
-  std::shared_mutex Mutex;
+  pi_shared_mutex Mutex;
 };
 
 // Record for a memory allocation. This structure is used to keep information
