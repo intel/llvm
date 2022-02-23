@@ -207,8 +207,19 @@ struct _pi_object {
   // Must be atomic to prevent data race when incrementing/decrementing.
   std::atomic<pi_uint32> RefCount;
 
-  // Protects accesses to all the non-const member variables.  Exclusive access
-  // is required to modify any of these members.
+  // This mutex protects accesses to all the non-const member variables.
+  // Exclusive access is required to modify any of these members.
+  //
+  // To get shared access to the object in a scope use std::shared_lock:
+  //    std::shared_lock Lock(Obj->Mutex);
+  // To get exclusive access to the object in a scope use std::scoped_lock:
+  //    std::scoped_lock Lock(Obj->Mutex);
+  //
+  // If several pi objects are accessed in a scope then each object's mutex must
+  // be locked. For example, to get write access to Obj1 and Obj2 and read
+  // access to Obj3 in a scope use the following approach:
+  //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
+  //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
   std::shared_mutex Mutex;
 };
 

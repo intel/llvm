@@ -5742,8 +5742,7 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   std::shared_lock SrcLock(Src->Mutex, std::defer_lock);
-  std::unique_lock QueueLock(Queue->Mutex, std::defer_lock);
-  std::scoped_lock LockAll(SrcLock, QueueLock);
+  std::scoped_lock LockAll(SrcLock, Queue->Mutex);
   return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst,
                               BlockingRead, Size,
                               pi_cast<char *>(Src->getZeHandle()) + Offset,
@@ -5762,8 +5761,7 @@ pi_result piEnqueueMemBufferReadRect(
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   std::shared_lock SrcLock(Buffer->Mutex, std::defer_lock);
-  std::unique_lock QueueLock(Queue->Mutex, std::defer_lock);
-  std::scoped_lock LockAll(SrcLock, QueueLock);
+  std::scoped_lock LockAll(SrcLock, Queue->Mutex);
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, Queue, Buffer->getZeHandle(),
       static_cast<char *>(Ptr), BufferOffset, HostOffset, Region,
@@ -5987,9 +5985,7 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   std::shared_lock SrcLock(SrcBuffer->Mutex, std::defer_lock);
-  std::unique_lock DstLock(DstBuffer->Mutex, std::defer_lock);
-  std::unique_lock QueueLock(Queue->Mutex, std::defer_lock);
-  std::scoped_lock LockAll(SrcLock, DstLock, QueueLock);
+  std::scoped_lock LockAll(SrcLock, DstBuffer->Mutex, Queue->Mutex);
 
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
@@ -6016,9 +6012,7 @@ pi_result piEnqueueMemBufferCopyRect(
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   std::shared_lock SrcLock(SrcBuffer->Mutex, std::defer_lock);
-  std::unique_lock DstLock(DstBuffer->Mutex, std::defer_lock);
-  std::unique_lock QueueLock(Queue->Mutex, std::defer_lock);
-  std::scoped_lock LockAll(SrcLock, DstLock, QueueLock);
+  std::scoped_lock LockAll(SrcLock, DstBuffer->Mutex, Queue->Mutex);
 
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
@@ -6600,8 +6594,7 @@ pi_result piEnqueueMemImageRead(pi_queue Queue, pi_mem Image,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   std::shared_lock SrcLock(Image->Mutex, std::defer_lock);
-  std::unique_lock QueueLock(Queue->Mutex, std::defer_lock);
-  std::scoped_lock LockAll(SrcLock, QueueLock);
+  std::scoped_lock LockAll(SrcLock, Queue->Mutex);
   return enqueueMemImageCommandHelper(
       PI_COMMAND_TYPE_IMAGE_READ, Queue,
       Image, // src
@@ -6643,9 +6636,7 @@ piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   std::shared_lock SrcLock(SrcImage->Mutex, std::defer_lock);
-  std::unique_lock DstLock(DstImage->Mutex, std::defer_lock);
-  std::unique_lock QueueLock(Queue->Mutex, std::defer_lock);
-  std::scoped_lock LockAll(SrcLock, DstLock, QueueLock);
+  std::scoped_lock LockAll(SrcLock, DstImage->Mutex, Queue->Mutex);
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
   bool PreferCopyEngine = (SrcImage->OnHost || DstImage->OnHost);
