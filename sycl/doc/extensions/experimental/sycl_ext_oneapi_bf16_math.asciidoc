@@ -1,0 +1,105 @@
+# Bfloat16 math functions Extension for DPC++: = SYCL_ONEAPI_bf16_math
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+:dpcpp: pass:[DPC++]
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+Copyright (c) 2021-2021 Intel Corporation.  All rights reserved.
+
+IMPORTANT: This specification is a draft.
+
+NOTE: The APIs described in this specification are experimental. Future versions of this extension may change these APIs in ways that are incompatible with the versions described here.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This extension is written against the SYCL 2020 revision 4 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+## Contributors
+
+* Jack Kirk
+
+## Introduction
+
+This document proposes extending the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions to support the `bfloat16` type introduced in the `SYCL_EXT_INTEL_BF16_CONVERSION` extension. This proposal assumes that devices which support the `SYCL_EXT_INTEL_BF16_CONVERSION` extension have the `bfloat16` scalar data type: `bfloat16`, and the `bfloat16` vector data types: `bfloat16_1`, `bfloat16_2`, `bfloat16_3`, `bfloat16_4`, `bfloat16_8` and `bfloat16_16` available at compile-time, in line with corresponding `half` types that are available at compile time on devices that
+have `aspect::fp16` as described in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:opencl:extension-fp16. Therefore the `fma`, `fmin`, `fmax` and `fabs` functions should support all of these vector and scalar types which we refer to as `genbfloat16`. Initially this experimental extension may also support the corresponding storage types for each of these `genbfloat16` types, namely `short`, `short3`, `short4`, `short8`, and `short16`.
+The descriptions of the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions can be found in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions. This proposal does not propose any changes to the expected behavior of these math functions beyond the new support for the `genbfloat16` types. A discussion issue has been raised at the bottom of this document on whether the specified maximum precision error should change for these functions for the new types.
+
+## Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro
+SYCL_ONEAPI_BF16_MATH to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro’s value
+to determine which of the extension’s APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension implementation.
+|===
+
+## Motivation
+
+In order to take full advantage of the new matrix extension, https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc, we need to introduce dedicated functions that support the new `bfloat16` data type, which can then be used as element wise operations on matrices.
+
+## New function declarations
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+// genbfloat16 fma (genbfloat16 a, genbfloat16 b, genbfloat16 c)
+template <typename T>
+detail::enable_if_t<detail::is_genbfloat16<T>::value, T> fma(T a, T b,
+                                                          T c);
+
+// genbfloat16 fmax (genbfloat16 x, genbfloat16 y)
+template <typename T>
+detail::enable_if_t<detail::is_genbfloat16<T>::value, T> fmax(T x, T y);
+
+// genbfloat16 fmin (genbfloat16 x, genbfloat16 y)
+template <typename T>
+detail::enable_if_t<detail::is_genbfloat16<T>::value, T> fmin(T x, T y);
+
+// genbfloat16 fabs (genbfloat16 x)
+template <typename T>
+detail::enable_if_t<detail::is_genbfloat16<T>::value, T> fabs(T x);
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+## Issues for future discussion
+
+1. We shold decide if there should be a different specified maximum precision error for these math functions when using the `genbfloat16` types.
+
+2. In the future we will wish to add an additional Fused Multiply Add function which performs RELU saturation. However such a function should also allow operands to be `half` types, and as such may fall outside of the scope of the current extension.
+
+
+## Revision History
+
+[frame="none",options="header"]
+|======================
+|Rev |Date       |Author        |Changes
+|1   |2022-02-23 |Jack Kirk  |Initial working draft.
+|======================
