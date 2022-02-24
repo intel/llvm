@@ -1,0 +1,119 @@
+= SYCL_INTEL_usm_runtime_properties
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
+
+NOTE: This serves as a temporary workaround for usm allocation to accept buffer location properties, and the formal solution may change in the future.
+
+This document propose a new buffer_location runtime property that can be passed to `malloc_device`.
+
+== Name Strings
+
++SYCL_INTEL_runtime_buffer_location+
+
+== Contributors
+Aditi Kumaraswamy, Intel +
+Gregory Lueck, Intel +
+Joe Garvey, Intel +
+Sherry Yuan, Intel +
+Steffen Larsen, Intel
+
+== Notice
+
+Copyright (c) 2020 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Overview
+
+This spec describes the solution of passing runtime buffer location properties to malloc APIs, specifically `malloc_device`.
+
+On targets that provide more than one type of global memory, this provide users the flexibility of choosing which memory the device usm should be allocated to.
+
+This information is not a hint; it is a functional requirement of the program that must be respected.
+
+== Examples
+
+[source,c++]
+----
+array = (int *)malloc_device<int>(
+        N * sizeof(int), q,
+        property_list{property::buffer::detail::buffer_location(2)});
+
+sycl::queue q;
+q.parallel_for(range<1>(N), [=] (id<1> i){
+  data[i] *= 2;
+}).wait();
+----
+
+== Proposal
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification, Section 6.3.3 "Feature test macros". Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_RUNTIME_BUFFER_LOCATION` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features
+that the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version
+|===
+
+=== Changes to runtime properties
+
+To pass the runtime properties into malloc API, a new buffer properties is introduced.
+
+[source,c++]
+----
+namespace sycl {
+namespace property {
+namespace buffer {
+namespace detail {
+class buffer_location
+    : public sycl::detail::PropertyWithData<
+          sycl::detail::PropWithDataKind::AccPropBufferLocation> {
+public:
+  buffer_location(uint64_t Location) : MLocation(Location) {}
+  uint64_t get_buffer_location() const { return MLocation; }
+
+private:
+  uint64_t MLocation;
+};
+} // namespace detail
+} // namespace buffer
+} // namespace property
+} // namespace sycl
+----
+
+== Issues
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-02-24|Sherry Yuan|*Initial public draft*
+|========================================
