@@ -75,6 +75,7 @@ host_accessor ha{acc.get_buffer()};
 
 == Synopsis
 
+----
 template <typename dataT,
           int dimensions = 1,
           access_mode accessMode =
@@ -89,3 +90,4 @@ public:
   buffer<dataT, dimension, AllocatorT> get_buffer() const;
   /* ... */
 };
+----
