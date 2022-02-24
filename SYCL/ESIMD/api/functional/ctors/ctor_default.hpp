@@ -80,6 +80,10 @@ template <typename DataT, typename SizeT, typename TestCaseT> struct run_test {
   static constexpr int NumElems = SizeT::value;
 
   bool operator()(sycl::queue &queue, const std::string &data_type) {
+    if (should_skip_test_with<DataT>(queue.get_device())) {
+      return true;
+    }
+
     bool passed = true;
 
     // We use it to avoid empty functions being optimized out by compiler

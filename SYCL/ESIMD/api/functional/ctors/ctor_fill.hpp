@@ -205,6 +205,10 @@ class run_test {
 
 public:
   bool operator()(sycl::queue &queue, const std::string &data_type) {
+    if (should_skip_test_with<DataT>(queue.get_device())) {
+      return true;
+    }
+
     shared_vector<DataT> result(NumElems, shared_allocator<DataT>(queue));
 
     const auto base_value = get_value<DataT, BaseVal>();

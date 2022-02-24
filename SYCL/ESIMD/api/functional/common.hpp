@@ -55,6 +55,30 @@ using shared_allocator = sycl::usm_allocator<DataT, sycl::usm::alloc::shared>;
 template <typename DataT>
 using shared_vector = std::vector<DataT, shared_allocator<DataT>>;
 
+// Provides verification that provided device has necessary aspects to interact
+// with current data type.
+template <typename T>
+inline bool should_skip_test_with(const sycl::device &device) {
+  if constexpr (std::is_same_v<T, sycl::half>) {
+    if (!device.has(sycl::aspect::fp16)) {
+      log::note(
+          "Device does not support half precision floating point operations");
+      return true;
+    }
+  } else if constexpr (std::is_same_v<T, double>) {
+    if (!device.has(sycl::aspect::fp64)) {
+      log::note(
+          "Device does not support double precision floating point operations");
+      return true;
+    }
+  } else {
+    // Suppress compilation warnings
+    static_cast<void>(device);
+  }
+
+  return false;
+}
+
 // A wrapper to speed-up bitwise comparison
 template <typename T> bool are_bitwise_equal(T lhs, T rhs) {
   // We are safe to compare unsigned integral types using `==` operator.
