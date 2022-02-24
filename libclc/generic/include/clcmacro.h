@@ -51,6 +51,14 @@
     return (RET_TYPE##16)(FUNCTION(x.lo, y.lo), FUNCTION(x.hi, y.hi));         \
   }
 
+#define _CLC_BINARY_VECTORIZE(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE,         \
+                              ARG2_TYPE)                                       \
+  DECLSPEC RET_TYPE##2 FUNCTION(ARG1_TYPE##2 x, ARG2_TYPE##2 y) {              \
+    return (RET_TYPE##2)(FUNCTION(x.x, y.x), FUNCTION(x.y, y.y));              \
+  }                                                                            \
+  _CLC_BINARY_VECTORIZE_HAVE2(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE,         \
+                              ARG2_TYPE)
+
 #define _CLC_V_S_V_VECTORIZE(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE,          \
                              ARG2_TYPE)                                        \
   DECLSPEC RET_TYPE##2 FUNCTION(ARG1_TYPE x, ARG2_TYPE##2 y) {                 \
@@ -104,6 +112,15 @@
     return (RET_TYPE##16)(FUNCTION(x.lo, y.lo, z.lo),                          \
                           FUNCTION(x.hi, y.hi, z.hi));                         \
   }
+
+#define _CLC_TERNARY_VECTORIZE(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE,        \
+                               ARG2_TYPE, ARG3_TYPE)                           \
+  DECLSPEC RET_TYPE##2 FUNCTION(ARG1_TYPE##2 x, ARG2_TYPE##2 y,                \
+                                ARG3_TYPE##2 z) {                              \
+    return (RET_TYPE##2)(FUNCTION(x.x, y.x, z.x), FUNCTION(x.y, y.y, z.y));    \
+  }                                                                            \
+  _CLC_TERNARY_VECTORIZE_HAVE2(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE,        \
+                               ARG2_TYPE, ARG3_TYPE)
 
 #define _CLC_V_S_S_V_VECTORIZE(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE,        \
                                ARG2_TYPE, ARG3_TYPE)                           \
