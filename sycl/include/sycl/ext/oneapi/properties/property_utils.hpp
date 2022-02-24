@@ -101,8 +101,12 @@ template <typename... Ts> struct HeadSplit<std::tuple<Ts...>, false> {
 // Selects the one of two types that is not void. This assumes that at least one
 // of the two template arguemnts is void.
 template <typename LHS, typename RHS> struct SelectNonVoid {};
-template <typename LHS> struct SelectNonVoid<LHS, void> { using type = LHS; };
-template <typename RHS> struct SelectNonVoid<void, RHS> { using type = RHS; };
+template <typename LHS> struct SelectNonVoid<LHS, void> {
+  using type = LHS;
+};
+template <typename RHS> struct SelectNonVoid<void, RHS> {
+  using type = RHS;
+};
 
 // Merges two tuples by recursively extracting the type with the minimum
 // PropertyID in the two tuples and prepending it to the merging of the
@@ -147,7 +151,9 @@ struct CreateTuplePairs<L, R, Rest...> {
 // Merges pairs of tuples and creates new pairs of the merged pairs. Let N be
 // the number of pairs in the supplied tuple, then the resulting tuple will
 // contain ceil(N/2) pairs of tuples.
-template <typename T> struct MergePairs { using type = std::tuple<>; };
+template <typename T> struct MergePairs {
+  using type = std::tuple<>;
+};
 template <typename... LTs, typename... RTs, typename... Rest>
 struct MergePairs<
     std::tuple<std::pair<std::tuple<LTs...>, std::tuple<RTs...>>, Rest...>> {
