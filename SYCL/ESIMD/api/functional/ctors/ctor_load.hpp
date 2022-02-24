@@ -104,12 +104,14 @@ struct vector {
 };
 
 struct overal {
-  template <typename, int> static size_t get_size() {
-    return alignof(std::max_align_t);
-  }
-  static constexpr auto get_value() {
-    return esimd::overaligned<alignof(std::max_align_t)>;
-  }
+  // Use 16 instead of std::max_align_t because of the fact that long double is
+  // not a native type in Intel GPUs. So 16 is not driven by any type, but
+  // rather the "oword alignment" requirement for all block loads. In that
+  // sense, std::max_align_t would give wrong idea.
+  static constexpr int oword_align = 16;
+  template <typename, int> static size_t get_size() { return oword_align; }
+
+  static constexpr auto get_value() { return esimd::overaligned<oword_align>; }
 };
 
 } // namespace alignment
