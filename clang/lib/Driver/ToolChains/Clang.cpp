@@ -4664,13 +4664,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   assert(Inputs.size() >= 1 && "Must have at least one input.");
   // CUDA/HIP compilation may have multiple inputs (source file + results of
-  // device-side compilations).
-  // OpenMP device jobs take the host IR as a second input.
+  // device-side compilations). OpenMP device jobs also take the host IR as a
+  // second input. Module precompilation accepts a list of header files to
+  // include as part of the module. All other jobs are expected to have exactly
+  // one input.
   // SYCL host jobs accept the integration header from the device-side
   // compilation as a second input.
-  // Module precompilation accepts a list of header files to include as part
-  // of the module.
-  // All other jobs are expected to have exactly one input.
   bool IsCuda = JA.isOffloading(Action::OFK_Cuda);
   bool IsCudaDevice = JA.isDeviceOffloading(Action::OFK_Cuda);
   bool IsHIP = JA.isOffloading(Action::OFK_HIP);
@@ -4680,9 +4679,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsSYCL = JA.isOffloading(Action::OFK_SYCL);
   bool IsOpenMPHost = JA.isHostOffloading(Action::OFK_OpenMP);
   bool IsHeaderModulePrecompile = isa<HeaderModulePrecompileJobAction>(JA);
-  assert((IsCuda || IsHIP || (IsOpenMPDevice && Inputs.size() == 2) || IsSYCL ||
-          IsHeaderModulePrecompile || Inputs.size() == 1) &&
-         "Unable to handle multiple inputs.");
+  bool IsDeviceOffloadAction = !(JA.isDeviceOffloading(Action::OFK_None) ||
+                                 JA.isDeviceOffloading(Action::OFK_Host));
+  bool IsUsingLTO = D.isUsingLTO(IsDeviceOffloadAction);
+  auto LTOMode = D.getLTOMode(IsDeviceOffloadAction);
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
@@ -4691,10 +4691,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     ConstructHostCompilerJob(C, JA, Output, Inputs, Args);
     return;
   }
-  bool IsDeviceOffloadAction = !(JA.isDeviceOffloading(Action::OFK_None) ||
-                                 JA.isDeviceOffloading(Action::OFK_Host));
-  bool IsUsingLTO = D.isUsingLTO(IsDeviceOffloadAction);
-  auto LTOMode = D.getLTOMode(IsDeviceOffloadAction);
 
   // A header module compilation doesn't have a main input file, so invent a
   // fake one as a placeholder.
