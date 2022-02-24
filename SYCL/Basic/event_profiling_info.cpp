@@ -12,6 +12,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+// Flaky with CUDA
+// UNSUPPORTED: cuda
+
 #include <CL/sycl.hpp>
 #include <cassert>
 
