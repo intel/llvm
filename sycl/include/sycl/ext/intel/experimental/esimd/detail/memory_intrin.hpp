@@ -230,8 +230,7 @@ __esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind, uint32_t offset)
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
+    I->sycl_get_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
 
     std::unique_lock<std::mutex> lock(*mutexLock);
 
@@ -275,8 +274,7 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &writeBase, &width,
-                                           &mutexLock);
+    I->sycl_get_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
 
     std::unique_lock<std::mutex> lock(*mutexLock);
 
@@ -448,8 +446,7 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &writeBase, &width,
-                                           &mutexLock);
+    I->sycl_get_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
     writeBase += global_offset;
 
     std::unique_lock<std::mutex> lock(*mutexLock);
@@ -593,8 +590,7 @@ __esimd_gather_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
+    I->sycl_get_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
     readBase += global_offset;
 
     std::unique_lock<std::mutex> lock(*mutexLock);
@@ -665,8 +661,7 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
+    I->sycl_get_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
 
     readBase += global_offset;
     std::unique_lock<std::mutex> lock(*mutexLock);
@@ -714,8 +709,7 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
+    I->sycl_get_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
 
     std::unique_lock<std::mutex> lock(*mutexLock);
 
@@ -754,8 +748,7 @@ __esimd_gather4_scaled(__SEIEED::simd_mask_storage_t<N> pred,
   } else {
     uint32_t width;
     std::mutex *mutexLock;
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &ReadBase, &width,
-                                           &mutexLock);
+    I->sycl_get_buffer_params_ptr(surf_ind, &ReadBase, &width, &mutexLock);
     std::unique_lock<std::mutex> lock(*mutexLock);
   }
 
@@ -798,8 +791,7 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
   } else {
     uint32_t width;
     std::mutex *mutexLock;
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &WriteBase, &width,
-                                           &mutexLock);
+    I->sycl_get_buffer_params_ptr(surf_ind, &WriteBase, &width, &mutexLock);
     std::unique_lock<std::mutex> lock(*mutexLock);
   }
 
@@ -915,7 +907,7 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
   assert((handle != __SEIEE::detail::SLM_BTI) &&
          "__esimd_media_ld cannot access SLM");
 
-  sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_image_params_index_ptr(
+  sycl::detail::getESIMDDeviceInterface()->sycl_get_image_params_ptr(
       handle, &readBase, &imgWidth, &imgHeight, &bpp, &mutexLock);
 
   std::unique_lock<std::mutex> lock(*mutexLock);
@@ -1045,8 +1037,8 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
   assert((handle != __SEIEE::detail::SLM_BTI) &&
          "__esimd_media_ld cannot access SLM");
 
-  I->sycl_get_cm_image_params_index_ptr(handle, &writeBase, &imgWidth,
-                                        &imgHeight, &bpp, &mutexLock);
+  I->sycl_get_image_params_ptr(handle, &writeBase, &imgWidth, &imgHeight, &bpp,
+                               &mutexLock);
 
   int x_pos_a, y_pos_a, offset;
 
@@ -1118,7 +1110,7 @@ __ESIMD_INTRIN __SEIEE::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  return sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_surface_index_ptr(
+  return sycl::detail::getESIMDDeviceInterface()->sycl_get_surface_index_ptr(
       __SEIEED::AccessorPrivateProxy::getPtr(obj));
 }
 #endif // __SYCL_DEVICE_ONLY__
