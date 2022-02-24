@@ -440,7 +440,7 @@ public:
   SYCLIntegrationFooter(Sema &S) : S(S) {}
   bool emit(StringRef MainSrc);
   void addVarDecl(const VarDecl *VD);
-  bool metSYCLDeviceGlobals() { return DeviceGlobalsEmitted; }
+  bool isDeviceGlobalsEmitted() { return DeviceGlobalsEmitted; }
 
 private:
   bool emit(raw_ostream &O);

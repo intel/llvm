@@ -4684,14 +4684,14 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // whose sole purpose is to run its constructor before the application's
   // main() function.
 
-  if (S.getSyclIntegrationFooter().metSYCLDeviceGlobals()) {
+  if (S.getSyclIntegrationFooter().isDeviceGlobalsEmitted()) {
     O << "namespace {\n";
 
     O << "class __sycl_device_global_registration {\n";
     O << "public:\n";
     O << "  __sycl_device_global_registration() noexcept;\n";
     O << "};\n";
-    O << "__sycl_device_global_registration __sycl_device_global_registerer;\n";
+    O << "__sycl_device_global_registration __sycl_device_global_registrar;\n";
 
     O << "} // namespace\n";
 
@@ -4971,7 +4971,7 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
       [](raw_ostream &OS, const NamespaceDecl *NS) {}, OS, DC);
 }
 
-static std::string EmitSpecIdShim(raw_ostream &OS, unsigned &ShimCounter,
+static std::string EmitShim(raw_ostream &OS, unsigned &ShimCounter,
                                   const std::string &LastShim,
                                   const NamespaceDecl *AnonNS) {
   std::string NewShimName =
@@ -4991,7 +4991,7 @@ static std::string EmitSpecIdShim(raw_ostream &OS, unsigned &ShimCounter,
 }
 
 // Emit the list of shims required for a DeclContext, calls itself recursively.
-static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
+static void EmitShims(raw_ostream &OS, unsigned &ShimCounter,
                             const DeclContext *DC,
                             std::string &NameForLastShim) {
   if (DC->isTranslationUnit()) {
@@ -5007,7 +5007,7 @@ static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
   } else if (const auto *ND = dyn_cast<NamespaceDecl>(CurDecl)) {
     if (ND->isAnonymousNamespace()) {
       // Print current shim, reset 'name for last shim'.
-      NameForLastShim = EmitSpecIdShim(OS, ShimCounter, NameForLastShim, ND);
+      NameForLastShim = EmitShim(OS, ShimCounter, NameForLastShim, ND);
     } else {
       NameForLastShim = ND->getNameAsString() + "::" + NameForLastShim;
     }
@@ -5021,13 +5021,13 @@ static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
            "Unhandled decl type");
   }
 
-  EmitSpecIdShims(OS, ShimCounter, CurDecl->getDeclContext(), NameForLastShim);
+  EmitShims(OS, ShimCounter, CurDecl->getDeclContext(), NameForLastShim);
 }
 
 // Emit the list of shims required for a variable declaration.
 // Returns a string containing the FQN of the 'top most' shim, including its
 // function call parameters.
-static std::string EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
+static std::string EmitShims(raw_ostream &OS, unsigned &ShimCounter,
                                    PrintingPolicy &Policy, const VarDecl *VD) {
   if (!VD->isInAnonymousNamespace())
     return "";
@@ -5036,7 +5036,7 @@ static std::string EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
   VD->getNameForDiagnostic(stream, Policy, false);
   stream.flush();
 
-  EmitSpecIdShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
+  EmitShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
   return RelativeName;
 }
 
@@ -5074,7 +5074,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
 
     Visited.insert(VD);
-    std::string TopShim = EmitSpecIdShims(OS, ShimCounter, Policy, VD);
+    std::string TopShim = EmitShims(OS, ShimCounter, Policy, VD);
     if (Util::isSyclDeviceGlobalType(VD->getType())) {
       DeviceGlobalsEmitted = true;
       DeviceGlobOS << "device_global_map::add(";

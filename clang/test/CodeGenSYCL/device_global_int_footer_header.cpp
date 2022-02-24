@@ -2,11 +2,11 @@
 // RUN: FileCheck -input-file=%t.footer.h %s --check-prefix=CHECK-FOOTER
 // RUN: FileCheck -input-file=%t.header.h %s --check-prefix=CHECK-HEADER
 
-// Try and compile all this stuff.
+// Try and compile generated integration header and footer on host.
 // RUN: %clang_cc1 -fsycl-is-host -x c++ -std=c++17 -internal-isystem %S/Inputs -fsyntax-only -include %t.header.h -include %s %t.footer.h
 
 // This test checks that integration header and footer are emitted correctly
-// for device_global variables. It also checks that emitted costructs
+// for device_global variables. It also checks that emitted constructs
 // are syntactically correct.
 
 #include "sycl.hpp"
@@ -25,7 +25,7 @@ int main() {
 // CHECK-HEADER-NEXT: public:
 // CHECK-HEADER-NEXT:   __sycl_device_global_registration() noexcept;
 // CHECK-HEADER-NEXT: };
-// CHECK-HEADER-NEXT: __sycl_device_global_registration __sycl_device_global_registerer;
+// CHECK-HEADER-NEXT: __sycl_device_global_registration __sycl_device_global_registrar;
 // CHECK-HEADER-NEXT: } // namespace
 // CHECK-HEADER: } // namespace detail
 // CHECK-HEADER: } // namespace sycl

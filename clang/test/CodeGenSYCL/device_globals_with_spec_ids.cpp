@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -std=c++17 -internal-isystem %S/Inputs -triple spir64-unknown-unknown -fsycl-int-footer=%t.footer.h -fsycl-int-header=%t.header.h %s -emit-llvm -o %t.ll
 // RUN: FileCheck -input-file=%t.footer.h %s
 
-// Try and compile all this stuff.
+// Try and compile generated integration header and footer on host.
 // RUN: %clang_cc1 -fsycl-is-host -x c++ -std=c++17 -internal-isystem %S/Inputs -fsyntax-only -include %t.header.h -include %s %t.footer.h
 
 // This test checks that integration footer is emitted correctly if both
