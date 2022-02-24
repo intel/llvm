@@ -79,6 +79,7 @@ namespace sycl::ext::oneapi::experimental {
 ----
 
 _Preconditions_: `binary_op` must be an instance of a SYCL function object.
+`init` and `binary_op` must be the same for all work-items in the group.
 
 1._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
 `T` is a fundamental type, `BinaryOperation` is a SYCL function object type and
@@ -117,6 +118,7 @@ namespace sycl::ext::oneapi::experimental {
 ----
 
 _Preconditions_: `binary_op` must be an instance of a SYCL function object.
+`init` and `binary_op` must be the same for all work-items in the group.
 
 1._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
 `T` is a fundamental type, `BinaryOperation` is a SYCL function object type,
@@ -163,7 +165,8 @@ namespace sycl::ext::oneapi::experimental {
 }
 ----
 
-_Preconditions_: `binary_op` must be an instance of a SYCL function object.
+_Preconditions_: `binary_op` must be an instance of a SYCL function object
+and must be the same for all work-items in the group.
 
 1._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
 `T` is a fundamental type, `BinaryOperation` is a SYCL function object type,
@@ -445,16 +448,14 @@ If other `scope` values are passed, behavior is unspecified.
 
 === SYCL Properties for Interfaces with Static Private Arrays
 
-Consider the `sort_over_group` function (following can be applied for
-`exclusive_scan_over_group` and `inclusive_scan_over_group` as well).
+Group algorithms using the static array interface are performed across
+`N * ItemsPerWorkItem` elements in the group, where `N` is the work-group size and
+`ItemsPerWorkItem` is the number of elements that are processed by one work-item.
 
-Let `N` is a work-group size, `ItemsPerWorkItem` is a number of elements
-that are processed by one work-item.
-
-Sorting is performed across `N * ItemsPerWorkItem` elements in the group.
+When a work-item contributes multiple values to a group algorithm,
+there are multiple ways to interpret the order of that data.
 Let `r` is a virtual range for sorting of `N * ItemsPerWorkItem` elements.
-Placing of the result data to `ItemsPerWorkItem` elements per each work-item
-could be done in 2 layouts:
+The extension supports two layouts:
 
 a) Data from the `[r + id * ItemsPerWorkItem; r + (id + 1) * ItemsPerWorkItem)` virtual range
 placed into the private memory under the span for `id`-th work-item.
@@ -517,7 +518,7 @@ Consider 2 layouts:
 
 == Examples
 
-1.Using the key-value version of `sort_over_group` and `radix_sorter`
+Use the key-value version of `sort_over_group` and `radix_sorter`
 
 [source,c++]
 ----
