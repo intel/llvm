@@ -7,7 +7,7 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are tradema
 
 NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
 
-This document describes an extension that adds a compile-time-constant property to tell the SYCL device compiler and runtime in which memory a particular accessor should be allocated.  This is useful on targets that possess more than one type of global memory.  
+This document describes an extension that adds a compile-time-constant property to tell the SYCL device compiler and runtime in which memory a particular accessor or usm allocation should be allocated.  This is useful on targets that possess more than one type of global memory.  
 
 == Name Strings
 
@@ -45,7 +45,7 @@ The use of this extension requires a target that supports SPV_INTEL_fpga_buffer_
 == Overview
 
 On targets that provide more than one type of global memory, knowing that a particular pointer can only access one of those memory types at compile time can enable compiler optimizations.  
-This extension adds an accessor property to indicate to the runtime in which of these memories the buffer corresponding to this accessor should be allocated and to inform the compiler that all accesses made through that accessor can only ever interact with the given memory.
+This extension adds an accessor property to indicate to the runtime in which of these memories the buffer corresponding to this accessor should be allocated and to inform the compiler that all accesses made through that accessor can only ever interact with the given memory or it can be used to inform the usm alocation to allocate on a given memory.
 This information is not a hint; it is a functional requirement of the program that must be respected.
 
 == Modifications to the SYCL 2020 Pre-Provisional Specification
