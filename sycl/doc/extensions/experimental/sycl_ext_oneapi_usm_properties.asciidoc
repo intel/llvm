@@ -1,0 +1,171 @@
+= sycl_ext_oneapi_usm_properties
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This extension introduces an alternative way to pass properties into usm malloc. This accepts both runtime and compile-time-constant properties.
+
+`malloc_device`, `malloc_host`, `malloc_shared` take the property list and pass runtime properties onto runtime libraries.
+
+The properties will be used by the runtime for allocation of the memory.
+
+== Notice
+
+Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a proposed extension specification, intended to gather community
+feedback. Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state. The specification itself may also change in
+incompatible ways before it is finalized. Shipping software products should not
+rely on APIs defined in this specification.
+
+== Version
+
+Revision: 1
+
+== Contributors
+
+Abhishek Tiwari, Intel +
+Aditi Kumaraswamy, Intel +
+Gregory Lueck, Intel +
+Jason Sewall, Intel +
+Jessica Davies, Intel +
+Joe Garvey, Intel +
+Mike Kinsner, Intel +
+Sherry Yuan, Intel +
+Steffen Larsen, Intel
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 4 and the following extensions:
+
+- link:sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+
+=== Examples
+
+The properties can be used in the usm allocation as follows:
+
+[source,c++]
+----
+
+using namespace sycl::ext::oneapi;
+
+sycl::ext::oneapi::experimental::properties properties{sycl::ext::intel::buffer_location<1>};
+
+int* data = malloc_device<int>(N, q, properties);
+
+sycl::queue q;
+q.parallel_for(range<1>(N), [=] (id<1> i){
+  data[i] *= 2;
+}).wait();
+----
+
+`data` is device allocations allocated on the second device global memory (as indicated by buffer_location 1).
+`buffer_location` property is defined as a part of `SYCL_INTEL_buffer_location` extension.
+
+== Proposal
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification, Section 6.3.3 "Feature test macros". Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_USM_PROPERTIES` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features
+that the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version
+|===
+
+
+=== New usm allocation overloads
+
+[source,c++]
+----
+namespace sycl {
+
+template <typename T>
+T *malloc_device(
+    size_t Count, const queue &Q, const sycl::ext::oneapi::experimental::properties &PropList = {},
+    const detail::code_location CodeLoc = detail::code_location::current()) {
+  return malloc_device<T>(Count, Q.get_device(), Q.get_context(), PropList, CodeLoc);
+}
+
+template <typename T>
+T *malloc_shared(
+    size_t Count, const queue &Q, const sycl::ext::oneapi::experimental::properties &PropList = {},
+    const detail::code_location CodeLoc = detail::code_location::current()) {
+  ...
+}
+
+template <typename T>
+T *malloc_host(
+    size_t Count, const context &Ctxt, const sycl::ext::oneapi::experimental::properties &PropList = {},
+    const detail::code_location CodeLoc = detail::code_location::current()) {
+  ...
+}
+
+} // namespace sycl
+----
+
+The same setup is applied to other variant of the function signatures.
+
+Compile time properties can be pass into runtime properties within the allocation function.
+
+The table below describes the effects of associating each properties
+with each malloc function.
+
+|===
+|Property|Description
+
+|`buffer_location`
+|The `buffer_location` property adds the requirement that the memory must be
+ allocated to the correct device global memory location as defined in `SYCL_INTEL_buffer_location` extension. 
+ With `malloc_device` the returned device pointer must be in the target global memory.
+ with `malloc_shared`, memories must be implicitly migrate to the target device global memory.
+ with `malloc_host`, memory must be at the target device global memory when explicitly migrated.
+
+|===
+
+SYCL implementations may introduce additional properties. If any
+combinations of properties are invalid, this must be clearly documented
+as part of the new usm_property_list definition.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-02-21|Sherry Yuan|*Initial public working draft*
+|========================================
