@@ -243,7 +243,7 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
   // commands. Cleanup will make sure the commands do not own the resources
   // anymore, so we just need them to survive the graph lock then they can die
   // as they go out of scope.
-  std::vector<std::shared_ptr<const void>> ReduResourcesToDeallocate;
+  std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
   {
     // Avoiding deadlock situation, where one thread is in the process of
     // enqueueing (with a locked mutex) a currently blocked task that waits for
@@ -255,7 +255,7 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
       // thread
       if (FinishedCmd)
         MGraphBuilder.cleanupFinishedCommands(FinishedCmd, StreamsToDeallocate,
-                                              ReduResourcesToDeallocate);
+                                              AuxResourcesToDeallocate);
     }
   }
   deallocateStreams(StreamsToDeallocate);
@@ -271,7 +271,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   // commands. Cleanup will make sure the commands do not own the resources
   // anymore, so we just need them to survive the graph lock then they can die
   // as they go out of scope.
-  std::vector<std::shared_ptr<const void>> ReduResourcesToDeallocate;
+  std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
 
   {
     MemObjRecord *Record = nullptr;
@@ -294,7 +294,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
       acquireWriteLock(Lock);
       MGraphBuilder.decrementLeafCountersForRecord(Record);
       MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
-                                             ReduResourcesToDeallocate);
+                                             AuxResourcesToDeallocate);
       MGraphBuilder.removeRecordForMemObj(MemObj);
     }
   }

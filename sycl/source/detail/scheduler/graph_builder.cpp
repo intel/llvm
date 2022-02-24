@@ -1046,7 +1046,7 @@ void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
 void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     MemObjRecord *Record,
     std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
-    std::vector<std::shared_ptr<const void>> &ReduResourcesToDeallocate) {
+    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
   std::vector<AllocaCommandBase *> &AllocaCommands = Record->MAllocaCommands;
   if (AllocaCommands.empty())
     return;
@@ -1106,12 +1106,12 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
                                  Streams.end());
 
       // Transfer ownership of auxiliary resources.
-      std::vector<std::shared_ptr<const void>> ReduResources =
+      std::vector<std::shared_ptr<const void>> AuxResources =
           ExecCmd->getAuxiliaryResources();
       ExecCmd->clearAuxiliaryResources();
-      ReduResourcesToDeallocate.insert(ReduResourcesToDeallocate.end(),
-                                       ReduResources.begin(),
-                                       ReduResources.end());
+      AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
+                                       AuxResources.begin(),
+                                       AuxResources.end());
     }
 
     for (Command *UserCmd : Cmd->MUsers)
@@ -1204,7 +1204,7 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
 void Scheduler::GraphBuilder::cleanupFinishedCommands(
     Command *FinishedCmd,
     std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
-    std::vector<std::shared_ptr<const void>> &ReduResourcesToDeallocate) {
+    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
   assert(MCmdsToVisit.empty());
   MCmdsToVisit.push(FinishedCmd);
   MVisitedCmds.clear();
@@ -1228,12 +1228,12 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
                                  Streams.end());
 
       // Transfer ownership of auxiliary resources.
-      std::vector<std::shared_ptr<const void>> ReduResources =
+      std::vector<std::shared_ptr<const void>> AuxResources =
           ExecCmd->getAuxiliaryResources();
       ExecCmd->clearAuxiliaryResources();
-      ReduResourcesToDeallocate.insert(ReduResourcesToDeallocate.end(),
-                                       ReduResources.begin(),
-                                       ReduResources.end());
+      AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
+                                       AuxResources.begin(),
+                                       AuxResources.end());
     }
 
     for (const DepDesc &Dep : Cmd->MDeps) {
