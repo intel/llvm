@@ -312,7 +312,8 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
-  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003
+  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003,
+  PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION = CL_MEM_ALLOC_BUFFER_LOCATION_INTEL
 } _pi_device_info;
 
 typedef enum {
@@ -589,8 +590,6 @@ constexpr pi_map_flags PI_MAP_WRITE_INVALIDATE_REGION =
 // make the translation to OpenCL transparent.
 using pi_mem_properties = pi_bitfield;
 constexpr pi_mem_properties PI_MEM_PROPERTIES_CHANNEL = CL_MEM_CHANNEL_INTEL;
-constexpr pi_mem_properties PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION =
-    CL_MEM_ALLOC_BUFFER_LOCATION_INTEL;
 
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
