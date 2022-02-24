@@ -64,7 +64,6 @@ Note that all device selectors will throw an exception if the filtered list of d
 | `SYCL_ENABLE_PCI` | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 0. |
 | `SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR` | Any(\*) | Disable USM allocator in Level Zero plugin (each memory request will go directly to Level Zero runtime) |
 | `SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY` | Any(\*) | Enable support of the kernels with indirect access and corresponding deferred release of memory allocations in the Level Zero plugin. |
-| `SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE` | Any(\*) | A single-threaded app has an opportunity to enable this mode to avoid overhead from mutex locking in the Level Zero plugin. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
@@ -140,6 +139,7 @@ variables in production code.</span>
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
+| `SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE` | Integer | A single-threaded app has an opportunity to enable this mode to avoid overhead from mutex locking in the Level Zero plugin. A value greater than 0 enables single thread mode. A value of 0 disables single thread mode. The default is 0. |
 | `SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE` | Positive integer | Maximum number of oneAPI Level Zero Command lists that can be allocated with no reuse before throwing an "out of resources" error. Default is 20000, threshold may be increased based on resource availabilty and workload demand. |
 | `SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR` | EnableBuffers, MaxPoolSize [, MemType, MaxPoolableSize, Capacity, SlabMinSize]... | EnableBuffers enables pooling for SYCL buffers, default false. MaxPoolSize is the maximum size of the pool, default 0. MemType is host, device or shared. Other parameters are values specified as positive integers with optional K, M or G suffix. MaxPoolableSize is the maximum allocation size that may be pooled, default 0 for host and shared, 32KB for device. Capacity is the number of allocations in each size range freed by the program but retained in the pool for reallocation, default 0. Size ranges follow this pattern: 64, 96, 128, 192, and so on, i.e., powers of 2, with one range in between. SlabMinSize is the minimum allocation size, 64KB for host and device, 2MB for shared. |
 | `SYCL_PI_LEVEL_ZERO_BATCH_SIZE` | Integer | Sets a preferred number of compute commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. |

@@ -200,9 +200,12 @@ template <class T> struct ZeCache : private T {
 };
 
 // A single-threaded app has an opportunity to enable this mode to avoid
-// overhead from mutex locking.
+// overhead from mutex locking. Default value is 0 which means that single
+// thread mode is disabled.
 static const bool SingleThreadMode = [] {
-  return std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE") != nullptr;
+  const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE");
+  const bool RetVal = Ret ? std::stoi(Ret) : 0;
+  return RetVal;
 }();
 
 // Class which acts like shared_mutex if SingleThreadMode variable is not set.
