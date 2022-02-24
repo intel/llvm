@@ -147,22 +147,10 @@ cl_int clEnqueueWriteGlobalVariableINTEL(
   _program_ must define a global variable identified by _name_.
 
 * _name_ identifies the global variable to read or write.  Must be non-NULL.
-  The interpretation depends on how _program_ was created:
-
-** If _program_ was created with *clCreateProgramWithIL* from SPIR-V, there are
-   two cases:
-
-*** If the SPIR-V module declares the *GlobalVariableDecorationsINTEL*
-    capability, the implementation looks first for an *OpVariable* that is
-    decorated with *HostAccessINTEL* where the _Name_ operand is the same as
-    _name_.
-
-*** The implementation next looks for an *OpVariable* that is decorated with
-    *LinkageAttributes* where the _Linkage Type_ is *Export* and the _Name_
-    operand is the same as _name_.
-
-** If _program_ was created in any other way, the interpretation of
-   _name_ is implementation-defined.
+  The interpretation depends on how _program_ was created, so see the
+  appropriate environment specification for details.  (For example, if
+  _program_ was created from SPIR-V, see the OpenCL SPIR-V Environment
+  Specification.)
 
 * _blocking_read_ and _blocking_write_ indicate if the read and write
   operations are _blocking_ or _non-blocking_ (see below).
@@ -290,6 +278,29 @@ Add two new rows to Table 37, *List of supported event command types*:
 |*clEnqueueWriteGlobalVariableINTEL*
 |`CL_COMMAND_WRITE_GLOBAL_VARIABLE_INTEL`
 |===
+
+
+== Modifications to the OpenCL SPIR-V Environment Specification
+
+=== New Section "Global Variables"
+
+Add a new subsection under section 2, *Common Properties* named *Global
+Variables* with the following content:
+
+Host code may read or write the content of a global variable in a `cl_program`
+by calling *clEnqueueReadGlobalVariableINTEL* or
+*clEnqueueWriteGlobalVariableINTEL*.  Those two functions both take a _name_
+parameter which identifies the variable.  This parameter is interpreted as
+follows:
+
+* If the SPIR-V module used to create _program_ declares the
+  *GlobalVariableDecorationsINTEL* capability, the implementation looks first
+  for an *OpVariable* that is decorated with *HostAccessINTEL* where the _Name_
+  operand is the same as _name_.
+
+* The implementation next looks for an *OpVariable* that is decorated with
+  *LinkageAttributes* where the _Linkage Type_ is *Export* and the _Name_
+  operand is the same as _name_.
 
 
 == Issues
