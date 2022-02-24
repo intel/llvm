@@ -45,7 +45,7 @@ The use of this extension requires a target that supports SPV_INTEL_fpga_buffer_
 == Overview
 
 On targets that provide more than one type of global memory, knowing that a particular pointer can only access one of those memory types at compile time can enable compiler optimizations.  
-This extension adds an accessor property to indicate to the runtime in which of these memories the buffer corresponding to this accessor should be allocated and to inform the compiler that all accesses made through that accessor can only ever interact with the given memory or it can be used to inform the usm alocation to allocate on a given memory.
+This extension adds an accessor property to indicate to the runtime in which of these memories the buffer corresponding to this accessor should be allocated and to inform the compiler that all accesses made through that accessor can only ever interact with the given memory or it can be used to inform the usm alocation (`malloc_device`, `malloc_shared`, `malloc_host`) to allocate on a given memory.
 This information is not a hint; it is a functional requirement of the program that must be respected.
 
 == Modifications to the SYCL 2020 Pre-Provisional Specification
