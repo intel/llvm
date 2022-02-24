@@ -20,8 +20,8 @@
 //     class, e.g. for a property `foo`, there should be a definition
 //     `inline constexpr foo_key::value_t foo`.
 //  4. Specialize `sycl::ext::oneapi::experimental::is_property_key` and
-//     `sycl::ext::oneapi::experimental::is_property_key_of` for the property key
-//     class.
+//     `sycl::ext::oneapi::experimental::is_property_key_of` for the property
+//     key class.
 //  5. Specialize `sycl::ext::oneapi::experimental::detail::PropertyToKind` for
 //     the new property key class. The specialization should have a `Kind`
 //     member with the value equal to the enumerator added in 1.
@@ -78,7 +78,8 @@ template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
 //  4. Overload the `==` and `!=` operators for the new property class. The
 //     comparison should compare all data members of the property class.
 //  5. Specialize `sycl::ext::oneapi::experimental::is_property_key` and
-//     `sycl::ext::oneapi::experimental::is_property_key_of` for the property class.
+//     `sycl::ext::oneapi::experimental::is_property_key_of` for the property
+//     class.
 //  6. Specialize `sycl::ext::oneapi::detail::PropertyToKind` for the new
 //     property class. The specialization should have a `Kind` member with the
 //     value equal to the enumerator added in 1.
