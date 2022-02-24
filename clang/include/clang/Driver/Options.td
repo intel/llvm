@@ -4728,7 +4728,7 @@ def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<s
   "are libc, libm-fp32, libm-fp64, all">;
 defm nvvm_cuda_approx_tanh : BoolFOption<"sycl-cuda-approx-tanh",
   TargetOpts<"NVVMCudaApproxTanhf">, DefaultFalse,
-  PosFlag<SetTrue, [CC1Option], "Use the built-in fast approximation of tanh function. Device needs to have a compute capability >= 8.0">,
+  PosFlag<SetTrue, [CC1Option], "Use the built-in fast approximation of tanh function for devices having c.c.>=7.5">,
   NegFlag<SetFalse>>;
 //===----------------------------------------------------------------------===//
 // FLangOption + CoreOption + NoXarchOption
