@@ -4972,8 +4972,8 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
 }
 
 static std::string EmitShim(raw_ostream &OS, unsigned &ShimCounter,
-                                  const std::string &LastShim,
-                                  const NamespaceDecl *AnonNS) {
+                            const std::string &LastShim,
+                            const NamespaceDecl *AnonNS) {
   std::string NewShimName =
       "__sycl_detail::__shim_" + std::to_string(ShimCounter) + "()";
   // Print opening-namespace
@@ -4992,8 +4992,7 @@ static std::string EmitShim(raw_ostream &OS, unsigned &ShimCounter,
 
 // Emit the list of shims required for a DeclContext, calls itself recursively.
 static void EmitShims(raw_ostream &OS, unsigned &ShimCounter,
-                            const DeclContext *DC,
-                            std::string &NameForLastShim) {
+                      const DeclContext *DC, std::string &NameForLastShim) {
   if (DC->isTranslationUnit()) {
     NameForLastShim = "::" + NameForLastShim;
     return;
@@ -5028,7 +5027,7 @@ static void EmitShims(raw_ostream &OS, unsigned &ShimCounter,
 // Returns a string containing the FQN of the 'top most' shim, including its
 // function call parameters.
 static std::string EmitShims(raw_ostream &OS, unsigned &ShimCounter,
-                                   PrintingPolicy &Policy, const VarDecl *VD) {
+                             PrintingPolicy &Policy, const VarDecl *VD) {
   if (!VD->isInAnonymousNamespace())
     return "";
   std::string RelativeName;
@@ -5068,7 +5067,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     if (llvm::find(Visited, VD) != Visited.end())
       continue;
 
-    // We only want to emit the #includes if we have a spec-constant that needs
+    // We only want to emit the #includes if we have a variable that needs
     // them, so emit this one on the first time through the loop.
     if (!EmittedFirstSpecConstant && !DeviceGlobalsEmitted)
       OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
@@ -5078,6 +5077,17 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     if (Util::isSyclDeviceGlobalType(VD->getType())) {
       DeviceGlobalsEmitted = true;
       DeviceGlobOS << "device_global_map::add(";
+      DeviceGlobOS << "(void *)&";
+      if (VD->isInAnonymousNamespace()) {
+        DeviceGlobOS << TopShim;
+      } else {
+        DeviceGlobOS << "::";
+        VD->getNameForDiagnostic(DeviceGlobOS, Policy, true);
+      }
+      DeviceGlobOS << ", \"";
+      DeviceGlobOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(),
+                                                          VD);
+      DeviceGlobOS << "\");\n";
     } else {
       EmittedFirstSpecConstant = true;
       OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
@@ -5085,30 +5095,14 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       OS << "namespace detail {\n";
       OS << "template<>\n";
       OS << "inline const char *get_spec_constant_symbolic_ID_impl<";
-    }
 
-    std::string VarRefName;
-    llvm::raw_string_ostream VarRefNameOS(VarRefName);
-    if (VD->isInAnonymousNamespace()) {
-      VarRefNameOS << TopShim;
-    } else {
-      VarRefNameOS << "::";
-      VD->getNameForDiagnostic(VarRefNameOS, Policy, true);
-    }
-    VarRefNameOS.flush();
-    if (Util::isSyclDeviceGlobalType(VD->getType())) {
-      DeviceGlobOS << "(void *)&";
-      DeviceGlobOS << VarRefName;
-    } else {
-      OS << VarRefName;
-    }
+      if (VD->isInAnonymousNamespace()) {
+        OS << TopShim;
+      } else {
+        OS << "::";
+        VD->getNameForDiagnostic(OS, Policy, true);
+      }
 
-    if (Util::isSyclDeviceGlobalType(VD->getType())) {
-      DeviceGlobOS << ", \"";
-      DeviceGlobOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(),
-                                                          VD);
-      DeviceGlobOS << "\");\n";
-    } else {
       OS << ">() {\n";
       OS << "  return \"";
       OS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(), VD);
