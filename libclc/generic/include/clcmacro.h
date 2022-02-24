@@ -9,11 +9,7 @@
 #ifndef __CLC_MACRO_H
 #define __CLC_MACRO_H
 
-#define _CLC_UNARY_VECTORIZE(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE)          \
-  DECLSPEC RET_TYPE##2 FUNCTION(ARG1_TYPE##2 x) {                              \
-    return (RET_TYPE##2)(FUNCTION(x.x), FUNCTION(x.y));                        \
-  }                                                                            \
-                                                                               \
+#define _CLC_UNARY_VECTORIZE_HAVE2(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE)    \
   DECLSPEC RET_TYPE##3 FUNCTION(ARG1_TYPE##3 x) {                              \
     return (RET_TYPE##3)(FUNCTION(x.x), FUNCTION(x.y), FUNCTION(x.z));         \
   }                                                                            \
@@ -30,12 +26,14 @@
     return (RET_TYPE##16)(FUNCTION(x.lo), FUNCTION(x.hi));                     \
   }
 
-#define _CLC_BINARY_VECTORIZE(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE,         \
-                              ARG2_TYPE)                                       \
-  DECLSPEC RET_TYPE##2 FUNCTION(ARG1_TYPE##2 x, ARG2_TYPE##2 y) {              \
-    return (RET_TYPE##2)(FUNCTION(x.x, y.x), FUNCTION(x.y, y.y));              \
+#define _CLC_UNARY_VECTORIZE(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE)          \
+  DECLSPEC RET_TYPE##2 FUNCTION(ARG1_TYPE##2 x) {                              \
+    return (RET_TYPE##2)(FUNCTION(x.x), FUNCTION(x.y));                        \
   }                                                                            \
-                                                                               \
+  _CLC_UNARY_VECTORIZE_HAVE2(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE)
+
+#define _CLC_BINARY_VECTORIZE_HAVE2(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE,   \
+                                    ARG2_TYPE)                                 \
   DECLSPEC RET_TYPE##3 FUNCTION(ARG1_TYPE##3 x, ARG2_TYPE##3 y) {              \
     return (RET_TYPE##3)(FUNCTION(x.x, y.x), FUNCTION(x.y, y.y),               \
                          FUNCTION(x.z, y.z));                                  \

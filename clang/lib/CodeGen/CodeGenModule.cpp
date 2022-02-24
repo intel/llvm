@@ -782,7 +782,7 @@ void CodeGenModule::Release() {
                               getTarget().getTargetOpts().NVVMCudaPrecSqrt);
   }
 
-  if ( LangOpts.isSYCL() && getTriple().isNVPTX()) {
+  if (LangOpts.isSYCL() && getTriple().isNVPTX()) {
     getModule().addModuleFlag(llvm::Module::Override,
                               "nvvm-reflect-approx-tanhf",
                               getTarget().getTargetOpts().NVVMCudaApproxTanhf);
