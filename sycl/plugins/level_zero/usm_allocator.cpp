@@ -479,7 +479,7 @@ public:
     // Powers of 2 and the value halfway between the powers of 2.
     auto Size1 = MinBucketSize[MemHandle->getMemType()];
     auto Size2 = Size1 + Size1 / 2;
-    for (; Size1 < CutOff; Size1 *= 2, Size2 *= 2) {
+    for (; Size2 < CutOff; Size1 *= 2, Size2 *= 2) {
       Buckets.push_back(std::make_unique<Bucket>(Size1, *this));
       Buckets.push_back(std::make_unique<Bucket>(Size2, *this));
     }
