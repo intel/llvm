@@ -57,7 +57,3 @@ _CLC_DEF _CLC_OVERLOAD uint __spirv_ocl_fma_relu(uint x, uint y, uint z) {
 }
 _CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __spirv_ocl_fma_relu, uint,
                        uint, uint)
-
-#undef __CLC_BUILTIN
-#undef __CLC_BUILTIN_F
-#undef __CLC_FUNCTION
