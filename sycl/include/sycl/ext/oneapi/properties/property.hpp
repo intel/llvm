@@ -19,8 +19,8 @@
 //     key. The variable should have the same type as `value_t` of the property
 //     class, e.g. for a property `foo`, there should be a definition
 //     `inline constexpr foo_key::value_t foo`.
-//  4. Specialize `sycl::ext::oneapi::experimental::is_property` and
-//     `sycl::ext::oneapi::experimental::is_property_of` for the property key
+//  4. Specialize `sycl::ext::oneapi::experimental::is_property_key` and
+//     `sycl::ext::oneapi::experimental::is_property_key_of` for the property key
 //     class.
 //  5. Specialize `sycl::ext::oneapi::experimental::detail::PropertyToKind` for
 //     the new property key class. The specialization should have a `Kind`
@@ -49,9 +49,9 @@ struct bar_key {
 inline constexpr bar_key::value_t bar;
 
 // (4.)
-template <> struct is_property<bar_key> : std::true_type {};
+template <> struct is_property_key<bar_key> : std::true_type {};
 // Replace SYCL_OBJ with the SYCL object to support the property.
-template <> struct is_property_of<bar_key, SYCL_OBJ> : std::true_type {};
+template <> struct is_property_key_of<bar_key, SYCL_OBJ> : std::true_type {};
 
 namespace detail {
 
@@ -77,8 +77,8 @@ template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
 //     property `foo` the class should be named `foo_key`.
 //  4. Overload the `==` and `!=` operators for the new property class. The
 //     comparison should compare all data members of the property class.
-//  5. Specialize `sycl::ext::oneapi::experimental::is_property` and
-//     `sycl::ext::oneapi::experimental::is_property_of` for the property class.
+//  5. Specialize `sycl::ext::oneapi::experimental::is_property_key` and
+//     `sycl::ext::oneapi::experimental::is_property_key_of` for the property class.
 //  6. Specialize `sycl::ext::oneapi::detail::PropertyToKind` for the new
 //     property class. The specialization should have a `Kind` member with the
 //     value equal to the enumerator added in 1.
