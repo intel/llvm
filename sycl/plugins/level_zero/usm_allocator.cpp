@@ -85,7 +85,7 @@ public:
 
   SetLimits() {
     // Parse optional parameters of this form:
-    // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=[EnableBuffers][;MaxPoolSize][;memtypelimits]...
+    // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=[EnableBuffers][;[MaxPoolSize][;memtypelimits]...]
     //  memtypelimits: [<memtype>:]<limits>
     //  memtype: host|device|shared
     //  limits:  [MaxPoolableSize][,[Capacity][,SlabMinSize]]
