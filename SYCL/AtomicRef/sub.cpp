@@ -3,6 +3,9 @@
 // separately. This is controlled by macros, defined by RUN commands. Defaults
 // (no macro for a group) are: 32 bit, relaxed and device.
 
+// See https://github.com/intel/llvm-test-suite/issues/867 for detailed status
+// UNSUPPORTED: hip
+
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_60
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
