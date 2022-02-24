@@ -1,0 +1,91 @@
+= sycl_ext_accessor_get_buffer
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+This document describes an extension that adds features for SYCL work items and groups to be available globally.
+
+== Notice
+
+Copyright (c) 2020-2022 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+
+== Version
+
+Revision: 1
+
+== Contact
+Mikhail Dvorskiy, Intel (mikhail 'dot' dvorskiy 'at' intel 'dot' com)
+Gregory Lueck, Intel (gregory 'dot' m 'dot' lueck 'at' intel 'dot' com)
+James Brodman, Intel (james 'dot' brodman 'at' intel 'dot' com)
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 4.
+
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro `SYCL_EXT_ONEAPI_ACCESSOR_GET_BUFFER`
+to one of the values defined in the table below. Applications can test for the
+existence of this macro to determine if the implementation supports this
+feature, or applications can test the macro's value to determine which of the
+extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===
+
+== Overview
+
+The extension allows to get `sycl::buffer` via  `sycl::accessor. The new `get_buffer()`
+member function could be called for any accessor, regardless of whether it is a placeholder.
+However, it can only be called from host code, not from within the kernel.
+
+NOTE: This would allow to write code like this (on the host):
+host_accessor ha{acc.get_buffer()};
+
+== Synopsis
+
+template <typename dataT,
+          int dimensions = 1,
+          access_mode accessMode =
+            (std::is_const_v<dataT> ? access_mode::read
+                                    : access_mode::read_write),
+          target accessTarget = target::device,
+          access::placeholder isPlaceholder = access::placeholder::false_t>
+class accessor {
+public:
+  /* ... */
+  template <typename AllocatorT>
+  buffer<dataT, dimension, AllocatorT> get_buffer() const;
+  /* ... */
+};
