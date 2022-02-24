@@ -1,25 +1,29 @@
-name: Linux Post Commit Checks
+name: SYCL Post Commit
 
 on:
   push:
     branches:
-      - sycl
+    - sycl
+  pull_request:
+    branches:
+    - sycl
+    paths:
+    - .github/workflows/sycl_post_commit.yml
+
 jobs:
   linux_default:
     name: Linux Default
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
       build_runs_on: build
       build_cache_root: "/__w/llvm"
-      build_github_cache: true
       build_artifact_suffix: default
   linux_no_assert:
     name: Linux (no assert)
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
       build_runs_on: build
       build_cache_root: "/__w/llvm"
-      build_github_cache: true
       build_cache_suffix: gcc_no_assertions
       build_artifact_suffix: gcc_no_assertions
       build_configure_extra_args: --no-assertions
@@ -93,3 +97,7 @@ jobs:
       with:
         name: sycl_linux_${{ matrix.config }}
         path: llvm_sycl.tar.gz
+
+  windows_default:
+    name: Windows
+    uses: ./.github/workflows/sycl_windows_build_and_test.yml
