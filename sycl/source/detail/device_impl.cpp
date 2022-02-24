@@ -306,6 +306,11 @@ bool device_impl::has(aspect Aspect) const {
                MDevice, PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
                sizeof(pi_device_type), &device_type,
                &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_buffer_location:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
+               sizeof(pi_device_type), &device_type,
+               &return_size) == PI_SUCCESS;
   case aspect::ext_intel_device_info_uuid: {
     auto Result = getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
         MDevice, PI_DEVICE_INFO_UUID, 0, nullptr, &return_size);

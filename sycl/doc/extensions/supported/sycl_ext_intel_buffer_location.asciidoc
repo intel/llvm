@@ -86,6 +86,36 @@ It also notifies the SYCL runtime to store the given accessor in that memory. | 
 |===
 --
 
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro `SYCL_EXT_INTEL_BUFFER_LOCATION` to
+one of the values defined in the table below. Applications can test for the
+existence of this macro to determine if the implementation supports this
+feature, or applications can test the macro’s value to determine which of the
+extension’s APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===
+
+== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ext_intel_buffer_location
+}
+}
+----
+
+If device has the `ext_intel_buffer_location` aspect, then its Device-Side
+Runtime is capable of allocating buffer in different locations.
+
 == Issues
 
 == Revision History

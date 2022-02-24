@@ -79,6 +79,7 @@ namespace sycl {
 #if SYCL_BUILD_PI_HIP
 #define SYCL_EXT_ONEAPI_BACKEND_HIP 1
 #endif
+#define SYCL_EXT_INTEL_BUFFER_LOCATION 1
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
