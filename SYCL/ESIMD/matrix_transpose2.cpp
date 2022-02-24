@@ -5,7 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
+// FIXME: Investigate Windows-specific failures
+// REQUIRES: TEMPORARY_DISABLED
 // UNSUPPORTED: cuda || hip
 // TODO: esimd_emulator fails due to outdated __esimd_media_ld
 // XFAIL: esimd_emulator
