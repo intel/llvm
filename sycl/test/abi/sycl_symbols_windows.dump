@@ -1754,6 +1754,7 @@
 ?erfc@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V34562@@Z
 ?erfc@__host_std@cl@@YAMM@Z
 ?erfc@__host_std@cl@@YANN@Z
+?evictHandlerImpl@handler@sycl@cl@@AEBA?AV?$shared_ptr@Vhandler_impl@detail@sycl@cl@@@std@@XZ
 ?exp10@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?exp10@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z
 ?exp10@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@@Z
