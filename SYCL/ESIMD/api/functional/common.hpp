@@ -47,7 +47,7 @@ template <typename T> bool are_bitwise_equal(T lhs, T rhs) {
 } // namespace details
 
 // Class used as a kernel ID.
-template <typename DataT, int NumElems, typename T> struct Kernel;
+template <typename DataT, int NumElems, typename...> struct Kernel;
 
 template <typename DataT>
 using shared_allocator = sycl::usm_allocator<DataT, sycl::usm::alloc::shared>;

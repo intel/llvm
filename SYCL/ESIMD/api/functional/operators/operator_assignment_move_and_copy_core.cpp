@@ -63,14 +63,14 @@ int main(int, char **) {
 
   bool passed = true;
 
-  const auto types = get_tested_types<tested_types::core>();
-  const auto dims = get_all_dimensions();
+  const auto types = get_tested_types<tested_types::all>();
+  const auto all_sizes = get_all_sizes();
 
   const auto context =
       unnamed_type_pack<move_assignment, copy_assignment>::generate();
 
-  passed &=
-      for_all_combinations<operators::run_test>(types, dims, context, queue);
+  passed &= for_all_combinations<operators::run_test>(types, all_sizes, context,
+                                                      queue);
 
   std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");
   return passed ? 0 : 1;
