@@ -307,8 +307,8 @@ unsigned int sycl_get_surface_index(void *PtrInput) {
 
 // Function to provide image info for kernel compilation using surface
 // index without dependency on '_pi_image' definition
-void sycl_get_buffer_params_index(unsigned int IndexInput, char **BaseAddr,
-                                  uint32_t *Width, std::mutex **MtxLock) {
+void sycl_get_buffer_params(unsigned int IndexInput, char **BaseAddr,
+                            uint32_t *Width, std::mutex **MtxLock) {
   std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
   auto MemIter = PiESimdSurfaceMap->find(IndexInput);
 
@@ -324,9 +324,9 @@ void sycl_get_buffer_params_index(unsigned int IndexInput, char **BaseAddr,
 
 // Function to provide image info for kernel compilation using surface
 // index without dependency on '_pi_image' definition
-void sycl_get_image_params_index(unsigned int IndexInput, char **BaseAddr,
-                                 uint32_t *Width, uint32_t *Height,
-                                 uint32_t *Bpp, std::mutex **MtxLock) {
+void sycl_get_image_params(unsigned int IndexInput, char **BaseAddr,
+                           uint32_t *Width, uint32_t *Height, uint32_t *Bpp,
+                           std::mutex **MtxLock) {
   std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
   auto MemIter = PiESimdSurfaceMap->find(IndexInput);
   assert(MemIter != PiESimdSurfaceMap->end() && "Invalid Surface Index");
@@ -358,8 +358,8 @@ sycl::detail::ESIMDDeviceInterface::ESIMDDeviceInterface() {
   cm_slm_init_ptr = cm_support::init_slm;
 
   sycl_get_surface_index_ptr = sycl_get_surface_index;
-  sycl_get_buffer_params_ptr = sycl_get_buffer_params_index;
-  sycl_get_image_params_ptr = sycl_get_image_params_index;
+  sycl_get_buffer_params_ptr = sycl_get_buffer_params;
+  sycl_get_image_params_ptr = sycl_get_image_params;
 
   /* From 'esimd_emulator_functions_v1.h' : End */
 }
