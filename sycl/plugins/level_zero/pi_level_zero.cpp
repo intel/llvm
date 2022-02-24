@@ -698,11 +698,6 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
       return PI_ERROR_UNKNOWN;
     }
 
-    // The index for a root or a sub-device is always 0.
-    // TODO: we want to start submitting to multiple queues in the
-    // compute group for more parallelism.
-    QueueGroup[queue_group_info_t::Compute].ZeIndex = 0;
-
     if (CopyEngineRequested) {
       for (uint32_t i = 0; i < numQueueGroups; i++) {
         if (((QueueGroupProperties[i].flags &
@@ -1489,6 +1484,11 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
   ZeCommandQueueDesc.ordinal = *QueueGroupOrdinal;
   ZeCommandQueueDesc.index = ZeCommandQueueIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
+
+  zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
+          "(round robin in [%d, %d])\n",
+          ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+          UpperIndex);
 
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
