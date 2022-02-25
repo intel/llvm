@@ -405,9 +405,7 @@ event handler::finalize() {
 }
 
 void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
-  std::shared_ptr<detail::handler_impl> Impl = getHandlerImpl();
-  std::lock_guard<std::mutex> Lock(Impl->MAuxiliaryResourcesMutex);
-  Impl->MAuxiliaryResources.push_back(ReduObj);
+  getHandlerImpl()->MAuxiliaryResources.push_back(ReduObj);
 }
 
 void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,

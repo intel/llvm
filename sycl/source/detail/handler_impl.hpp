@@ -66,9 +66,6 @@ public:
   /// submission is a fallback from a previous submission.
   std::shared_ptr<queue_impl> MSubmissionSecondaryQueue;
 
-  // Protects MAuxiliaryResources.
-  std::mutex MAuxiliaryResourcesMutex;
-
   // Stores auxiliary resources used by internal operations.
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
 };
