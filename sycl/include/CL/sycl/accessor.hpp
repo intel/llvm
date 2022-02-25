@@ -1446,7 +1446,7 @@ public:
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "accessor with requested offset and range would exceed the bounds of "
           "the buffer",
           PI_INVALID_VALUE);
@@ -1487,7 +1487,7 @@ public:
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "accessor with requested offset and range would exceed the bounds of "
           "the buffer",
           PI_INVALID_VALUE);
@@ -1555,7 +1555,7 @@ public:
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "accessor with requested offset and range would exceed the bounds of "
           "the buffer",
           PI_INVALID_VALUE);
@@ -1595,7 +1595,7 @@ public:
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "accessor with requested offset and range would exceed the bounds of "
           "the buffer",
           PI_INVALID_VALUE);
@@ -1793,7 +1793,7 @@ private:
                          const PropertyListT &PropertyList) {
     // check device accessor buffer size
     if (!IsHostBuf && elemInBuffer == 0)
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "SYCL buffer size is zero. To create a device accessor, SYCL "
           "buffer size must be greater than zero.",
           PI_INVALID_VALUE);
@@ -1801,7 +1801,7 @@ private:
     // check that no_init property is compatible with access mode
     if (PropertyList.template has_property<property::no_init>() &&
         AccessMode == access::mode::read) {
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "accessor would cannot be both read_only and no_init",
           PI_INVALID_VALUE);
     }
