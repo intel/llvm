@@ -85,7 +85,7 @@ q.parallel_for(range<1>(N), [=] (id<1> i){
 ----
 
 `data` is device allocations allocated on the second device global memory (as indicated by buffer_location 1).
-`buffer_location` property is defined as a part of `SYCL_INTEL_buffer_location` extension.
+`buffer_location` property is defined as a part of `SYCL_INTEL_buffer_location` extension. The buffer location information will then be passed onto runtime libraries for allocation in correct target memory.
 
 == Proposal
 
