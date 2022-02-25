@@ -1317,7 +1317,7 @@ public:
 
   /// Add "sycl-unique-id" llvm attribute for global variables marked with
   /// SYCL device_global attribute
-  void addSYCLUniqueID(llvm::GlobalVariable *GV, const RecordDecl *RD);
+  void addSYCLUniqueID(llvm::GlobalVariable *GV, const VarDecl *VD);
 
   bool isInNoSanitizeList(SanitizerMask Kind, llvm::Function *Fn,
                           SourceLocation Loc) const;

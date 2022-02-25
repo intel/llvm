@@ -1620,6 +1620,17 @@ static void emitCallStackNotes(Sema &S, FunctionDecl *FD) {
     FnIt = S.DeviceKnownEmittedFns.find(FnIt->second.FD);
   }
 }
+static bool isSyclGlobalVariableAllowedType(QualType Ty) {
+  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+  if (!RecTy)
+    return false;
+  if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
+    ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
+    if (CXXRecordDecl *RD = Template->getTemplatedDecl())
+      return RD->hasAttr<SYCLDetailGlobalVariableAllowedAttr>();
+  }
+  return RecTy->hasAttr<SYCLDetailGlobalVariableAllowedAttr>();
+}
 
 namespace {
 
@@ -1692,7 +1703,7 @@ public:
     if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
       if (auto *VD = dyn_cast<VarDecl>(D)) {
         if (!S.checkAllowedSYCLInitializer(VD) &&
-            !VD->hasAttr<SYCLDetailGlobalVariableAllowedAttr>()) {
+            !isSyclGlobalVariableAllowedType(VD->getType())) {
           S.Diag(Loc, diag::err_sycl_restrict)
               << Sema::KernelConstStaticVariable;
           return;
