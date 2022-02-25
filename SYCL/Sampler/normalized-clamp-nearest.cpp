@@ -3,7 +3,6 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL: level_zero
 
 // TODO: enable this test after flaky bug is gone on Windows
 // UNSUPPORTED: windows

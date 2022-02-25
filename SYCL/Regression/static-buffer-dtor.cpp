@@ -18,6 +18,9 @@
 // Failing on HIP AMD
 // XFAIL: hip_amd
 
+// The test fails on 22.05.22297 GPU RT on Linux
+// XFAIL: linux && (opencl || level_zero) && gpu
+
 #include <CL/sycl.hpp>
 
 int main() {
