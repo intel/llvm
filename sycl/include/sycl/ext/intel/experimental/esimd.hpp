@@ -15,7 +15,7 @@
 /// @defgroup sycl_esimd DPC++ Explicit SIMD API
 /// This is a low-level API providing direct access to Intel GPU hardware
 /// features. ESIMD overview can be found
-/// [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/SYCL_EXT_INTEL_ESIMD/SYCL_EXT_INTEL_ESIMD.md).
+/// [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md).
 /// Some terminology used in the API documentation:
 /// - *lane* -
 ///       (or "vector lane") Individual "lane" of input and output elements
@@ -36,6 +36,11 @@
 ///    can be accessed by ESIMD APIs, with ability to enable/disable access
 ///    to each channel for all pixels.
 ///
+/// NOTES:
+/// - API elements (macros, types, functions, etc.) starting with underscore
+///   \c _, as well as those in \c detail namespace, are never supposed to be
+///   used directly in the user code.
+
 // clang-format on
 
 /// @addtogroup sycl_esimd

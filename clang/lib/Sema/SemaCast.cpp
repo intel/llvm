@@ -265,7 +265,8 @@ static TryCastResult TryReinterpretCast(Sema &Self, ExprResult &SrcExpr,
                                         CastKind &Kind);
 static TryCastResult TryAddressSpaceCast(Sema &Self, ExprResult &SrcExpr,
                                          QualType DestType, bool CStyle,
-                                         unsigned &msg, CastKind &Kind);
+                                         unsigned &msg, CastKind &Kind,
+                                         SourceRange OpRange = SourceRange());
 
 /// ActOnCXXNamedCast - Parse
 /// {dynamic,static,reinterpret,const,addrspace}_cast's.
@@ -1356,7 +1357,7 @@ static TryCastResult TryStaticCast(Sema &Self, ExprResult &SrcExpr,
     if (SrcType->isIntegralOrEnumerationType()) {
       // [expr.static.cast]p10 If the enumeration type has a fixed underlying
       // type, the value is first converted to that type by integral conversion
-      const EnumType *Enum = DestType->getAs<EnumType>();
+      const EnumType *Enum = DestType->castAs<EnumType>();
       Kind = Enum->getDecl()->isFixed() &&
                      Enum->getDecl()->getIntegerType()->isBooleanType()
                  ? CK_IntegralToBoolean
@@ -2544,8 +2545,9 @@ static TryCastResult TryReinterpretCast(Sema &Self, ExprResult &SrcExpr,
 
 static TryCastResult TryAddressSpaceCast(Sema &Self, ExprResult &SrcExpr,
                                          QualType DestType, bool CStyle,
-                                         unsigned &msg, CastKind &Kind) {
-  if (!Self.getLangOpts().OpenCL)
+                                         unsigned &msg, CastKind &Kind,
+                                         SourceRange OpRange) {
+  if (!Self.getLangOpts().OpenCL && !Self.getLangOpts().SYCLIsDevice)
     // FIXME: As compiler doesn't have any information about overlapping addr
     // spaces at the moment we have to be permissive here.
     return TC_NotApplicable;
@@ -2567,6 +2569,15 @@ static TryCastResult TryAddressSpaceCast(Sema &Self, ExprResult &SrcExpr,
   if (!DestPointeeType.isAddressSpaceOverlapping(SrcPointeeType)) {
     msg = diag::err_bad_cxx_cast_addr_space_mismatch;
     return TC_Failed;
+  }
+  if (Self.getLangOpts().SYCLIsDevice) {
+    Qualifiers SrcQ = SrcPointeeType.getQualifiers();
+    Qualifiers DestQ = DestPointeeType.getQualifiers();
+    if (!DestQ.isAddressSpaceSupersetOf(SrcQ) && OpRange.isValid()) {
+      Self.SYCLDiagIfDeviceCode(OpRange.getBegin(),
+                                diag::warn_sycl_potentially_invalid_as_cast)
+          << SrcType << DestType << OpRange;
+    }
   }
   auto SrcPointeeTypeWithoutAS =
       Self.Context.removeAddrSpaceQualType(SrcPointeeType.getCanonicalType());
@@ -2744,7 +2755,7 @@ void CastOperation::CheckCXXCStyleCast(bool FunctionalStyle,
       FunctionalStyle ? Sema::CCK_FunctionalCast : Sema::CCK_CStyleCast;
   if (tcr == TC_NotApplicable) {
     tcr = TryAddressSpaceCast(Self, SrcExpr, DestType, /*CStyle*/ true, msg,
-                              Kind);
+                              Kind, OpRange);
     if (SrcExpr.isInvalid())
       return;
 

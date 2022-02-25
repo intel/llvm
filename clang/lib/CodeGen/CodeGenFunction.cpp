@@ -910,7 +910,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   // Apply sanitizer attributes to the function.
   if (SanOpts.hasOneOf(SanitizerKind::Address | SanitizerKind::KernelAddress))
     Fn->addFnAttr(llvm::Attribute::SanitizeAddress);
-  if (SanOpts.hasOneOf(SanitizerKind::HWAddress | SanitizerKind::KernelHWAddress))
+  if (SanOpts.hasOneOf(SanitizerKind::HWAddress |
+                       SanitizerKind::KernelHWAddress))
     Fn->addFnAttr(llvm::Attribute::SanitizeHWAddress);
   if (SanOpts.has(SanitizerKind::MemTag))
     Fn->addFnAttr(llvm::Attribute::SanitizeMemTag);
@@ -1165,6 +1166,10 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (FD && ((FD->isMain() || FD->isMSVCRTEntryPoint()) &&
              CGM.getCodeGenOpts().StackAlignment))
     Fn->addFnAttr("stackrealign");
+
+  // "main" doesn't need to zero out call-used registers.
+  if (FD && FD->isMain())
+    Fn->removeFnAttr("zero-call-used-regs");
 
   if (getLangOpts().SYCLIsDevice)
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))

@@ -25,8 +25,8 @@ sycl/ @intel/llvm-reviewers-runtime
 sycl/ReleaseNotes.md @intel/dpcpp-doc-reviewers
 sycl/doc/ @intel/dpcpp-doc-reviewers
 sycl/doc/design/ @intel/dpcpp-specification-reviewers
+sycl/doc/design/spirv-extensions/ @intel/dpcpp-spirv-doc-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
-sycl/doc/extensions/SPIRV/ @intel/dpcpp-spirv-doc-reviewers
 
 # Level Zero plugin
 sycl/plugins/level_zero/ @intel/dpcpp-l0-pi-reviewers
@@ -51,4 +51,4 @@ clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 ESIMD/ @intel/dpcpp-esimd-reviewers
 esimd/ @intel/dpcpp-esimd-reviewers
 sycl/include/sycl/ext/intel/experimental/esimd.hpp @intel/dpcpp-esimd-reviewers
-sycl/doc/extensions/ExplicitSIMD/ @intel/dpcpp-esimd-reviewers
+sycl/doc/extensions/experimental/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers

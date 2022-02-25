@@ -76,6 +76,8 @@ bool VETargetLowering::CanLowerReturn(
 static const MVT AllVectorVTs[] = {MVT::v256i32, MVT::v512i32, MVT::v256i64,
                                    MVT::v256f32, MVT::v512f32, MVT::v256f64};
 
+static const MVT AllMaskVTs[] = {MVT::v256i1, MVT::v512i1};
+
 static const MVT AllPackedVTs[] = {MVT::v512i32, MVT::v512f32};
 
 void VETargetLowering::initRegisterClasses() {
@@ -294,6 +296,9 @@ void VETargetLowering::initSPUActions() {
 }
 
 void VETargetLowering::initVPUActions() {
+  for (MVT LegalMaskVT : AllMaskVTs)
+    setOperationAction(ISD::BUILD_VECTOR, LegalMaskVT, Custom);
+
   for (MVT LegalVecVT : AllVectorVTs) {
     setOperationAction(ISD::BUILD_VECTOR, LegalVecVT, Custom);
     setOperationAction(ISD::INSERT_VECTOR_ELT, LegalVecVT, Legal);
@@ -901,6 +906,8 @@ const char *VETargetLowering::getTargetNodeName(unsigned Opcode) const {
     TARGET_NODE_CASE(VEC_BROADCAST)
     TARGET_NODE_CASE(REPL_I32)
     TARGET_NODE_CASE(REPL_F32)
+
+    TARGET_NODE_CASE(LEGALAVL)
 
     // Register the VVP_* SDNodes.
 #define ADD_VVP_OP(VVP_NAME, ...) TARGET_NODE_CASE(VVP_NAME)
@@ -1658,18 +1665,24 @@ SDValue VETargetLowering::lowerBUILD_VECTOR(SDValue Op,
   // Else emit a broadcast.
   if (SDValue ScalarV = getSplatValue(Op.getNode())) {
     unsigned NumEls = ResultVT.getVectorNumElements();
-    // TODO: Legalize packed-mode AVL.
-    //       For now, cap the AVL at 256.
-    auto CappedLength = std::min<unsigned>(256, NumEls);
-    auto AVL = CDAG.getConstant(CappedLength, MVT::i32);
-    return CDAG.getBroadcast(ResultVT, Op.getOperand(0), AVL);
+    auto AVL = CDAG.getConstant(NumEls, MVT::i32);
+    return CDAG.getBroadcast(ResultVT, ScalarV, AVL);
   }
 
   // Expand
   return SDValue();
 }
 
+TargetLowering::LegalizeAction
+VETargetLowering::getCustomOperationAction(SDNode &Op) const {
+  // Custom lower to legalize AVL for packed mode.
+  if (isVVPOrVEC(Op.getOpcode()))
+    return Custom;
+  return Legal;
+}
+
 SDValue VETargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
+  LLVM_DEBUG(dbgs() << "::LowerOperation"; Op->print(dbgs()););
   unsigned Opcode = Op.getOpcode();
   if (ISD::isVPOpcode(Opcode))
     return lowerToVVP(Op, DAG);
@@ -1721,6 +1734,16 @@ SDValue VETargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::EXTRACT_VECTOR_ELT:
     return lowerEXTRACT_VECTOR_ELT(Op, DAG);
 
+  // Legalize the AVL of this internal node.
+  case VEISD::VEC_BROADCAST:
+#define ADD_VVP_OP(VVP_NAME, ...) case VEISD::VVP_NAME:
+#include "VVPNodes.def"
+    // AVL already legalized.
+    if (getAnnotatedNodeAVL(Op).second)
+      return Op;
+    return legalizeInternalVectorOp(Op, DAG);
+
+    // Translate into a VEC_*/VVP_* layer operation.
 #define ADD_VVP_OP(VVP_NAME, ISD_NAME) case ISD::ISD_NAME:
 #include "VVPNodes.def"
     return lowerToVVP(Op, DAG);
@@ -2678,26 +2701,29 @@ SDValue VETargetLowering::lowerToVVP(SDValue Op, SelectionDAG &DAG) const {
 
   // The representative and legalized vector type of this operation.
   VECustomDAG CDAG(DAG, Op);
-  MVT MaskVT = MVT::v256i1; // TODO: packed mode.
   EVT OpVecVT = Op.getValueType();
   EVT LegalVecVT = getTypeToTransformTo(*DAG.getContext(), OpVecVT);
+  auto Packing = getTypePacking(LegalVecVT.getSimpleVT());
 
   SDValue AVL;
   SDValue Mask;
 
   if (FromVP) {
     // All upstream VP SDNodes always have a mask and avl.
-    auto MaskIdx = ISD::getVPMaskIdx(Opcode).getValue();
-    auto AVLIdx = ISD::getVPExplicitVectorLengthIdx(Opcode).getValue();
-    Mask = Op->getOperand(MaskIdx);
-    AVL = Op->getOperand(AVLIdx);
+    auto MaskIdx = ISD::getVPMaskIdx(Opcode);
+    auto AVLIdx = ISD::getVPExplicitVectorLengthIdx(Opcode);
+    if (MaskIdx)
+      Mask = Op->getOperand(*MaskIdx);
+    if (AVLIdx)
+      AVL = Op->getOperand(*AVLIdx);
 
-  } else {
-    // Materialize the VL parameter.
-    AVL = CDAG.getConstant(OpVecVT.getVectorNumElements(), MVT::i32);
-    SDValue ConstTrue = CDAG.getConstant(1, MVT::i32);
-    Mask = CDAG.getBroadcast(MaskVT, ConstTrue, AVL);
   }
+
+  // Materialize default mask and avl.
+  if (!AVL)
+    AVL = CDAG.getConstant(OpVecVT.getVectorNumElements(), MVT::i32);
+  if (!Mask)
+    Mask = CDAG.getConstantMask(Packing, true);
 
   if (isVVPBinaryOp(VVPOpcode)) {
     assert(LegalVecVT.isSimple());
@@ -2709,6 +2735,12 @@ SDValue VETargetLowering::lowerToVVP(SDValue Op, SelectionDAG &DAG) const {
     auto OnTrue = Op->getOperand(1);
     auto OnFalse = Op->getOperand(2);
     return CDAG.getNode(VVPOpcode, LegalVecVT, {OnTrue, OnFalse, Mask, AVL});
+  }
+  if (VVPOpcode == VEISD::VVP_SETCC) {
+    auto LHS = Op->getOperand(0);
+    auto RHS = Op->getOperand(1);
+    auto Pred = Op->getOperand(2);
+    return CDAG.getNode(VVPOpcode, LegalVecVT, {LHS, RHS, Pred, Mask, AVL});
   }
   llvm_unreachable("lowerToVVP called for unexpected SDNode.");
 }

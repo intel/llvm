@@ -22,7 +22,6 @@
 #include "MarkLive.h"
 #include "InputSection.h"
 #include "LinkerScript.h"
-#include "OutputSections.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
@@ -32,7 +31,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Support/TimeProfiler.h"
-#include <functional>
 #include <vector>
 
 using namespace llvm;
@@ -371,9 +369,6 @@ template <class ELFT> void elf::markLive() {
   llvm::TimeTraceScope timeScope("markLive");
   // If --gc-sections is not given, retain all input sections.
   if (!config->gcSections) {
-    for (InputSectionBase *sec : inputSections)
-      sec->markLive();
-
     // If a DSO defines a symbol referenced in a regular object, it is needed.
     for (Symbol *sym : symtab->symbols())
       if (auto *s = dyn_cast<SharedSymbol>(sym))
@@ -381,6 +376,9 @@ template <class ELFT> void elf::markLive() {
           s->getFile().isNeeded = true;
     return;
   }
+
+  for (InputSectionBase *sec : inputSections)
+    sec->markDead();
 
   // Follow the graph to mark all live sections.
   for (unsigned curPart = 1; curPart <= partitions.size(); ++curPart)

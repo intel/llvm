@@ -67,7 +67,7 @@ def err_drv_no_cuda_libdevice : Error<
   "libdevice">;
 
 def err_drv_no_rocm_device_lib : Error<
-  "cannot find ROCm device library%select{| for %1}0; provide its path via "
+  "cannot find ROCm device library%select{| for %1|for ABI version %1}0; provide its path via "
   "'--rocm-path' or '--rocm-device-lib-path', or pass '-nogpulib' to build "
   "without ROCm device library">;
 def err_drv_no_hip_runtime : Error<
@@ -659,8 +659,18 @@ def err_cc1_unbounded_vscale_min : Error<
 def err_drv_ssp_missing_offset_argument : Error<
   "'%0' is used without '-mstack-protector-guard-offset', and there is no default">;
 
-def err_drv_only_one_offload_target_supported_in : Error<
-  "Only one offload target is supported in %0.">;
+def err_drv_only_one_offload_target_supported : Error<
+  "only one offload target is supported">;
 def err_drv_invalid_or_unsupported_offload_target : Error<
-  "Invalid or unsupported offload target: '%0'.">;
+  "invalid or unsupported offload target: '%0'">;
+def err_drv_cuda_offload_only_emit_bc : Error<
+  "CUDA offload target is supported only along with --emit-llvm">;
+
+def warn_drv_jmc_requires_debuginfo : Warning<
+  "/JMC requires debug info. Use '/Zi', '/Z7' or other debug options; option ignored">,
+  InGroup<OptionIgnored>;
+def err_drv_target_variant_invalid : Error<
+  "unsupported '%0' value '%1'; use 'ios-macabi' instead">;
+def warn_drv_fsycl_with_c_type : Warning<
+  "treating '%0' input as '%1' when -fsycl is used">, InGroup<ExpectedFileType>;
 }

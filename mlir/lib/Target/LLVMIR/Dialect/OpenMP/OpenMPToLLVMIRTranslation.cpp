@@ -20,6 +20,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IRBuilder.h"
 
 using namespace mlir;
@@ -263,8 +264,7 @@ convertOmpParallel(omp::ParallelOp opInst, llvm::IRBuilderBase &builder,
     builder.CreateBr(entryBB);
     builder.SetInsertPoint(entryBB);
   }
-  llvm::OpenMPIRBuilder::LocationDescription ompLoc(
-      builder.saveIP(), builder.getCurrentDebugLocation());
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
   builder.restoreIP(moduleTranslation.getOpenMPBuilder()->createParallel(
       ompLoc, findAllocaInsertPoint(builder, moduleTranslation), bodyGenCB,
       privCB, finiCB, ifCond, numThreads, pbKind, isCancellable));
@@ -294,8 +294,7 @@ convertOmpMaster(Operation &opInst, llvm::IRBuilderBase &builder,
   // called for variables which have destructors/finalizers.
   auto finiCB = [&](InsertPointTy codeGenIP) {};
 
-  llvm::OpenMPIRBuilder::LocationDescription ompLoc(
-      builder.saveIP(), builder.getCurrentDebugLocation());
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
   builder.restoreIP(moduleTranslation.getOpenMPBuilder()->createMaster(
       ompLoc, bodyGenCB, finiCB));
   return success();
@@ -324,8 +323,7 @@ convertOmpCritical(Operation &opInst, llvm::IRBuilderBase &builder,
   // called for variables which have destructors/finalizers.
   auto finiCB = [&](InsertPointTy codeGenIP) {};
 
-  llvm::OpenMPIRBuilder::LocationDescription ompLoc(
-      builder.saveIP(), builder.getCurrentDebugLocation());
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
   llvm::LLVMContext &llvmContext = moduleTranslation.getLLVMContext();
   llvm::Constant *hint = nullptr;
 
@@ -519,8 +517,7 @@ convertOmpOrdered(Operation &opInst, llvm::IRBuilderBase &builder,
   SmallVector<llvm::Value *> vecValues =
       moduleTranslation.lookupValues(orderedOp.depend_vec_vars());
 
-  llvm::OpenMPIRBuilder::LocationDescription ompLoc(
-      builder.saveIP(), builder.getCurrentDebugLocation());
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
   size_t indexVecValues = 0;
   while (indexVecValues < vecValues.size()) {
     SmallVector<llvm::Value *> storeValues;
@@ -565,8 +562,7 @@ convertOmpOrderedRegion(Operation &opInst, llvm::IRBuilderBase &builder,
   // called for variables which have destructors/finalizers.
   auto finiCB = [&](InsertPointTy codeGenIP) {};
 
-  llvm::OpenMPIRBuilder::LocationDescription ompLoc(
-      builder.saveIP(), builder.getCurrentDebugLocation());
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
   builder.restoreIP(
       moduleTranslation.getOpenMPBuilder()->createOrderedThreadsSimd(
           ompLoc, bodyGenCB, finiCB, !orderedRegionOp.simd()));
@@ -636,8 +632,7 @@ convertOmpSections(Operation &opInst, llvm::IRBuilderBase &builder,
   // called for variables which have destructors/finalizers.
   auto finiCB = [&](InsertPointTy codeGenIP) {};
 
-  llvm::OpenMPIRBuilder::LocationDescription ompLoc(
-      builder.saveIP(), builder.getCurrentDebugLocation());
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
   builder.restoreIP(moduleTranslation.getOpenMPBuilder()->createSections(
       ompLoc, findAllocaInsertPoint(builder, moduleTranslation), sectionCBs,
       privCB, finiCB, false, sectionsOp.nowait()));
@@ -719,12 +714,7 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
   }
 
   // Set up the source location value for OpenMP runtime.
-  llvm::DISubprogram *subprogram =
-      builder.GetInsertBlock()->getParent()->getSubprogram();
-  const llvm::DILocation *diLoc =
-      moduleTranslation.translateLoc(opInst.getLoc(), subprogram);
-  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder.saveIP(),
-                                                    llvm::DebugLoc(diLoc));
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
 
   // Generator of the canonical loop body.
   // TODO: support error propagation in OpenMPIRBuilder and use it instead of
@@ -771,8 +761,7 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
     llvm::OpenMPIRBuilder::LocationDescription loc = ompLoc;
     llvm::OpenMPIRBuilder::InsertPointTy computeIP = ompLoc.IP;
     if (i != 0) {
-      loc = llvm::OpenMPIRBuilder::LocationDescription(bodyInsertPoints.back(),
-                                                       llvm::DebugLoc(diLoc));
+      loc = llvm::OpenMPIRBuilder::LocationDescription(bodyInsertPoints.back());
       computeIP = loopInfos.front()->getPreheaderIP();
     }
     loopInfos.push_back(ompBuilder->createCanonicalLoop(
@@ -787,7 +776,7 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
   // invalidated.
   llvm::IRBuilderBase::InsertPoint afterIP = loopInfos.front()->getAfterIP();
   llvm::CanonicalLoopInfo *loopInfo =
-      ompBuilder->collapseLoops(diLoc, loopInfos, {});
+      ompBuilder->collapseLoops(ompLoc.DL, loopInfos, {});
 
   allocaIP = findAllocaInsertPoint(builder, moduleTranslation);
 
@@ -921,18 +910,17 @@ convertOmpAtomicRead(Operation &opInst, llvm::IRBuilderBase &builder,
   auto readOp = cast<omp::AtomicReadOp>(opInst);
   llvm::OpenMPIRBuilder *ompBuilder = moduleTranslation.getOpenMPBuilder();
 
-  // Set up the source location value for OpenMP runtime.
-  llvm::DISubprogram *subprogram =
-      builder.GetInsertBlock()->getParent()->getSubprogram();
-  const llvm::DILocation *diLoc =
-      moduleTranslation.translateLoc(opInst.getLoc(), subprogram);
-  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder.saveIP(),
-                                                    llvm::DebugLoc(diLoc));
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
+
   llvm::AtomicOrdering AO = convertAtomicOrdering(readOp.memory_order());
   llvm::Value *x = moduleTranslation.lookupValue(readOp.x());
+  Type xTy = readOp.x().getType().cast<omp::PointerLikeType>().getElementType();
   llvm::Value *v = moduleTranslation.lookupValue(readOp.v());
-  llvm::OpenMPIRBuilder::AtomicOpValue V = {v, false, false};
-  llvm::OpenMPIRBuilder::AtomicOpValue X = {x, false, false};
+  Type vTy = readOp.v().getType().cast<omp::PointerLikeType>().getElementType();
+  llvm::OpenMPIRBuilder::AtomicOpValue V = {
+      v, moduleTranslation.convertType(vTy), false, false};
+  llvm::OpenMPIRBuilder::AtomicOpValue X = {
+      x, moduleTranslation.convertType(xTy), false, false};
   builder.restoreIP(ompBuilder->createAtomicRead(ompLoc, X, V, AO));
   return success();
 }
@@ -944,17 +932,12 @@ convertOmpAtomicWrite(Operation &opInst, llvm::IRBuilderBase &builder,
   auto writeOp = cast<omp::AtomicWriteOp>(opInst);
   llvm::OpenMPIRBuilder *ompBuilder = moduleTranslation.getOpenMPBuilder();
 
-  // Set up the source location value for OpenMP runtime.
-  llvm::DISubprogram *subprogram =
-      builder.GetInsertBlock()->getParent()->getSubprogram();
-  const llvm::DILocation *diLoc =
-      moduleTranslation.translateLoc(opInst.getLoc(), subprogram);
-  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder.saveIP(),
-                                                    llvm::DebugLoc(diLoc));
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
   llvm::AtomicOrdering ao = convertAtomicOrdering(writeOp.memory_order());
   llvm::Value *expr = moduleTranslation.lookupValue(writeOp.value());
   llvm::Value *dest = moduleTranslation.lookupValue(writeOp.address());
-  llvm::OpenMPIRBuilder::AtomicOpValue x = {dest, /*isSigned=*/false,
+  llvm::Type *ty = moduleTranslation.convertType(writeOp.value().getType());
+  llvm::OpenMPIRBuilder::AtomicOpValue x = {dest, ty, /*isSigned=*/false,
                                             /*isVolatile=*/false};
   builder.restoreIP(ompBuilder->createAtomicWrite(ompLoc, x, expr, ao));
   return success();

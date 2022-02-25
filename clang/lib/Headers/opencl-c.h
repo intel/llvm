@@ -7285,7 +7285,9 @@ half4 __ovld fract(half4 x, half4 *iptr);
 half8 __ovld fract(half8 x, half8 *iptr);
 half16 __ovld fract(half16 x, half16 *iptr);
 #endif //cl_khr_fp16
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 float __ovld fract(float x, __global float *iptr);
 float2 __ovld fract(float2 x, __global float2 *iptr);
 float3 __ovld fract(float3 x, __global float3 *iptr);
@@ -7344,7 +7346,7 @@ half4 __ovld fract(half4 x, __private half4 *iptr);
 half8 __ovld fract(half8 x, __private half8 *iptr);
 half16 __ovld fract(half16 x, __private half16 *iptr);
 #endif //cl_khr_fp16
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 /**
  * Extract mantissa and exponent from x. For each
@@ -7375,7 +7377,9 @@ half4 __ovld frexp(half4 x, int4 *exp);
 half8 __ovld frexp(half8 x, int8 *exp);
 half16 __ovld frexp(half16 x, int16 *exp);
 #endif //cl_khr_fp16
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 float __ovld frexp(float x, __global int *exp);
 float2 __ovld frexp(float2 x, __global int2 *exp);
 float3 __ovld frexp(float3 x, __global int3 *exp);
@@ -7434,7 +7438,7 @@ half4 __ovld frexp(half4 x, __private int4 *exp);
 half8 __ovld frexp(half8 x, __private int8 *exp);
 half16 __ovld frexp(half16 x, __private int16 *exp);
 #endif //cl_khr_fp16
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 /**
  * Compute the value of the square root of x^2 + y^2
@@ -7582,7 +7586,9 @@ half4 __ovld lgamma_r(half4 x, int4 *signp);
 half8 __ovld lgamma_r(half8 x, int8 *signp);
 half16 __ovld lgamma_r(half16 x, int16 *signp);
 #endif //cl_khr_fp16
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 float __ovld lgamma_r(float x, __global int *signp);
 float2 __ovld lgamma_r(float2 x, __global int2 *signp);
 float3 __ovld lgamma_r(float3 x, __global int3 *signp);
@@ -7641,7 +7647,7 @@ half4 __ovld lgamma_r(half4 x, __private int4 *signp);
 half8 __ovld lgamma_r(half8 x, __private int8 *signp);
 half16 __ovld lgamma_r(half16 x, __private int16 *signp);
 #endif //cl_khr_fp16
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 /**
  * Compute natural logarithm.
@@ -7888,7 +7894,9 @@ half4 __ovld modf(half4 x, half4 *iptr);
 half8 __ovld modf(half8 x, half8 *iptr);
 half16 __ovld modf(half16 x, half16 *iptr);
 #endif //cl_khr_fp16
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 float __ovld modf(float x, __global float *iptr);
 float2 __ovld modf(float2 x, __global float2 *iptr);
 float3 __ovld modf(float3 x, __global float3 *iptr);
@@ -7947,7 +7955,7 @@ half4 __ovld modf(half4 x, __private half4 *iptr);
 half8 __ovld modf(half8 x, __private half8 *iptr);
 half16 __ovld modf(half16 x, __private half16 *iptr);
 #endif //cl_khr_fp16
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 /**
  * Returns a quiet NaN. The nancode may be placed
@@ -8147,9 +8155,10 @@ half3 __ovld remquo(half3 x, half3 y, int3 *quo);
 half4 __ovld remquo(half4 x, half4 y, int4 *quo);
 half8 __ovld remquo(half8 x, half8 y, int8 *quo);
 half16 __ovld remquo(half16 x, half16 y, int16 *quo);
-
 #endif //cl_khr_fp16
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 float __ovld remquo(float x, float y, __global int *quo);
 float2 __ovld remquo(float2 x, float2 y, __global int2 *quo);
 float3 __ovld remquo(float3 x, float3 y, __global int3 *quo);
@@ -8208,7 +8217,7 @@ half4 __ovld remquo(half4 x, half4 y, __private int4 *quo);
 half8 __ovld remquo(half8 x, half8 y, __private int8 *quo);
 half16 __ovld remquo(half16 x, half16 y, __private int16 *quo);
 #endif //cl_khr_fp16
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 /**
  * Round to integral value (using round to nearest
  * even rounding mode) in floating-point format.
@@ -8372,7 +8381,9 @@ half4 __ovld sincos(half4 x, half4 *cosval);
 half8 __ovld sincos(half8 x, half8 *cosval);
 half16 __ovld sincos(half16 x, half16 *cosval);
 #endif //cl_khr_fp16
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 float __ovld sincos(float x, __global float *cosval);
 float2 __ovld sincos(float2 x, __global float2 *cosval);
 float3 __ovld sincos(float3 x, __global float3 *cosval);
@@ -8431,7 +8442,7 @@ half4 __ovld sincos(half4 x, __private half4 *cosval);
 half8 __ovld sincos(half8 x, __private half8 *cosval);
 half16 __ovld sincos(half16 x, __private half16 *cosval);
 #endif //cl_khr_fp16
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 /**
  * Compute hyperbolic sine.
@@ -11315,7 +11326,9 @@ half4 __ovld __purefn vload4(size_t offset, const half *p);
 half8 __ovld __purefn vload8(size_t offset, const half *p);
 half16 __ovld __purefn vload16(size_t offset, const half *p);
 #endif //cl_khr_fp16
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 char2 __ovld __purefn vload2(size_t offset, const __global char *p);
 uchar2 __ovld __purefn vload2(size_t offset, const __global uchar *p);
 short2 __ovld __purefn vload2(size_t offset, const __global short *p);
@@ -11490,7 +11503,7 @@ half4 __ovld __purefn vload4(size_t offset, const __private half *p);
 half8 __ovld __purefn vload8(size_t offset, const __private half *p);
 half16 __ovld __purefn vload16(size_t offset, const __private half *p);
 #endif //cl_khr_fp16
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 #if defined(__opencl_c_generic_address_space)
 void __ovld vstore2(char2 data, size_t offset, char *p);
@@ -11553,7 +11566,9 @@ void __ovld vstore4(half4 data, size_t offset, half *p);
 void __ovld vstore8(half8 data, size_t offset, half *p);
 void __ovld vstore16(half16 data, size_t offset, half *p);
 #endif //cl_khr_fp16
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 void __ovld vstore2(char2 data, size_t offset, __global char *p);
 void __ovld vstore2(uchar2 data, size_t offset, __global uchar *p);
 void __ovld vstore2(short2 data, size_t offset, __global short *p);
@@ -11726,7 +11741,7 @@ void __ovld vstore4(half4 data, size_t offset, __private half *p);
 void __ovld vstore8(half8 data, size_t offset, __private half *p);
 void __ovld vstore16(half16 data, size_t offset, __private half *p);
 #endif //cl_khr_fp16
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 /**
  * Read sizeof (half) bytes of data from address
@@ -11739,11 +11754,13 @@ void __ovld vstore16(half16 data, size_t offset, __private half *p);
 float __ovld __purefn vload_half(size_t offset, const __constant half *p);
 #if defined(__opencl_c_generic_address_space)
 float __ovld __purefn vload_half(size_t offset, const half *p);
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 float __ovld __purefn vload_half(size_t offset, const __global half *p);
 float __ovld __purefn vload_half(size_t offset, const __local half *p);
 float __ovld __purefn vload_half(size_t offset, const __private half *p);
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 /**
  * Read sizeof (halfn) bytes of data from address
@@ -11764,7 +11781,9 @@ float3 __ovld __purefn vload_half3(size_t offset, const half *p);
 float4 __ovld __purefn vload_half4(size_t offset, const half *p);
 float8 __ovld __purefn vload_half8(size_t offset, const half *p);
 float16 __ovld __purefn vload_half16(size_t offset, const half *p);
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 float2 __ovld __purefn vload_half2(size_t offset, const __global half *p);
 float3 __ovld __purefn vload_half3(size_t offset, const __global half *p);
 float4 __ovld __purefn vload_half4(size_t offset, const __global half *p);
@@ -11780,7 +11799,7 @@ float3 __ovld __purefn vload_half3(size_t offset, const __private half *p);
 float4 __ovld __purefn vload_half4(size_t offset, const __private half *p);
 float8 __ovld __purefn vload_half8(size_t offset, const __private half *p);
 float16 __ovld __purefn vload_half16(size_t offset, const __private half *p);
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 /**
  * The float value given by data is first
@@ -11806,7 +11825,9 @@ void __ovld vstore_half_rtz(double data, size_t offset, half *p);
 void __ovld vstore_half_rtp(double data, size_t offset, half *p);
 void __ovld vstore_half_rtn(double data, size_t offset, half *p);
 #endif //cl_khr_fp64
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 void __ovld vstore_half(float data, size_t offset, __global half *p);
 void __ovld vstore_half_rte(float data, size_t offset, __global half *p);
 void __ovld vstore_half_rtz(float data, size_t offset, __global half *p);
@@ -11839,7 +11860,7 @@ void __ovld vstore_half_rtz(double data, size_t offset, __private half *p);
 void __ovld vstore_half_rtp(double data, size_t offset, __private half *p);
 void __ovld vstore_half_rtn(double data, size_t offset, __private half *p);
 #endif //cl_khr_fp64
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 /**
  * The floatn value given by data is converted to
@@ -11905,7 +11926,9 @@ void __ovld vstore_half4_rtn(double4 data, size_t offset, half *p);
 void __ovld vstore_half8_rtn(double8 data, size_t offset, half *p);
 void __ovld vstore_half16_rtn(double16 data, size_t offset, half *p);
 #endif //cl_khr_fp64
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 void __ovld vstore_half2(float2 data, size_t offset, __global half *p);
 void __ovld vstore_half3(float3 data, size_t offset, __global half *p);
 void __ovld vstore_half4(float4 data, size_t offset, __global half *p);
@@ -12058,7 +12081,7 @@ void __ovld vstore_half4_rtn(double4 data, size_t offset, __private half *p);
 void __ovld vstore_half8_rtn(double8 data, size_t offset, __private half *p);
 void __ovld vstore_half16_rtn(double16 data, size_t offset, __private half *p);
 #endif //cl_khr_fp64
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 /**
  * For n = 1, 2, 4, 8 and 16 read sizeof (halfn)
@@ -12084,7 +12107,9 @@ float3 __ovld __purefn vloada_half3(size_t offset, const half *p);
 float4 __ovld __purefn vloada_half4(size_t offset, const half *p);
 float8 __ovld __purefn vloada_half8(size_t offset, const half *p);
 float16 __ovld __purefn vloada_half16(size_t offset, const half *p);
-#else
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
 float2 __ovld __purefn vloada_half2(size_t offset, const __global half *p);
 float3 __ovld __purefn vloada_half3(size_t offset, const __global half *p);
 float4 __ovld __purefn vloada_half4(size_t offset, const __global half *p);
@@ -12100,7 +12125,7 @@ float3 __ovld __purefn vloada_half3(size_t offset, const __private half *p);
 float4 __ovld __purefn vloada_half4(size_t offset, const __private half *p);
 float8 __ovld __purefn vloada_half8(size_t offset, const __private half *p);
 float16 __ovld __purefn vloada_half16(size_t offset, const __private half *p);
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 /**
  * The floatn value given by data is converted to
@@ -12180,8 +12205,9 @@ void __ovld vstorea_half4_rtn(double4 data, size_t offset, half *p);
 void __ovld vstorea_half8_rtn(double8 data, size_t offset, half *p);
 void __ovld vstorea_half16_rtn(double16 data, size_t offset, half *p);
 #endif //cl_khr_fp64
+#endif //defined(__opencl_c_generic_address_space)
 
-#else
+#if defined(__opencl_c_named_address_space_builtins)
 void __ovld vstorea_half2(float2 data, size_t offset, __global half *p);
 void __ovld vstorea_half3(float3 data, size_t offset, __global half *p);
 void __ovld vstorea_half4(float4 data, size_t offset, __global half *p);
@@ -12363,7 +12389,7 @@ void __ovld vstorea_half4_rtn(double4 data,size_t offset, __private half *p);
 void __ovld vstorea_half8_rtn(double8 data,size_t offset, __private half *p);
 void __ovld vstorea_half16_rtn(double16 data,size_t offset, __private half *p);
 #endif //cl_khr_fp64
-#endif //defined(__opencl_c_generic_address_space)
+#endif //defined(__opencl_c_named_address_space_builtins)
 
 // OpenCL v1.1 s6.11.8, v1.2 s6.12.8, v2.0 s6.13.8 - Synchronization Functions
 
@@ -13398,8 +13424,8 @@ long __ovld atomic_fetch_max(volatile __global atomic_long *object, long operand
 long __ovld atomic_fetch_max(volatile __local atomic_long *object, long operand);
 ulong __ovld atomic_fetch_max(volatile __global atomic_ulong *object, ulong operand);
 ulong __ovld atomic_fetch_max(volatile __local atomic_ulong *object, ulong operand);
-uintptr_t __ovld atomic_fetch_add(volatile __global atomic_uintptr_t *object, ptrdiff_t operand);
-uintptr_t __ovld atomic_fetch_sub(volatile __local atomic_uintptr_t *object, ptrdiff_t operand);
+uintptr_t __ovld atomic_fetch_max(volatile __global atomic_uintptr_t *object, uintptr_t operand);
+uintptr_t __ovld atomic_fetch_max(volatile __local atomic_uintptr_t *object, uintptr_t operand);
 #endif //defined(cl_khr_int64_base_atomics) && defined(cl_khr_int64_extended_atomics)
 #endif // (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 || __OPENCL_CPP_VERSION__ >= 202100)
 #endif
@@ -13517,8 +13543,8 @@ long __ovld atomic_fetch_max_explicit(volatile __global atomic_long *object, lon
 long __ovld atomic_fetch_max_explicit(volatile __local atomic_long *object, long operand, memory_order order);
 ulong __ovld atomic_fetch_max_explicit(volatile __global atomic_ulong *object, ulong operand, memory_order order);
 ulong __ovld atomic_fetch_max_explicit(volatile __local atomic_ulong *object, ulong operand, memory_order order);
-uintptr_t __ovld atomic_fetch_add_explicit(volatile __global atomic_uintptr_t *object, ptrdiff_t operand, memory_order order);
-uintptr_t __ovld atomic_fetch_sub_explicit(volatile __local atomic_uintptr_t *object, ptrdiff_t operand, memory_order order);
+uintptr_t __ovld atomic_fetch_max_explicit(volatile __global atomic_uintptr_t *object, uintptr_t operand, memory_order order);
+uintptr_t __ovld atomic_fetch_max_explicit(volatile __local atomic_uintptr_t *object, uintptr_t operand, memory_order order);
 #endif //defined(cl_khr_int64_base_atomics) && defined(cl_khr_int64_extended_atomics)
 #endif // (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 || __OPENCL_CPP_VERSION__ >= 202100)
 #endif
@@ -13635,8 +13661,8 @@ long __ovld atomic_fetch_max_explicit(volatile __global atomic_long *object, lon
 long __ovld atomic_fetch_max_explicit(volatile __local atomic_long *object, long operand, memory_order order, memory_scope scope);
 ulong __ovld atomic_fetch_max_explicit(volatile __global atomic_ulong *object, ulong operand, memory_order order, memory_scope scope);
 ulong __ovld atomic_fetch_max_explicit(volatile __local atomic_ulong *object, ulong operand, memory_order order, memory_scope scope);
-uintptr_t __ovld atomic_fetch_add_explicit(volatile __global atomic_uintptr_t *object, ptrdiff_t operand, memory_order order, memory_scope scope);
-uintptr_t __ovld atomic_fetch_sub_explicit(volatile __local atomic_uintptr_t *object, ptrdiff_t operand, memory_order order, memory_scope scope);
+uintptr_t __ovld atomic_fetch_max_explicit(volatile __global atomic_uintptr_t *object, uintptr_t operand, memory_order order, memory_scope scope);
+uintptr_t __ovld atomic_fetch_max_explicit(volatile __local atomic_uintptr_t *object, uintptr_t operand, memory_order order, memory_scope scope);
 #endif //defined(cl_khr_int64_base_atomics) && defined(cl_khr_int64_extended_atomics)
 #endif // (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 || __OPENCL_CPP_VERSION__ >= 202100)
 
@@ -13806,6 +13832,7 @@ float __ovld atomic_fetch_max_explicit(volatile atomic_float *object,
 #endif // defined(__opencl_c_ext_fp32_global_atomic_min_max) &&                \
     defined(__opencl_c_ext_fp32_local_atomic_min_max)
 
+#if defined(cl_khr_int64_base_atomics) && defined(cl_khr_int64_extended_atomics)
 #if defined(__opencl_c_ext_fp64_global_atomic_min_max)
 double __ovld atomic_fetch_min(volatile __global atomic_double *object,
                                double operand);
@@ -13856,6 +13883,8 @@ double __ovld atomic_fetch_max_explicit(volatile atomic_double *object,
                                         memory_scope scope);
 #endif // defined(__opencl_c_ext_fp64_global_atomic_min_max) &&                \
     defined(__opencl_c_ext_fp64_local_atomic_min_max)
+#endif // defined(cl_khr_int64_base_atomics) &&                                \
+    defined(cl_khr_int64_extended_atomics)
 
 #if defined(__opencl_c_ext_fp16_global_atomic_add)
 half __ovld atomic_fetch_add(volatile __global atomic_half *object,
@@ -13959,6 +13988,7 @@ float __ovld atomic_fetch_sub_explicit(volatile atomic_float *object,
 #endif // defined(__opencl_c_ext_fp32_global_atomic_add) &&                    \
     defined(__opencl_c_ext_fp32_local_atomic_add)
 
+#if defined(cl_khr_int64_base_atomics) && defined(cl_khr_int64_extended_atomics)
 #if defined(__opencl_c_ext_fp64_global_atomic_add)
 double __ovld atomic_fetch_add(volatile __global atomic_double *object,
                                double operand);
@@ -14009,6 +14039,8 @@ double __ovld atomic_fetch_sub_explicit(volatile atomic_double *object,
                                         memory_scope scope);
 #endif // defined(__opencl_c_ext_fp64_global_atomic_add) &&                    \
     defined(__opencl_c_ext_fp64_local_atomic_add)
+#endif // defined(cl_khr_int64_base_atomics) &&                                \
+    defined(cl_khr_int64_extended_atomics)
 
 #endif // cl_ext_float_atomics
 
@@ -15401,123 +15433,123 @@ half16 __ovld __cnfn shuffle2(half16 x, half16 y, ushort16 mask);
  * in the description above are undefined.
  */
 
-float4 __purefn __ovld read_imagef(read_only image2d_t image, sampler_t sampler, int2 coord);
-float4 __purefn __ovld read_imagef(read_only image2d_t image, sampler_t sampler, float2 coord);
+float4 __ovld __purefn read_imagef(read_only image2d_t image, sampler_t sampler, int2 coord);
+float4 __ovld __purefn read_imagef(read_only image2d_t image, sampler_t sampler, float2 coord);
 
-int4 __purefn __ovld read_imagei(read_only image2d_t image, sampler_t sampler, int2 coord);
-int4 __purefn __ovld read_imagei(read_only image2d_t image, sampler_t sampler, float2 coord);
-uint4 __purefn __ovld read_imageui(read_only image2d_t image, sampler_t sampler, int2 coord);
-uint4 __purefn __ovld read_imageui(read_only image2d_t image, sampler_t sampler, float2 coord);
+int4 __ovld __purefn read_imagei(read_only image2d_t image, sampler_t sampler, int2 coord);
+int4 __ovld __purefn read_imagei(read_only image2d_t image, sampler_t sampler, float2 coord);
+uint4 __ovld __purefn read_imageui(read_only image2d_t image, sampler_t sampler, int2 coord);
+uint4 __ovld __purefn read_imageui(read_only image2d_t image, sampler_t sampler, float2 coord);
 
-float4 __purefn __ovld read_imagef(read_only image3d_t image, sampler_t sampler, int4 coord);
-float4 __purefn __ovld read_imagef(read_only image3d_t image, sampler_t sampler, float4 coord);
+float4 __ovld __purefn read_imagef(read_only image3d_t image, sampler_t sampler, int4 coord);
+float4 __ovld __purefn read_imagef(read_only image3d_t image, sampler_t sampler, float4 coord);
 
-int4 __purefn __ovld read_imagei(read_only image3d_t image, sampler_t sampler, int4 coord);
-int4 __purefn __ovld read_imagei(read_only image3d_t image, sampler_t sampler, float4 coord);
-uint4 __purefn __ovld read_imageui(read_only image3d_t image, sampler_t sampler, int4 coord);
-uint4 __purefn __ovld read_imageui(read_only image3d_t image, sampler_t sampler, float4 coord);
+int4 __ovld __purefn read_imagei(read_only image3d_t image, sampler_t sampler, int4 coord);
+int4 __ovld __purefn read_imagei(read_only image3d_t image, sampler_t sampler, float4 coord);
+uint4 __ovld __purefn read_imageui(read_only image3d_t image, sampler_t sampler, int4 coord);
+uint4 __ovld __purefn read_imageui(read_only image3d_t image, sampler_t sampler, float4 coord);
 
 #if defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)
-float4 __purefn __ovld read_imagef(read_only image2d_array_t image_array, sampler_t sampler, int4 coord);
-float4 __purefn __ovld read_imagef(read_only image2d_array_t image_array, sampler_t sampler, float4 coord);
+float4 __ovld __purefn read_imagef(read_only image2d_array_t image_array, sampler_t sampler, int4 coord);
+float4 __ovld __purefn read_imagef(read_only image2d_array_t image_array, sampler_t sampler, float4 coord);
 
-int4 __purefn __ovld read_imagei(read_only image2d_array_t image_array, sampler_t sampler, int4 coord);
-int4 __purefn __ovld read_imagei(read_only image2d_array_t image_array, sampler_t sampler, float4 coord);
-uint4 __purefn __ovld read_imageui(read_only image2d_array_t image_array, sampler_t sampler, int4 coord);
-uint4 __purefn __ovld read_imageui(read_only image2d_array_t image_array, sampler_t sampler, float4 coord);
+int4 __ovld __purefn read_imagei(read_only image2d_array_t image_array, sampler_t sampler, int4 coord);
+int4 __ovld __purefn read_imagei(read_only image2d_array_t image_array, sampler_t sampler, float4 coord);
+uint4 __ovld __purefn read_imageui(read_only image2d_array_t image_array, sampler_t sampler, int4 coord);
+uint4 __ovld __purefn read_imageui(read_only image2d_array_t image_array, sampler_t sampler, float4 coord);
 #endif // defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)
 
-float4 __purefn __ovld read_imagef(read_only image1d_t image, sampler_t sampler, int coord);
-float4 __purefn __ovld read_imagef(read_only image1d_t image, sampler_t sampler, float coord);
+float4 __ovld __purefn read_imagef(read_only image1d_t image, sampler_t sampler, int coord);
+float4 __ovld __purefn read_imagef(read_only image1d_t image, sampler_t sampler, float coord);
 
-int4 __purefn __ovld read_imagei(read_only image1d_t image, sampler_t sampler, int coord);
-int4 __purefn __ovld read_imagei(read_only image1d_t image, sampler_t sampler, float coord);
-uint4 __purefn __ovld read_imageui(read_only image1d_t image, sampler_t sampler, int coord);
-uint4 __purefn __ovld read_imageui(read_only image1d_t image, sampler_t sampler, float coord);
+int4 __ovld __purefn read_imagei(read_only image1d_t image, sampler_t sampler, int coord);
+int4 __ovld __purefn read_imagei(read_only image1d_t image, sampler_t sampler, float coord);
+uint4 __ovld __purefn read_imageui(read_only image1d_t image, sampler_t sampler, int coord);
+uint4 __ovld __purefn read_imageui(read_only image1d_t image, sampler_t sampler, float coord);
 
 #if defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)
-float4 __purefn __ovld read_imagef(read_only image1d_array_t image_array, sampler_t sampler, int2 coord);
-float4 __purefn __ovld read_imagef(read_only image1d_array_t image_array, sampler_t sampler, float2 coord);
+float4 __ovld __purefn read_imagef(read_only image1d_array_t image_array, sampler_t sampler, int2 coord);
+float4 __ovld __purefn read_imagef(read_only image1d_array_t image_array, sampler_t sampler, float2 coord);
 
-int4 __purefn __ovld read_imagei(read_only image1d_array_t image_array, sampler_t sampler, int2 coord);
-int4 __purefn __ovld read_imagei(read_only image1d_array_t image_array, sampler_t sampler, float2 coord);
-uint4 __purefn __ovld read_imageui(read_only image1d_array_t image_array, sampler_t sampler, int2 coord);
-uint4 __purefn __ovld read_imageui(read_only image1d_array_t image_array, sampler_t sampler, float2 coord);
+int4 __ovld __purefn read_imagei(read_only image1d_array_t image_array, sampler_t sampler, int2 coord);
+int4 __ovld __purefn read_imagei(read_only image1d_array_t image_array, sampler_t sampler, float2 coord);
+uint4 __ovld __purefn read_imageui(read_only image1d_array_t image_array, sampler_t sampler, int2 coord);
+uint4 __ovld __purefn read_imageui(read_only image1d_array_t image_array, sampler_t sampler, float2 coord);
 #endif // defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)
 
 #ifdef cl_khr_depth_images
-float __purefn __ovld read_imagef(read_only image2d_depth_t image, sampler_t sampler, float2 coord);
-float __purefn __ovld read_imagef(read_only image2d_depth_t image, sampler_t sampler, int2 coord);
+float __ovld __purefn read_imagef(read_only image2d_depth_t image, sampler_t sampler, float2 coord);
+float __ovld __purefn read_imagef(read_only image2d_depth_t image, sampler_t sampler, int2 coord);
 
-float __purefn __ovld read_imagef(read_only image2d_array_depth_t image, sampler_t sampler, float4 coord);
-float __purefn __ovld read_imagef(read_only image2d_array_depth_t image, sampler_t sampler, int4 coord);
+float __ovld __purefn read_imagef(read_only image2d_array_depth_t image, sampler_t sampler, float4 coord);
+float __ovld __purefn read_imagef(read_only image2d_array_depth_t image, sampler_t sampler, int4 coord);
 #endif //cl_khr_depth_images
 
 #if defined(cl_khr_gl_msaa_sharing)
-float4 __purefn __ovld read_imagef(read_only image2d_msaa_t image, int2 coord, int sample);
-int4 __purefn __ovld read_imagei(read_only image2d_msaa_t image, int2 coord, int sample);
-uint4 __purefn __ovld read_imageui(read_only image2d_msaa_t image, int2 coord, int sample);
+float4 __ovld __purefn read_imagef(read_only image2d_msaa_t image, int2 coord, int sample);
+int4 __ovld __purefn read_imagei(read_only image2d_msaa_t image, int2 coord, int sample);
+uint4 __ovld __purefn read_imageui(read_only image2d_msaa_t image, int2 coord, int sample);
 
-float __purefn __ovld read_imagef(read_only image2d_msaa_depth_t image, int2 coord, int sample);
+float __ovld __purefn read_imagef(read_only image2d_msaa_depth_t image, int2 coord, int sample);
 
-float4 __purefn __ovld read_imagef(read_only image2d_array_msaa_t image, int4 coord, int sample);
-int4 __purefn __ovld read_imagei(read_only image2d_array_msaa_t image, int4 coord, int sample);
-uint4 __purefn __ovld read_imageui(read_only image2d_array_msaa_t image, int4 coord, int sample);
+float4 __ovld __purefn read_imagef(read_only image2d_array_msaa_t image, int4 coord, int sample);
+int4 __ovld __purefn read_imagei(read_only image2d_array_msaa_t image, int4 coord, int sample);
+uint4 __ovld __purefn read_imageui(read_only image2d_array_msaa_t image, int4 coord, int sample);
 
-float __purefn __ovld read_imagef(read_only image2d_array_msaa_depth_t image, int4 coord, int sample);
+float __ovld __purefn read_imagef(read_only image2d_array_msaa_depth_t image, int4 coord, int sample);
 #endif //cl_khr_gl_msaa_sharing
 
 // OpenCL Extension v2.0 s9.18 - Mipmaps
 #if defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
 #ifdef cl_khr_mipmap_image
 
-float4 __purefn __ovld read_imagef(read_only image1d_t image, sampler_t sampler, float coord, float lod);
-int4 __purefn __ovld read_imagei(read_only image1d_t image, sampler_t sampler, float coord, float lod);
-uint4 __purefn __ovld read_imageui(read_only image1d_t image, sampler_t sampler, float coord, float lod);
+float4 __ovld __purefn read_imagef(read_only image1d_t image, sampler_t sampler, float coord, float lod);
+int4 __ovld __purefn read_imagei(read_only image1d_t image, sampler_t sampler, float coord, float lod);
+uint4 __ovld __purefn read_imageui(read_only image1d_t image, sampler_t sampler, float coord, float lod);
 
-float4 __purefn __ovld read_imagef(read_only image1d_array_t image_array, sampler_t sampler, float2 coord, float lod);
-int4 __purefn __ovld read_imagei(read_only image1d_array_t image_array, sampler_t sampler, float2 coord, float lod);
-uint4 __purefn __ovld read_imageui(read_only image1d_array_t image_array, sampler_t sampler, float2 coord, float lod);
+float4 __ovld __purefn read_imagef(read_only image1d_array_t image_array, sampler_t sampler, float2 coord, float lod);
+int4 __ovld __purefn read_imagei(read_only image1d_array_t image_array, sampler_t sampler, float2 coord, float lod);
+uint4 __ovld __purefn read_imageui(read_only image1d_array_t image_array, sampler_t sampler, float2 coord, float lod);
 
-float4 __purefn __ovld read_imagef(read_only image2d_t image, sampler_t sampler, float2 coord, float lod);
-int4 __purefn __ovld read_imagei(read_only image2d_t image, sampler_t sampler, float2 coord, float lod);
-uint4 __purefn __ovld read_imageui(read_only image2d_t image, sampler_t sampler, float2 coord, float lod);
+float4 __ovld __purefn read_imagef(read_only image2d_t image, sampler_t sampler, float2 coord, float lod);
+int4 __ovld __purefn read_imagei(read_only image2d_t image, sampler_t sampler, float2 coord, float lod);
+uint4 __ovld __purefn read_imageui(read_only image2d_t image, sampler_t sampler, float2 coord, float lod);
 
-float __purefn __ovld read_imagef(read_only image2d_depth_t image, sampler_t sampler, float2 coord, float lod);
+float __ovld __purefn read_imagef(read_only image2d_depth_t image, sampler_t sampler, float2 coord, float lod);
 
-float4 __purefn __ovld read_imagef(read_only image2d_array_t image_array, sampler_t sampler, float4 coord, float lod);
-int4 __purefn __ovld read_imagei(read_only image2d_array_t image_array, sampler_t sampler, float4 coord, float lod);
-uint4 __purefn __ovld read_imageui(read_only image2d_array_t image_array, sampler_t sampler, float4 coord, float lod);
+float4 __ovld __purefn read_imagef(read_only image2d_array_t image_array, sampler_t sampler, float4 coord, float lod);
+int4 __ovld __purefn read_imagei(read_only image2d_array_t image_array, sampler_t sampler, float4 coord, float lod);
+uint4 __ovld __purefn read_imageui(read_only image2d_array_t image_array, sampler_t sampler, float4 coord, float lod);
 
-float __purefn __ovld read_imagef(read_only image2d_array_depth_t image, sampler_t sampler, float4 coord, float lod);
+float __ovld __purefn read_imagef(read_only image2d_array_depth_t image, sampler_t sampler, float4 coord, float lod);
 
-float4 __purefn __ovld read_imagef(read_only image3d_t image, sampler_t sampler, float4 coord, float lod);
-int4 __purefn __ovld read_imagei(read_only image3d_t image, sampler_t sampler, float4 coord, float lod);
-uint4 __purefn __ovld read_imageui(read_only image3d_t image, sampler_t sampler, float4 coord, float lod);
+float4 __ovld __purefn read_imagef(read_only image3d_t image, sampler_t sampler, float4 coord, float lod);
+int4 __ovld __purefn read_imagei(read_only image3d_t image, sampler_t sampler, float4 coord, float lod);
+uint4 __ovld __purefn read_imageui(read_only image3d_t image, sampler_t sampler, float4 coord, float lod);
 
-float4 __purefn __ovld read_imagef(read_only image1d_t image, sampler_t sampler, float coord, float gradientX, float gradientY);
-int4 __purefn __ovld read_imagei(read_only image1d_t image, sampler_t sampler, float coord, float gradientX, float gradientY);
-uint4 __purefn __ovld read_imageui(read_only image1d_t image, sampler_t sampler, float coord, float gradientX, float gradientY);
+float4 __ovld __purefn read_imagef(read_only image1d_t image, sampler_t sampler, float coord, float gradientX, float gradientY);
+int4 __ovld __purefn read_imagei(read_only image1d_t image, sampler_t sampler, float coord, float gradientX, float gradientY);
+uint4 __ovld __purefn read_imageui(read_only image1d_t image, sampler_t sampler, float coord, float gradientX, float gradientY);
 
-float4 __purefn __ovld read_imagef(read_only image1d_array_t image_array, sampler_t sampler, float2 coord, float gradientX, float gradientY);
-int4 __purefn __ovld read_imagei(read_only image1d_array_t image_array, sampler_t sampler, float2 coord, float gradientX, float gradientY);
-uint4 __purefn __ovld read_imageui(read_only image1d_array_t image_array, sampler_t sampler, float2 coord, float gradientX, float gradientY);
+float4 __ovld __purefn read_imagef(read_only image1d_array_t image_array, sampler_t sampler, float2 coord, float gradientX, float gradientY);
+int4 __ovld __purefn read_imagei(read_only image1d_array_t image_array, sampler_t sampler, float2 coord, float gradientX, float gradientY);
+uint4 __ovld __purefn read_imageui(read_only image1d_array_t image_array, sampler_t sampler, float2 coord, float gradientX, float gradientY);
 
-float4 __purefn __ovld read_imagef(read_only image2d_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
-int4 __purefn __ovld read_imagei(read_only image2d_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
-uint4 __purefn __ovld read_imageui(read_only image2d_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
+float4 __ovld __purefn read_imagef(read_only image2d_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
+int4 __ovld __purefn read_imagei(read_only image2d_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
+uint4 __ovld __purefn read_imageui(read_only image2d_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
 
-float __purefn __ovld read_imagef(read_only image2d_depth_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
+float __ovld __purefn read_imagef(read_only image2d_depth_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
 
-float4 __purefn __ovld read_imagef(read_only image2d_array_t image_array, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
-int4 __purefn __ovld read_imagei(read_only image2d_array_t image_array, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
-uint4 __purefn __ovld read_imageui(read_only image2d_array_t image_array, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
+float4 __ovld __purefn read_imagef(read_only image2d_array_t image_array, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
+int4 __ovld __purefn read_imagei(read_only image2d_array_t image_array, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
+uint4 __ovld __purefn read_imageui(read_only image2d_array_t image_array, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
 
-float __purefn __ovld read_imagef(read_only image2d_array_depth_t image, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
+float __ovld __purefn read_imagef(read_only image2d_array_depth_t image, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
 
-float4 __purefn __ovld read_imagef(read_only image3d_t image, sampler_t sampler, float4 coord, float4 gradientX, float4 gradientY);
-int4 __purefn __ovld read_imagei(read_only image3d_t image, sampler_t sampler, float4 coord, float4 gradientX, float4 gradientY);
-uint4 __purefn __ovld read_imageui(read_only image3d_t image, sampler_t sampler, float4 coord, float4 gradientX, float4 gradientY);
+float4 __ovld __purefn read_imagef(read_only image3d_t image, sampler_t sampler, float4 coord, float4 gradientX, float4 gradientY);
+int4 __ovld __purefn read_imagei(read_only image3d_t image, sampler_t sampler, float4 coord, float4 gradientX, float4 gradientY);
+uint4 __ovld __purefn read_imageui(read_only image3d_t image, sampler_t sampler, float4 coord, float4 gradientX, float4 gradientY);
 
 #endif //cl_khr_mipmap_image
 #endif //defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
@@ -15528,165 +15560,165 @@ uint4 __purefn __ovld read_imageui(read_only image3d_t image, sampler_t sampler,
 * Sampler-less Image Access
 */
 
-float4 __purefn __ovld read_imagef(read_only image1d_t image, int coord);
-int4 __purefn __ovld read_imagei(read_only image1d_t image, int coord);
-uint4 __purefn __ovld read_imageui(read_only image1d_t image, int coord);
+float4 __ovld __purefn read_imagef(read_only image1d_t image, int coord);
+int4 __ovld __purefn read_imagei(read_only image1d_t image, int coord);
+uint4 __ovld __purefn read_imageui(read_only image1d_t image, int coord);
 
-float4 __purefn __ovld read_imagef(read_only image1d_buffer_t image, int coord);
-int4 __purefn __ovld read_imagei(read_only image1d_buffer_t image, int coord);
-uint4 __purefn __ovld read_imageui(read_only image1d_buffer_t image, int coord);
+float4 __ovld __purefn read_imagef(read_only image1d_buffer_t image, int coord);
+int4 __ovld __purefn read_imagei(read_only image1d_buffer_t image, int coord);
+uint4 __ovld __purefn read_imageui(read_only image1d_buffer_t image, int coord);
 
-float4 __purefn __ovld read_imagef(read_only image1d_array_t image, int2 coord);
-int4 __purefn __ovld read_imagei(read_only image1d_array_t image, int2 coord);
-uint4 __purefn __ovld read_imageui(read_only image1d_array_t image, int2 coord);
+float4 __ovld __purefn read_imagef(read_only image1d_array_t image, int2 coord);
+int4 __ovld __purefn read_imagei(read_only image1d_array_t image, int2 coord);
+uint4 __ovld __purefn read_imageui(read_only image1d_array_t image, int2 coord);
 
-float4 __purefn __ovld read_imagef(read_only image2d_t image, int2 coord);
-int4 __purefn __ovld read_imagei(read_only image2d_t image, int2 coord);
-uint4 __purefn __ovld read_imageui(read_only image2d_t image, int2 coord);
+float4 __ovld __purefn read_imagef(read_only image2d_t image, int2 coord);
+int4 __ovld __purefn read_imagei(read_only image2d_t image, int2 coord);
+uint4 __ovld __purefn read_imageui(read_only image2d_t image, int2 coord);
 
-float4 __purefn __ovld read_imagef(read_only image2d_array_t image, int4 coord);
-int4 __purefn __ovld read_imagei(read_only image2d_array_t image, int4 coord);
-uint4 __purefn __ovld read_imageui(read_only image2d_array_t image, int4 coord);
+float4 __ovld __purefn read_imagef(read_only image2d_array_t image, int4 coord);
+int4 __ovld __purefn read_imagei(read_only image2d_array_t image, int4 coord);
+uint4 __ovld __purefn read_imageui(read_only image2d_array_t image, int4 coord);
 
 #ifdef cl_khr_depth_images
-float __purefn __ovld read_imagef(read_only image2d_depth_t image, int2 coord);
-float __purefn __ovld read_imagef(read_only image2d_array_depth_t image, int4 coord);
+float __ovld __purefn read_imagef(read_only image2d_depth_t image, int2 coord);
+float __ovld __purefn read_imagef(read_only image2d_array_depth_t image, int4 coord);
 #endif //cl_khr_depth_images
 
-float4 __purefn __ovld read_imagef(read_only image3d_t image, int4 coord);
-int4 __purefn __ovld read_imagei(read_only image3d_t image, int4 coord);
-uint4 __purefn __ovld read_imageui(read_only image3d_t image, int4 coord);
+float4 __ovld __purefn read_imagef(read_only image3d_t image, int4 coord);
+int4 __ovld __purefn read_imagei(read_only image3d_t image, int4 coord);
+uint4 __ovld __purefn read_imageui(read_only image3d_t image, int4 coord);
 
 #endif // defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)
 
 // Image read functions returning half4 type
 #ifdef cl_khr_fp16
-half4 __purefn __ovld read_imageh(read_only image1d_t image, sampler_t sampler, int coord);
-half4 __purefn __ovld read_imageh(read_only image1d_t image, sampler_t sampler, float coord);
-half4 __purefn __ovld read_imageh(read_only image2d_t image, sampler_t sampler, int2 coord);
-half4 __purefn __ovld read_imageh(read_only image2d_t image, sampler_t sampler, float2 coord);
-half4 __purefn __ovld read_imageh(read_only image3d_t image, sampler_t sampler, int4 coord);
-half4 __purefn __ovld read_imageh(read_only image3d_t image, sampler_t sampler, float4 coord);
+half4 __ovld __purefn read_imageh(read_only image1d_t image, sampler_t sampler, int coord);
+half4 __ovld __purefn read_imageh(read_only image1d_t image, sampler_t sampler, float coord);
+half4 __ovld __purefn read_imageh(read_only image2d_t image, sampler_t sampler, int2 coord);
+half4 __ovld __purefn read_imageh(read_only image2d_t image, sampler_t sampler, float2 coord);
+half4 __ovld __purefn read_imageh(read_only image3d_t image, sampler_t sampler, int4 coord);
+half4 __ovld __purefn read_imageh(read_only image3d_t image, sampler_t sampler, float4 coord);
 #if defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)
-half4 __purefn __ovld read_imageh(read_only image1d_array_t image, sampler_t sampler, int2 coord);
-half4 __purefn __ovld read_imageh(read_only image1d_array_t image, sampler_t sampler, float2 coord);
-half4 __purefn __ovld read_imageh(read_only image2d_array_t image, sampler_t sampler, int4 coord);
-half4 __purefn __ovld read_imageh(read_only image2d_array_t image, sampler_t sampler, float4 coord);
+half4 __ovld __purefn read_imageh(read_only image1d_array_t image, sampler_t sampler, int2 coord);
+half4 __ovld __purefn read_imageh(read_only image1d_array_t image, sampler_t sampler, float2 coord);
+half4 __ovld __purefn read_imageh(read_only image2d_array_t image, sampler_t sampler, int4 coord);
+half4 __ovld __purefn read_imageh(read_only image2d_array_t image, sampler_t sampler, float4 coord);
 /**
  * Sampler-less Image Access
  */
-half4 __purefn __ovld read_imageh(read_only image1d_t image, int coord);
-half4 __purefn __ovld read_imageh(read_only image2d_t image, int2 coord);
-half4 __purefn __ovld read_imageh(read_only image3d_t image, int4 coord);
-half4 __purefn __ovld read_imageh(read_only image1d_array_t image, int2 coord);
-half4 __purefn __ovld read_imageh(read_only image2d_array_t image, int4 coord);
-half4 __purefn __ovld read_imageh(read_only image1d_buffer_t image, int coord);
+half4 __ovld __purefn read_imageh(read_only image1d_t image, int coord);
+half4 __ovld __purefn read_imageh(read_only image2d_t image, int2 coord);
+half4 __ovld __purefn read_imageh(read_only image3d_t image, int4 coord);
+half4 __ovld __purefn read_imageh(read_only image1d_array_t image, int2 coord);
+half4 __ovld __purefn read_imageh(read_only image2d_array_t image, int4 coord);
+half4 __ovld __purefn read_imageh(read_only image1d_buffer_t image, int coord);
 #endif // defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)
 #endif //cl_khr_fp16
 
 // Image read functions for read_write images
 #if defined(__opencl_c_read_write_images)
-float4 __purefn __ovld read_imagef(read_write image1d_t image, int coord);
-int4 __purefn __ovld read_imagei(read_write image1d_t image, int coord);
-uint4 __purefn __ovld read_imageui(read_write image1d_t image, int coord);
+float4 __ovld __purefn read_imagef(read_write image1d_t image, int coord);
+int4 __ovld __purefn read_imagei(read_write image1d_t image, int coord);
+uint4 __ovld __purefn read_imageui(read_write image1d_t image, int coord);
 
-float4 __purefn __ovld read_imagef(read_write image1d_buffer_t image, int coord);
-int4 __purefn __ovld read_imagei(read_write image1d_buffer_t image, int coord);
-uint4 __purefn __ovld read_imageui(read_write image1d_buffer_t image, int coord);
+float4 __ovld __purefn read_imagef(read_write image1d_buffer_t image, int coord);
+int4 __ovld __purefn read_imagei(read_write image1d_buffer_t image, int coord);
+uint4 __ovld __purefn read_imageui(read_write image1d_buffer_t image, int coord);
 
-float4 __purefn __ovld read_imagef(read_write image1d_array_t image, int2 coord);
-int4 __purefn __ovld read_imagei(read_write image1d_array_t image, int2 coord);
-uint4 __purefn __ovld read_imageui(read_write image1d_array_t image, int2 coord);
+float4 __ovld __purefn read_imagef(read_write image1d_array_t image, int2 coord);
+int4 __ovld __purefn read_imagei(read_write image1d_array_t image, int2 coord);
+uint4 __ovld __purefn read_imageui(read_write image1d_array_t image, int2 coord);
 
-float4 __purefn __ovld read_imagef(read_write image2d_t image, int2 coord);
-int4 __purefn __ovld read_imagei(read_write image2d_t image, int2 coord);
-uint4 __purefn __ovld read_imageui(read_write image2d_t image, int2 coord);
+float4 __ovld __purefn read_imagef(read_write image2d_t image, int2 coord);
+int4 __ovld __purefn read_imagei(read_write image2d_t image, int2 coord);
+uint4 __ovld __purefn read_imageui(read_write image2d_t image, int2 coord);
 
-float4 __purefn __ovld read_imagef(read_write image2d_array_t image, int4 coord);
-int4 __purefn __ovld read_imagei(read_write image2d_array_t image, int4 coord);
-uint4 __purefn __ovld read_imageui(read_write image2d_array_t image, int4 coord);
+float4 __ovld __purefn read_imagef(read_write image2d_array_t image, int4 coord);
+int4 __ovld __purefn read_imagei(read_write image2d_array_t image, int4 coord);
+uint4 __ovld __purefn read_imageui(read_write image2d_array_t image, int4 coord);
 
-float4 __purefn __ovld read_imagef(read_write image3d_t image, int4 coord);
-int4 __purefn __ovld read_imagei(read_write image3d_t image, int4 coord);
-uint4 __purefn __ovld read_imageui(read_write image3d_t image, int4 coord);
+float4 __ovld __purefn read_imagef(read_write image3d_t image, int4 coord);
+int4 __ovld __purefn read_imagei(read_write image3d_t image, int4 coord);
+uint4 __ovld __purefn read_imageui(read_write image3d_t image, int4 coord);
 
 #ifdef cl_khr_depth_images
-float __purefn __ovld read_imagef(read_write image2d_depth_t image, int2 coord);
-float __purefn __ovld read_imagef(read_write image2d_array_depth_t image, int4 coord);
+float __ovld __purefn read_imagef(read_write image2d_depth_t image, int2 coord);
+float __ovld __purefn read_imagef(read_write image2d_array_depth_t image, int4 coord);
 #endif //cl_khr_depth_images
 
 #if cl_khr_gl_msaa_sharing
-float4 __purefn __ovld read_imagef(read_write image2d_msaa_t image, int2 coord, int sample);
-int4 __purefn __ovld read_imagei(read_write image2d_msaa_t image, int2 coord, int sample);
-uint4 __purefn __ovld read_imageui(read_write image2d_msaa_t image, int2 coord, int sample);
+float4 __ovld __purefn read_imagef(read_write image2d_msaa_t image, int2 coord, int sample);
+int4 __ovld __purefn read_imagei(read_write image2d_msaa_t image, int2 coord, int sample);
+uint4 __ovld __purefn read_imageui(read_write image2d_msaa_t image, int2 coord, int sample);
 
-float4 __purefn __ovld read_imagef(read_write image2d_array_msaa_t image, int4 coord, int sample);
-int4 __purefn __ovld read_imagei(read_write image2d_array_msaa_t image, int4 coord, int sample);
-uint4 __purefn __ovld read_imageui(read_write image2d_array_msaa_t image, int4 coord, int sample);
+float4 __ovld __purefn read_imagef(read_write image2d_array_msaa_t image, int4 coord, int sample);
+int4 __ovld __purefn read_imagei(read_write image2d_array_msaa_t image, int4 coord, int sample);
+uint4 __ovld __purefn read_imageui(read_write image2d_array_msaa_t image, int4 coord, int sample);
 
-float __purefn __ovld read_imagef(read_write image2d_msaa_depth_t image, int2 coord, int sample);
-float __purefn __ovld read_imagef(read_write image2d_array_msaa_depth_t image, int4 coord, int sample);
+float __ovld __purefn read_imagef(read_write image2d_msaa_depth_t image, int2 coord, int sample);
+float __ovld __purefn read_imagef(read_write image2d_array_msaa_depth_t image, int4 coord, int sample);
 #endif //cl_khr_gl_msaa_sharing
 
 #ifdef cl_khr_mipmap_image
-float4 __purefn __ovld read_imagef(read_write image1d_t image, sampler_t sampler, float coord, float lod);
-int4 __purefn __ovld read_imagei(read_write image1d_t image, sampler_t sampler, float coord, float lod);
-uint4 __purefn __ovld read_imageui(read_write image1d_t image, sampler_t sampler, float coord, float lod);
+float4 __ovld __purefn read_imagef(read_write image1d_t image, sampler_t sampler, float coord, float lod);
+int4 __ovld __purefn read_imagei(read_write image1d_t image, sampler_t sampler, float coord, float lod);
+uint4 __ovld __purefn read_imageui(read_write image1d_t image, sampler_t sampler, float coord, float lod);
 
-float4 __purefn __ovld read_imagef(read_write image1d_array_t image_array, sampler_t sampler, float2 coord, float lod);
-int4 __purefn __ovld read_imagei(read_write image1d_array_t image_array, sampler_t sampler, float2 coord, float lod);
-uint4 __purefn __ovld read_imageui(read_write image1d_array_t image_array, sampler_t sampler, float2 coord, float lod);
+float4 __ovld __purefn read_imagef(read_write image1d_array_t image_array, sampler_t sampler, float2 coord, float lod);
+int4 __ovld __purefn read_imagei(read_write image1d_array_t image_array, sampler_t sampler, float2 coord, float lod);
+uint4 __ovld __purefn read_imageui(read_write image1d_array_t image_array, sampler_t sampler, float2 coord, float lod);
 
-float4 __purefn __ovld read_imagef(read_write image2d_t image, sampler_t sampler, float2 coord, float lod);
-int4 __purefn __ovld read_imagei(read_write image2d_t image, sampler_t sampler, float2 coord, float lod);
-uint4 __purefn __ovld read_imageui(read_write image2d_t image, sampler_t sampler, float2 coord, float lod);
+float4 __ovld __purefn read_imagef(read_write image2d_t image, sampler_t sampler, float2 coord, float lod);
+int4 __ovld __purefn read_imagei(read_write image2d_t image, sampler_t sampler, float2 coord, float lod);
+uint4 __ovld __purefn read_imageui(read_write image2d_t image, sampler_t sampler, float2 coord, float lod);
 
-float __purefn __ovld read_imagef(read_write image2d_depth_t image, sampler_t sampler, float2 coord, float lod);
+float __ovld __purefn read_imagef(read_write image2d_depth_t image, sampler_t sampler, float2 coord, float lod);
 
-float4 __purefn __ovld read_imagef(read_write image2d_array_t image_array, sampler_t sampler, float4 coord, float lod);
-int4 __purefn __ovld read_imagei(read_write image2d_array_t image_array, sampler_t sampler, float4 coord, float lod);
-uint4 __purefn __ovld read_imageui(read_write image2d_array_t image_array, sampler_t sampler, float4 coord, float lod);
+float4 __ovld __purefn read_imagef(read_write image2d_array_t image_array, sampler_t sampler, float4 coord, float lod);
+int4 __ovld __purefn read_imagei(read_write image2d_array_t image_array, sampler_t sampler, float4 coord, float lod);
+uint4 __ovld __purefn read_imageui(read_write image2d_array_t image_array, sampler_t sampler, float4 coord, float lod);
 
-float __purefn __ovld read_imagef(read_write image2d_array_depth_t image, sampler_t sampler, float4 coord, float lod);
+float __ovld __purefn read_imagef(read_write image2d_array_depth_t image, sampler_t sampler, float4 coord, float lod);
 
-float4 __purefn __ovld read_imagef(read_write image3d_t image, sampler_t sampler, float4 coord, float lod);
-int4 __purefn __ovld read_imagei(read_write image3d_t image, sampler_t sampler, float4 coord, float lod);
-uint4 __purefn __ovld read_imageui(read_write image3d_t image, sampler_t sampler, float4 coord, float lod);
+float4 __ovld __purefn read_imagef(read_write image3d_t image, sampler_t sampler, float4 coord, float lod);
+int4 __ovld __purefn read_imagei(read_write image3d_t image, sampler_t sampler, float4 coord, float lod);
+uint4 __ovld __purefn read_imageui(read_write image3d_t image, sampler_t sampler, float4 coord, float lod);
 
-float4 __purefn __ovld read_imagef(read_write image1d_t image, sampler_t sampler, float coord, float gradientX, float gradientY);
-int4 __purefn __ovld read_imagei(read_write image1d_t image, sampler_t sampler, float coord, float gradientX, float gradientY);
-uint4 __purefn __ovld read_imageui(read_write image1d_t image, sampler_t sampler, float coord, float gradientX, float gradientY);
+float4 __ovld __purefn read_imagef(read_write image1d_t image, sampler_t sampler, float coord, float gradientX, float gradientY);
+int4 __ovld __purefn read_imagei(read_write image1d_t image, sampler_t sampler, float coord, float gradientX, float gradientY);
+uint4 __ovld __purefn read_imageui(read_write image1d_t image, sampler_t sampler, float coord, float gradientX, float gradientY);
 
-float4 __purefn __ovld read_imagef(read_write image1d_array_t image_array, sampler_t sampler, float2 coord, float gradientX, float gradientY);
-int4 __purefn __ovld read_imagei(read_write image1d_array_t image_array, sampler_t sampler, float2 coord, float gradientX, float gradientY);
-uint4 __purefn __ovld read_imageui(read_write image1d_array_t image_array, sampler_t sampler, float2 coord, float gradientX, float gradientY);
+float4 __ovld __purefn read_imagef(read_write image1d_array_t image_array, sampler_t sampler, float2 coord, float gradientX, float gradientY);
+int4 __ovld __purefn read_imagei(read_write image1d_array_t image_array, sampler_t sampler, float2 coord, float gradientX, float gradientY);
+uint4 __ovld __purefn read_imageui(read_write image1d_array_t image_array, sampler_t sampler, float2 coord, float gradientX, float gradientY);
 
-float4 __purefn __ovld read_imagef(read_write image2d_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
-int4 __purefn __ovld read_imagei(read_write image2d_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
-uint4 __purefn __ovld read_imageui(read_write image2d_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
+float4 __ovld __purefn read_imagef(read_write image2d_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
+int4 __ovld __purefn read_imagei(read_write image2d_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
+uint4 __ovld __purefn read_imageui(read_write image2d_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
 
-float __purefn __ovld read_imagef(read_write image2d_depth_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
+float __ovld __purefn read_imagef(read_write image2d_depth_t image, sampler_t sampler, float2 coord, float2 gradientX, float2 gradientY);
 
-float4 __purefn __ovld read_imagef(read_write image2d_array_t image_array, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
-int4 __purefn __ovld read_imagei(read_write image2d_array_t image_array, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
-uint4 __purefn __ovld read_imageui(read_write image2d_array_t image_array, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
+float4 __ovld __purefn read_imagef(read_write image2d_array_t image_array, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
+int4 __ovld __purefn read_imagei(read_write image2d_array_t image_array, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
+uint4 __ovld __purefn read_imageui(read_write image2d_array_t image_array, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
 
-float __purefn __ovld read_imagef(read_write image2d_array_depth_t image, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
+float __ovld __purefn read_imagef(read_write image2d_array_depth_t image, sampler_t sampler, float4 coord, float2 gradientX, float2 gradientY);
 
-float4 __purefn __ovld read_imagef(read_write image3d_t image, sampler_t sampler, float4 coord, float4 gradientX, float4 gradientY);
-int4 __purefn __ovld read_imagei(read_write image3d_t image, sampler_t sampler, float4 coord, float4 gradientX, float4 gradientY);
-uint4 __purefn __ovld read_imageui(read_write image3d_t image, sampler_t sampler, float4 coord, float4 gradientX, float4 gradientY);
+float4 __ovld __purefn read_imagef(read_write image3d_t image, sampler_t sampler, float4 coord, float4 gradientX, float4 gradientY);
+int4 __ovld __purefn read_imagei(read_write image3d_t image, sampler_t sampler, float4 coord, float4 gradientX, float4 gradientY);
+uint4 __ovld __purefn read_imageui(read_write image3d_t image, sampler_t sampler, float4 coord, float4 gradientX, float4 gradientY);
 
 #endif //cl_khr_mipmap_image
 
 // Image read functions returning half4 type
 #ifdef cl_khr_fp16
-half4 __purefn __ovld read_imageh(read_write image1d_t image, int coord);
-half4 __purefn __ovld read_imageh(read_write image2d_t image, int2 coord);
-half4 __purefn __ovld read_imageh(read_write image3d_t image, int4 coord);
-half4 __purefn __ovld read_imageh(read_write image1d_array_t image, int2 coord);
-half4 __purefn __ovld read_imageh(read_write image2d_array_t image, int4 coord);
-half4 __purefn __ovld read_imageh(read_write image1d_buffer_t image, int coord);
+half4 __ovld __purefn read_imageh(read_write image1d_t image, int coord);
+half4 __ovld __purefn read_imageh(read_write image2d_t image, int2 coord);
+half4 __ovld __purefn read_imageh(read_write image3d_t image, int4 coord);
+half4 __ovld __purefn read_imageh(read_write image1d_array_t image, int2 coord);
+half4 __ovld __purefn read_imageh(read_write image2d_array_t image, int4 coord);
+half4 __ovld __purefn read_imageh(read_write image1d_buffer_t image, int coord);
 #endif //cl_khr_fp16
 #endif //defined(__opencl_c_read_write_images)
 
@@ -18491,27 +18523,29 @@ uint16 __ovld amd_sadw(uint16 src0, uint16 src1, uint16 src2);
 #endif // cl_amd_media_ops2
 
 #if defined(cl_arm_integer_dot_product_int8)
-uint __ovld arm_dot(uchar4 a, uchar4 b);
-int __ovld arm_dot(char4 a, char4 b);
+uint __ovld arm_dot(uchar4, uchar4);
+int __ovld arm_dot(char4, char4);
 #endif // defined(cl_arm_integer_dot_product_int8)
 
 #if defined(cl_arm_integer_dot_product_accumulate_int8)
-uint __ovld arm_dot_acc(uchar4 a, uchar4 b, uint c);
-int __ovld arm_dot_acc(char4 a, char4 b, int c);
+uint __ovld arm_dot_acc(uchar4, uchar4, uint);
+int __ovld arm_dot_acc(char4, char4, int);
 #endif // defined(cl_arm_integer_dot_product_accumulate_int8)
 
 #if defined(cl_arm_integer_dot_product_accumulate_int16)
-uint __ovld arm_dot_acc(ushort2 a, ushort2 b, uint c);
-int __ovld arm_dot_acc(short2 a, short2 b, int c);
+uint __ovld arm_dot_acc(ushort2, ushort2, uint);
+int __ovld arm_dot_acc(short2, short2, int);
 #endif // defined(cl_arm_integer_dot_product_accumulate_int16)
 
 #if defined(cl_arm_integer_dot_product_accumulate_saturate_int8)
-uint __ovld arm_dot_acc_sat(uchar4 a, uchar4 b, uint c);
-int __ovld arm_dot_acc_sat(char4 a, char4 b, int c);
+uint __ovld arm_dot_acc_sat(uchar4, uchar4, uint);
+int __ovld arm_dot_acc_sat(char4, char4, int);
 #endif // defined(cl_arm_integer_dot_product_accumulate_saturate_int8)
 
 // Disable any extensions we may have enabled previously.
 #pragma OPENCL EXTENSION all : disable
+
+#undef __opencl_c_named_address_space_builtins
 
 #undef __cnfn
 #undef __ovld
