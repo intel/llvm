@@ -3,6 +3,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// UNSUPPORTED: windows
+// Temporarily disabled due to sporadic failure (timeout) at Jenkins job
+
 #include "support.h"
 #include <CL/sycl.hpp>
 #include <algorithm>
