@@ -421,19 +421,8 @@ public:
     return Converter<input_type, type>::convert(make_fp32(                     \
         __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx)) op make_fp32(lhs)); \
   }
-  OP(float, uint16_t, +)
-  OP(float, uint16_t, -)
-  OP(float, uint16_t, *)
-  OP(float, uint16_t, /)
-  OP(bool, bool, ==)
-  OP(bool, bool, !=)
-  OP(bool, bool, <)
-  OP(bool, bool, >)
-  OP(bool, bool, <=)
-  OP(bool, bool, >=)
-#undef OP
 #else // __SYCL_DEVICE_ONLY__
-#define OP(type, op)                                                           \
+#define OP(input_type, type, op)                                               \
   friend type operator op(                                                     \
       const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,        \
       const uint16_t &rhs) {                                                   \
@@ -450,18 +439,18 @@ public:
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_INVALID_DEVICE);                                    \
   }
-  OP(uint16_t, +)
-  OP(uint16_t, -)
-  OP(uint16_t, *)
-  OP(uint16_t, /)
-  OP(bool, ==)
-  OP(bool, !=)
-  OP(bool, <)
-  OP(bool, >)
-  OP(bool, <=)
-  OP(bool, >=)
-#undef OP
 #endif // __SYCL_DEVICE_ONLY__
+  OP(float, uint16_t, +)
+  OP(float, uint16_t, -)
+  OP(float, uint16_t, *)
+  OP(float, uint16_t, /)
+  OP(bool, bool, ==)
+  OP(bool, bool, !=)
+  OP(bool, bool, <)
+  OP(bool, bool, >)
+  OP(bool, bool, <=)
+  OP(bool, bool, >=)
+#undef OP
 };
 
 template <typename T, size_t NumRows, size_t NumCols, matrix_layout Layout,
