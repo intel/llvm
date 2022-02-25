@@ -114,7 +114,7 @@ add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cassert_no_read.bc
                    DEPENDS wrapper.h device.h spirv_vars.h sycl-compiler
                    VERBATIM)
 add_custom_command(OUTPUT ${spv_binary_dir}/assert_read_spir64_spv.bc
-                   COMMAND ${clang} -c -x cl -emit-llvm
+                   COMMAND ${clang} -c -x cl -emit-llvm -fsycl-device-only
                            --target=spir64-unknown-unknown -cl-std=CL2.0
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
                            -o ${spv_binary_dir}/assert_read_spir64_spv.bc
@@ -180,7 +180,7 @@ add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cstring.spv
 ################################################################################
 #[[
 add_custom_command(OUTPUT ${obj_binary_dir}/assert_read_spir64_x86_64.bc
-                   COMMAND ${clang} -c -x cl -emit-llvm
+                   COMMAND ${clang} -c -x cl -emit-llvm -fsycl-device-only
                            --target=spir64_x86_64-unknown-unknown -cl-std=CL2.0
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
                            -o ${obj_binary_dir}/assert_read_spir64_x86_64.bc
@@ -188,7 +188,7 @@ add_custom_command(OUTPUT ${obj_binary_dir}/assert_read_spir64_x86_64.bc
                    DEPENDS sycl-compiler
                    VERBATIM)
 add_custom_command(OUTPUT ${obj_binary_dir}/assert_read_spir64_gen.bc
-                   COMMAND ${clang} -c -x cl -emit-llvm
+                   COMMAND ${clang} -c -x cl -emit-llvm -fsycl-device-only
                            --target=spir64_gen-unknown-unknown -cl-std=CL2.0
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
                            -o ${obj_binary_dir}/assert_read_spir64_gen.bc
@@ -196,7 +196,7 @@ add_custom_command(OUTPUT ${obj_binary_dir}/assert_read_spir64_gen.bc
                    DEPENDS sycl-compiler
                    VERBATIM)
 add_custom_command(OUTPUT ${obj_binary_dir}/assert_read_spir64_fpga.bc
-                   COMMAND ${clang} -c -x cl -emit-llvm
+                   COMMAND ${clang} -c -x cl -emit-llvm -fsycl-device-only
                            --target=spir64_fpga-unknown-unknown -cl-std=CL2.0
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
                            -o ${obj_binary_dir}/assert_read_spir64_fpga.bc
@@ -204,7 +204,7 @@ add_custom_command(OUTPUT ${obj_binary_dir}/assert_read_spir64_fpga.bc
                    DEPENDS sycl-compiler
                    VERBATIM)
 add_custom_command(OUTPUT ${obj_binary_dir}/assert_read_spir64.bc
-                   COMMAND ${clang} -c -x cl -emit-llvm
+                   COMMAND ${clang} -c -x cl -emit-llvm -fsycl-device-only
                            --target=spir64-unknown-unknown -cl-std=CL2.0
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
                            -o ${obj_binary_dir}/assert_read_spir64.bc
