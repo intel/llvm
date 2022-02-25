@@ -309,6 +309,10 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
   // flags from all the reduction operations.
   FastMathFlags FMF = FastMathFlags::getFast();
 
+  // The first instruction in the use-def chain of the Phi node that requires
+  // exact floating point operations.
+  Instruction *ExactFPMathInst = nullptr;
+
   // A value in the reduction can be used:
   //  - By the reduction:
   //      - Reduction operation:
@@ -352,6 +356,9 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
     if (Cur != Start) {
       ReduxDesc =
           isRecurrenceInstr(TheLoop, Phi, Cur, Kind, ReduxDesc, FuncFMF);
+      ExactFPMathInst = ExactFPMathInst == nullptr
+                            ? ReduxDesc.getExactFPMathInst()
+                            : ExactFPMathInst;
       if (!ReduxDesc.isRecurrence())
         return false;
       // FIXME: FMF is allowed on phi, but propagation is not handled correctly.
@@ -480,8 +487,8 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
   if (!FoundStartPHI || !FoundReduxOp || !ExitInstruction)
     return false;
 
-  const bool IsOrdered = checkOrderedReduction(
-      Kind, ReduxDesc.getExactFPMathInst(), ExitInstruction, Phi);
+  const bool IsOrdered =
+      checkOrderedReduction(Kind, ExactFPMathInst, ExitInstruction, Phi);
 
   if (Start != Phi) {
     // If the starting value is not the same as the phi node, we speculatively
@@ -538,9 +545,8 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
   // is saved as part of the RecurrenceDescriptor.
 
   // Save the description of this reduction variable.
-  RecurrenceDescriptor RD(RdxStart, ExitInstruction, Kind, FMF,
-                          ReduxDesc.getExactFPMathInst(), RecurrenceType,
-                          IsSigned, IsOrdered, CastInsts,
+  RecurrenceDescriptor RD(RdxStart, ExitInstruction, Kind, FMF, ExactFPMathInst,
+                          RecurrenceType, IsSigned, IsOrdered, CastInsts,
                           MinWidthCastToRecurrenceType);
   RedDes = RD;
 
@@ -911,12 +917,18 @@ bool RecurrenceDescriptor::isFirstOrderRecurrence(
         SinkCandidate->mayReadFromMemory() || SinkCandidate->isTerminator())
       return false;
 
-    // Do not try to sink an instruction multiple times (if multiple operands
-    // are first order recurrences).
-    // TODO: We can support this case, by sinking the instruction after the
-    // 'deepest' previous instruction.
-    if (SinkAfter.find(SinkCandidate) != SinkAfter.end())
-      return false;
+    // Try to sink an instruction after the 'deepest' previous instruction,
+    // which has multiple operands for first order recurrences.
+    auto It = SinkAfter.find(SinkCandidate);
+    if (It != SinkAfter.end()) {
+      auto LastPrev = It->second;
+      if (LastPrev->getParent() != Previous->getParent())
+        return false;
+
+      // If LastPrev comes after the current Previous, SinkCandidate already
+      // gets sunk past Previous and nothing left to do.
+      return Previous->comesBefore(LastPrev);
+    }
 
     // If we reach a PHI node that is not dominated by Previous, we reached a
     // header PHI. No need for sinking.
@@ -1414,17 +1426,22 @@ bool InductionDescriptor::isInductionPHI(
 
   // Always use i8 element type for opaque pointer inductions.
   PointerType *PtrTy = cast<PointerType>(PhiTy);
-  Type *ElementType = PtrTy->isOpaque() ? Type::getInt8Ty(PtrTy->getContext())
-                                        : PtrTy->getElementType();
+  Type *ElementType = PtrTy->isOpaque()
+                          ? Type::getInt8Ty(PtrTy->getContext())
+                          : PtrTy->getNonOpaquePointerElementType();
   if (!ElementType->isSized())
     return false;
 
   ConstantInt *CV = ConstStep->getValue();
   const DataLayout &DL = Phi->getModule()->getDataLayout();
-  int64_t Size = static_cast<int64_t>(DL.getTypeAllocSize(ElementType));
-  if (!Size)
+  TypeSize TySize = DL.getTypeAllocSize(ElementType);
+  // TODO: We could potentially support this for scalable vectors if we can
+  // prove at compile time that the constant step is always a multiple of
+  // the scalable type.
+  if (TySize.isZero() || TySize.isScalable())
     return false;
 
+  int64_t Size = static_cast<int64_t>(TySize.getFixedSize());
   int64_t CVSize = CV->getSExtValue();
   if (CVSize % Size)
     return false;

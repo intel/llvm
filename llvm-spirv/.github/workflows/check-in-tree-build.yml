@@ -32,7 +32,7 @@ on:
     - cron: 0 0 * * *
 
 env:
-  LLVM_VERSION: 14
+  LLVM_VERSION: 15
 
 jobs:
   build_and_test_linux:

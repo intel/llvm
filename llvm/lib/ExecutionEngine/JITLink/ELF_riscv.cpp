@@ -160,7 +160,7 @@ static Expected<const Edge &> getRISCVPCRelHi20(const Edge &E) {
 }
 
 static uint32_t extractBits(uint32_t Num, unsigned Low, unsigned Size) {
-  return (Num & (((1ULL << (Size + 1)) - 1) << Low)) >> Low;
+  return (Num & (((1ULL << Size) - 1) << Low)) >> Low;
 }
 
 inline Error checkAlignment(llvm::orc::ExecutorAddr loc, uint64_t v, int n,
@@ -212,11 +212,10 @@ private:
       if (AlignmentIssue) {
         return AlignmentIssue;
       }
-      int64_t Lo = Value & 0xFFF;
-      uint32_t Imm31_25 = extractBits(Lo, 5, 6) << 25 | extractBits(Lo, 12, 1)
-                                                            << 31;
-      uint32_t Imm11_7 = extractBits(Lo, 1, 4) << 8 | extractBits(Lo, 11, 1)
-                                                          << 7;
+      uint32_t Imm31_25 =
+          extractBits(Value, 5, 6) << 25 | extractBits(Value, 12, 1) << 31;
+      uint32_t Imm11_7 =
+          extractBits(Value, 1, 4) << 8 | extractBits(Value, 11, 1) << 7;
       uint32_t RawInstr = *(little32_t *)FixupPtr;
       *(little32_t *)FixupPtr = (RawInstr & 0x1FFF07F) | Imm31_25 | Imm11_7;
       break;
@@ -359,6 +358,39 @@ private:
       *FixupPtr = static_cast<uint8_t>(Value);
       break;
     }
+    case R_RISCV_SET6: {
+      int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
+      uint32_t RawData = *(little32_t *)FixupPtr;
+      int64_t Word6 = Value & 0x3f;
+      *(little32_t *)FixupPtr = (RawData & 0xffffffc0) | Word6;
+      break;
+    }
+    case R_RISCV_SET8: {
+      int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
+      uint32_t RawData = *(little32_t *)FixupPtr;
+      int64_t Word8 = Value & 0xff;
+      *(little32_t *)FixupPtr = (RawData & 0xffffff00) | Word8;
+      break;
+    }
+    case R_RISCV_SET16: {
+      int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
+      uint32_t RawData = *(little32_t *)FixupPtr;
+      int64_t Word16 = Value & 0xffff;
+      *(little32_t *)FixupPtr = (RawData & 0xffff0000) | Word16;
+      break;
+    }
+    case R_RISCV_SET32: {
+      int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
+      int64_t Word32 = Value & 0xffffffff;
+      *(little32_t *)FixupPtr = Word32;
+      break;
+    }
+    case R_RISCV_32_PCREL: {
+      int64_t Value = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
+      int64_t Word32 = Value & 0xffffffff;
+      *(little32_t *)FixupPtr = Word32;
+      break;
+    }
     }
     return Error::success();
   }
@@ -409,6 +441,16 @@ private:
       return EdgeKind_riscv::R_RISCV_SUB16;
     case ELF::R_RISCV_SUB8:
       return EdgeKind_riscv::R_RISCV_SUB8;
+    case ELF::R_RISCV_SET6:
+      return EdgeKind_riscv::R_RISCV_SET6;
+    case ELF::R_RISCV_SET8:
+      return EdgeKind_riscv::R_RISCV_SET8;
+    case ELF::R_RISCV_SET16:
+      return EdgeKind_riscv::R_RISCV_SET16;
+    case ELF::R_RISCV_SET32:
+      return EdgeKind_riscv::R_RISCV_SET32;
+    case ELF::R_RISCV_32_PCREL:
+      return EdgeKind_riscv::R_RISCV_32_PCREL;
     }
 
     return make_error<JITLinkError>("Unsupported riscv relocation:" +

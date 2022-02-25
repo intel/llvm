@@ -41,6 +41,21 @@ llvm::DenseMap<K, V> intersectDenseMaps(const llvm::DenseMap<K, V> &Map1,
   return Result;
 }
 
+/// Returns true if and only if `Val1` is equivalent to `Val2`.
+static bool equivalentValues(QualType Type, Value *Val1, Value *Val2,
+                             Environment::ValueModel &Model) {
+  if (Val1 == Val2)
+    return true;
+
+  if (auto *IndVal1 = dyn_cast<IndirectionValue>(Val1)) {
+    auto *IndVal2 = cast<IndirectionValue>(Val2);
+    assert(IndVal1->getKind() == IndVal2->getKind());
+    return &IndVal1->getPointeeLoc() == &IndVal2->getPointeeLoc();
+  }
+
+  return Model.compareEquivalent(Type, *Val1, *Val2);
+}
+
 Environment::Environment(DataflowAnalysisContext &DACtx,
                          const DeclContext &DeclCtx)
     : Environment(DACtx) {
@@ -68,12 +83,40 @@ Environment::Environment(DataflowAnalysisContext &DACtx,
   }
 }
 
-bool Environment::operator==(const Environment &Other) const {
+bool Environment::equivalentTo(const Environment &Other,
+                               Environment::ValueModel &Model) const {
   assert(DACtx == Other.DACtx);
-  return DeclToLoc == Other.DeclToLoc && LocToVal == Other.LocToVal;
+
+  if (DeclToLoc != Other.DeclToLoc)
+    return false;
+
+  if (ExprToLoc != Other.ExprToLoc)
+    return false;
+
+  if (LocToVal.size() != Other.LocToVal.size())
+    return false;
+
+  for (auto &Entry : LocToVal) {
+    const StorageLocation *Loc = Entry.first;
+    assert(Loc != nullptr);
+
+    Value *Val = Entry.second;
+    assert(Val != nullptr);
+
+    auto It = Other.LocToVal.find(Loc);
+    if (It == Other.LocToVal.end())
+      return false;
+    assert(It->second != nullptr);
+
+    if (!equivalentValues(Loc->getType(), Val, It->second, Model))
+      return false;
+  }
+
+  return true;
 }
 
-LatticeJoinEffect Environment::join(const Environment &Other) {
+LatticeJoinEffect Environment::join(const Environment &Other,
+                                    Environment::ValueModel &Model) {
   assert(DACtx == Other.DACtx);
 
   auto Effect = LatticeJoinEffect::Unchanged;
@@ -83,11 +126,41 @@ LatticeJoinEffect Environment::join(const Environment &Other) {
   if (DeclToLocSizeBefore != DeclToLoc.size())
     Effect = LatticeJoinEffect::Changed;
 
-  // FIXME: Add support for joining distinct values that are assigned to the
-  // same storage locations in `LocToVal` and `Other.LocToVal`.
-  const unsigned LocToValSizeBefore = LocToVal.size();
-  LocToVal = intersectDenseMaps(LocToVal, Other.LocToVal);
-  if (LocToValSizeBefore != LocToVal.size())
+  const unsigned ExprToLocSizeBefore = ExprToLoc.size();
+  ExprToLoc = intersectDenseMaps(ExprToLoc, Other.ExprToLoc);
+  if (ExprToLocSizeBefore != ExprToLoc.size())
+    Effect = LatticeJoinEffect::Changed;
+
+  // Move `LocToVal` so that `Environment::ValueModel::merge` can safely assign
+  // values to storage locations while this code iterates over the current
+  // assignments.
+  llvm::DenseMap<const StorageLocation *, Value *> OldLocToVal =
+      std::move(LocToVal);
+  for (auto &Entry : OldLocToVal) {
+    const StorageLocation *Loc = Entry.first;
+    assert(Loc != nullptr);
+
+    Value *Val = Entry.second;
+    assert(Val != nullptr);
+
+    auto It = Other.LocToVal.find(Loc);
+    if (It == Other.LocToVal.end())
+      continue;
+    assert(It->second != nullptr);
+
+    if (equivalentValues(Loc->getType(), Val, It->second, Model)) {
+      LocToVal.insert({Loc, Val});
+      continue;
+    }
+
+    // FIXME: Consider destroying `MergedValue` immediately if
+    // `ValueModel::merge` returns false to avoid storing unneeded values in
+    // `DACtx`.
+    if (Value *MergedVal = createValue(Loc->getType()))
+      if (Model.merge(Loc->getType(), *Val, *It->second, *MergedVal, *this))
+        LocToVal.insert({Loc, MergedVal});
+  }
+  if (OldLocToVal.size() != LocToVal.size())
     Effect = LatticeJoinEffect::Changed;
 
   return Effect;
@@ -95,7 +168,7 @@ LatticeJoinEffect Environment::join(const Environment &Other) {
 
 StorageLocation &Environment::createStorageLocation(QualType Type) {
   assert(!Type.isNull());
-  if (Type->isStructureOrClassType()) {
+  if (Type->isStructureOrClassType() || Type->isUnionType()) {
     // FIXME: Explore options to avoid eager initialization of fields as some of
     // them might not be needed for a particular analysis.
     llvm::DenseMap<const ValueDecl *, StorageLocation *> FieldLocs;
@@ -260,15 +333,6 @@ Value *Environment::createValueUnlessSelfReferential(
   }
 
   return nullptr;
-}
-
-StorageLocation &
-Environment::takeOwnership(std::unique_ptr<StorageLocation> Loc) {
-  return DACtx->takeOwnership(std::move(Loc));
-}
-
-Value &Environment::takeOwnership(std::unique_ptr<Value> Val) {
-  return DACtx->takeOwnership(std::move(Val));
 }
 
 StorageLocation &Environment::skip(StorageLocation &Loc, SkipPast SP) const {

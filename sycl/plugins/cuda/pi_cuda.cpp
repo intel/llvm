@@ -1490,6 +1490,10 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
   }
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
+  }
   case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
@@ -1740,7 +1744,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // TODO: Check if Intel device UUID extension is utilized for CUDA.
     // For details about this extension, see
-    // sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md
+    // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
     return PI_INVALID_VALUE;
 
@@ -4778,9 +4782,32 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
       event_ptr->start();
     }
 
-    result = PI_CHECK_ERROR(
-        cuMemAdvise((CUdeviceptr)ptr, length, (CUmem_advise)advice,
-                    queue->get_context()->get_device()->get()));
+    switch (advice) {
+    case PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY:
+    case PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY:
+    case PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION:
+    case PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION:
+    case PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY:
+    case PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY:
+      result = PI_CHECK_ERROR(cuMemAdvise(
+          (CUdeviceptr)ptr, length,
+          (CUmem_advise)(advice - PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY + 1),
+          queue->get_context()->get_device()->get()));
+      break;
+    case PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST:
+    case PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST:
+    case PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST:
+    case PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST:
+      result = PI_CHECK_ERROR(cuMemAdvise(
+          (CUdeviceptr)ptr, length,
+          (CUmem_advise)(advice - PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY + 1 -
+                         (PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST -
+                          PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION)),
+          CU_DEVICE_CPU));
+      break;
+    default:
+      cl::sycl::detail::pi::die("Unknown advice");
+    }
     if (event) {
       result = event_ptr->record();
       *event = event_ptr.release();

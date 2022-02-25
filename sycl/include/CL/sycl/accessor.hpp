@@ -876,7 +876,7 @@ protected:
     return AdjustedMode;
   }
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename TagT> static constexpr bool IsValidTag() {
     return std::is_same<TagT, mode_tag_t<AccessMode>>::value ||
@@ -1187,7 +1187,7 @@ public:
   }
 #endif
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
@@ -1277,7 +1277,7 @@ public:
   }
 #endif
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
@@ -1333,7 +1333,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
@@ -1389,7 +1389,7 @@ public:
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                  CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
@@ -1486,7 +1486,7 @@ public:
   }
 #endif
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
@@ -1579,7 +1579,7 @@ public:
   }
 #endif
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
@@ -1770,7 +1770,7 @@ private:
   }
 };
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 accessor(buffer<DataT, Dimensions, AllocatorT>)
@@ -2200,8 +2200,8 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::host_image, IsPlaceholder>
+class accessor<DataT, Dimensions, AccessMode, access::target::host_image,
+               IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::host_image, IsPlaceholder> {
 public:
@@ -2302,7 +2302,7 @@ protected:
     return std::is_same<T, DataT>::value && (Dims > 0) && (Dims == Dimensions);
   }
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename TagT> static constexpr bool IsValidTag() {
     return std::is_same<TagT, mode_tag_t<AccessMode>>::value;
@@ -2361,7 +2361,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, PropertyList, CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -2381,7 +2381,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -2402,7 +2402,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -2425,7 +2425,7 @@ public:
       : AccessorT(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                   CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -2449,7 +2449,7 @@ public:
       : AccessorT(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
   }
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -2473,7 +2473,7 @@ public:
       : AccessorT(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                   PropertyList, CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -2489,7 +2489,7 @@ public:
 #endif
 };
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 host_accessor(buffer<DataT, Dimensions, AllocatorT>)

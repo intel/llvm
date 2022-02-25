@@ -28,7 +28,7 @@
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstPrinter.h"
-#include "llvm/MC/MCStreamer.h"
+#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -1875,21 +1875,7 @@ bool BinaryFunction::postProcessIndirectBranches(
     BC.MIB->setJumpTable(*LastIndirectJump, LastJT, LastJTIndexReg, AllocId);
     HasUnknownControlFlow = false;
 
-    // re-populate successors based on the jump table.
-    std::set<const MCSymbol *> JTLabels;
-    LastIndirectJumpBB->removeAllSuccessors();
-    const JumpTable *JT = getJumpTableContainingAddress(LastJT);
-    for (const MCSymbol *Label : JT->Entries)
-      JTLabels.emplace(Label);
-    for (const MCSymbol *Label : JTLabels) {
-      BinaryBasicBlock *BB = getBasicBlockForLabel(Label);
-      // Ignore __builtin_unreachable()
-      if (!BB) {
-        assert(Label == getFunctionEndLabel() && "if no BB found, must be end");
-        continue;
-      }
-      LastIndirectJumpBB->addSuccessor(BB);
-    }
+    LastIndirectJumpBB->updateJumpTableSuccessors();
   }
 
   if (HasFixedIndirectBranch)
@@ -3613,13 +3599,13 @@ void BinaryFunction::insertBasicBlocks(
     std::vector<std::unique_ptr<BinaryBasicBlock>> &&NewBBs,
     const bool UpdateLayout, const bool UpdateCFIState,
     const bool RecomputeLandingPads) {
-  const auto StartIndex = Start ? getIndex(Start) : -1;
+  const int64_t StartIndex = Start ? getIndex(Start) : -1LL;
   const size_t NumNewBlocks = NewBBs.size();
 
   BasicBlocks.insert(BasicBlocks.begin() + (StartIndex + 1), NumNewBlocks,
                      nullptr);
 
-  auto I = StartIndex + 1;
+  int64_t I = StartIndex + 1;
   for (std::unique_ptr<BinaryBasicBlock> &BB : NewBBs) {
     assert(!BasicBlocks[I]);
     BasicBlocks[I++] = BB.release();

@@ -19,6 +19,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Path.h"
@@ -44,6 +45,11 @@ static cl::OptionCategory *BoltDiffCategories[] = {&BoltDiffCategory};
 
 static cl::OptionCategory *Perf2BoltCategories[] = {&AggregatorCategory,
                                                     &BoltOutputCategory};
+
+static cl::opt<std::string> InputFilename(cl::Positional,
+                                          cl::desc("<executable>"),
+                                          cl::Required, cl::cat(BoltCategory),
+                                          cl::sub(*cl::AllSubCommands));
 
 static cl::opt<std::string>
 InputDataFilename("data",
@@ -120,34 +126,6 @@ void perf2boltMode(int argc, char **argv) {
   opts::AggregateOnly = true;
 }
 
-void heatmapMode(int argc, char **argv) {
-  // Insert a fake subcommand if invoked via a command alias.
-  std::unique_ptr<char *[]> FakeArgv;
-  if (argc == 1 || strcmp(argv[1], "heatmap")) {
-    ++argc;
-    FakeArgv.reset(new char *[argc + 1]);
-    FakeArgv[0] = argv[0];
-    FakeArgv[1] = const_cast<char *>("heatmap");
-    for (int I = 2; I < argc; ++I)
-      FakeArgv[I] = argv[I - 1];
-    FakeArgv[argc] = nullptr;
-    argv = FakeArgv.get();
-  }
-
-  cl::ParseCommandLineOptions(argc, argv, "");
-
-  if (!sys::fs::exists(opts::InputFilename))
-    report_error(opts::InputFilename, errc::no_such_file_or_directory);
-
-  if (opts::PerfData.empty()) {
-    errs() << ToolName << ": expected -perfdata=<filename> option.\n";
-    exit(1);
-  }
-
-  opts::HeatmapMode = true;
-  opts::AggregateOnly = true;
-}
-
 void boltDiffMode(int argc, char **argv) {
   cl::HideUnrelatedOptions(makeArrayRef(opts::BoltDiffCategories));
   cl::AddExtraVersionPrinter(printBoltRevision);
@@ -189,8 +167,8 @@ void boltMode(int argc, char **argv) {
   }
 }
 
-std::string GetExecutablePath(const char *Argv0) {
-  SmallString<128> ExecutablePath(Argv0);
+static std::string GetExecutablePath(const char *Argv0) {
+  SmallString<256> ExecutablePath(Argv0);
   // Do a PATH lookup if Argv0 isn't a valid path.
   if (!llvm::sys::fs::exists(ExecutablePath))
     if (llvm::ErrorOr<std::string> P =
@@ -219,19 +197,10 @@ int main(int argc, char **argv) {
 
   ToolName = argv[0];
 
-  // Pre-process subcommands.
-  if (argc > 1 && *argv[1] != '-') {
-    if (!strcmp(argv[1], "heatmap"))
-      opts::HeatmapMode = true;
-  }
-
   if (llvm::sys::path::filename(ToolName) == "perf2bolt")
     perf2boltMode(argc, argv);
   else if (llvm::sys::path::filename(ToolName) == "llvm-boltdiff")
     boltDiffMode(argc, argv);
-  else if (llvm::sys::path::filename(ToolName) == "llvm-bolt-heatmap" ||
-           opts::HeatmapMode)
-    heatmapMode(argc, argv);
   else
     boltMode(argc, argv);
 

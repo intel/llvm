@@ -82,9 +82,8 @@ void sleep_for(const chrono::duration<Rep, Period>& rel_time);
 
 */
 
+#include <__assert>
 #include <__config>
-#include <__debug>
-#include <__functional_base>
 #include <__mutex_base>
 #include <__thread/poll_with_backoff.h>
 #include <__thread/timed_backoff_policy.h>
@@ -101,7 +100,7 @@ void sleep_for(const chrono::duration<Rep, Period>& rel_time);
 #include <version>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_PUSH_MACROS

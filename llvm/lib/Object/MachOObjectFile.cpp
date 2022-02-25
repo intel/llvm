@@ -20,6 +20,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/MachO.h"
+#include "llvm/BinaryFormat/Swift.h"
 #include "llvm/Object/Error.h"
 #include "llvm/Object/MachO.h"
 #include "llvm/Object/ObjectFile.h"
@@ -33,7 +34,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/LEB128.h"
-#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/MemoryBufferRef.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SwapByteOrder.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1302,7 +1303,6 @@ MachOObjectFile::MachOObjectFile(MemoryBufferRef Object, bool IsLittleEndian,
   }
 
   const char *DyldIdLoadCmd = nullptr;
-  const char *FuncStartsLoadCmd = nullptr;
   const char *SplitInfoLoadCmd = nullptr;
   const char *CodeSignDrsLoadCmd = nullptr;
   const char *CodeSignLoadCmd = nullptr;
@@ -4662,6 +4662,21 @@ ArrayRef<uint8_t> MachOObjectFile::getDyldInfoExportsTrie() const {
   return makeArrayRef(Ptr, DyldInfo.export_size);
 }
 
+SmallVector<uint64_t> MachOObjectFile::getFunctionStarts() const {
+  if (!FuncStartsLoadCmd)
+    return {};
+
+  auto InfoOrErr =
+      getStructOrErr<MachO::linkedit_data_command>(*this, FuncStartsLoadCmd);
+  if (!InfoOrErr)
+    return {};
+
+  MachO::linkedit_data_command Info = InfoOrErr.get();
+  SmallVector<uint64_t, 8> FunctionStarts;
+  this->ReadULEB128s(Info.dataoff, FunctionStarts);
+  return std::move(FunctionStarts);
+}
+
 ArrayRef<uint8_t> MachOObjectFile::getUuid() const {
   if (!UuidLoadCmd)
     return None;
@@ -4764,4 +4779,16 @@ MachOObjectFile::findDsymObjectMembers(StringRef Path) {
                              "%s: no objects found in dSYM bundle",
                              Path.str().c_str());
   return ObjectPaths;
+}
+
+llvm::binaryformat::Swift5ReflectionSectionKind
+MachOObjectFile::mapReflectionSectionNameToEnumValue(
+    StringRef SectionName) const {
+#define HANDLE_SWIFT_SECTION(KIND, MACHO, ELF, COFF)                           \
+  .Case(MACHO, llvm::binaryformat::Swift5ReflectionSectionKind::KIND)
+  return StringSwitch<llvm::binaryformat::Swift5ReflectionSectionKind>(
+             SectionName)
+#include "llvm/BinaryFormat/Swift.def"
+      .Default(llvm::binaryformat::Swift5ReflectionSectionKind::unknown);
+#undef HANDLE_SWIFT_SECTION
 }

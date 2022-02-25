@@ -139,6 +139,10 @@ template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES;
 }
+template <>
+ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
+}
 template <> ze_structure_type_t getZeStructureType<ze_module_properties_t>() {
   return ZE_STRUCTURE_TYPE_MODULE_PROPERTIES;
 }
@@ -325,29 +329,43 @@ struct _pi_device : _pi_object {
     // PI device creation.
   }
 
-  // Keep the ordinal of a "compute" commands group, where we send all
-  // compute commands and some copy commands, and a pair of ordinals for the
-  // main copy commands group and link copy command groups, where we can
-  // send only copy commands.
-  // A value of "-1" means that there is no such queue group available
-  // in the level zero backend.
-  int32_t ZeComputeQueueGroupIndex;
-  int32_t ZeMainCopyQueueGroupIndex;
-  int32_t ZeLinkCopyQueueGroupIndex;
+  // The helper structure that keeps info about a command queue groups of the
+  // device. It is not changed after it is initialized.
+  struct queue_group_info_t {
+    typedef enum {
+      MainCopy,
+      LinkCopy,
+      Compute,
+      Size // must be last
+    } type;
 
-  // Keep the index of the compute engine
-  int32_t ZeComputeEngineIndex = 0;
+    // Keep the ordinal of the commands group as returned by
+    // zeDeviceGetCommandQueueGroupProperties. A value of "-1" means that
+    // there is no such queue group available in the Level Zero runtime.
+    int32_t ZeOrdinal{-1};
 
-  // Cache the properties of the compute/copy queue groups.
-  ZeStruct<ze_command_queue_group_properties_t> ZeComputeQueueGroupProperties;
-  ZeStruct<ze_command_queue_group_properties_t> ZeMainCopyQueueGroupProperties;
-  ZeStruct<ze_command_queue_group_properties_t> ZeLinkCopyQueueGroupProperties;
+    // Keep the index of the specific queue in this queue group where
+    // all the command enqueues of the corresponding type should go to.
+    // The value of "-1" means that no hard binding is defined and
+    // implementation can choose specific queue index on its own.
+    int32_t ZeIndex{-1};
+
+    // Keeps the queue group properties.
+    ZeStruct<ze_command_queue_group_properties_t> ZeProperties;
+  };
+
+  std::vector<queue_group_info_t> QueueGroup =
+      std::vector<queue_group_info_t>(queue_group_info_t::Size);
 
   // This returns "true" if a main copy engine is available for use.
-  bool hasMainCopyEngine() const { return ZeMainCopyQueueGroupIndex >= 0; }
+  bool hasMainCopyEngine() const {
+    return QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal >= 0;
+  }
 
   // This returns "true" if a link copy engine is available for use.
-  bool hasLinkCopyEngine() const { return ZeLinkCopyQueueGroupIndex >= 0; }
+  bool hasLinkCopyEngine() const {
+    return QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal >= 0;
+  }
 
   // This returns "true" if a main or link copy engine is available for use.
   bool hasCopyEngine() const {
@@ -384,6 +402,8 @@ struct _pi_device : _pi_object {
   ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
   ZeCache<std::vector<ZeStruct<ze_device_memory_properties_t>>>
       ZeDeviceMemoryProperties;
+  ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
+      ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
 
@@ -400,12 +420,12 @@ struct pi_command_list_info_t {
   // may be still "in-use" due to sporadic delay in HW.
   bool InUse{false};
 
-  // Record the index of copy queue (in the vector of available copy queues)
-  // to which the command list (if any) will be submitted.
-  // If there is no command list, or if the command list is not a copy command
-  // list, the value is set to -1.
-  int CopyQueueIndex{-1};
-  bool isCopy() const { return CopyQueueIndex != -1; }
+  // Record the queue to which the command list will be submitted.
+  ze_command_queue_handle_t ZeQueue{nullptr};
+  // Keeps the ordinal of the ZeQueue queue group. Invalid if ZeQueue==nullptr
+  uint32_t ZeQueueGroupOrdinal{0};
+  // Helper functions to tell if this is a copy command-list.
+  bool isCopy(pi_queue Queue) const;
 
   // Keeps events created by commands submitted into this command-list.
   // TODO: use this for explicit wait/cleanup of events at command-list
@@ -556,9 +576,11 @@ struct _pi_context : _pi_object {
 
   // Get index of the free slot in the available pool. If there is no available
   // pool then create new one. The HostVisible parameter tells if we need a
-  // slot for a host-visible event.
+  // slot for a host-visible event. The ProfilingEnabled tells is we need a
+  // slot for an event with profiling capabilities.
   pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &,
-                                           bool HostVisible);
+                                           bool HostVisible,
+                                           bool ProfilingEnabled);
 
   // Decrement number of events living in the pool upon event destroy
   // and return the pool to the cache if there are no unreleased events.
@@ -595,9 +617,14 @@ private:
   // head. In case there is no next pool, a new pool is created and made the
   // head.
   //
-  std::list<ze_event_pool_handle_t> ZeDeviceScopeEventPoolCache;
   // Cache of event pools to which host-visible events are added to.
-  std::list<ze_event_pool_handle_t> ZeHostVisibleEventPoolCache;
+  std::vector<std::list<ze_event_pool_handle_t>> ZeEventPoolCache{4};
+  auto getZeEventPoolCache(bool HostVisible, bool WithProfiling) {
+    if (HostVisible)
+      return WithProfiling ? &ZeEventPoolCache[0] : &ZeEventPoolCache[1];
+    else
+      return WithProfiling ? &ZeEventPoolCache[2] : &ZeEventPoolCache[3];
+  }
 
   // This map will be used to determine if a pool is full or not
   // by storing number of empty slots available in the pool.
@@ -619,41 +646,55 @@ struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue,
             std::vector<ze_command_queue_handle_t> &CopyQueues,
             pi_context Context, pi_device Device, bool OwnZeCommandQueue,
-            pi_queue_properties PiQueueProperties = 0);
+            pi_queue_properties Properties = 0);
 
-  // Level Zero compute command queue handle.
-  ze_command_queue_handle_t ZeComputeCommandQueue;
+  using queue_type = _pi_device::queue_group_info_t::type;
+
+  // PI queue is in general a one to many mapping to L0 native queues.
+  struct pi_queue_group_t {
+    pi_queue Queue;
+    pi_queue_group_t() = delete;
+
+    // The Queue argument captures the enclosing PI queue.
+    // The Type argument specifies the type of this queue group.
+    // The actual ZeQueues are populated at PI queue construction.
+    pi_queue_group_t(pi_queue Queue, queue_type Type)
+        : Queue(Queue), Type(Type) {}
+
+    // The type of the queue group.
+    queue_type Type;
+    bool isCopy() const { return Type != queue_type::Compute; }
+
+    // Level Zero command queue handles.
+    std::vector<ze_command_queue_handle_t> ZeQueues;
+
+    // This function will return one of possibly multiple available native
+    // queues. Currently, a round robin strategy is used. This function also
+    // sends back the value of the queue group ordinal.
+    ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
+
+    // These indices are to filter specific range of the queues to use,
+    // and to organize round-robin across them.
+    uint32_t UpperIndex{0};
+    uint32_t LowerIndex{0};
+    uint32_t NextIndex{0};
+  };
+
+  pi_queue_group_t ComputeQueueGroup{this, queue_type::Compute};
+
   // Vector of Level Zero copy command command queue handles.
-  // Some (or all) of these handles may not be available depending on user
-  // preference and/or target device.
   // In this vector, main copy engine, if available, come first followed by
   // link copy engines, if available.
-  std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
+  pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
+
+  pi_queue_group_t &getQueueGroup(bool UseCopyEngine) {
+    return UseCopyEngine ? CopyQueueGroup : ComputeQueueGroup;
+  }
 
   // This function considers multiple factors including copy engine
   // availability and user preference and returns a boolean that is used to
   // specify if copy engine will eventually be used for a particular command.
   bool useCopyEngine(bool PreferCopyEngine = true) const;
-
-  // This function will check if a Ze copy command queue is available in
-  // ZeCopyCommandQueues at index 'Index'.
-  // If available, it will return the queue. Otherwise, it will create a new
-  // Ze copy command queue and return a newly created queue.
-  pi_result
-  getOrCreateCopyCommandQueue(int Index,
-                              ze_command_queue_handle_t &ZeCopyCommandQueue);
-
-  // One of the many available copy command queues will be used for
-  // submitting command lists to. This variable stores index of the last used
-  // copy command queue in the ZeCopyCommandQueues vector.
-  int32_t LastUsedCopyCommandQueueIndex = -1;
-
-  // This function will return one of possibly multiple available copy queues.
-  // Currently, a round robin strategy is used.
-  // It will return nullptr if no copy command queues are available for use.
-  ze_command_queue_handle_t
-  getZeCopyCommandQueue(int *CopyQueueIndex,
-                        int *CopyQueueGroupIndex = nullptr);
 
   // Keeps the PI context to which this queue belongs.
   // This field is only set at _pi_queue creation time, and cannot change.
@@ -725,7 +766,7 @@ struct _pi_queue : _pi_object {
   bool isBatchingAllowed(bool IsCopy) const;
 
   // Keeps the properties of this queue.
-  pi_queue_properties PiQueueProperties;
+  pi_queue_properties Properties;
 
   // Returns true if the queue is a in-order queue.
   bool isInOrderQueue() const;
@@ -797,6 +838,9 @@ struct _pi_queue : _pi_object {
   // externally, and can wait for internal references to complete, and do proper
   // cleanup of the queue.
   std::atomic<pi_uint32> RefCountExternal{1};
+
+  // Indicates that the queue is healthy and all operations on it are OK.
+  bool Healthy{true};
 };
 
 struct _pi_mem : _pi_object {
@@ -977,10 +1021,16 @@ struct _pi_event : _pi_object {
   // than by just this one event, depending on the mode (see EventsScope).
   //
   pi_event HostVisibleEvent = {nullptr};
-  bool IsHostVisible() const { return this == HostVisibleEvent; }
+  bool isHostVisible() const { return this == HostVisibleEvent; }
 
   // Get the host-visible event or create one and enqueue its signal.
   pi_result getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent);
+
+  // Tells if this event is with profiling capabilities.
+  bool isProfilingEnabled() const {
+    return !Queue || // tentatively assume user events are profiling enabled
+           (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
+  }
 
   // Level Zero command list where the command signaling this event was appended
   // to. This is currently used to remember/destroy the command list after all

@@ -395,7 +395,7 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
     // [module.interface]p1:
     // An export-declaration shall inhabit a namespace scope and appear in the
     // purview of a module interface unit.
-    Diag(ExportLoc, diag::err_export_not_in_module_interface);
+    Diag(ExportLoc, diag::err_export_not_in_module_interface) << 0;
   }
 
   return Import;
@@ -720,19 +720,24 @@ Decl *Sema::ActOnFinishExportDecl(Scope *S, Decl *D, SourceLocation RBraceLoc) {
 
 Module *Sema::PushGlobalModuleFragment(SourceLocation BeginLoc,
                                        bool IsImplicit) {
-  ModuleMap &Map = PP.getHeaderSearchInfo().getModuleMap();
-  Module *GlobalModule =
-      Map.createGlobalModuleFragmentForModuleUnit(BeginLoc, getCurrentModule());
-  assert(GlobalModule && "module creation should not fail");
+  // We shouldn't create new global module fragment if there is already
+  // one.
+  if (!GlobalModuleFragment) {
+    ModuleMap &Map = PP.getHeaderSearchInfo().getModuleMap();
+    GlobalModuleFragment = Map.createGlobalModuleFragmentForModuleUnit(
+        BeginLoc, getCurrentModule());
+  }
+
+  assert(GlobalModuleFragment && "module creation should not fail");
 
   // Enter the scope of the global module.
-  ModuleScopes.push_back({BeginLoc, GlobalModule,
+  ModuleScopes.push_back({BeginLoc, GlobalModuleFragment,
                           /*ModuleInterface=*/false,
                           /*ImplicitGlobalModuleFragment=*/IsImplicit,
-                          /*VisibleModuleSet*/{}});
-  VisibleModules.setVisible(GlobalModule, BeginLoc);
+                          /*VisibleModuleSet*/ {}});
+  VisibleModules.setVisible(GlobalModuleFragment, BeginLoc);
 
-  return GlobalModule;
+  return GlobalModuleFragment;
 }
 
 void Sema::PopGlobalModuleFragment() {

@@ -119,7 +119,7 @@ static const unsigned WaitEventMaskForInst[NUM_INST_CNTS] = {
 // special tokens like SCMEM_LDS (needed for buffer load to LDS).
 enum RegisterMapping {
   SQ_MAX_PGM_VGPRS = 512, // Maximum programmable VGPRs across all targets.
-  AGPR_OFFSET = 226, // Maximum programmable ArchVGPRs across all targets.
+  AGPR_OFFSET = 256,      // Maximum programmable ArchVGPRs across all targets.
   SQ_MAX_PGM_SGPRS = 256, // Maximum programmable SGPRs across all targets.
   NUM_EXTRA_VGPRS = 1,    // A reserved slot for DS.
   EXTRA_VGPR_LDS = 0,     // This is a placeholder the Shader algorithm uses.
@@ -863,7 +863,7 @@ bool SIInsertWaitcnts::applyPreexistingWaitcnt(WaitcntBrackets &ScoreBrackets,
       Wait.ExpCnt = ~0u;
 
       LLVM_DEBUG(dbgs() << "generateWaitcntInstBefore\n"
-                        << "Old Instr: " << MI << "New Instr: " << *WaitcntInstr
+                        << "Old Instr: " << *MI << "New Instr: " << *WaitcntInstr
                         << '\n');
     } else {
       WaitcntInstr->eraseFromParent();
@@ -886,7 +886,7 @@ bool SIInsertWaitcnts::applyPreexistingWaitcnt(WaitcntBrackets &ScoreBrackets,
       Wait.VsCnt = ~0u;
 
       LLVM_DEBUG(dbgs() << "generateWaitcntInstBefore\n"
-                        << "Old Instr: " << MI
+                        << "Old Instr: " << *MI
                         << "New Instr: " << *WaitcntVsCntInstr << '\n');
     } else {
       WaitcntVsCntInstr->eraseFromParent();

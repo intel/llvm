@@ -97,7 +97,7 @@ id test1(id x) {
 @end
 
 // CHECK-LABEL: define{{.*}} void @test3_unelided()
-void test3_unelided() {
+void test3_unelided(void) {
   extern void test3_helper(void);
 
   // CHECK:      [[X:%.*]] = alloca [[TEST3:%.*]]*
@@ -108,8 +108,8 @@ void test3_unelided() {
 
   // Call to +alloc.
   // CHECK-NEXT: load {{.*}}, {{.*}}* @"OBJC_CLASSLIST_REFERENCES_
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: bitcast
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: [[ALLOC:%.*]] = call i8* bitcast (i8* (i8*, i8*, ...)* @objc_msgSend
   // CHECK-NEXT: bitcast
   // CHECK-NEXT: bitcast
@@ -117,8 +117,8 @@ void test3_unelided() {
   [Test3 alloc];
 
   // CHECK-NEXT: [[T0:%.*]] = load [[TEST3]]*, [[TEST3]]** [[X]]
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: [[T1:%.*]] = bitcast [[TEST3]]* [[T0]] to i8*
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: [[COPY:%.*]] = call i8* bitcast (i8* (i8*, i8*, ...)* @objc_msgSend {{.*}})(i8* noundef [[T1]],
   // CHECK-NEXT: call void @llvm.objc.release(i8* [[COPY]]) [[NUW:#[0-9]+]]
   [x copy];
@@ -132,7 +132,7 @@ void test3_unelided() {
 }
 
 // CHECK-LABEL: define{{.*}} void @test3()
-void test3() {
+void test3(void) {
   // CHECK:      [[X:%.*]] = alloca i8*
   // CHECK-NEXT: [[XPTR1:%.*]] = bitcast i8** [[X]] to i8*
   // CHECK-NEXT: call void @llvm.lifetime.start.p0i8(i64 8, i8* [[XPTR1]])
@@ -141,14 +141,14 @@ void test3() {
 
   // Call to +alloc.
   // CHECK-NEXT: load {{.*}}, {{.*}}* @"OBJC_CLASSLIST_REFERENCES_
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: bitcast
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: [[ALLOC:%.*]] = call i8* bitcast (i8* (i8*, i8*, ...)* @objc_msgSend
   // CHECK-NEXT: bitcast
 
   // Call to -initWith: with elided retain of consumed argument.
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: bitcast
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: [[INIT:%.*]] = call i8* bitcast (i8* (i8*, i8*, ...)* @objc_msgSend to i8* (i8*, i8*, i32)*)(i8*
   // CHECK-NEXT: bitcast
   // CHECK-NEXT: [[INIT:%.*]] = bitcast
@@ -176,17 +176,17 @@ void test3() {
 }
 
 // CHECK-LABEL: define{{.*}} i8* @test4()
-id test4() {
+id test4(void) {
   // Call to +alloc.
   // CHECK:      load {{.*}}, {{.*}}* @"OBJC_CLASSLIST_REFERENCES_
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: bitcast
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: [[ALLOC:%.*]] = call i8* bitcast (i8* (i8*, i8*, ...)* @objc_msgSend
   // CHECK-NEXT: [[ALLOC:%.*]] = bitcast
 
   // Call to -initWith: with elided retain of consumed argument.
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: [[ALLOC:%.*]] = bitcast
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: [[INIT:%.*]] = call i8* bitcast (i8* (i8*, i8*, ...)* @objc_msgSend to i8* (i8*, i8*, i32)*)(i8* noundef [[ALLOC]],
 
   // Initialization of return value, occurring within full-expression.
@@ -251,7 +251,7 @@ void test5(Test5 *x, id y) {
 
 id test6_helper(void) __attribute__((ns_returns_retained));
 // CHECK-LABEL: define{{.*}} void @test6()
-void test6() {
+void test6(void) {
   // CHECK:      [[X:%.*]] = alloca i8*
   // CHECK-NEXT: [[XPTR1:%.*]] = bitcast i8** [[X]] to i8*
   // CHECK-NEXT: call void @llvm.lifetime.start.p0i8(i64 8, i8* [[XPTR1]])
@@ -267,7 +267,7 @@ void test6() {
 
 void test7_helper(id __attribute__((ns_consumed)));
 // CHECK-LABEL: define{{.*}} void @test7()
-void test7() {
+void test7(void) {
   // CHECK:      [[X:%.*]] = alloca i8*
   // CHECK-NEXT: [[XPTR1:%.*]] = bitcast i8** [[X]] to i8*
   // CHECK-NEXT: call void @llvm.lifetime.start.p0i8(i64 8, i8* [[XPTR1]])
@@ -285,7 +285,7 @@ void test7() {
 }
 
 id test8_helper(void) __attribute__((ns_returns_retained));
-void test8() {
+void test8(void) {
   __unsafe_unretained id x = test8_helper();
   // CHECK:      [[X:%.*]] = alloca i8*
   // CHECK-NEXT: [[XPTR1:%.*]] = bitcast i8** [[X]] to i8*
@@ -301,7 +301,7 @@ void test8() {
 @interface Test10
 @property (retain) Test10 *me;
 @end
-void test10() {
+void test10(void) {
   Test10 *x;
   id y = x.me.me;
 
@@ -314,12 +314,12 @@ void test10() {
   // CHECK-NEXT: [[YPTR1:%.*]] = bitcast i8** [[Y]] to i8*
   // CHECK-NEXT: call void @llvm.lifetime.start.p0i8(i64 8, i8* [[YPTR1]])
   // CHECK-NEXT: load [[TEST10]]*, [[TEST10]]** [[X]], align
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_{{[0-9]*}}
   // CHECK-NEXT: bitcast
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_{{[0-9]*}}
   // CHECK-NEXT: [[V:%.*]] = call [[TEST10]]* bitcast (i8* (i8*, i8*, ...)* @objc_msgSend{{.*}} [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
   // CHECK-NEXT: call void (...) @llvm.objc.clang.arc.noop.use(%3* [[V]])
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_{{[0-9]*}}
   // CHECK-NEXT: bitcast
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_{{[0-9]*}}
   // CHECK-NEXT: [[T3:%.*]] = call [[TEST10]]* bitcast (i8* (i8*, i8*, ...)* @objc_msgSend{{.*}} [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
   // CHECK-NEXT: call void (...) @llvm.objc.clang.arc.noop.use(%3* [[T3]])
   // CHECK-NEXT: [[T4:%.*]] = bitcast [[TEST10]]* [[T3]] to i8*
@@ -498,7 +498,7 @@ void test13(void) {
 - (int) x { return super.x + 1; }
 @end
 
-void test19() {
+void test19(void) {
   // CHECK-LABEL: define{{.*}} void @test19()
   // CHECK:      [[X:%.*]] = alloca [5 x i8*], align 16
   // CHECK: call void @llvm.lifetime.start
@@ -721,9 +721,9 @@ static id _test29_allocator = 0;
 // CHECK-NEXT: store [[TEST29]]* null, [[TEST29]]** [[SELF]]
 
 // Actual message send.
-// CHECK-NEXT: [[T2:%.*]] = load i8*, i8** @OBJC_SELECTOR_REFERENCES_
-// CHECK-NEXT: [[T3:%.*]] = bitcast [[TEST29]]* [[T0]] to i8*
-// CHECK-NEXT: [[CALL:%.*]] = call i8* bitcast (i8* (i8*, i8*, ...)* @objc_msgSend to i8* (i8*, i8*, i8*)*)(i8* noundef [[T3]], i8* noundef [[T2]], i8* noundef [[T1]])
+// CHECK-NEXT: [[T2:%.*]] = bitcast [[TEST29]]* [[T0]] to i8*
+// CHECK-NEXT: [[SEL:%.*]] = load i8*, i8** @OBJC_SELECTOR_REFERENCES_
+// CHECK-NEXT: [[CALL:%.*]] = call i8* bitcast (i8* (i8*, i8*, ...)* @objc_msgSend to i8* (i8*, i8*, i8*)*)(i8* noundef [[T2]], i8* noundef [[SEL]], i8* noundef [[T1]])
 
 // Implicit write of result back into 'self'.  This is not supposed to
 // be detectable because we're supposed to ban accesses to the old
@@ -824,9 +824,9 @@ char *helper;
 
 // Call.
 // CHECK-NEXT: [[T0:%.*]] = load [[TEST30]]*, [[TEST30]]** [[SELF]]
-// CHECK-NEXT: [[T1:%.*]] = load i8*, i8** @OBJC_SELECTOR_REFERENCES_
-// CHECK-NEXT: [[T2:%.*]] = bitcast [[TEST30]]* [[T0]] to i8*
-// CHECK-NEXT: [[CALL:%.*]] = call [[TEST30_HELPER:%.*]]* bitcast {{.*}} @objc_msgSend {{.*}}(i8* noundef [[T2]], i8* noundef [[T1]])
+// CHECK-NEXT: [[T1:%.*]] = bitcast [[TEST30]]* [[T0]] to i8*
+// CHECK-NEXT: [[SEL:%.*]] = load i8*, i8** @OBJC_SELECTOR_REFERENCES_
+// CHECK-NEXT: [[CALL:%.*]] = call [[TEST30_HELPER:%.*]]* bitcast {{.*}} @objc_msgSend {{.*}}(i8* noundef [[T1]], i8* noundef [[SEL]])
 
 // Assignment.
 // CHECK-NEXT: [[T0:%.*]] = bitcast [[TEST30_HELPER]]* [[CALL]] to i8*
@@ -911,8 +911,8 @@ void test33(Test33 *ptr) {
   // CHECK-NEXT: load [[TEST33]]*, [[TEST33]]** [[PTR]]
   // CHECK-NEXT: [[W0:%.*]] = load [[A_T]]*, [[A_T]]** [[A]]
   // CHECK-NEXT: store [[A_T]]* [[W0]], [[A_T]]** [[TEMP0]]
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: bitcast
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: objc_msgSend{{.*}}, [[A_T]]** noundef [[TEMP0]])
   // CHECK-NEXT: [[T0:%.*]] = load [[A_T]]*, [[A_T]]** [[TEMP0]]
   // CHECK-NEXT: [[T1:%.*]] = bitcast [[A_T]]* [[T0]] to i8*
@@ -927,8 +927,8 @@ void test33(Test33 *ptr) {
   // CHECK-NEXT: load [[TEST33]]*, [[TEST33]]** [[PTR]]
   // CHECK-NEXT: [[W0:%.*]] = load [[A_T]]*, [[A_T]]** [[A]]
   // CHECK-NEXT: store [[A_T]]* [[W0]], [[A_T]]** [[TEMP1]]
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: bitcast
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: objc_msgSend{{.*}}, [[A_T]]** noundef [[TEMP1]])
   // CHECK-NEXT: [[T0:%.*]] = load [[A_T]]*, [[A_T]]** [[TEMP1]]
   // CHECK-NEXT: [[T1:%.*]] = bitcast [[A_T]]* [[T0]] to i8*
@@ -941,20 +941,20 @@ void test33(Test33 *ptr) {
   // CHECK-NEXT: call void @llvm.objc.release(i8* [[T5]])
 
   // CHECK-NEXT: load [[TEST33]]*, [[TEST33]]** [[PTR]]
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: bitcast
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: objc_msgSend{{.*}}, [[A_T]]** noundef [[A]])
 
   // CHECK-NEXT: load [[TEST33]]*, [[TEST33]]** [[PTR]]
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: bitcast
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: objc_msgSend{{.*}}, [[A_T]]** noundef [[A]])
 
   // 'out'
   // CHECK-NEXT: load [[TEST33]]*, [[TEST33]]** [[PTR]]
   // CHECK-NEXT: store [[A_T]]* null, [[A_T]]** [[TEMP2]]
-  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: bitcast
+  // CHECK-NEXT: load i8*, i8** @OBJC_SELECTOR_REFERENCES_
   // CHECK-NEXT: objc_msgSend{{.*}}, [[A_T]]** noundef [[TEMP2]])
   // CHECK-NEXT: [[T0:%.*]] = load [[A_T]]*, [[A_T]]** [[TEMP2]]
   // CHECK-NEXT: [[T1:%.*]] = bitcast [[A_T]]* [[T0]] to i8*
@@ -1146,7 +1146,7 @@ void test49(void) {
 }
 
 // rdar://9380136
-id x();
+id x(void);
 void test50(id y) {
   ({x();});
 // CHECK: [[T0:%.*]] = call i8* @llvm.objc.retain
@@ -1453,11 +1453,12 @@ void test66(void) {
 // CHECK-NEXT: call void (...) @llvm.objc.clang.arc.noop.use([[TEST66]]* [[T3]])
 // CHECK-NEXT: [[T4:%.*]] = call i8* @test66_arg(){{.*}} [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
 // CHECK-NEXT: call void (...) @llvm.objc.clang.arc.noop.use(i8* [[T4]])
-// CHECK-NEXT: [[T6:%.*]] = load i8*, i8** @OBJC_SELECTOR_REFERENCES
 // CHECK-NEXT: [[T7:%.*]] = bitcast [[TEST66]]* [[T3]] to i8*
 // CHECK-NEXT: [[SIX:%.*]] = icmp eq i8* [[T7]], null
-// CHECK-NEXT: br i1 [[SIX]], label [[NULINIT:%.*]], label [[CALL:%.*]]
-// CHECK: call void bitcast (i8* (i8*, i8*, ...)* @objc_msgSend to void (i8*, i8*, i8*)*)(i8* noundef [[T7]], i8* noundef [[T6]], i8* noundef [[T4]])
+// CHECK-NEXT: br i1 [[SIX]], label [[NULINIT:%.*]], label %[[CALL:.*]]
+// CHECK:      [[CALL]]:
+// CHECK-NEXT: [[SEL:%.*]] = load i8*, i8** @OBJC_SELECTOR_REFERENCES
+// CHECK-NEXT: call void bitcast (i8* (i8*, i8*, ...)* @objc_msgSend to void (i8*, i8*, i8*)*)(i8* noundef [[T7]], i8* noundef [[SEL]], i8* noundef [[T4]])
 // CHECK-NEXT: br label [[CONT:%.*]]
 // CHECK: call void @llvm.objc.release(i8* [[T4]]) [[NUW]]
 // CHECK-NEXT: br label [[CONT:%.*]]

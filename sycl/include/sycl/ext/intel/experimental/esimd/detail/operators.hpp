@@ -31,10 +31,10 @@ namespace experimental {
 namespace esimd {
 namespace detail {
 // clang-format off
-/// @ingroup sycl_esimd_core
+/// @addtogroup sycl_esimd_core
 /// @{
+
 /// @defgroup sycl_esimd_core_binops C++ binary operators overloads for ESIMD.
-///
 /// Standard C++ binary operators overloads applicable to \c simd_obj_impl
 /// derivatives - \c simd , \c simd_mask , \c simd_view and their combinations.
 /// The following overloads are defined:
@@ -121,6 +121,9 @@ namespace detail {
       const __SEIEED::simd_obj_impl<__raw_t<T1>, N, SimdT<T1, N>> &LHS,        \
       const __SEIEED::simd_obj_impl<__raw_t<T2>, N, SimdT<T2, N>> &RHS) {      \
     if constexpr (__SEIEED::is_simd_type_v<SimdT<T1, N>>) {                    \
+      /* TODO CM_COMPAT To match CM behavior, here vector element types are */ \
+      /* promoted similar to C++ scalar type promotion, which is different  */ \
+      /* from clang behavior when applying binary ops to vectors            */ \
       using PromotedT = __SEIEED::computation_type_t<T1, T2>;                  \
       /* vector_binary_op returns SimdT<PromotedT, N>::raw_vector_type */      \
       SimdT<PromotedT, N> Res = vector_binary_op<BINOP_ID, PromotedT, N>(      \

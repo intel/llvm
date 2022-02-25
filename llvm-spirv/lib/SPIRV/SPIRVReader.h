@@ -231,8 +231,8 @@ private:
                                                  int64_t Parameter);
   template <class Source, class Func> bool foreachFuncCtlMask(Source, Func);
   llvm::GlobalValue::LinkageTypes transLinkageType(const SPIRVValue *V);
-  Instruction *transOCLAllAny(SPIRVInstruction *BI, BasicBlock *BB);
-  Instruction *transOCLRelational(SPIRVInstruction *BI, BasicBlock *BB);
+  Instruction *transAllAny(SPIRVInstruction *BI, BasicBlock *BB);
+  Instruction *transRelational(SPIRVInstruction *BI, BasicBlock *BB);
 
   void transUserSemantic(SPIRV::SPIRVFunction *Fun);
   void transGlobalAnnotations();
@@ -241,6 +241,8 @@ private:
                          SmallVectorImpl<Function *> &Funcs);
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
   void transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V);
+  void transVarDecorationsToMetadata(SPIRVValue *BV, Value *V);
+  void transFunctionDecorationsToMetadata(SPIRVFunction *BF, Function *F);
 }; // class SPIRVToLLVM
 
 } // namespace SPIRV

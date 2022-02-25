@@ -32,7 +32,7 @@ def OpenMP_Dialect : Dialect {
 // OmpCommon requires definition of OpenACC_Dialect.
 include "mlir/Dialect/OpenMP/OmpCommon.td"
 
-class OpenMP_Op<string mnemonic, list<OpTrait> traits = []> :
+class OpenMP_Op<string mnemonic, list<Trait> traits = []> :
       Op<OpenMP_Dialect, mnemonic, traits>;
 
 // Type which can be constraint accepting standard integers and indices.
@@ -126,9 +126,8 @@ def ParallelOp : OpenMP_Op<"parallel", [AttrSizedOperandSegments,
   let builders = [
     OpBuilder<(ins CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
   ];
-  let parser = [{ return parseParallelOp(parser, result); }];
-  let printer = [{ return printParallelOp(p, *this); }];
-  let verifier = [{ return ::verifyParallelOp(*this); }];
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 def TerminatorOp : OpenMP_Op<"terminator", [Terminator]> {
@@ -215,9 +214,8 @@ def SectionsOp : OpenMP_Op<"sections", [AttrSizedOperandSegments]> {
 
   let regions = (region SizedRegion<1>:$region);
 
-  let parser = [{ return parseSectionsOp(parser, result); }];
-  let printer = [{ return printSectionsOp(p, *this); }];
-  let verifier = [{ return verifySectionsOp(*this); }];
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -334,21 +332,18 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
     /// Returns the number of reduction variables.
     unsigned getNumReductionVars() { return reduction_vars().size(); }
   }];
-  let parser = [{ return parseWsLoopOp(parser, result); }];
-  let printer = [{ return printWsLoopOp(p, *this); }];
-  let verifier = [{ return ::verifyWsLoopOp(*this); }];
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 def YieldOp : OpenMP_Op<"yield",
     [NoSideEffect, ReturnLike, Terminator,
-     ParentOneOf<["WsLoopOp", "ReductionDeclareOp"]>]> {
+     ParentOneOf<["WsLoopOp", "ReductionDeclareOp", "AtomicUpdateOp"]>]> {
   let summary = "loop yield and termination operation";
   let description = [{
     "omp.yield" yields SSA values from the OpenMP dialect op region and
     terminates the region. The semantics of how the values are yielded is
     defined by the parent operation.
-    If "omp.yield" has any operands, the operands must match the parent
-    operation's results.
   }];
 
   let arguments = (ins Variadic<AnyType>:$results);
@@ -418,6 +413,8 @@ def TargetOp : OpenMP_Op<"target",[AttrSizedOperandSegments]> {
                        UnitAttr:$nowait);
 
   let regions = (region AnyRegion:$region);
+
+  let hasCustomAssemblyFormat = 1;
 }
 
 
@@ -454,8 +451,7 @@ def CriticalDeclareOp : OpenMP_Op<"critical.declare", [Symbol]> {
   let assemblyFormat = [{
     $sym_name custom<SynchronizationHint>($hint) attr-dict
   }];
-
-  let verifier = "return verifyCriticalDeclareOp(*this);";
+  let hasVerifier = 1;
 }
 
 
@@ -473,8 +469,7 @@ def CriticalOp : OpenMP_Op<"critical"> {
   let assemblyFormat = [{
     (`(` $name^ `)`)? $region attr-dict
   }];
-
-  let verifier = "return ::verifyCriticalOp(*this);";
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -537,8 +532,7 @@ def OrderedOp : OpenMP_Op<"ordered"> {
     ( `depend_vec` `(` $depend_vec_vars^ `:` type($depend_vec_vars) `)` )?
     attr-dict
   }];
-
-  let verifier = "return ::verifyOrderedOp(*this);";
+  let hasVerifier = 1;
 }
 
 def OrderedRegionOp : OpenMP_Op<"ordered_region"> {
@@ -558,8 +552,7 @@ def OrderedRegionOp : OpenMP_Op<"ordered_region"> {
   let regions = (region AnyRegion:$region);
 
   let assemblyFormat = [{ ( `simd` $simd^ )? $region attr-dict}];
-
-  let verifier = "return ::verifyOrderedRegionOp(*this);";
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -609,9 +602,8 @@ def AtomicReadOp : OpenMP_Op<"atomic.read"> {
                        OpenMP_PointerLikeType:$v,
                        DefaultValuedAttr<I64Attr, "0">:$hint,
                        OptionalAttr<MemoryOrderKindAttr>:$memory_order);
-  let parser = [{ return parseAtomicReadOp(parser, result); }];
-  let printer = [{ return printAtomicReadOp(p, *this); }];
-  let verifier = [{ return verifyAtomicReadOp(*this); }];
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
@@ -638,9 +630,8 @@ def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
                        AnyType:$value,
                        DefaultValuedAttr<I64Attr, "0">:$hint,
                        OptionalAttr<MemoryOrderKindAttr>:$memory_order);
-  let parser = [{ return parseAtomicWriteOp(parser, result); }];
-  let printer = [{ return printAtomicWriteOp(p, *this); }];
-  let verifier = [{ return verifyAtomicWriteOp(*this); }];
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 // TODO: autogenerate from OMP.td in future if possible.
@@ -670,42 +661,80 @@ def AtomicBinOpKindAttr : I64EnumAttr<
   let symbolToStringFnName = "AtomicBinOpKindToString";
 }
 
-def AtomicUpdateOp : OpenMP_Op<"atomic.update"> {
+def AtomicUpdateOp : OpenMP_Op<"atomic.update",
+                               [SingleBlockImplicitTerminator<"YieldOp">]> {
 
   let summary = "performs an atomic update";
 
   let description = [{
     This operation performs an atomic update.
 
-    The operands `x` and `expr` are exactly the same as the operands `x` and
-    `expr` in the OpenMP Standard. The operand `x` is the address of the
-    variable that is being updated. `x` is atomically read/written. The
-    evaluation of `expr` need not be atomic w.r.t the read or write of the
-    location designated by `x`. In general, type(x) must dereference to
-    type(expr).
-
-    The attribute `isXBinopExpr` is
-      - true when the expression is of the form `x binop expr` on RHS
-      - false when the expression is of the form `expr binop x` on RHS
-
-    The attribute `binop` is the binary operation being performed atomically.
+    The operand `x` is exactly the same as the operand `x` in the OpenMP
+    Standard (OpenMP 5.0, section 2.17.7). It is the address of the variable
+    that is being updated. `x` is atomically read/written.
 
     `hint` is the value of hint (as used in the hint clause). It is a compile
     time constant. As the name suggests, this is just a hint for optimization.
 
     `memory_order` indicates the memory ordering behavior of the construct. It
     can be one of `seq_cst`, `acq_rel`, `release`, `acquire` or `relaxed`.
+
+    The region describes how to update the value of `x`. It takes the value at
+    `x` as an input and must yield the updated value. Only the update to `x` is
+    atomic. Generally the region must have only one instruction, but can
+    potentially have more than one instructions too. The update is sematically
+    similar to a compare-exchange loop based atomic update.
   }];
 
   let arguments = (ins OpenMP_PointerLikeType:$x,
-                       AnyType:$expr,
-                       UnitAttr:$isXBinopExpr,
-                       AtomicBinOpKindAttr:$binop,
                        DefaultValuedAttr<I64Attr, "0">:$hint,
                        OptionalAttr<MemoryOrderKindAttr>:$memory_order);
-  let parser = [{ return parseAtomicUpdateOp(parser, result); }];
-  let printer = [{ return printAtomicUpdateOp(p, *this); }];
-  let verifier = [{ return verifyAtomicUpdateOp(*this); }];
+  let regions = (region SizedRegion<1>:$region);
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+}
+
+def AtomicCaptureOp : OpenMP_Op<"atomic.capture",
+    [SingleBlockImplicitTerminator<"TerminatorOp">]> {
+  let summary = "performs an atomic capture";
+  let description = [{
+    This operation performs an atomic capture.
+
+    `hint` is the value of hint (as used in the hint clause). It is a compile
+    time constant. As the name suggests, this is just a hint for optimization.
+
+    `memory_order` indicates the memory ordering behavior of the construct. It
+    can be one of `seq_cst`, `acq_rel`, `release`, `acquire` or `relaxed`.
+
+    The region has the following allowed forms:
+
+    ```
+      omp.atomic.capture {
+        omp.atomic.update ...
+        omp.atomic.read ...
+        omp.terminator
+      }
+
+      omp.atomic.capture {
+        omp.atomic.read ...
+        omp.atomic.update ...
+        omp.terminator
+      }
+
+      omp.atomic.capture {
+        omp.atomic.read ...
+        omp.atomic.write ...
+        omp.terminator
+      }
+    ```
+
+  }];
+
+  let arguments = (ins DefaultValuedAttr<I64Attr, "0">:$hint,
+                       OptionalAttr<MemoryOrderKind>:$memory_order);
+  let regions = (region SizedRegion<1>:$region);
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -734,6 +763,9 @@ def ReductionDeclareOp : OpenMP_Op<"reduction.declare", [Symbol]> {
     Note that the MLIR type system does not allow for type-polymorphic
     reductions. Separate reduction declarations should be created for different
     element and accumulator types.
+
+    For initializer and reduction regions, the operand to `omp.yield` must
+    match the parent operation's results.
   }];
 
   let arguments = (ins SymbolNameAttr:$sym_name,
@@ -742,7 +774,6 @@ def ReductionDeclareOp : OpenMP_Op<"reduction.declare", [Symbol]> {
   let regions = (region AnyRegion:$initializerRegion,
                         AnyRegion:$reductionRegion,
                         AnyRegion:$atomicReductionRegion);
-  let verifier = "return ::verifyReductionDeclareOp(*this);";
 
   let assemblyFormat = "$sym_name `:` $type attr-dict-with-keyword "
                        "`init` $initializerRegion "
@@ -757,6 +788,7 @@ def ReductionDeclareOp : OpenMP_Op<"reduction.declare", [Symbol]> {
       return atomicReductionRegion().front().getArgument(0).getType();
     }
   }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -779,7 +811,7 @@ def ReductionOp : OpenMP_Op<"reduction", [
   let arguments= (ins AnyType:$operand, OpenMP_PointerLikeType:$accumulator);
   let assemblyFormat =
     "$operand `,` $accumulator attr-dict `:` type($accumulator)";
-  let verifier = "return ::verifyReductionOp(*this);";
+  let hasVerifier = 1;
 }
 
 #endif // OPENMP_OPS

@@ -192,8 +192,7 @@ public:
   bool isBeforeInBlock(Operation *other);
 
   void print(raw_ostream &os, const OpPrintingFlags &flags = llvm::None);
-  void print(raw_ostream &os, AsmState &state,
-             const OpPrintingFlags &flags = llvm::None);
+  void print(raw_ostream &os, AsmState &state);
   void dump();
 
   //===--------------------------------------------------------------------===//
@@ -232,7 +231,7 @@ public:
 
   /// Erases the operands that have their corresponding bit set in
   /// `eraseIndices` and removes them from the operand list.
-  void eraseOperands(const llvm::BitVector &eraseIndices) {
+  void eraseOperands(const BitVector &eraseIndices) {
     getOperandStorage().eraseOperands(eraseIndices);
   }
 
