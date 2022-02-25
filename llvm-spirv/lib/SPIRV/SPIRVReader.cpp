@@ -2769,54 +2769,7 @@ bool SPIRVToLLVM::foreachFuncCtlMask(SourceTy Source, FuncTy Func) {
   return true;
 }
 
-Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
-  auto Loc = FuncMap.find(BF);
-  if (Loc != FuncMap.end())
-    return Loc->second;
-
-  auto IsKernel = isKernel(BF);
-
-  if (IsKernel) {
-    // search for a previous function with the same name
-    // upgrade it to a kernel and drop this if it's found
-    for (auto &I : FuncMap) {
-      auto BFName = I.getFirst()->getName();
-      if (BF->getName() == BFName) {
-        auto *F = I.getSecond();
-        F->setCallingConv(CallingConv::SPIR_KERNEL);
-        F->setLinkage(GlobalValue::ExternalLinkage);
-        F->setDSOLocal(false);
-        F = cast<Function>(mapValue(BF, F));
-        mapFunction(BF, F);
-        return F;
-      }
-    }
-  }
-
-  auto Linkage = IsKernel ? GlobalValue::ExternalLinkage : transLinkageType(BF);
-  FunctionType *FT = dyn_cast<FunctionType>(transType(BF->getFunctionType()));
-  std::string FuncName = BF->getName();
-  StringRef FuncNameRef(FuncName);
-  // Transform "@spirv.llvm_memset_p0i8_i32.volatile" to @llvm.memset.p0i8.i32
-  // assuming llvm.memset is supported by the device compiler. If this
-  // assumption is not safe, we should have a command line option to control
-  // this behavior.
-  if (FuncNameRef.consume_front("spirv.")) {
-    FuncNameRef.consume_back(".volatile");
-    FuncName = FuncNameRef.str();
-    std::replace(FuncName.begin(), FuncName.end(), '_', '.');
-  }
-  Function *F = M->getFunction(FuncName);
-  if (!F)
-    F = Function::Create(FT, Linkage, FuncName, M);
-  F = cast<Function>(mapValue(BF, F));
-  mapFunction(BF, F);
-
-  if (F->isIntrinsic())
-    return F;
-
-  F->setCallingConv(IsKernel ? CallingConv::SPIR_KERNEL
-                             : CallingConv::SPIR_FUNC);
+void SPIRVToLLVM::transFunctionAttrs(SPIRVFunction *BF, Function *F) {
   if (BF->hasDecorate(DecorationReferencedIndirectlyINTEL))
     F->addFnAttr("referenced-indirectly");
   if (isFuncNoUnwind())
@@ -2825,7 +2778,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
 
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
-    auto BA = BF->getArgument(I->getArgNo());
+    auto *BA = BF->getArgument(I->getArgNo());
     mapValue(BA, &(*I));
     setName(&(*I), BA);
     BA->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
@@ -2861,6 +2814,58 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
       return;
     F->addRetAttr(SPIRSPIRVFuncParamAttrMap::rmap(Kind));
   });
+}
+
+Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
+  auto Loc = FuncMap.find(BF);
+  if (Loc != FuncMap.end())
+    return Loc->second;
+
+  auto IsKernel = isKernel(BF);
+
+  if (IsKernel) {
+    // search for a previous function with the same name
+    // upgrade it to a kernel and drop this if it's found
+    for (auto &I : FuncMap) {
+      auto BFName = I.getFirst()->getName();
+      if (BF->getName() == BFName) {
+        auto *F = I.getSecond();
+        F->setCallingConv(CallingConv::SPIR_KERNEL);
+        F->setLinkage(GlobalValue::ExternalLinkage);
+        F->setDSOLocal(false);
+        F = cast<Function>(mapValue(BF, F));
+        mapFunction(BF, F);
+        transFunctionAttrs(BF, F);
+        return F;
+      }
+    }
+  }
+
+  auto Linkage = IsKernel ? GlobalValue::ExternalLinkage : transLinkageType(BF);
+  FunctionType *FT = dyn_cast<FunctionType>(transType(BF->getFunctionType()));
+  std::string FuncName = BF->getName();
+  StringRef FuncNameRef(FuncName);
+  // Transform "@spirv.llvm_memset_p0i8_i32.volatile" to @llvm.memset.p0i8.i32
+  // assuming llvm.memset is supported by the device compiler. If this
+  // assumption is not safe, we should have a command line option to control
+  // this behavior.
+  if (FuncNameRef.consume_front("spirv.")) {
+    FuncNameRef.consume_back(".volatile");
+    FuncName = FuncNameRef.str();
+    std::replace(FuncName.begin(), FuncName.end(), '_', '.');
+  }
+  Function *F = M->getFunction(FuncName);
+  if (!F)
+    F = Function::Create(FT, Linkage, FuncName, M);
+  F = cast<Function>(mapValue(BF, F));
+  mapFunction(BF, F);
+
+  if (F->isIntrinsic())
+    return F;
+
+  F->setCallingConv(IsKernel ? CallingConv::SPIR_KERNEL
+                             : CallingConv::SPIR_FUNC);
+  transFunctionAttrs(BF, F);
 
   // Creating all basic blocks before creating instructions.
   for (size_t I = 0, E = BF->getNumBasicBlock(); I != E; ++I) {
