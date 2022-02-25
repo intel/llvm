@@ -275,6 +275,9 @@ def CPre2xCompat : DiagGroup<"pre-c2x-compat">;
 def CPre2xCompatPedantic : DiagGroup<"pre-c2x-compat-pedantic",
                                      [CPre2xCompat]>;
 
+// Warning for treating C input as C++ input.
+def ExpectedFileType : DiagGroup<"expected-file-type">;
+
 // Warnings for C++ code which is not compatible with previous C++ standards.
 def CXXPre14Compat : DiagGroup<"pre-c++14-compat">;
 def : DiagGroup<"c++98-c++11-compat", [CXXPre14Compat]>;

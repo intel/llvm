@@ -668,9 +668,9 @@ void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
     addTo(AsmTargetVec, E);
     break;
   }
-  case internal::OpAliasDomainDeclINTEL:
-  case internal::OpAliasScopeDeclINTEL:
-  case internal::OpAliasScopeListDeclINTEL: {
+  case OpAliasDomainDeclINTEL:
+  case OpAliasScopeDeclINTEL:
+  case OpAliasScopeListDeclINTEL: {
     addTo(AliasInstMDVec, E);
     break;
   }

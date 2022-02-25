@@ -1,12 +1,12 @@
 # Implementation design for compile time constant properties
 
 This document describes the implementation design for the DPC++ extension
-[SYCL\_EXT\_ONEAPI\_PROPERTIES][1], which adds a general mechanism for
+[sycl\_ext\_oneapi\_properties][1], which adds a general mechanism for
 specifying properties which are known at compile time.  This extension is not
 itself a feature, but rather a building block that can be incorporated into
 other features.
 
-[1]: <../extensions/proposed/SYCL_EXT_ONEAPI_PROPERTIES.asciidoc>
+[1]: <../extensions/proposed/sycl_ext_oneapi_properties.asciidoc>
 
 There are a number of situations where we plan to use compile-time constant
 properties, but this design document does not attempt to address them all.
@@ -38,9 +38,9 @@ transformation is done.
 
 One use for compile-time properties is with types that are used exclusively
 for declaring global variables.  One such example is the
-[SYCL\_EXT\_ONEAPI\_DEVICE\_GLOBAL][2] extension:
+[sycl\_ext\_oneapi\_device\_global][2] extension:
 
-[2]: <../extensions/proposed/SYCL_EXT_ONEAPI_DEVICE_GLOBAL.asciidoc>
+[2]: <../extensions/proposed/sycl_ext_oneapi_device_global.asciidoc>
 
 ```
 namespace sycl::ext::oneapi {
@@ -144,11 +144,11 @@ order to do this translation.
 ## Properties on kernel arguments
 
 Another use of compile-time properties is with types that are used to define
-kernel arguments.  For example, the [SYCL\_ONEAPI\_accessor\_properties][6]
+kernel arguments.  For example, the [sycl\_ext\_oneapi\_accessor\_properties][6]
 extension could be redesigned to use compile-time properties.  Such a redesign
 might look like:
 
-[6]: <../extensions/supported/SYCL_EXT_ONEAPI_ACCESSOR_PROPERTIES.asciidoc>
+[6]: <../extensions/supported/sycl_ext_oneapi_accessor_properties.asciidoc>
 
 ```
 namespace sycl {
@@ -270,11 +270,11 @@ the property value to a string if it is not already a string.
 ## Properties on kernel functions
 
 Compile-time properties can also be used to decorate kernel functions as with
-the [SYCL\_EXT\_ONEAPI\_PROPERTIES][8] extension.  There are two ways the
+the [sycl\_ext\_oneapi\_properties][8] extension.  There are two ways the
 application can specify these properties.  The first is by passing a
 `property_list` parameter to the function that submits the kernel:
 
-[8]: <../extensions/proposed/SYCL_EXT_ONEAPI_PROPERTIES.asciidoc>
+[8]: <../extensions/proposed/sycl_ext_oneapi_properties.asciidoc>
 
 ```
 namespace sycl {

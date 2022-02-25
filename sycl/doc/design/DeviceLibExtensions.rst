@@ -48,7 +48,7 @@ Invoking `__devicelib_assert_read` after a kernel doesn't imply the kernel has
 assertion failed.
 
 See also: assert_extension_.
-.. _assert_extension: ../extensions/supported/SYCL_EXT_ONEAPI_ASSERT.asciidoc)
+.. _assert_extension: ../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 
 cl_intel_devicelib_math
 ==========================
