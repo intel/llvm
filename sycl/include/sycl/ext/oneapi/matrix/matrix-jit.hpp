@@ -1,4 +1,4 @@
-//==---------------- matrix-jit.hpp - SYCL matrix --------------*- C++ -*---==//
+//==------------------ matrix.hpp - SYCL matrix ----------------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -36,6 +36,22 @@ SPV_MATRIX_LAYOUT_TRAITS(matrix_layout::col_major,
 SPV_MATRIX_LAYOUT_TRAITS(matrix_layout::packed_a, __spv::MatrixLayout::PackedA)
 SPV_MATRIX_LAYOUT_TRAITS(matrix_layout::packed_b, __spv::MatrixLayout::PackedB)
 
+enum class matrix_use { matrix_a, matrix_b, accumulator, unnecessary };
+
+template <matrix_use Use> struct spv_matrix_use_traits {
+  static constexpr __spv::MatrixUse value = __spv::MatrixUse::MatrixA;
+};
+
+#define SPV_MATRIX_USE_TRAITS(USE, SPV_USE)                                    \
+  template <> struct spv_matrix_use_traits<USE> {                              \
+    static constexpr __spv::MatrixUse value = SPV_USE;                         \
+  };
+
+SPV_MATRIX_USE_TRAITS(matrix_use::matrix_a, __spv::MatrixUse::MatrixA)
+SPV_MATRIX_USE_TRAITS(matrix_use::matrix_b, __spv::MatrixUse::MatrixB)
+SPV_MATRIX_USE_TRAITS(matrix_use::accumulator, __spv::MatrixUse::Accumulator)
+SPV_MATRIX_USE_TRAITS(matrix_use::unnecessary, __spv::MatrixUse::Unnecessary)
+
 template <typename G> struct spv_scope_traits {};
 template <> struct spv_scope_traits<sycl::sub_group> {
   constexpr static auto value = __spv::Scope::Subgroup;
@@ -44,18 +60,13 @@ template <int D> struct spv_scope_traits<sycl::group<D>> {
   constexpr static auto value = __spv::Scope::Workgroup;
 };
 
-template <typename T, size_t NumRows, size_t NumCols,
-          matrix_layout Layout = matrix_layout::row_major,
-          typename Group = sycl::sub_group>
-class wi_slice;
-
-template <typename T, size_t NumRows, size_t NumCols,
+template <typename T, size_t NumRows, size_t NumCols, matrix_use Use = matrix_use::unnecessary,
           matrix_layout Layout = matrix_layout::row_major,
           typename Group = sycl::sub_group>
 struct joint_matrix {
 public:
   __spv::__spirv_JointMatrixINTEL<
-      T, NumRows, NumCols, spv_matrix_layout_traits<Layout>::value> *spvm;
+      T, NumRows, NumCols, spv_matrix_use_traits<Use>::value, spv_matrix_layout_traits<Layout>::value> *spvm;
   joint_matrix(Group sg) {
 #ifndef __SYCL_DEVICE_ONLY__
     (void)sg;
@@ -63,19 +74,31 @@ public:
                         PI_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
   }
+};
 
-  inline __SYCL_ALWAYS_INLINE wi_slice<T, NumRows, NumCols, Layout, Group>
-  get_wi_data() {
-    return wi_slice<T, NumRows, NumCols, Layout, Group>(*this);
+template <typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout,
+          typename Group>
+struct joint_matrix<T, NumRows, NumCols, matrix_use::unnecessary, Layout,
+                    Group> {
+public:
+  __spv::__spirv_JointMatrixINTEL<
+      T, NumRows, NumCols, spv_matrix_use_traits<matrix_use::unnecessary>::value, spv_matrix_layout_traits<Layout>::value> *spvm;
+  joint_matrix(Group sg) {
+#ifndef __SYCL_DEVICE_ONLY__
+    (void)sg;
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
   }
 };
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          matrix_layout Layout = matrix_layout::row_major,
+          matrix_use Use, matrix_layout Layout = matrix_layout::row_major,
           access::address_space Space>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_load(Group sg,
-                  joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
+                  joint_matrix<T, NumRows, NumCols, Use, Layout, Group> &res,
                   multi_ptr<T, Space> src, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = src.get();
@@ -84,28 +107,28 @@ joint_matrix_load(Group sg,
     assert(false && "Invalid Memory Layout!");
   case matrix_layout::row_major:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols, Use,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::RowMajor,
             spv_scope_traits<Group>::value);
     break;
   case matrix_layout::col_major:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols, Use,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::ColumnMajor,
             spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_a:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols, Use,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::PackedA,
             spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_b:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols, Use,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::PackedB,
             spv_scope_traits<Group>::value);
@@ -123,11 +146,11 @@ joint_matrix_load(Group sg,
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          matrix_layout MatL = matrix_layout::row_major,
+          matrix_use Use, matrix_layout MatL = matrix_layout::row_major,
           access::address_space Space>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_store(Group sg,
-                   joint_matrix<T, NumRows, NumCols, MatL, Group> &src,
+                   joint_matrix<T, NumRows, NumCols, Use, MatL, Group> &src,
                    multi_ptr<T, Space> res, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = res.get();
@@ -135,25 +158,25 @@ joint_matrix_store(Group sg,
   default:
     assert(false && "Invalid Memory Layout!");
   case matrix_layout::row_major:
-    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols, Use,
                                   spv_matrix_layout_traits<MatL>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::RowMajor,
         spv_scope_traits<Group>::value);
     break;
   case matrix_layout::col_major:
-    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols, Use,
                                   spv_matrix_layout_traits<MatL>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_a:
-    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols, Use,
                                   spv_matrix_layout_traits<MatL>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::PackedA,
         spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_b:
-    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols, Use,
                                   spv_matrix_layout_traits<MatL>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::PackedB,
         spv_scope_traits<Group>::value);
@@ -172,13 +195,14 @@ joint_matrix_store(Group sg,
 
 template <typename Group, typename T1, typename T2, typename T3, size_t M,
           size_t K, size_t N, matrix_layout LayoutA, matrix_layout LayoutB,
-          matrix_layout LayoutC>
-inline __SYCL_ALWAYS_INLINE joint_matrix<T3, M, N, LayoutC, Group>
-joint_matrix_mad(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
-                 joint_matrix<T2, K, N, LayoutB, Group> &mB,
-                 joint_matrix<T3, M, N, LayoutC, Group> &mC) {
+          matrix_layout LayoutC, matrix_use UseA, matrix_use UseB,
+          matrix_use UseC>
+inline __SYCL_ALWAYS_INLINE joint_matrix<T3, M, N, UseC, LayoutC, Group>
+joint_matrix_mad(Group sg, joint_matrix<T1, M, K, UseA, LayoutA, Group> &mA,
+                 joint_matrix<T2, K, N, UseB, LayoutB, Group> &mB,
+                 joint_matrix<T3, M, N, UseC, LayoutC, Group> &mC) {
 #ifdef __SYCL_DEVICE_ONLY__
-  joint_matrix<T3, M, N, LayoutC, Group> res(sg);
+  joint_matrix<T3, M, N, UseC, LayoutC, Group> res(sg);
   if constexpr (std::is_same<T1, uint16_t>::value &&
                 std::is_same<T2, uint16_t>::value &&
                 std::is_same<T3, float>::value)
@@ -202,11 +226,11 @@ joint_matrix_mad(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-template <typename Group, typename T, size_t NumRows, size_t NumCols,
+template <typename Group, typename T, size_t NumRows, size_t NumCols, matrix_use Use, 
           matrix_layout Layout, typename T2>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_fill(Group sg,
-                  joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
+                  joint_matrix<T, NumRows, NumCols, Use, Layout, Group> &res,
                   const T2 v) {
   // We kept the unused "sg" in joint_matrix_fill to match the other DPC++
   // functions
@@ -223,15 +247,15 @@ joint_matrix_fill(Group sg,
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-template <typename T, size_t NumRows, size_t NumCols,
+template <typename T, size_t NumRows, size_t NumCols, matrix_use Use, 
           matrix_layout Layout = matrix_layout::row_major,
           typename Group = sycl::sub_group>
 class wi_element {
-  joint_matrix<T, NumRows, NumCols, Layout, Group> &M;
+  joint_matrix<T, NumRows, NumCols, Use, Layout, Group> &M;
   std::size_t idx;
 
 public:
-  wi_element(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat,
+  wi_element(joint_matrix<T, NumRows, NumCols, Use, Layout, Group> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
   operator T() {
@@ -264,7 +288,7 @@ public:
   }
 
   wi_element &
-  operator=(const wi_element<T, NumRows, NumCols, Layout, Group> &rhs) {
+  operator=(const wi_element<T, NumRows, NumCols, Use, Layout, Group> &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     M.spvm = __spirv_VectorInsertDynamic(
         M.spvm, __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx), idx);
@@ -307,13 +331,13 @@ public:
 // the introduction of SYCL experimental bfloat16 type. Our plan is to move
 // towards using the SYCL bfloat16. But since it is still experimental, we will
 // probably keep both uint16 interpretation and SYCL bfloat16.
-template <size_t NumRows, size_t NumCols, matrix_layout Layout, typename Group>
-class wi_element<uint16_t, NumRows, NumCols, Layout, Group> {
-  joint_matrix<uint16_t, NumRows, NumCols, Layout, Group> &M;
+template <size_t NumRows, size_t NumCols, matrix_use Use, matrix_layout Layout, typename Group>
+class wi_element<uint16_t, NumRows, NumCols, Use, Layout, Group> {
+  joint_matrix<uint16_t, NumRows, NumCols, Use, Layout, Group> &M;
   std::size_t idx;
 
 public:
-  wi_element(joint_matrix<uint16_t, NumRows, NumCols, Layout, Group> &Mat,
+  wi_element(joint_matrix<uint16_t, NumRows, NumCols, Use, Layout, Group> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
   operator uint16_t() {
@@ -347,7 +371,7 @@ public:
   }
 
   wi_element &
-  operator=(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &rhs) {
+  operator=(const wi_element<uint16_t, NumRows, NumCols, Use, Layout, Group> &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     M.spvm = __spirv_VectorInsertDynamic(
         M.spvm, __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx), idx);
@@ -410,21 +434,21 @@ public:
 #if __SYCL_DEVICE_ONLY__
 #define OP(input_type, type, op)                                               \
   friend type operator op(                                                     \
-      const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,        \
+      const wi_element<uint16_t, NumRows, NumCols, Use, Layout, Group> &lhs,        \
       const uint16_t &rhs) {                                                   \
     return Converter<input_type, type>::convert(make_fp32(                     \
         __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) op make_fp32(rhs)); \
   }                                                                            \
   friend type operator op(                                                     \
       const uint16_t &lhs,                                                     \
-      const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &rhs) {      \
+      const wi_element<uint16_t, NumRows, NumCols, Use, Layout, Group> &rhs) {      \
     return Converter<input_type, type>::convert(make_fp32(                     \
         __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx)) op make_fp32(lhs)); \
   }
 #else // __SYCL_DEVICE_ONLY__
 #define OP(input_type, type, op)                                               \
   friend type operator op(                                                     \
-      const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,        \
+      const wi_element<uint16_t, NumRows, NumCols, Use, Layout, Group> &lhs,        \
       const uint16_t &rhs) {                                                   \
     (void)lhs;                                                                 \
     (void)rhs;                                                                 \
@@ -433,7 +457,7 @@ public:
   }                                                                            \
   friend type operator op(                                                     \
       const uint16_t &lhs,                                                     \
-      const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &rhs) {      \
+      const wi_element<uint16_t, NumRows, NumCols, Use, Layout, Group> &rhs) {      \
     (void)lhs;                                                                 \
     (void)rhs;                                                                 \
     throw runtime_error("joint matrix is not supported on host device.",       \
@@ -453,13 +477,13 @@ public:
 #undef OP
 };
 
-template <typename T, size_t NumRows, size_t NumCols, matrix_layout Layout,
+template <typename T, size_t NumRows, size_t NumCols, matrix_use Use, matrix_layout Layout,
           typename Group>
 class wi_slice {
-  joint_matrix<T, NumRows, NumCols, Layout, Group> &M;
+  joint_matrix<T, NumRows, NumCols, Use, Layout, Group> &M;
 
 public:
-  wi_slice(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat) : M(Mat) {}
+  wi_slice(joint_matrix<T, NumRows, NumCols, Use, Layout, Group> &Mat) : M(Mat) {}
   size_t length() {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_JointMatrixWorkItemLengthINTEL(M.spvm);
@@ -468,8 +492,8 @@ public:
                         PI_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
   }
-  wi_element<T, NumRows, NumCols, Layout, Group> operator[](size_t i) {
-    return wi_element<T, NumRows, NumCols, Layout, Group>(M, i);
+  wi_element<T, NumRows, NumCols, Use, Layout, Group> operator[](size_t i) {
+    return wi_element<T, NumRows, NumCols, Use, Layout, Group>(M, i);
   }
 };
 

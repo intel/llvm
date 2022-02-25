@@ -115,6 +115,13 @@ enum class MatrixLayout : uint32_t {
   PackedB = 3
 };
 
+enum class MatrixUse : uint32_t {
+  MatrixA = 0,
+  MatrixB = 1,
+  Accumulator = 2,
+  Unnecessary = 3
+};
+
 // TODO: replace the following W/A with a better solution when we have it.
 // The following structure is used to represent the joint matrix type in the
 // LLVM IR. The structure has a pointer to a multidimensional array member which
@@ -129,10 +136,10 @@ enum class MatrixLayout : uint32_t {
 // information to SPIRV translator.
 // The long term solution would be to introduce a matrix type in Clang and use
 // it instead of this member.
-template <typename T, std::size_t R, std::size_t C, MatrixLayout U,
+template <typename T, std::size_t R, std::size_t C, MatrixUse U, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup>
 struct __spirv_JointMatrixINTEL {
-  T (*Value)[R][C][static_cast<size_t>(U) + 1][static_cast<size_t>(S) + 1];
+  T (*Value)[R][C][static_cast<size_t>(U) + 1][static_cast<size_t>(L) + 1][static_cast<size_t>(S) + 1];
 };
 
 } // namespace __spv
