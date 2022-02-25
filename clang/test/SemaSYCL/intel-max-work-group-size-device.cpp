@@ -41,6 +41,7 @@ struct DAFuncObj {
                                         // expected-note{{did you mean to use 'sycl::reqd_work_group_size' instead?}}
   void operator()() const {}
 };
+
 #endif // TRIGGER_ERROR
 
 int main() {

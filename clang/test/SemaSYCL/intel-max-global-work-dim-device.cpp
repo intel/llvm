@@ -62,8 +62,8 @@ struct TRIFuncObjGood1 {
 
 struct TRIFuncObjGood2 {
   [[intel::max_global_work_dim(3)]]
-  [[intel::max_work_group_size(8, 1, 1)]]
-  [[sycl::reqd_work_group_size(4, 1, 1)]] void
+  [[intel::max_work_group_size(8, 1, 8)]]
+  [[sycl::reqd_work_group_size(4, 1, 8)]] void
   operator()() const {}
 };
 
@@ -300,8 +300,8 @@ int main() {
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  value: Int 8
+    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 4
@@ -310,8 +310,8 @@ int main() {
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  value: Int 8
+    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
 
     h.single_task<class test_kernel5>(TRIFuncObjGood3());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
