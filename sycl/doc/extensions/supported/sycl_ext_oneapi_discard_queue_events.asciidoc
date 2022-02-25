@@ -170,7 +170,6 @@ This non-normative section describes the conditions when the DPC++ implementatio
  - The queue must be constructed with the `in_order` property.
  - A kernel submitted to the queue must not use the link:../supported/sycl_ext_oneapi_assert.asciidoc[fallback assert feature].
  - A queue operation submitted to the queue must not use streams or buffer / image accessors. However, local accessors do not inhibit optimization.
- - Any queue operations using Level Zero backend temporarily work without optimization.
 
 *The benefit is that a low-level event is not created from backend, thereby saving time.
 
@@ -191,11 +190,6 @@ the device has native support for assertions (as specified by `aspect::ext_oneap
 No optimization if a queue operation that uses stream objects or buffer / image accessors is submitted to a queue created with
 the `discard_events` property. But using local accessors does not affect optimization.
 
-=== Using Level Zero backend
-
-Since Level Zero Plugin support is required to be able to not create a low-level event,
-any queue operations using the Level Zero backend temporarily work without optimization.
-
 
 == Issues
 
@@ -209,4 +203,5 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2021-11-09|Alexander Flegontov |*Initial public working draft*
+|2|2022-02-25|Alexander Flegontov |*Enable optimization for Level Zero backend*
 |========================================
