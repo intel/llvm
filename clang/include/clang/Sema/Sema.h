@@ -13125,6 +13125,8 @@ public:
                                    SourceLocation BuiltinLoc,
                                    SourceLocation RParenLoc);
 
+  bool isSyclGlobalVariableAllowedType(QualType Ty);
+
 private:
   bool SemaBuiltinPrefetch(CallExpr *TheCall);
   bool SemaBuiltinAllocaWithAlign(CallExpr *TheCall);

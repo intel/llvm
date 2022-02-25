@@ -202,18 +202,6 @@ void Sema::MaybeSuggestAddingStaticToDecl(const FunctionDecl *Cur) {
   }
 }
 
-static bool isSyclGlobalVariableAllowedType(QualType Ty) {
-  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
-  if (!RecTy)
-    return false;
-  if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
-    ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
-    if (CXXRecordDecl *RD = Template->getTemplatedDecl())
-      return RD->hasAttr<SYCLDetailGlobalVariableAllowedAttr>();
-  }
-  return RecTy->hasAttr<SYCLDetailGlobalVariableAllowedAttr>();
-}
-
 /// Determine whether the use of this declaration is valid, and
 /// emit any corresponding diagnostics.
 ///
