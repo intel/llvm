@@ -157,13 +157,13 @@ Expected<StringRef> ArchiveMemberHeader::getRawName() const {
     EndCond = ' ';
   else
     EndCond = '/';
-  StringRef::size_type end =
+  StringRef::size_type End =
       StringRef(ArMemHdr->Name, sizeof(ArMemHdr->Name)).find(EndCond);
-  if (end == StringRef::npos)
-    end = sizeof(ArMemHdr->Name);
-  assert(end <= sizeof(ArMemHdr->Name) && end > 0);
+  if (End == StringRef::npos)
+    End = sizeof(ArMemHdr->Name);
+  assert(End <= sizeof(ArMemHdr->Name) && End > 0);
   // Don't include the EndCond if there is one.
-  return StringRef(ArMemHdr->Name, end);
+  return StringRef(ArMemHdr->Name, End);
 }
 
 Expected<uint64_t>
@@ -255,6 +255,8 @@ Expected<StringRef> ArchiveMemberHeader::getName(uint64_t Size) const {
     if (Name.size() == 1) // Linker member.
       return Name;
     if (Name.size() == 2 && Name[1] == '/') // String table.
+      return Name;
+    if (Name.equals("/<XFGHASHMAP>/")) // names in Windows SDK for Windows 11
       return Name;
     // It's a long name.
     // Get the string table offset.
