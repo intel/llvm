@@ -457,7 +457,7 @@ public:
   void updateStats(int InUse, int InPool);
 
   // Print bucket statistics
-  void printStats();
+  void printStats(bool &TitlePrinted, SystemMemory::MemType MT);
 
 private:
   void onFreeChunk(Slab &, bool &ToPool);
@@ -513,7 +513,7 @@ public:
     return USMSettings.SlabMinSize[(*MemHandle).getMemType()];
   };
 
-  void printStats();
+  void printStats(bool &TitlePrinted, SystemMemory::MemType MT);
 
 private:
   Bucket &findBucket(size_t Size);
@@ -862,8 +862,24 @@ void Bucket::updateStats(int InUse, int InPool) {
   maxSlabsInPool = std::max(currSlabsInPool, maxSlabsInPool);
 }
 
-void Bucket::printStats() {
+void Bucket::printStats(bool &TitlePrinted, SystemMemory::MemType MT) {
   if (allocCount) {
+    if (!TitlePrinted) {
+      auto Label = "Shared";
+      if (MT == SystemMemory::Host) {
+        Label = "Host";
+        std::cout << "Current Pool Size " << USMSettings.CurPoolSize
+                  << std::endl;
+      }
+      if (MT == SystemMemory::Device)
+        Label = "Device";
+      std::cout << Label << " memory statistics\n";
+      std::cout << std::setw(14) << "Bucket Size" << std::setw(12) << "Allocs"
+                << std::setw(12) << "Frees" << std::setw(18)
+                << "Allocs From Pool" << std::setw(20) << "Peak Slabs In Use"
+                << std::setw(21) << "Peak Slabs in Pool" << std::endl;
+      TitlePrinted = true;
+    }
     std::cout << std::setw(14) << getSize() << std::setw(12) << allocCount
               << std::setw(12) << freeCount << std::setw(18) << allocPoolCount
               << std::setw(20) << maxSlabsInUse << std::setw(21)
@@ -1039,26 +1055,16 @@ void USMAllocContext::deallocate(void *ptr) {
 
 // Define destructor for its usage with unique_ptr
 USMAllocContext::~USMAllocContext() {
+  bool TitlePrinted = false;
   if (USMSettings.PoolTrace > 1) {
-    auto Label = "Shared";
-    if (pImpl->getMemHandle().getMemType() == SystemMemory::Host) {
-      Label = "Host";
-      std::cout << "Current Pool Size " << USMSettings.CurPoolSize << std::endl;
-    }
-    if (pImpl->getMemHandle().getMemType() == SystemMemory::Device)
-      Label = "Device";
-    std::cout << Label << " memory statistics\n";
-    pImpl->printStats();
+    pImpl->printStats(TitlePrinted, pImpl->getMemHandle().getMemType());
   }
 }
 
-void USMAllocContext::USMAllocImpl::printStats() {
-  std::cout << std::setw(14) << "Bucket Size" << std::setw(12) << "Allocs"
-            << std::setw(12) << "Frees" << std::setw(18) << "Allocs From Pool"
-            << std::setw(20) << "Peak Slabs In Use" << std::setw(21)
-            << "Peak Slabs in Pool" << std::endl;
+void USMAllocContext::USMAllocImpl::printStats(bool &TitlePrinted,
+                                               SystemMemory::MemType MT) {
   for (auto &B : Buckets) {
-    (*B).printStats();
+    (*B).printStats(TitlePrinted, MT);
   }
 }
 
