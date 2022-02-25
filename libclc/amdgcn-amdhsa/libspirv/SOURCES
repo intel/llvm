@@ -1,4 +1,5 @@
 
+workitem/get_global_offset.ll
 group/collectives.cl
 group/collectives_helpers.ll
 atomic/loadstore_helpers.ll
