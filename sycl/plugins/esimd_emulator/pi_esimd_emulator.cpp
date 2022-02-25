@@ -106,6 +106,12 @@ private:
 
 } // anonymous namespace
 
+// Get Next Power-of-2 larger than k for given n
+static inline constexpr unsigned int getNextPowerOf2(unsigned int n,
+                                                     unsigned k = 1) {
+  return (k >= n) ? k : getNextPowerOf2(n, k * 2);
+}
+
 // Controls PI level tracing prints.
 static bool PrintPiTrace = false;
 
@@ -1828,6 +1834,12 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
 
   if (ResultPtr == nullptr) {
     return PI_INVALID_OPERATION;
+  }
+
+  // 'Size' must be power of two in order to prevent memory corruption
+  // error
+  if ((Size & (Size - 1)) != 0) {
+    Size = getNextPowerOf2(Size);
   }
 
   cm_support::CmBufferSVM *Buf = nullptr;
