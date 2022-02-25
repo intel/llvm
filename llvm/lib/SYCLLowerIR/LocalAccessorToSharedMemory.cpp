@@ -38,7 +38,7 @@ private:
   using KernelPayload = TargetHelpers::KernelPayload;
   using ArchType = TargetHelpers::ArchType;
 
-  // The ualue for NVVM's ADDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen to
+  // The value for NVVM's ADDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen to
   // be 3.
   const unsigned SharedASValue = 3;
 
@@ -58,9 +58,9 @@ public:
     if (skipModule(M))
       return false;
 
-    SmallVector<KernelPayload> Kernels;
+    SmallVector<KernelPayload, 4> Kernels;
     TargetHelpers::populateKernels(M, Kernels, AT);
-    SmallVector<std::pair<Function *, KernelPayload>> NewToOldKernels;
+    SmallVector<std::pair<Function *, KernelPayload>, 4> NewToOldKernels;
     if (Kernels.empty())
       return false;
 
@@ -211,7 +211,7 @@ private:
   }
 
   void postProcessKernels(
-      SmallVector<std::pair<Function *, KernelPayload>> &NewToOldKernels) {
+      SmallVectorImpl<std::pair<Function *, KernelPayload>> &NewToOldKernels) {
     for (auto &Pair : NewToOldKernels) {
       std::get<1>(Pair).MD->replaceOperandWith(
           0, llvm::ConstantAsMetadata::get(std::get<0>(Pair)));
