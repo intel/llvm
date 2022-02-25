@@ -6042,12 +6042,12 @@ static void emitOMPAtomicCompareExpr(CodeGenFunction &CGF,
   }
 
   LValue XLVal = CGF.EmitLValue(X);
-  llvm::Value *XPtr = XLVal.getPointer(CGF);
+  Address XAddr = XLVal.getAddress(CGF);
   llvm::Value *EVal = CGF.EmitScalarExpr(E);
   llvm::Value *DVal = D ? CGF.EmitScalarExpr(D) : nullptr;
 
   llvm::OpenMPIRBuilder::AtomicOpValue XOpVal{
-      XPtr, XPtr->getType()->getPointerElementType(),
+      XAddr.getPointer(), XAddr.getElementType(),
       X->getType().isVolatileQualified(),
       X->getType()->hasSignedIntegerRepresentation()};
 
@@ -6288,6 +6288,13 @@ static void emitCommonOMPTargetDirective(CodeGenFunction &CGF,
   }
   if (CGM.getLangOpts().OMPTargetTriples.empty())
     IsOffloadEntry = false;
+
+  if (CGM.getLangOpts().OpenMPOffloadMandatory && !IsOffloadEntry) {
+    unsigned DiagID = CGM.getDiags().getCustomDiagID(
+        DiagnosticsEngine::Error,
+        "No offloading entry generated while offloading is mandatory.");
+    CGM.getDiags().Report(DiagID);
+  }
 
   assert(CGF.CurFuncDecl && "No parent declaration for target region!");
   StringRef ParentName;

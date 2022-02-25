@@ -87,8 +87,7 @@ static void initGlobalVars(const Stmt &S, Environment &Env) {
 
   if (auto *DS = dyn_cast<DeclStmt>(&S)) {
     if (DS->isSingleDecl()) {
-      const auto &D = *cast<VarDecl>(DS->getSingleDecl());
-      initGlobalVar(D, Env);
+      initGlobalVar(*DS->getSingleDecl(), Env);
     } else {
       for (auto *D : DS->getDeclGroup())
         initGlobalVar(*D, Env);
