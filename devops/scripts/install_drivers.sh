@@ -23,15 +23,21 @@ InstallTBB () {
   if [ "$TBB_INSTALLED" = false ]; then
     cd $INSTALL_LOCATION
     echo "Installing TBB..."
+    echo "TBB version $TBB_TAG"
     python3 $LOCATION/get_release.py oneapi-src/onetbb $TBB_TAG \
-    | grep -E ".*-lin.tgz" \
-    | wget -qi - && \
+      | grep -E ".*-lin.tgz" \
+      | wget -qi -
     tar -xf *.tgz && rm *.tgz && mv oneapi-tbb-* oneapi-tbb
+
+    TBB_INSTALLED=true
   fi
 }
 
 InstallIGFX () {
   echo "Installing Intel Graphics driver..."
+  echo "Compute Runtime version $CR_TAG"
+  echo "IGC version $IGC_TAG"
+  echo "CM compiler version $CM_TAG"
   python3 $LOCATION/get_release.py intel/intel-graphics-compiler $IGC_TAG \
     | grep ".*deb" \
     | wget -qi -
@@ -66,6 +72,7 @@ InstallCPURT () {
 
 InstallFPGAEmu () {
   echo "Installing Intel FPGA Fast Emulator..."
+  echo "FPGA Emulator version $FPGA_TAG"
   cd $INSTALL_LOCATION
   if [ -d "$INSTALL_LOCATION/fpgaemu" ]; then
     echo "$INSTALL_LOCATION/fpgaemu exists and will be removed!"
