@@ -36,7 +36,7 @@ on:
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --cuda"
+        default: "--hip --cuda --enable-esimd-emulator"
       build_artifact_suffix:
         type: string
         required: true
