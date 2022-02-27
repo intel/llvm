@@ -3263,13 +3263,13 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   // increments the fastest.
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     bool checkFirstArgument = S.getLangOpts().OpenCL
-              ? getExprValue(AL.getArgAsExpr(0), Ctx) <= *A->getXDimVal()
-	      : getExprValue(AL.getArgAsExpr(2), Ctx) <= *A->getXDimVal();
+              ? getExprValue(AL.getArgAsExpr(0), Ctx) <= *A->getZDimVal()
+	      : getExprValue(AL.getArgAsExpr(0), Ctx) <= *A->getXDimVal();
     bool checkSecondArgument =
 	      getExprValue(AL.getArgAsExpr(1), Ctx) <= *A->getYDimVal();
     bool checkThirdArgument = S.getLangOpts().OpenCL
-              ? getExprValue(AL.getArgAsExpr(3), Ctx) <= *A->getZDimVal()
-	      : getExprValue(AL.getArgAsExpr(0), Ctx) <= *A->getZDimVal();
+              ? getExprValue(AL.getArgAsExpr(2), Ctx) <= *A->getXDimVal()
+	      : getExprValue(AL.getArgAsExpr(2), Ctx) <= *A->getZDimVal();
 
     if (!(checkFirstArgument && checkSecondArgument && checkThirdArgument)) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
@@ -3605,15 +3605,15 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // increments the fastest.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
     bool checkFirstArgument = getLangOpts().OpenCL
-              ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), XDim)
-              : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), XDim);
+              ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), ZDim)
+              : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), XDim);
     bool checkSecondArgument =
               checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), YDim);
     bool checkThirdArgument = getLangOpts().OpenCL
-              ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), ZDim)
-              : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), ZDim);
+              ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), XDim)
+              : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), ZDim);
 
-    if (checkFirstArgument && checkSecondArgument && checkThirdArgument) {
+    if (checkFirstArgument || checkSecondArgument || checkThirdArgument) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
          << CI << DeclAttr;
       Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
@@ -3696,15 +3696,15 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // increments the fastest.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
     bool checkFirstArgument = getLangOpts().OpenCL
-	      ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getXDim())
-	      : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getXDim());
+	      ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getZDim())
+	      : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getXDim());
     bool checkSecondArgument =
 	      checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), A.getYDim());
     bool checkThirdArgument = getLangOpts().OpenCL
-	      ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getZDim())
-	      : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getZDim());
+	      ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getXDim())
+	      : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getZDim());
 
-    if (checkFirstArgument && checkSecondArgument && checkThirdArgument) {
+    if (checkFirstArgument || checkSecondArgument || checkThirdArgument) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
          << DeclAttr << &A;
       Diag(A.getLoc(), diag::note_conflicting_attribute);
