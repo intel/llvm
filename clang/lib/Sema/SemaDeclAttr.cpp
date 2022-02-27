@@ -3257,10 +3257,6 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   // increments the fastest. In OpenCL, the first argument is the index that
   // increments the fastest, and in SYCL, the last argument is the index that
   // increments the fastest.
-  //
-  // The arguments to max_work_group_size are ordered based on which index
-  // increments the fastest. In SYCL, the last argument is the index that
-  // increments the fastest.
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     bool checkFirstArgument = S.getLangOpts().OpenCL
               ? getExprValue(AL.getArgAsExpr(0), Ctx) <= *A->getZDimVal()
@@ -3599,10 +3595,6 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // increments the fastest. In OpenCL, the first argument is the index that
   // increments the fastest, and in SYCL, the last argument is the index that
   // increments the fastest.
-  //
-  // The arguments to max_work_group_size are ordered based on which index
-  // increments the fastest. In SYCL, the last argument is the index that
-  // increments the fastest.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
     bool checkFirstArgument = getLangOpts().OpenCL
               ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), ZDim)
@@ -3689,10 +3681,6 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // The arguments to reqd_work_group_size are ordered based on which index
   // increments the fastest. In OpenCL, the first argument is the index that
   // increments the fastest, and in SYCL, the last argument is the index that
-  // increments the fastest.
-  //
-  // The arguments to max_work_group_size are ordered based on which index
-  // increments the fastest. In SYCL, the last argument is the index that
   // increments the fastest.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
     bool checkFirstArgument = getLangOpts().OpenCL
