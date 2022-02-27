@@ -3257,6 +3257,11 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   // increments the fastest. In OpenCL, the first argument is the index that
   // increments the fastest, and in SYCL, the last argument is the index that
   // increments the fastest.
+  //
+  // [[sycl::reqd_work_group_size]] and [[cl::reqd_work_group_size]] are
+  // available in SYCL modes and follow the SYCL rules.
+  // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
+  // and follows the OpenCL rules.
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     bool checkFirstArgument = S.getLangOpts().OpenCL
               ? getExprValue(AL.getArgAsExpr(0), Ctx) <= *A->getZDimVal()
@@ -3595,6 +3600,11 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // increments the fastest. In OpenCL, the first argument is the index that
   // increments the fastest, and in SYCL, the last argument is the index that
   // increments the fastest.
+  //
+  // [[sycl::reqd_work_group_size]] and [[cl::reqd_work_group_size]] are
+  // available in SYCL modes and follow the SYCL rules.
+  // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
+  // and follows the OpenCL rules.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
     bool checkFirstArgument = getLangOpts().OpenCL
               ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), ZDim)
@@ -3682,6 +3692,11 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // increments the fastest. In OpenCL, the first argument is the index that
   // increments the fastest, and in SYCL, the last argument is the index that
   // increments the fastest.
+  //
+  // [[sycl::reqd_work_group_size]] and [[cl::reqd_work_group_size]] are
+  // available in SYCL modes and follow the SYCL rules.
+  // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
+  // and follows the OpenCL rules.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
     bool checkFirstArgument = getLangOpts().OpenCL
 	      ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getZDim())
