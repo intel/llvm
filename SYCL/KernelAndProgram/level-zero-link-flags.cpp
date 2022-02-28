@@ -1,15 +1,6 @@
 // RUN: %clangxx -fsycl -Xsycl-target-linker=spir64 -foo %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: level_zero
-//
-// This test is disabled because the runtime does not currently pass linker
-// flags from "-Xsycl-target-linker=spir64 <opts>" when the program calls
-// "sycl::link()".  This seems like a bug.  Note that the runtime does pass
-// those "<opts>" to the online linker in other cases when it links device
-// code.
-//
-// XFAIL: level_zero
-//
 //==--- level-zero-link-flags.cpp - Error handling for link flags --==//
 //
 // The Level Zero backend does not accept any online linker options.
