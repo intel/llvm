@@ -1,51 +1,86 @@
-= SYCL_INTEL_usm_runtime_properties
+= sycl_ext_intel_runtime_buffer_location
 
-== Introduction
-IMPORTANT: This specification is a draft.
+:source-highlighter: coderay
+:coderay-linenums-mode: table
 
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
 
-NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
-
-NOTE: This serves as a temporary workaround for usm allocation to accept buffer location properties, and the formal solution may change in the future.
-
-This document propose a new buffer_location runtime property that can be passed to `malloc_device`.
-
-== Name Strings
-
-+SYCL_INTEL_runtime_buffer_location+
-
-== Contributors
-Aditi Kumaraswamy, Intel +
-Gregory Lueck, Intel +
-Joe Garvey, Intel +
-Sherry Yuan, Intel +
-Steffen Larsen, Intel
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
 
 == Notice
 
-Copyright (c) 2020 Intel Corporation.  All rights reserved.
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 4 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
 
 == Status
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
 
-Working Draft
+[NOTE]
+====
+This extension is currently implemented in {dpcpp} only for FPGA devices.  Attempting to use this extension on other devices or backends may result in no effect.
 
-This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
-
-Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
-
-== Version
-
-Built On: {docdate} +
-Revision: 1
+This serves as a temporary workaround for usm allocation to accept buffer location properties, and the formal solution will come in the future.
+====
 
 == Overview
 
-This spec describes the solution of passing runtime buffer location properties to malloc APIs, specifically `malloc_device`.
+This document propose a new buffer_location runtime property that can be passed to `malloc_device`.
 
 On targets that provide more than one type of global memory, this provide users the flexibility of choosing which memory the device usm should be allocated to.
 
 This information is not a hint; it is a functional requirement of the program that must be respected.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_RUNTIME_BUFFER_LOCATION` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
 
 == Examples
 
@@ -53,7 +88,7 @@ This information is not a hint; it is a functional requirement of the program th
 ----
 array = (int *)malloc_device<int>(
         N * sizeof(int), q,
-        property_list{property::buffer::detail::buffer_location(2)});
+        property_list{sycl::ext::intel::experimental::property::usm::buffer_location(2)});
 
 sycl::queue q;
 q.parallel_for(range<1>(N), [=] (id<1> i){
@@ -61,24 +96,6 @@ q.parallel_for(range<1>(N), [=] (id<1> i){
 }).wait();
 ----
 
-== Proposal
-
-=== Feature test macro
-
-This extension provides a feature-test macro as described in the core SYCL
-specification, Section 6.3.3 "Feature test macros". Therefore, an
-implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_RUNTIME_BUFFER_LOCATION` to one of the values defined in the table below.
-Applications can test for the existence of this macro to determine if the
-implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's features
-that the implementation supports.
-
-[%header,cols="1,5"]
-|===
-|Value |Description
-|1     |Initial extension version
-|===
 
 === Changes to runtime properties
 
@@ -86,24 +103,15 @@ To pass the runtime properties into malloc API, a new buffer properties is intro
 
 [source,c++]
 ----
-namespace sycl {
-namespace property {
-namespace buffer {
-namespace detail {
-class buffer_location
-    : public sycl::detail::PropertyWithData<
-          sycl::detail::PropWithDataKind::AccPropBufferLocation> {
-public:
-  buffer_location(uint64_t Location) : MLocation(Location) {}
-  uint64_t get_buffer_location() const { return MLocation; }
+namespace sycl::ext::intel::experimental::property::usm {
 
-private:
-  uint64_t MLocation;
+class buffer_location {
+ public:
+  buffer_location(int location);
+  int get_buffer_location() const;
 };
-} // namespace detail
-} // namespace buffer
-} // namespace property
-} // namespace sycl
+
+} // namespace sycl::ext::intel::experimental::property::usm
 ----
 
 == Issues
