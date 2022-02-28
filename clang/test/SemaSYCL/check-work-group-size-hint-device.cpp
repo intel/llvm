@@ -105,11 +105,25 @@ public:
   [[sycl::work_group_size_hint(4, 4, 4)]] void operator()() const {};
 };
 
-[[sycl::work_group_size_hint(4, 4, 4)]] void f4x4x4(){};
+#if defined(EXPECT_PROP) && defined(TRIGGER_ERROR)
+[[sycl::work_group_size_hint(8, 8, 8)]] void f8x8x8(){}; // expected-note {{conflicting attribute is here}}
+
+class FunctorConflict { // expected-error {{conflicting attributes applied to a SYCL kernel or SYCL_EXTERNAL function}}
+public:
+  [[sycl::work_group_size_hint(16, 2, 1)]] void operator()() const { // expected-note {{conflicting attribute is here}}
+    f8x8x8();
+  };
+};
+#endif
 
 void invoke() {
   Functor16x2x1 f16x2x1;
   Functor4x4x4 f4x4x4;
+
+#if defined(EXPECT_PROP) && defined(TRIGGER_ERROR)
+  FunctorConflict fConflict;
+#endif
+
   sycl::queue q;
 
   q.submit([&](sycl::handler &h) {
@@ -146,6 +160,10 @@ void invoke() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+
+#if defined(EXPECT_PROP) && defined(TRIGGER_ERROR)
+    h.single_task<class kernel_3>(fConflict);
+#endif
   });
 
   // FIXME: Add tests with the C++23 lambda attribute syntax.

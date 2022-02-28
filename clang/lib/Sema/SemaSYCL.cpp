@@ -3927,6 +3927,22 @@ static void PropagateAndDiagnoseDeviceAttr(
     }
     break;
   }
+  case attr::Kind::WorkGroupSizeHint: {
+    auto *WGSH = cast<WorkGroupSizeHintAttr>(A);
+    if (auto *Existing = SYCLKernel->getAttr<WorkGroupSizeHintAttr>()) {
+      if (Existing->getXDimVal() != WGSH->getXDimVal() ||
+          Existing->getYDimVal() != WGSH->getYDimVal() ||
+          Existing->getZDimVal() != WGSH->getZDimVal()) {
+        S.Diag(SYCLKernel->getLocation(),
+               diag::err_conflicting_sycl_kernel_attributes);
+        S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
+        S.Diag(WGSH->getLocation(), diag::note_conflicting_attribute);
+        SYCLKernel->setInvalidDecl();
+      }
+    }
+    SYCLKernel->addAttr(A);
+    break;
+  }
   case attr::Kind::SYCLIntelMaxWorkGroupSize: {
     auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
