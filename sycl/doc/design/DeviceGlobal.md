@@ -37,7 +37,7 @@ void func(sycl::queue q) {
 Device global variables, by contrast, are referenced by their address:
 
 ```
-sycl::ext::oneapi::device_global<int> dev_var;
+sycl::ext::oneapi::experimental::device_global<int> dev_var;
 
 void func(sycl::queue q) {
   int val = 42;
