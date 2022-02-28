@@ -22,6 +22,14 @@
 // SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-cmath-fp64.obj" "-outputs={{.*}}libsycl-cmath-fp64-{{.*}}.o" "-unbundle"
 
 /// ###########################################################################
+/// test sycl fallback device libraries are not linked by default
+// RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL-windows -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_NO_FALLBACK
+// SYCL_DEVICE_LIB_NO_FALLBACK: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-crt.obj" "-outputs={{.*}}libsycl-crt-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_LIB_NO_FALLBACK-NOT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-{{.*}}.obj"
+// SYCL_DEVICE_LIB_NO_FALLBACK: llvm-link{{.*}}  "-only-needed"
+
+/// ###########################################################################
 /// test behavior of device library link with libm-fp64
 // RUN: %clangxx -fsycl %s -fsycl-device-lib=libm-fp64 --sysroot=%S/Inputs/SYCL-windows -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64
