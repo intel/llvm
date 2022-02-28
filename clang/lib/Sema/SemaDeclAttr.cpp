@@ -3507,7 +3507,7 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 3))
     return;
 
-  // Handles default arguments in work_group_size_hint
+  // Handles default arguments in [[sycl::work_group_size_hint]] attribute.
   auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL) {
     assert(AL.getKind() == ParsedAttr::AT_WorkGroupSizeHint && AL.hasScope() &&
            AL.getScopeName()->isStr("sycl"));
