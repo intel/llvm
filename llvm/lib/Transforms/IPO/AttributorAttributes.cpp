@@ -14,6 +14,7 @@
 #include "llvm/Transforms/IPO/Attributor.h"
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetOperations.h"
@@ -32,16 +33,19 @@
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Assumptions.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Value.h"
 #include "llvm/IR/NoFolder.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO/ArgumentPromotion.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -265,13 +269,18 @@ static bool genericValueTraversal(
     function_ref<Value *(Value *)> StripCB = nullptr,
     bool Intraprocedural = false) {
 
-  const AAIsDead *LivenessAA = nullptr;
-  if (IRP.getAnchorScope())
-    LivenessAA = &A.getAAFor<AAIsDead>(
-        QueryingAA,
-        IRPosition::function(*IRP.getAnchorScope(), IRP.getCallBaseContext()),
-        DepClassTy::NONE);
-  bool AnyDead = false;
+  struct LivenessInfo {
+    const AAIsDead *LivenessAA = nullptr;
+    bool AnyDead = false;
+  };
+  SmallMapVector<const Function *, LivenessInfo, 4> LivenessAAs;
+  auto GetLivenessInfo = [&](const Function &F) -> LivenessInfo & {
+    LivenessInfo &LI = LivenessAAs[&F];
+    if (!LI.LivenessAA)
+      LI.LivenessAA = &A.getAAFor<AAIsDead>(QueryingAA, IRPosition::function(F),
+                                            DepClassTy::NONE);
+    return LI;
+  };
 
   Value *InitialV = &IRP.getAssociatedValue();
   using Item = std::pair<Value *, const Instruction *>;
@@ -341,13 +350,12 @@ static bool genericValueTraversal(
 
     // Look through phi nodes, visit all live operands.
     if (auto *PHI = dyn_cast<PHINode>(V)) {
-      assert(LivenessAA &&
-             "Expected liveness in the presence of instructions!");
+      LivenessInfo &LI = GetLivenessInfo(*PHI->getFunction());
       for (unsigned u = 0, e = PHI->getNumIncomingValues(); u < e; u++) {
         BasicBlock *IncomingBB = PHI->getIncomingBlock(u);
-        if (LivenessAA->isEdgeDead(IncomingBB, PHI->getParent())) {
-          AnyDead = true;
-          UsedAssumedInformation |= !LivenessAA->isAtFixpoint();
+        if (LI.LivenessAA->isEdgeDead(IncomingBB, PHI->getParent())) {
+          LI.AnyDead = true;
+          UsedAssumedInformation |= !LI.LivenessAA->isAtFixpoint();
           continue;
         }
         Worklist.push_back(
@@ -401,8 +409,10 @@ static bool genericValueTraversal(
   } while (!Worklist.empty());
 
   // If we actually used liveness information so we have to record a dependence.
-  if (AnyDead)
-    A.recordDependence(*LivenessAA, QueryingAA, DepClassTy::OPTIONAL);
+  for (auto &It : LivenessAAs)
+    if (It.second.AnyDead)
+      A.recordDependence(*It.second.LivenessAA, QueryingAA,
+                         DepClassTy::OPTIONAL);
 
   // All values have been visited.
   return true;
@@ -1230,11 +1240,13 @@ struct AAPointerInfoImpl
     // Run the user callback on all writes we cannot skip and return if that
     // succeeded for all or not.
     unsigned NumInterferingWrites = InterferingWrites.size();
-    for (auto &It : InterferingWrites)
+    for (auto &It : InterferingWrites) {
       if (!DT || NumInterferingWrites > MaxInterferingWrites ||
-          !CanSkipAccess(*It.first, It.second))
+          !CanSkipAccess(*It.first, It.second)) {
         if (!UserCB(*It.first, It.second))
           return false;
+      }
+    }
     return true;
   }
 
@@ -3821,6 +3833,9 @@ struct AAIsDeadFunction : public AAIsDead {
   ChangeStatus updateImpl(Attributor &A) override;
 
   bool isEdgeDead(const BasicBlock *From, const BasicBlock *To) const override {
+    assert(From->getParent() == getAnchorScope() &&
+           To->getParent() == getAnchorScope() &&
+           "Used AAIsDead of the wrong function");
     return isValidState() && !AssumedLiveEdges.count(std::make_pair(From, To));
   }
 
@@ -6020,13 +6035,13 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
       else
         A.emitRemark<OptimizationRemark>(AI.CB, "HeapToStack", Remark);
 
+      const DataLayout &DL = A.getInfoCache().getDL();
       Value *Size;
       Optional<APInt> SizeAPI = getSize(A, *this, AI);
       if (SizeAPI.hasValue()) {
         Size = ConstantInt::get(AI.CB->getContext(), *SizeAPI);
       } else {
         LLVMContext &Ctx = AI.CB->getContext();
-        auto &DL = A.getInfoCache().getDL();
         ObjectSizeOpts Opts;
         ObjectSizeOffsetEvaluator Eval(DL, TLI, Ctx, Opts);
         SizeOffsetEvalType SizeOffsetPair = Eval.compute(AI.CB);
@@ -6046,14 +6061,14 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
             max(Alignment, MaybeAlign(AlignmentAPI.getValue().getZExtValue()));
       }
 
-      unsigned AS = cast<PointerType>(AI.CB->getType())->getAddressSpace();
-      Instruction *Alloca =
-          new AllocaInst(Type::getInt8Ty(F->getContext()), AS, Size, Alignment,
-                         "", AI.CB->getNextNode());
+      // TODO: Hoist the alloca towards the function entry.
+      unsigned AS = DL.getAllocaAddrSpace();
+      Instruction *Alloca = new AllocaInst(Type::getInt8Ty(F->getContext()), AS,
+                                           Size, Alignment, "", AI.CB);
 
       if (Alloca->getType() != AI.CB->getType())
-        Alloca = new BitCastInst(Alloca, AI.CB->getType(), "malloc_bc",
-                                 Alloca->getNextNode());
+        Alloca = BitCastInst::CreatePointerBitCastOrAddrSpaceCast(
+            Alloca, AI.CB->getType(), "malloc_cast", AI.CB);
 
       auto *I8Ty = Type::getInt8Ty(F->getContext());
       auto *InitVal = getInitialValueOfAllocation(AI.CB, TLI, I8Ty);
@@ -6343,7 +6358,8 @@ ChangeStatus AAHeapToStackFunction::updateImpl(Attributor &A) {
       continue;
 
     if (Value *Align = getAllocAlignment(AI.CB, TLI)) {
-      if (!getAPInt(A, *this, *Align)) {
+      Optional<APInt> APAlign = getAPInt(A, *this, *Align);
+      if (!APAlign) {
         // Can't generate an alloca which respects the required alignment
         // on the allocation.
         LLVM_DEBUG(dbgs() << "[H2S] Unknown allocation alignment: " << *AI.CB
@@ -6351,6 +6367,13 @@ ChangeStatus AAHeapToStackFunction::updateImpl(Attributor &A) {
         AI.Status = AllocationInfo::INVALID;
         Changed = ChangeStatus::CHANGED;
         continue;
+      } else {
+        if (APAlign->ugt(llvm::Value::MaximumAlignment) || !APAlign->isPowerOf2()) {
+          LLVM_DEBUG(dbgs() << "[H2S] Invalid allocation alignment: " << APAlign << "\n");
+          AI.Status = AllocationInfo::INVALID;
+          Changed = ChangeStatus::CHANGED;
+          continue;
+        }
       }
     }
 

@@ -11,6 +11,7 @@
 #include "ARMErrataFix.h"
 #include "CallGraphSort.h"
 #include "Config.h"
+#include "InputFiles.h"
 #include "LinkerScript.h"
 #include "MapFile.h"
 #include "OutputSections.h"
@@ -24,6 +25,7 @@
 #include "lld/Common/Filesystem.h"
 #include "lld/Common/Strings.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/Support/MD5.h"
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/RandomNumberGenerator.h"
 #include "llvm/Support/SHA1.h"
@@ -164,7 +166,7 @@ void elf::combineEhSections() {
 static Defined *addOptionalRegular(StringRef name, SectionBase *sec,
                                    uint64_t val, uint8_t stOther = STV_HIDDEN) {
   Symbol *s = symtab->find(name);
-  if (!s || s->isDefined())
+  if (!s || s->isDefined() || s->isCommon())
     return nullptr;
 
   s->resolve(Defined{nullptr, StringRef(), STB_GLOBAL, stOther, STT_NOTYPE, val,
@@ -1694,7 +1696,7 @@ static void fixSymbolsAfterShrinking() {
       if (!inputSec || !inputSec->bytesDropped)
         return;
 
-      const size_t OldSize = inputSec->data().size();
+      const size_t OldSize = inputSec->rawData.size();
       const size_t NewSize = OldSize - inputSec->bytesDropped;
 
       if (def->value > NewSize && def->value <= OldSize) {
