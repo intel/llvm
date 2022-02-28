@@ -1670,7 +1670,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
       const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
       TemplateArgument TA = TAL.get(0);
 
-      // Parameter packs are used by properties so they are always valid
+      // Parameter packs are used by properties so they are always valid.
       if (TA.getKind() != TemplateArgument::Pack) {
         llvm::DenseSet<QualType> Visited;
         checkSYCLType(SemaRef, TA.getAsType(), Loc, Visited);

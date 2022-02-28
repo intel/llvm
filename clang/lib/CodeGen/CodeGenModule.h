@@ -1058,7 +1058,7 @@ public:
   // Gets pairs of attribute names and values from the expressions of an
   // add_ir_attributes_* attribute.
   SmallVector<std::pair<std::string, std::string>, 4>
-  getFilteredValidAttributeNameValuePairs(Expr **Exprs, const size_t ExprsSize,
+  getFilteredValidAttributeNameValuePairs(Expr **Exprs, size_t ExprsSize,
                                           const Attr *Attribute);
 
   /// Given a builtin id for a function like "__builtin_fabsf", return a

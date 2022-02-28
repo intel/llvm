@@ -3417,7 +3417,7 @@ to add to the resulting LLVM IR function declaration. Each of the first N of
 these arguments must be either string literals or ``constexpr const char *``.
 These will be the names of the added LLVM IR attributes. The following N
 arguments are the values of the LLVM IR attributes and must be integer, floating
-point, character, boolean, ``const char *``, or enumerator descriptor as either
+point, character, boolean, ``const char *``, or an enumeration as either a
 literal or ``constexpr`` value.
 
 .. code-block:: c++
@@ -3429,7 +3429,7 @@ literal or ``constexpr`` value.
 
 Optionally, the first argument of the attribute can be an initializer list
 containing only string literals. This initializer list acts as a filter,
-allowing only attributes of with names in the initializer list to be generated.
+allowing only attributes with names in the initializer list to be generated.
 If this intializer list is present, the attribute must have N*2+1 arguments,
 where the last N*2 are as described above.
 
@@ -3463,7 +3463,7 @@ first N of these arguments must be either string literals or
 ``constexpr const char *``. These will be the names of the added LLVM IR
 attributes. The following N arguments are the values of the LLVM IR attributes
 and must be integer, floating point, character, boolean, ``const char *``, or
-enumerator descriptor as either literal or ``constexpr`` value.
+an enumeration as either a literal or ``constexpr`` value.
 
 .. code-block:: c++
 
@@ -3485,7 +3485,7 @@ enumerator descriptor as either literal or ``constexpr`` value.
 
 Optionally, the first argument of the attribute can be an initializer list
 containing only string literals. This initializer list acts as a filter,
-allowing only attributes of with names in the initializer list to be generated.
+allowing only attributes with names in the initializer list to be generated.
 If this intializer list is present, the attribute must have N*2+1 arguments,
 where the last N*2 are as described above.
 
@@ -3526,7 +3526,7 @@ to add to the resulting LLVM IR global variable declaration. Each of the first N
 of these arguments must be either string literals or ``constexpr const char *``.
 These will be the names of the added LLVM IR attributes. The following N
 arguments are the values of the LLVM IR attributes and must be integer, floating
-point, character, boolean, ``const char *``, or enumerator descriptor as either
+point, character, boolean, ``const char *``, or an enumeration as either a
 literal or ``constexpr`` value.
 
 .. code-block:: c++
@@ -3543,7 +3543,7 @@ literal or ``constexpr`` value.
 
 Optionally, the first argument of the attribute can be an initializer list
 containing only string literals. This initializer list acts as a filter,
-allowing only attributes of with names in the initializer list to be generated.
+allowing only attributes with names in the initializer list to be generated.
 If this intializer list is present, the attribute must have N*2+1 arguments,
 where the last N*2 are as described above.
 

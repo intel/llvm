@@ -2677,8 +2677,9 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
 
     if (const auto *AddIRAttr =
             Arg->getAttr<SYCLAddIRAttributesKernelParameterAttr>()) {
-      const auto NameValuePairs = CGM.getFilteredValidAttributeNameValuePairs(
-          AddIRAttr->args_begin(), AddIRAttr->args_size(), AddIRAttr);
+      SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+          CGM.getFilteredValidAttributeNameValuePairs(
+              AddIRAttr->args_begin(), AddIRAttr->args_size(), AddIRAttr);
 
       llvm::AttrBuilder KernelParamAttrBuilder(Fn->getContext());
       for (const auto &NameValuePair : NameValuePairs)

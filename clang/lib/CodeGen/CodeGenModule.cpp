@@ -2843,9 +2843,11 @@ void CodeGenModule::AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
                                               const RecordDecl *RD) {
   const auto *A = RD->getAttr<SYCLAddIRAttributesGlobalVariableAttr>();
   assert(A && "no add_ir_attributes_global_variable attribute");
-  const auto NameValuePairs = getFilteredValidAttributeNameValuePairs(
-      A->args_begin(), A->args_size(), A);
-  for (const auto &NameValuePair : NameValuePairs)
+  SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+      getFilteredValidAttributeNameValuePairs(A->args_begin(), A->args_size(),
+                                              A);
+  for (const std::pair<std::string, std::string> &NameValuePair :
+       NameValuePairs)
     GV->addAttribute(NameValuePair.first, NameValuePair.second);
 }
 
@@ -4814,24 +4816,21 @@ getValidAttributeNameAsString(const Expr *NameE, const ASTContext &Context) {
       !NameLValue.isLValue())
     return None;
 
-  const auto *NameValExpr = NameLValue.getLValueBase().dyn_cast<const Expr *>();
-  if (NameValExpr)
+  if (const auto *NameValExpr =
+          NameLValue.getLValueBase().dyn_cast<const Expr *>())
     return getValidAttributeNameAsString(NameValExpr, Context);
 
-  const auto *NameValDecl =
-      NameLValue.getLValueBase().dyn_cast<const ValueDecl *>();
-  if (!NameValDecl)
-    return None;
-
-  const auto *NameVarDecl = dyn_cast<const VarDecl>(NameValDecl);
-  if (!NameVarDecl)
-    return None;
-
-  return getValidAttributeNameAsString(NameVarDecl->getInit(), Context);
+  if (const auto *NameValDecl =
+          NameLValue.getLValueBase().dyn_cast<const ValueDecl *>()) {
+    if (const auto *NameVarDecl = dyn_cast<const VarDecl>(NameValDecl)) {
+      return getValidAttributeNameAsString(NameVarDecl->getInit(), Context);
+    }
+  }
+  return None;
 }
 
 static Optional<std::string>
-getValidAttributeValueAsString(const APValue Value, const ASTContext &Context,
+getValidAttributeValueAsString(const APValue &Value, const ASTContext &Context,
                                QualType ValueQType) {
   assert(!Value.isLValue());
   if (ValueQType->isCharType()) {
@@ -4880,26 +4879,21 @@ getValidAttributeValueAsString(const Expr *ValueE, const ASTContext &Context) {
   if (ValueAPV.getLValueBase().isNull())
     return std::string("");
 
-  const auto *ValueValExpr = ValueAPV.getLValueBase().dyn_cast<const Expr *>();
-  if (ValueValExpr)
+  if (const auto *ValueValExpr =
+          ValueAPV.getLValueBase().dyn_cast<const Expr *>())
     return getValidAttributeValueAsString(ValueValExpr, Context);
 
-  const auto *ValueValDecl =
-      ValueAPV.getLValueBase().dyn_cast<const ValueDecl *>();
-  if (!ValueValDecl)
-    return None;
-
-  const auto *ValueVarDecl = dyn_cast<const VarDecl>(ValueValDecl);
-  if (!ValueVarDecl)
-    return None;
-
-  return getValidAttributeValueAsString(ValueVarDecl->getInit(), Context);
+  if (const auto *ValueValDecl =
+          ValueAPV.getLValueBase().dyn_cast<const ValueDecl *>()) {
+    if (const auto *ValueVarDecl = dyn_cast<const VarDecl>(ValueValDecl)) {
+      return getValidAttributeValueAsString(ValueVarDecl->getInit(), Context);
+    }
+  }
+  return None;
 }
 
-Optional<llvm::SmallSet<StringRef, 4>>
-CodeGenModule::getAttributeFilter(Expr **AttributeExprs,
-                                  const size_t AttributeExprsSize,
-                                  const Attr *Attribute) {
+Optional<llvm::SmallSet<StringRef, 4>> CodeGenModule::getAttributeFilter(
+    Expr **AttributeExprs, size_t AttributeExprsSize, const Attr *Attribute) {
   if (!AttributeExprsSize)
     return None;
 
@@ -4918,19 +4912,19 @@ CodeGenModule::getAttributeFilter(Expr **AttributeExprs,
 
 SmallVector<std::pair<std::string, std::string>, 4>
 CodeGenModule::getFilteredValidAttributeNameValuePairs(Expr **Exprs,
-                                                       const size_t ExprsSize,
+                                                       size_t ExprsSize,
                                                        const Attr *Attribute) {
   const Optional<llvm::SmallSet<StringRef, 4>> AttributeNameFilter =
       getAttributeFilter(Exprs, ExprsSize, Attribute);
 
-  const auto AttributeExprs = Exprs + AttributeNameFilter.hasValue();
-  const size_t AttributeExprsSize = ExprsSize - AttributeNameFilter.hasValue();
+  Expr **AttributeExprs = Exprs + AttributeNameFilter.hasValue();
+  size_t AttributeExprsSize = ExprsSize - AttributeNameFilter.hasValue();
 
   assert((AttributeExprsSize & 1) == 0 && "Too few remaining expressions.");
 
   SmallVector<std::pair<std::string, std::string>, 4> Attrs;
   for (size_t I = 0; I < AttributeExprsSize / 2; ++I) {
-    const Optional<std::string> NameStr =
+    Optional<std::string> NameStr =
         getValidAttributeNameAsString(AttributeExprs[I], Context);
     assert(NameStr && "Attribute name is not a valid string.");
 
@@ -4942,11 +4936,11 @@ CodeGenModule::getFilteredValidAttributeNameValuePairs(Expr **Exprs,
     if (AttributeNameFilter && !AttributeNameFilter->contains(*NameStr))
       continue;
 
-    const Optional<std::string> ValueStr = getValidAttributeValueAsString(
+    Optional<std::string> ValueStr = getValidAttributeValueAsString(
         AttributeExprs[I + AttributeExprsSize / 2], Context);
     assert(ValueStr && "Attribute value is not a valid type.");
 
-    Attrs.push_back(std::pair<std::string, std::string>(*NameStr, *ValueStr));
+    Attrs.push_back(std::make_pair(*NameStr, *ValueStr));
   }
 
   return Attrs;

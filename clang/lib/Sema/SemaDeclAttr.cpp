@@ -7432,14 +7432,13 @@ static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema &S, Decl *D,
 
 // Checks if an expression is a valid filter list for an add_ir_attributes_*
 // attribute. Returns true if an error occured.
-static bool checkAddIRAttributesFilterListExpr(Expr *FilterListArg, Sema *S,
+static bool checkAddIRAttributesFilterListExpr(Expr *FilterListArg, Sema &S,
                                                const AttributeCommonInfo &CI) {
-  assert(isa<InitListExpr>(FilterListArg));
   const auto *FilterListE = cast<InitListExpr>(FilterListArg);
   for (const Expr *FilterElemE : FilterListE->inits())
     if (!isa<StringLiteral>(FilterElemE))
-      return S->Diag(FilterElemE->getBeginLoc(),
-                     diag::err_sycl_add_ir_attribute_invalid_filter)
+      return S.Diag(FilterElemE->getBeginLoc(),
+                    diag::err_sycl_add_ir_attribute_invalid_filter)
              << CI;
   return false;
 }
@@ -7452,20 +7451,20 @@ static bool isAddIRAttributesValidStringType(QualType T) {
 
 // Checks if an expression is a valid attribute name for an add_ir_attributes_*
 // attribute. Returns true if an error occured.
-static bool checkAddIRAttributesNameExpr(Expr *NameArg, Sema *S,
+static bool checkAddIRAttributesNameExpr(Expr *NameArg, Sema &S,
                                          const AttributeCommonInfo &CI) {
   // Only strings and const char * are valid name arguments.
   if (isAddIRAttributesValidStringType(NameArg->getType()))
     return false;
 
-  return S->Diag(NameArg->getBeginLoc(),
-                 diag::err_sycl_add_ir_attribute_invalid_name)
+  return S.Diag(NameArg->getBeginLoc(),
+                diag::err_sycl_add_ir_attribute_invalid_name)
          << CI;
 }
 
 // Checks if an expression is a valid attribute value for an add_ir_attributes_*
 // attribute. Returns true if an error occured.
-static bool checkAddIRAttributesValueExpr(Expr *ValArg, Sema *S,
+static bool checkAddIRAttributesValueExpr(Expr *ValArg, Sema &S,
                                           const AttributeCommonInfo &CI) {
   QualType ValType = ValArg->getType();
   if (isAddIRAttributesValidStringType(ValType) || ValType->isNullPtrType() ||
@@ -7473,16 +7472,16 @@ static bool checkAddIRAttributesValueExpr(Expr *ValArg, Sema *S,
       ValType->isCharType() || ValType->isEnumeralType())
     return false;
 
-  return S->Diag(ValArg->getBeginLoc(),
-                 diag::err_sycl_add_ir_attribute_invalid_value)
+  return S.Diag(ValArg->getBeginLoc(),
+                diag::err_sycl_add_ir_attribute_invalid_value)
          << CI;
 }
 
 // Checks and evaluates arguments of an add_ir_attributes_* attribute. Returns
 // true if an error occured.
-static bool evaluateAddIRAttributesArgs(Expr **Args, size_t ArgsSize, Sema *S,
+static bool evaluateAddIRAttributesArgs(Expr **Args, size_t ArgsSize, Sema &S,
                                         const AttributeCommonInfo &CI) {
-  ASTContext &Context = S->getASTContext();
+  ASTContext &Context = S.getASTContext();
 
   // Check filter list if it is the first argument.
   bool HasFilter = ArgsSize && isa<InitListExpr>(Args[0]);
@@ -7495,8 +7494,8 @@ static bool evaluateAddIRAttributesArgs(Expr **Args, size_t ArgsSize, Sema *S,
     Expr *&E = Args[I];
 
     if (isa<InitListExpr>(E))
-      return S->Diag(E->getBeginLoc(),
-                     diag::err_sycl_add_ir_attr_filter_list_invalid_arg)
+      return S.Diag(E->getBeginLoc(),
+                    diag::err_sycl_add_ir_attr_filter_list_invalid_arg)
              << CI;
 
     if (E->isValueDependent() || E->isTypeDependent()) {
@@ -7506,12 +7505,11 @@ static bool evaluateAddIRAttributesArgs(Expr **Args, size_t ArgsSize, Sema *S,
 
     Expr::EvalResult Eval;
     Eval.Diag = &Notes;
-    bool Result = E->EvaluateAsConstantExpr(Eval, Context);
-    if (!Result || !Notes.empty()) {
-      S->Diag(E->getBeginLoc(), diag::err_attribute_argument_n_type)
+    if (!E->EvaluateAsConstantExpr(Eval, Context) || !Notes.empty()) {
+      S.Diag(E->getBeginLoc(), diag::err_attribute_argument_n_type)
           << CI << (I + 1) << AANT_ArgumentConstantExpr;
       for (auto &Note : Notes)
-        S->Diag(Note.first, Note.second);
+        S.Diag(Note.first, Note.second);
       return true;
     }
     assert(Eval.Val.hasValue());
@@ -7520,7 +7518,7 @@ static bool evaluateAddIRAttributesArgs(Expr **Args, size_t ArgsSize, Sema *S,
 
   // If there are no dependent expressions, check for expected number of args.
   if (!HasDependentArg && ArgsSize && (ArgsSize - HasFilter) & 1)
-    return S->Diag(CI.getLoc(), diag::err_sycl_add_ir_attribute_must_have_pairs)
+    return S.Diag(CI.getLoc(), diag::err_sycl_add_ir_attribute_must_have_pairs)
            << CI;
 
   // If there are no dependent expressions, check argument types.
@@ -7550,7 +7548,7 @@ void Sema::AddSYCLAddIRAttributesFunctionAttr(Decl *D,
                                               MutableArrayRef<Expr *> Args) {
   auto *Attr = SYCLAddIRAttributesFunctionAttr::Create(Context, Args.data(),
                                                        Args.size(), CI);
-  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), this,
+  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), *this,
                                   CI))
     return;
   D->addAttr(Attr);
@@ -7584,7 +7582,7 @@ void Sema::AddSYCLAddIRAttributesKernelParameterAttr(
     Decl *D, const AttributeCommonInfo &CI, MutableArrayRef<Expr *> Args) {
   auto *Attr = SYCLAddIRAttributesKernelParameterAttr::Create(
       Context, Args.data(), Args.size(), CI);
-  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), this,
+  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), *this,
                                   CI))
     return;
   D->addAttr(Attr);
@@ -7618,7 +7616,7 @@ void Sema::AddSYCLAddIRAttributesGlobalVariableAttr(
     Decl *D, const AttributeCommonInfo &CI, MutableArrayRef<Expr *> Args) {
   auto *Attr = SYCLAddIRAttributesGlobalVariableAttr::Create(
       Context, Args.data(), Args.size(), CI);
-  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), this,
+  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), *this,
                                   CI))
     return;
   D->addAttr(Attr);

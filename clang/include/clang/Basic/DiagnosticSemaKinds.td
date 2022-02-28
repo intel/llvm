@@ -11648,10 +11648,11 @@ def err_sycl_taking_address_of_wrong_function : Error<
 def err_sycl_add_ir_attr_filter_list_invalid_arg : Error<
   "only the first argument of attribute %0 can be an initializer list">;
 def err_sycl_add_ir_attribute_must_have_pairs : Error<
-  "attribute %0 must have an attribute value for each attribute name">;
+  "attribute %0 must specify a value for each specified name in the argument "
+  "list">;
 def err_sycl_add_ir_attribute_invalid_name : Error<
-  "each attribute name in %0 must be either a string literal or a 'const char "
-  "*' which is usable in a constant expression">;
+  "each name argument in %0 must be a 'const char *' usable in a constant "
+  "expression">;
 def err_sycl_add_ir_attribute_invalid_value : Error<
   "each attribute argument in %0 must be an integer, a floating point, a "
   "character, a boolean, 'const char *', or an enumerator usable as a constant "

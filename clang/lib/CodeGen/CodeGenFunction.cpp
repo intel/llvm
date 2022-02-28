@@ -1096,8 +1096,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (getLangOpts().SYCLIsDevice && D &&
       D->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
     const auto *A = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
-    const auto NameValuePairs = CGM.getFilteredValidAttributeNameValuePairs(
-        A->args_begin(), A->args_size(), A);
+    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+        CGM.getFilteredValidAttributeNameValuePairs(A->args_begin(),
+                                                    A->args_size(), A);
 
     llvm::AttrBuilder FnAttrBuilder(Fn->getContext());
     for (const auto &NameValuePair : NameValuePairs)
