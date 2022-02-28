@@ -48,10 +48,6 @@ namespace detail {
 // accesses and thus reuse validity checks etc.
 struct LocalAccessorMarker {};
 
-// Shared Local Memory Binding Table Index (aka surface index).
-static inline constexpr SurfaceIndex SLM_BTI = 254;
-static inline constexpr SurfaceIndex INVALID_BTI =
-    static_cast<SurfaceIndex>(-1);
 } // namespace detail
 
 /// @endcond ESIMD_DETAIL
@@ -66,23 +62,19 @@ static inline constexpr SurfaceIndex INVALID_BTI =
 ///
 template <typename AccessorTy>
 __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
-#ifdef __SYCL_DEVICE_ONLY__
   if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy>) {
     return detail::SLM_BTI;
   } else {
+#ifdef __SYCL_DEVICE_ONLY__
     const auto mem_obj = detail::AccessorPrivateProxy::getNativeImageObj(acc);
     return __esimd_get_surface_index(mem_obj);
+#else  // __SYCL_DEVICE_ONLY__
+    return __esimd_get_surface_index(acc);
+#endif // __SYCL_DEVICE_ONLY__
   }
-#else
-  throw sycl::feature_not_supported();
-#endif
 }
 
-#ifdef __SYCL_DEVICE_ONLY__
 #define __ESIMD_GET_SURF_HANDLE(acc) get_surface_index(acc)
-#else
-#define __ESIMD_GET_SURF_HANDLE(acc) acc
-#endif // __SYCL_DEVICE_ONLY__
 
 // TODO @Pennycook
 // {quote}
@@ -266,21 +258,15 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
+#else  // __SYCL_DEVICE_ONLY__
+  auto surf_ind = __esimd_get_surface_index(acc);
 #endif // __SYCL_DEVICE_ONLY__
 
   if constexpr (Flags::template alignment<simd<T, N>> >=
                 detail::OperandSize::OWORD) {
-#if defined(__SYCL_DEVICE_ONLY__)
     return __esimd_oword_ld<T, N>(surf_ind, offset >> 4);
-#else
-    return __esimd_oword_ld<T, N>(acc, offset >> 4);
-#endif // __SYCL_DEVICE_ONLY__
   } else {
-#if defined(__SYCL_DEVICE_ONLY__)
     return __esimd_oword_ld_unaligned<T, N>(surf_ind, offset);
-#else
-    return __esimd_oword_ld_unaligned<T, N>(acc, offset);
-#endif // __SYCL_DEVICE_ONLY__
   }
 }
 
@@ -336,10 +322,10 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
+#else //
+  auto surf_ind = __esimd_get_surface_index(acc);
+#endif
   __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
-#else
-  __esimd_oword_st<T, N>(acc, offset >> 4, vals.data());
-#endif // __SYCL_DEVICE_ONLY__
 }
 
 /// @} sycl_esimd_memory
@@ -820,24 +806,7 @@ __ESIMD_API void sbarrier(split_barrier_action flag) { __esimd_sbarrier(flag); }
 /// @{
 
 /// Declare per-work-group slm size.
-/// @param size the requested size of the shared local memory for current work
-/// group. Must be compile-time constant.
-#ifdef __SYCL_DEVICE_ONLY__
-// TODO slm_init should call __esimd_slm_init (TBD) and declared as __ESIMD_API
-// on both host and device. Currently __ESIMD_API on device leads to:
-// "... cannot call an undefined function without SYCL_EXTERNAL attribute"
-__ESIMD_INTRIN
-#else
-__ESIMD_API
-#endif
-void slm_init(uint32_t size)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  throw sycl::feature_not_supported();
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 
 /// Gather operation over the Shared Local Memory.
 /// This API has almost the same interface as the @ref accessor_gather
@@ -1252,7 +1221,62 @@ raw_send_store(simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
                                         numSrc0, sfid, exDesc, msgDesc,
                                         msgSrc0.data());
 }
+
 /// @} sycl_esimd_raw_send
+
+/// @defgroup sycl_esimd_memory_nbarrier Named barrier APIs.
+/// @ingroup sycl_esimd_memory
+
+/// @addtogroup sycl_esimd_memory_nbarrier
+/// @{
+
+/// Wait on a named barrier
+/// Available only on PVC
+///
+/// @param id  - named barrier id
+__ESIMD_API void nbarrier_wait(uint8_t id) {
+  __esimd_nbarrier(0 /*wait*/, id, 0 /*thread count*/);
+}
+
+/// Initialize number of named barriers for a kernel
+/// Available only on PVC
+///
+/// @tparam NbarCount  - number of named barriers
+template <uint8_t NbarCount> __ESIMD_API void nbarrier_init() {
+  __esimd_nbarrier_init(NbarCount);
+}
+
+/// Perform signal operation for the given named barrier
+/// Available only on PVC
+///
+/// @param barrier_id  - named barrier id
+///
+/// @param producer_consumer_mode  - 2-bit flag to indicate if it's producer
+/// mode (0x1) or consumer mode (0x2). User must ensure the input value is set
+/// correctly and higher order bits are cleared.
+///
+/// @param num_producers  - number of producers
+///
+/// @param num_consumers  - number of consumers
+__ESIMD_API void nbarrier_signal(uint8_t barrier_id,
+                                 uint8_t producer_consumer_mode,
+                                 uint32_t num_producers,
+                                 uint32_t num_consumers) {
+  constexpr uint32_t gateway = 3;
+  constexpr uint32_t barrier = 4;
+  constexpr uint32_t descriptor = 1 << 25 | // Message length: 1 register
+                                  0 << 12 | // Fence Data Ports: No fence
+                                  barrier;  // Barrier subfunction
+
+  detail::vector_type_t<uint32_t, 8> payload = 0;
+  payload[2] = (num_consumers & 0xff) << 24 | (num_producers & 0xff) << 16 |
+               producer_consumer_mode << 14 | (barrier_id & 0b11111) << 0;
+
+  __esimd_raw_send_nbarrier_signal<uint32_t, 8>(
+      0 /*sendc*/, gateway, descriptor, payload, 1 /*pred*/);
+}
+
+/// @} sycl_esimd_memory_nbarrier
 
 #undef __ESIMD_GET_SURF_HANDLE
 

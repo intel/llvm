@@ -167,11 +167,10 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
   EXPECT_TRUE(KernelBundleImplPtr)
       << "Expect command group to contain kernel bundle";
 
-  auto KernelIDImpl =
-      std::make_shared<sycl::detail::kernel_id_impl>(ExecKernel->MKernelName);
-  sycl::kernel SyclKernel = KernelBundleImplPtr->get_kernel(
-      sycl::detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl),
-      KernelBundleImplPtr);
+  auto KernelID = sycl::detail::ProgramManager::getInstance().getSYCLKernelID(
+      ExecKernel->MKernelName);
+  sycl::kernel SyclKernel =
+      KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
   auto SyclKernelImpl = sycl::detail::getSyclObjImpl(SyclKernel);
   std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();
