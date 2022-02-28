@@ -51,16 +51,16 @@ struct property_value
 template <typename PropertyT, typename... A, typename... B>
 constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
                            bool>
-operator==(const property_value<PropertyT, A...> &LHS,
-           const property_value<PropertyT, B...> &RHS) {
+operator==(const property_value<PropertyT, A...> &,
+           const property_value<PropertyT, B...> &) {
   return (std::is_same<A, B>::value && ...);
 }
 
 template <typename PropertyT, typename... A, typename... B>
 constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
                            bool>
-operator!=(const property_value<PropertyT, A...> &LHS,
-           const property_value<PropertyT, B...> &RHS) {
+operator!=(const property_value<PropertyT, A...> &,
+           const property_value<PropertyT, B...> &) {
   return (!std::is_same<A, B>::value || ...);
 }
 
