@@ -835,7 +835,7 @@ size_t Bucket::SlabAllocSize() { return std::max(getSize(), SlabMinSize()); }
 size_t Bucket::Capacity() {
   // For buckets used in chunked mode, just one slab in pool is sufficient.
   // For larger buckets, the capacity could be more and is adjustable.
-  if (0 && getSize() <= ChunkCutOff())
+  if (getSize() <= ChunkCutOff())
     return 1;
   else
     return USMSettings.Capacity[getMemType()];
