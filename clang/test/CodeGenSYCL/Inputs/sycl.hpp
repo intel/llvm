@@ -134,7 +134,7 @@ template <typename T>
 class [[__sycl_detail__::device_global]] device_global {
 public:
   const T &get() const noexcept { return *Data; }
-  device_global() = default;
+  device_global() {}
 
 private:
   T *Data;

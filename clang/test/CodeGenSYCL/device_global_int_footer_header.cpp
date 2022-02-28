@@ -104,7 +104,7 @@ namespace {
 struct HasVarTemplate {
   constexpr HasVarTemplate() {}
   template <typename T>
-  static constexpr device_global<T> VarTempl{};
+  static const device_global<T> VarTempl;
 };
 
 } // namespace

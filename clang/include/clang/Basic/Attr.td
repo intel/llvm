@@ -1267,6 +1267,7 @@ def SYCLDeviceGlobal : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   // Only used internally by the SYCL implementation
   let Documentation = [Undocumented];
+  let SimpleHandler = 1;
 }
 
 // Marks functions which must not be vectorized via horizontal SIMT widening,

@@ -10429,9 +10429,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_SYCLSpecialClass:
     handleSimpleAttribute<SYCLSpecialClassAttr>(S, D, AL);
     break;
-  case ParsedAttr::AT_SYCLDeviceGlobal:
-    handleSimpleAttribute<SYCLDeviceGlobalAttr>(S, D, AL);
-    break;
   case ParsedAttr::AT_SYCLDevice:
     handleSYCLDeviceAttr(S, D, AL);
     break;
