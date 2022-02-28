@@ -2895,7 +2895,7 @@ internal linkage.
 .. code-block:: c++
 
   // Computes a unique stable name for a given variable.
-  constexpr bool  __builtin_sycl_unique_stable_id( expr );
+  constexpr const char * __builtin_sycl_unique_stable_id( expr );
 
 Multiprecision Arithmetic Builtins
 ----------------------------------

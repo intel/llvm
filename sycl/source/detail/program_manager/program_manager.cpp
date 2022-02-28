@@ -1506,7 +1506,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
         std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
         KernelIDs = m_BinImg2KernelIDs[BinImage];
         // If the image does not contain any non-service kernels we can skip it.
-        if (KernelIDs->empty())
+        if (!KernelIDs || KernelIDs->empty())
           continue;
       }
 
