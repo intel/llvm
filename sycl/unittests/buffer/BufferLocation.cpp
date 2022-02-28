@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
@@ -41,6 +42,22 @@ pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
   return PI_SUCCESS;
 }
 
+static pi_result redefinedDeviceGetInfo(pi_device device,
+                                        pi_device_info param_name,
+                                        size_t param_value_size,
+                                        void *param_value,
+                                        size_t *param_value_size_ret) {
+  if (param_name == PI_DEVICE_INFO_TYPE) {
+    auto *Result = reinterpret_cast<_pi_device_type *>(param_value);
+    *Result = PI_DEVICE_TYPE_ACC;
+  }
+  if (param_name == PI_DEVICE_INFO_COMPILER_AVAILABLE) {
+    auto *Result = reinterpret_cast<pi_bool *>(param_value);
+    *Result = true;
+  }
+  return PI_SUCCESS;
+}
+
 class BufferTest : public ::testing::Test {
 public:
   BufferTest() : Plt{sycl::default_selector()} {}
@@ -59,6 +76,8 @@ protected:
     setupDefaultMockAPIs(*Mock);
     Mock->redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
         redefinedMemBufferCreate);
+    Mock->redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
+        redefinedDeviceGetInfo);
   }
 
 protected:
@@ -73,7 +92,7 @@ TEST_F(BufferTest, BufferLocationOnly) {
   }
 
   sycl::context Context{Plt};
-  sycl::queue Queue{Context, sycl::default_selector{}};
+  sycl::queue Queue{Context, sycl::accelerator_selector{}};
 
   cl::sycl::buffer<int, 1> Buf(3);
   Queue
@@ -102,7 +121,7 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
   }
 
   sycl::context Context{Plt};
-  sycl::queue Queue{Context, sycl::default_selector{}};
+  sycl::queue Queue{Context, sycl::accelerator_selector{}};
 
   cl::sycl::buffer<int, 1> Buf(3);
   Queue
@@ -171,7 +190,7 @@ TEST_F(BufferTest, WOBufferLocation) {
   }
 
   sycl::context Context{Plt};
-  sycl::queue Queue{Context, sycl::default_selector{}};
+  sycl::queue Queue{Context, sycl::accelerator_selector{}};
 
   cl::sycl::buffer<int, 1> Buf(3);
   Queue
