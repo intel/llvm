@@ -3495,7 +3495,7 @@ Sema::MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A) {
 static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  // __attribute__((work_group_size_hint) require exactly three arguments.
+  // __attribute__((work_group_size_hint) requires exactly three arguments.
   if (AL.getSyntax() == ParsedAttr::AS_GNU || !AL.hasScope() ||
       (AL.hasScope() && !AL.getScopeName()->isStr("sycl"))) {
     if (!AL.checkExactlyNumArgs(S, 3))
