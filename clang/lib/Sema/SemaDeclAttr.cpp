@@ -7445,8 +7445,12 @@ static bool checkAddIRAttributesFilterListExpr(Expr *FilterListArg, Sema &S,
 
 // Returns true if a type is either an array of char or a pointer to char.
 static bool isAddIRAttributesValidStringType(QualType T) {
-  return (T->isArrayType() || T->isPointerType()) &&
-         T->getPointeeOrArrayElementType()->isCharType();
+  if (!T->isArrayType() && !T->isPointerType())
+    return false;
+  QualType ElemT = T->isArrayType()
+                       ? cast<ArrayType>(T.getTypePtr())->getElementType()
+                       : T->getPointeeType();
+  return ElemT.isConstQualified() && ElemT->isCharType();
 }
 
 // Checks if an expression is a valid attribute name for an add_ir_attributes_*
