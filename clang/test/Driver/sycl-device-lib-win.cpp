@@ -20,12 +20,6 @@
 // SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-complex-fp64.obj" "-outputs={{.*}}libsycl-complex-fp64-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-cmath.obj" "-outputs={{.*}}libsycl-cmath-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-cmath-fp64.obj" "-outputs={{.*}}libsycl-cmath-fp64-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cassert.obj" "-outputs={{.*}}libsycl-fallback-cassert-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cstring.obj" "-outputs={{.*}}libsycl-fallback-cstring-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-complex.obj" "-outputs={{.*}}libsycl-fallback-complex-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-complex-fp64.obj" "-outputs={{.*}}libsycl-fallback-complex-fp64-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cmath.obj" "-outputs={{.*}}libsycl-fallback-cmath-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cmath-fp64.obj" "-outputs={{.*}}libsycl-fallback-cmath-fp64-{{.*}}.o" "-unbundle"
 
 /// ###########################################################################
 /// test behavior of device library link with libm-fp64
@@ -44,12 +38,6 @@
 // SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-complex-fp64.obj" "-outputs={{.*}}libsycl-complex-fp64-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-cmath.obj" "-outputs={{.*}}libsycl-cmath-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-cmath-fp64.obj" "-outputs={{.*}}libsycl-cmath-fp64-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cassert.obj" "-outputs={{.*}}libsycl-fallback-cassert-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cstring.obj" "-outputs={{.*}}libsycl-fallback-cstring-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-complex.obj" "-outputs={{.*}}libsycl-fallback-complex-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-complex-fp64.obj" "-outputs={{.*}}libsycl-fallback-complex-fp64-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cmath.obj" "-outputs={{.*}}libsycl-fallback-cmath-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_WITH_FP64-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cmath-fp64.obj" "-outputs={{.*}}libsycl-fallback-cmath-fp64-{{.*}}.o" "-unbundle"
 
 /// ###########################################################################
 
@@ -60,18 +48,12 @@
 // SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBC: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-complex-fp64.obj" "-outputs={{.*}}libsycl-complex-fp64-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBC-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-cmath.obj" "-outputs={{.*}}libsycl-cmath-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBC-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-cmath-fp64.obj" "-outputs={{.*}}libsycl-cmath-fp64-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBC-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-complex.obj" "-outputs={{.*}}libsycl-fallback-complex-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBC-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-complex-fp64.obj" "-outputs={{.*}}libsycl-fallback-complex-fp64-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBC-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cmath.obj" "-outputs={{.*}}libsycl-fallback-cmath-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBC-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cmath-fp64.obj" "-outputs={{.*}}libsycl-fallback-cmath-fp64-{{.*}}.o" "-unbundle"
 /// ###########################################################################
 
 /// test behavior of -fno-sycl-device-lib=libm-fp32,libm-fp64
 // RUN: %clangxx -fsycl %s -fno-sycl-device-lib=libm-fp32,libm-fp64 --sysroot=%S/Inputs/SYCL-windows -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBM
 // SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBM: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-crt.obj" "-outputs={{.*}}libsycl-crt-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBM-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cassert.obj" "-outputs={{.*}}libsycl-fallback-cassert-{{.*}}.o" "-unbundle"
-// SYCL_DEVICE_LIB_UNBUNDLE_NO_LIBM-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cstring.obj" "-outputs={{.*}}libsycl-fallback-cstring-{{.*}}.o" "-unbundle"
 /// ###########################################################################
 
 /// test behavior of disabling all device libraries
@@ -117,12 +99,6 @@
 // SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-complex-fp64.obj" "-outputs={{.*}}libsycl-complex-fp64-{{.*}}.o" "-unbundle"
 // SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-cmath.obj" "-outputs={{.*}}libsycl-cmath-{{.*}}.o" "-unbundle"
 // SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-cmath-fp64.obj" "-outputs={{.*}}libsycl-cmath-fp64-{{.*}}.o" "-unbundle"
-// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cassert.obj" "-outputs={{.*}}libsycl-fallback-cassert-{{.*}}.o" "-unbundle"
-// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cstring.obj" "-outputs={{.*}}libsycl-fallback-cstring-{{.*}}.o" "-unbundle"
-// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-complex.obj" "-outputs={{.*}}libsycl-fallback-complex-{{.*}}.o" "-unbundle"
-// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-complex-fp64.obj" "-outputs={{.*}}libsycl-fallback-complex-fp64-{{.*}}.o" "-unbundle"
-// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cmath.obj" "-outputs={{.*}}libsycl-fallback-cmath-{{.*}}.o" "-unbundle"
-// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-fallback-cmath-fp64.obj" "-outputs={{.*}}libsycl-fallback-cmath-fp64-{{.*}}.o" "-unbundle"
 // SYCL_LLVM_LINK_DEVICE_LIB-NEXT: llvm-link{{.*}} "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"
 
 /// ###########################################################################
