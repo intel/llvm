@@ -290,8 +290,8 @@ Variables* with the following content:
 Host code may read or write the content of a global variable in a `cl_program`
 by calling *clEnqueueReadGlobalVariableINTEL* or
 *clEnqueueWriteGlobalVariableINTEL*.  Those two functions both take a _name_
-parameter which identifies the variable.  This parameter is interpreted as
-follows:
+parameter which identifies the variable.  For a `cl_program` created from
+SPIR-V, this parameter is interpreted as follows:
 
 * If the SPIR-V module used to create _program_ declares the
   *GlobalVariableDecorationsINTEL* capability, the implementation looks first
