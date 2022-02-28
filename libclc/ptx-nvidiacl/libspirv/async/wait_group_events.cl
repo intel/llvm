@@ -1,3 +1,4 @@
+
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -6,9 +7,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/async/common.h>
 #include <spirv/spirv.h>
 
-#define __CLC_BODY <async_work_group_strided_copy.inc>
-#define __CLC_GEN_VEC3
-#include <clc/async/gentype.inc>
+int __clc_nvvm_reflect_arch();
+
+_CLC_OVERLOAD _CLC_DEF void __spirv_GroupWaitEvents(unsigned int scope,
+                                                    int num_events,
+                                                    event_t *event_list) {
+  if (__clc_nvvm_reflect_arch() >= 800) {
+    __nvvm_cp_async_wait_all();
+  }
+  __spirv_ControlBarrier(scope, scope, SequentiallyConsistent);
+}
