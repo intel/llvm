@@ -96,7 +96,7 @@ struct ExtractProperties<std::tuple<PropertiesTs...>> {
 
   template <typename... PropertyValueTs>
   static ExtractedPropertiesT<PropertyValueTs...>
-  Extract(std::tuple<PropertyValueTs...> PropertyValues) {
+  Extract(std::tuple<PropertyValueTs...>) {
     return {};
   }
 };
