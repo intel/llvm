@@ -648,7 +648,7 @@ struct _pi_kernel {
 
       // align the argument
       size_t alignedLocalOffset = localOffset;
-      if (localOffset % alignment != 0) {
+      if (alignment != 0 && localOffset % alignment != 0) {
         alignedLocalOffset += alignment - (localOffset % alignment);
       }
 
