@@ -105,24 +105,22 @@ public:
   [[sycl::work_group_size_hint(4, 4, 4)]] void operator()() const {};
 };
 
-#if defined(EXPECT_PROP) && defined(TRIGGER_ERROR)
-[[sycl::work_group_size_hint(8, 8, 8)]] void f8x8x8(){}; // expected-note {{conflicting attribute is here}}
-
-class FunctorConflict { // expected-error {{conflicting attributes applied to a SYCL kernel or SYCL_EXTERNAL function}}
+// Checking whether propagation of the attribute happens or not, according to the SYCL version.
+#if defined(EXPECT_PROP) // if attribute is propagated, then we expect errors here
+void f8x8x8(){};
+#else // otherwise no error
+[[sycl::work_group_size_hint(8, 8, 8)]] void f8x8x8(){};
+#endif
+class FunctorNoProp {
 public:
-  [[sycl::work_group_size_hint(16, 2, 1)]] void operator()() const { // expected-note {{conflicting attribute is here}}
+  void operator()() const {
     f8x8x8();
   };
 };
-#endif
 
 void invoke() {
   Functor16x2x1 f16x2x1;
   Functor4x4x4 f4x4x4;
-
-#if defined(EXPECT_PROP) && defined(TRIGGER_ERROR)
-  FunctorConflict fConflict;
-#endif
 
   sycl::queue q;
 
@@ -161,9 +159,13 @@ void invoke() {
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
-#if defined(EXPECT_PROP) && defined(TRIGGER_ERROR)
-    h.single_task<class kernel_3>(fConflict);
-#endif
+    // Check that conflicts are reported if the attribute is propagated in SYCL 1.2.1 mode.
+
+    FunctorNoProp fNoProp;
+    h.single_task<class kernel_3>(fNoProp);
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_3
+    // CHECK-NOT: WorkGroupSizeHintAttr
+
   });
 
   // FIXME: Add tests with the C++23 lambda attribute syntax.
