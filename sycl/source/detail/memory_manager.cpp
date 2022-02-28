@@ -363,16 +363,11 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
   RT::PiMem NewMem = nullptr;
   const detail::plugin &Plugin = TargetContext->getPlugin();
 
-  // Check that devices within context has support of buffer location
-  size_t return_size = 0;
-  pi_device_info device_info;
+  // buffer_location property has a meaning only on FPGA devices
   bool IsBufferLocSupported = true;
   auto Devices = TargetContext->getDevices();
   for (auto &Device : Devices) {
-    const RT::PiDevice PiDevice = getSyclObjImpl(Device)->getHandleRef();
-    if (Plugin.call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            PiDevice, PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
-            sizeof(pi_device_info), &device_info, &return_size) != PI_SUCCESS) {
+    if (!Device.is_accelerator()) {
       IsBufferLocSupported = false;
       break;
     }
