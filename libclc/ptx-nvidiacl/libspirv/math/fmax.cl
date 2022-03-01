@@ -50,22 +50,22 @@ _CLC_BINARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_fmax,
 
 #endif
 
-_CLC_DEF _CLC_OVERLOAD ushort __spirv_ocl_fmax(ushort x, ushort y) {
+_CLC_DEF _CLC_OVERLOAD ushort __clc_fmax(ushort x, ushort y) {
   if (__clc_nvvm_reflect_arch() >= 800) {
     return __nvvm_max_rn_bf16(x, y);
   }
   __builtin_trap();
   __builtin_unreachable();
 }
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __spirv_ocl_fmax, ushort,
+_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fmax, ushort,
                       ushort)
 
-_CLC_DEF _CLC_OVERLOAD uint __spirv_ocl_fmax(uint x, uint y) {
+_CLC_DEF _CLC_OVERLOAD uint __clc_fmax(uint x, uint y) {
   if (__clc_nvvm_reflect_arch() >= 800) {
     return __nvvm_max_rn_bf16x2(x, y);
   }
   __builtin_trap();
   __builtin_unreachable();
 }
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __spirv_ocl_fmax, uint,
+_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __clc_fmax, uint,
                       uint)

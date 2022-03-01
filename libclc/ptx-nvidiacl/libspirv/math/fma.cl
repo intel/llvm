@@ -48,24 +48,24 @@ _CLC_TERNARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_fma,
 
 #endif
 
-_CLC_DEF _CLC_OVERLOAD ushort __spirv_ocl_fma(ushort x, ushort y, ushort z) {
+_CLC_DEF _CLC_OVERLOAD ushort __clc_fma(ushort x, ushort y, ushort z) {
   if (__clc_nvvm_reflect_arch() >= 800) {
     return __nvvm_fma_rn_bf16(x, y, z);
   }
   __builtin_trap();
   __builtin_unreachable();
 }
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __spirv_ocl_fma, ushort,
+_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fma, ushort,
                        ushort, ushort)
 
-_CLC_DEF _CLC_OVERLOAD uint __spirv_ocl_fma(uint x, uint y, uint z) {
+_CLC_DEF _CLC_OVERLOAD uint __clc_fma(uint x, uint y, uint z) {
   if (__clc_nvvm_reflect_arch() >= 800) {
     return __nvvm_fma_rn_bf16x2(x, y, z);
   }
   __builtin_trap();
   __builtin_unreachable();
 }
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __spirv_ocl_fma, uint,
+_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __clc_fma, uint,
                        uint, uint)
 
 #undef __CLC_BUILTIN
