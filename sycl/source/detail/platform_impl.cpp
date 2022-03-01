@@ -266,8 +266,10 @@ platform_impl::get_devices(info::device_type DeviceType) const {
                            [&Platform = MPlatform](plugin &Plugin) {
                              return Plugin.containsPiPlatform(Platform);
                            });
-    if (It != Plugins.end())
+    if (It != Plugins.end()) {
+      std::lock_guard<std::mutex> Guard(*(It->getPluginMutex()));
       (*It).adjustLastDeviceId(MPlatform);
+    }
     return Res;
   }
 
