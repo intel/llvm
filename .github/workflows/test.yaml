@@ -12,8 +12,8 @@ jobs:
       image: ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers
     steps:
     - run: apt update && apt install -yqq gdb
-    - run: gdb -q --batch \
-             -ex 'handle SIGHUP nostop pass' \
+    - run: gdb --args -q --batch \
+               -ex 'handle SIGHUP nostop pass' \
                -ex 'handle SIGQUIT nostop pass' \
                -ex 'handle SIGPIPE nostop pass' \
                -ex 'handle SIGALRM nostop pass' \
@@ -24,4 +24,4 @@ jobs:
                -ex 'set print thread-events off' \
                -ex 'run' \
                -ex 'thread apply all bt' \
-             --args /opt/sycl/bin/sycl-ls --verbose
+               sycl-ls --verbose
