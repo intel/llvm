@@ -985,6 +985,13 @@ defm cuda_prec_sqrt : BoolFOption<"cuda-prec-sqrt",
   PosFlag<SetTrue, [CC1Option], "Specify">,
   NegFlag<SetFalse, [], "Don't specify">,
   BothFlags<[], " that sqrt is correctly rounded (for CUDA devices)">>;
+def fgpu_default_stream_EQ : Joined<["-"], "fgpu-default-stream=">,
+  HelpText<"Specify default stream. Valid values are 'legacy' and 'per-thread'. The default value is 'legacy'. (HIP only)">,
+  Flags<[CC1Option]>,
+  Values<"legacy,per-thread">,
+  NormalizedValuesScope<"LangOptions::GPUDefaultStreamKind">,
+  NormalizedValues<["Legacy", "PerThread"]>,
+  MarshallingInfoEnum<LangOpts<"GPUDefaultStream">, "Legacy">;
 def rocm_path_EQ : Joined<["--"], "rocm-path=">, Group<i_Group>,
   HelpText<"ROCm installation path, used for finding and automatically linking required bitcode libraries.">;
 def hip_path_EQ : Joined<["--"], "hip-path=">, Group<i_Group>,
@@ -1097,7 +1104,7 @@ def d_Flag : Flag<["-"], "d">, Group<d_Group>;
 def d_Joined : Joined<["-"], "d">, Group<d_Group>;
 def emit_ast : Flag<["-"], "emit-ast">,
   HelpText<"Emit Clang AST files for source inputs">;
-def emit_llvm : Flag<["-"], "emit-llvm">, Flags<[CC1Option]>, Group<Action_Group>,
+def emit_llvm : Flag<["-"], "emit-llvm">, Flags<[CC1Option, FC1Option]>, Group<Action_Group>,
   HelpText<"Use the LLVM representation for assembler and object files">;
 def emit_interface_stubs : Flag<["-"], "emit-interface-stubs">, Flags<[CC1Option]>, Group<Action_Group>,
   HelpText<"Generate Interface Stub Files.">;
@@ -1277,9 +1284,10 @@ def fcs_profile_generate_EQ : Joined<["-"], "fcs-profile-generate=">,
     Group<f_Group>, Flags<[CoreOption]>, MetaVarName<"<directory>">,
     HelpText<"Generate instrumented code to collect context sensitive execution counts into <directory>/default.profraw (overridden by LLVM_PROFILE_FILE env var)">;
 def fprofile_use : Flag<["-"], "fprofile-use">, Group<f_Group>,
-    Alias<fprofile_instr_use>;
+    Flags<[CoreOption]>, Alias<fprofile_instr_use>;
 def fprofile_use_EQ : Joined<["-"], "fprofile-use=">,
-    Group<f_Group>, Flags<[NoXarchOption]>, MetaVarName<"<pathname>">,
+    Group<f_Group>, Flags<[NoXarchOption, CoreOption]>,
+    MetaVarName<"<pathname>">,
     HelpText<"Use instrumentation data for profile-guided optimization. If pathname is a directory, it reads from <pathname>/default.profdata. Otherwise, it reads from file <pathname>.">;
 def fno_profile_instr_generate : Flag<["-"], "fno-profile-instr-generate">,
     Group<f_Group>, Flags<[CoreOption]>,
@@ -1520,6 +1528,11 @@ def : Flag<["-"], "fextended-identifiers">, Group<clang_ignored_f_Group>;
 def : Flag<["-"], "fno-extended-identifiers">, Group<f_Group>, Flags<[Unsupported]>;
 def fhosted : Flag<["-"], "fhosted">, Group<f_Group>;
 def fdenormal_fp_math_EQ : Joined<["-"], "fdenormal-fp-math=">, Group<f_Group>, Flags<[CC1Option]>;
+def ffp_eval_method_EQ : Joined<["-"], "ffp-eval-method=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Specifies the evaluation method to use for floating-point arithmetic.">,
+  Values<"source,double,extended">, NormalizedValuesScope<"LangOptions">,
+  NormalizedValues<["FEM_Source", "FEM_Double", "FEM_Extended"]>,
+  MarshallingInfoEnum<LangOpts<"FPEvalMethod">, "FEM_UnsetOnCommandLine">;
 def ffp_model_EQ : Joined<["-"], "ffp-model=">, Group<f_Group>, Flags<[NoXarchOption]>,
   HelpText<"Controls the semantics of floating-point calculations.">;
 def ffp_exception_behavior_EQ : Joined<["-"], "ffp-exception-behavior=">, Group<f_Group>, Flags<[CC1Option]>,
@@ -1687,9 +1700,11 @@ defm sanitize_address_poison_custom_array_cookie : BoolOption<"f", "sanitize-add
   PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [], "Disable">,
   BothFlags<[], " poisoning array cookies when using custom operator new[] in AddressSanitizer">>,
   Group<f_clang_Group>;
-def fsanitize_address_globals_dead_stripping : Flag<["-"], "fsanitize-address-globals-dead-stripping">,
-  Group<f_clang_Group>, HelpText<"Enable linker dead stripping of globals in AddressSanitizer">,
-  MarshallingInfoFlag<CodeGenOpts<"SanitizeAddressGlobalsDeadStripping">, "false">;
+defm sanitize_address_globals_dead_stripping : BoolOption<"f", "sanitize-address-globals-dead-stripping",
+  CodeGenOpts<"SanitizeAddressGlobalsDeadStripping">, DefaultFalse,
+  PosFlag<SetTrue, [], "Enable linker dead stripping of globals in AddressSanitizer">,
+  NegFlag<SetFalse, [], "Disable linker dead stripping of globals in AddressSanitizer">>,
+  Group<f_clang_Group>;
 defm sanitize_address_use_odr_indicator : BoolOption<"f", "sanitize-address-use-odr-indicator",
   CodeGenOpts<"SanitizeAddressUseOdrIndicator">, DefaultFalse,
   PosFlag<SetTrue, [], "Enable ODR indicator globals to avoid false ODR violation"
@@ -2500,6 +2515,14 @@ def fno_openmp_assume_teams_oversubscription : Flag<["-"], "fno-openmp-assume-te
   Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, HelpHidden]>;
 def fno_openmp_assume_threads_oversubscription : Flag<["-"], "fno-openmp-assume-threads-oversubscription">,
   Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, HelpHidden]>;
+def fopenmp_assume_no_thread_state : Flag<["-"], "fopenmp-assume-no-thread-state">, Group<f_Group>, 
+  Flags<[CC1Option, NoArgumentUnused, HelpHidden]>, 
+  HelpText<"Assert no thread in a parallel region modifies an ICV">,
+  MarshallingInfoFlag<LangOpts<"OpenMPNoThreadState">>;
+def fopenmp_offload_mandatory : Flag<["-"], "fopenmp-offload-mandatory">, Group<f_Group>, 
+  Flags<[CC1Option, NoArgumentUnused]>, 
+  HelpText<"Do not create a host fallback if offloading to the device fails.">,
+  MarshallingInfoFlag<LangOpts<"OpenMPOffloadMandatory">>;
 defm openmp_target_new_runtime: BoolFOption<"openmp-target-new-runtime",
   LangOpts<"OpenMPTargetNewRuntime">, DefaultTrue,
   PosFlag<SetTrue, [CC1Option], "Use the new bitcode library for OpenMP offloading">,
@@ -4102,6 +4125,9 @@ def : Separate<["--"], "no-system-header-prefix">, Alias<no_system_header_prefix
 def s : Flag<["-"], "s">, Group<Link_Group>;
 def target : Joined<["--"], "target=">, Flags<[NoXarchOption, CoreOption]>,
   HelpText<"Generate code for the given target">;
+def darwin_target_variant : Separate<["-"], "darwin-target-variant">,
+  Flags<[NoXarchOption, CoreOption]>,
+  HelpText<"Generate code for an additional runtime variant of the deployment target">;
 def print_supported_cpus : Flag<["-", "--"], "print-supported-cpus">,
   Group<CompileOnly_Group>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Print supported cpu models for the given target (if target is not specified,"
@@ -5581,9 +5607,13 @@ defm clear_ast_before_backend : BoolOption<"",
   PosFlag<SetTrue, [], "Clear">,
   NegFlag<SetFalse, [], "Don't clear">,
   BothFlags<[], " the Clang AST before running backend code generation">>;
-def disable_noundef_analysis : Flag<["-"], "disable-noundef-analysis">, Group<f_Group>,
-  HelpText<"Disable analyzing function argument and return types for mandatory definedness">,
-  MarshallingInfoFlag<CodeGenOpts<"DisableNoundefAttrs">>;
+defm enable_noundef_analysis : BoolOption<"",
+  "enable-noundef-analysis",
+  CodeGenOpts<"EnableNoundefAttrs">,
+  DefaultTrue,
+  PosFlag<SetTrue, [], "Enable">,
+  NegFlag<SetFalse, [], "Disable">,
+  BothFlags<[], " analyzing function argument and return types for mandatory definedness">>;
 def discard_value_names : Flag<["-"], "discard-value-names">,
   HelpText<"Discard value names in LLVM IR">,
   MarshallingInfoFlag<CodeGenOpts<"DiscardValueNames">>;

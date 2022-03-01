@@ -49,6 +49,8 @@ source_suffix = ['.rst', '.md']
 exclude_patterns = [
     # Extensions are mostly in asciidoc which has poor support in Sphinx.
     'extensions/*',
+    'design/opencl-extensions/*',
+    'design/spirv-extensions/*',
 
     # Sphinx complains about syntax errors in these files.
     'design/DeviceLibExtensions.rst',

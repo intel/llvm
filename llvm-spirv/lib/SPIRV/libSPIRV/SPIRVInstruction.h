@@ -397,12 +397,12 @@ public:
       assert(MemoryAccess.size() > 1 && "Alignment operand is missing");
       Alignment = MemoryAccess[MemAccessNumParam++];
     }
-    if (MemoryAccess[0] & internal::MemoryAccessAliasScopeINTELMask) {
+    if (MemoryAccess[0] & MemoryAccessAliasScopeINTELMaskMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
       AliasScopeInstID = MemoryAccess[MemAccessNumParam++];
     }
-    if (MemoryAccess[0] & internal::MemoryAccessNoAliasINTELMask) {
+    if (MemoryAccess[0] & MemoryAccessNoAliasINTELMaskMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
       NoAliasInstID = MemoryAccess[MemAccessNumParam];
@@ -415,10 +415,10 @@ public:
     return getMemoryAccessMask() & MemoryAccessNontemporalMask;
   }
   SPIRVWord isAliasScope() const {
-    return getMemoryAccessMask() & internal::MemoryAccessAliasScopeINTELMask;
+    return getMemoryAccessMask() & MemoryAccessAliasScopeINTELMaskMask;
   }
   SPIRVWord isNoAlias() const {
-    return getMemoryAccessMask() & internal::MemoryAccessNoAliasINTELMask;
+    return getMemoryAccessMask() & MemoryAccessNoAliasINTELMaskMask;
   }
   SPIRVWord getMemoryAccessMask() const { return TheMemoryAccessMask; }
   SPIRVWord getAlignment() const { return Alignment; }

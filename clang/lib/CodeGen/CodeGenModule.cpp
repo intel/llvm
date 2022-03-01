@@ -586,9 +586,6 @@ void CodeGenModule::Release() {
           "__amdgpu_device_library_preserve_asan_functions_ptr", nullptr,
           llvm::GlobalVariable::NotThreadLocal);
       addCompilerUsedGlobal(Var);
-      if (!getModule().getModuleFlag("amdgpu_hostcall")) {
-        getModule().addModuleFlag(llvm::Module::Override, "amdgpu_hostcall", 1);
-      }
     }
     // Emit amdgpu_code_object_version module flag, which is code object version
     // times 100.
@@ -894,7 +891,7 @@ void CodeGenModule::Release() {
   if (CodeGenOpts.NoPLT)
     getModule().setRtLibUseGOT();
   if (CodeGenOpts.UnwindTables)
-    getModule().setUwtable();
+    getModule().setUwtable(llvm::UWTableKind(CodeGenOpts.UnwindTables));
 
   switch (CodeGenOpts.getFramePointer()) {
   case CodeGenOptions::FramePointerKind::None:
@@ -1965,7 +1962,7 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
   llvm::AttrBuilder B(F->getContext());
 
   if (CodeGenOpts.UnwindTables)
-    B.addAttribute(llvm::Attribute::UWTable);
+    B.addUWTableAttr(llvm::UWTableKind(CodeGenOpts.UnwindTables));
 
   if (CodeGenOpts.StackClashProtector)
     B.addAttribute("probe-stack", "inline-asm");
@@ -6016,9 +6013,11 @@ ConstantAddress CodeGenModule::GetAddrOfGlobalTemporary(
           getModule(), Type, false, llvm::GlobalVariable::InternalLinkage,
           nullptr);
     }
-    return ConstantAddress(
-        InsertResult.first->second,
-        InsertResult.first->second->getType()->getPointerElementType(), Align);
+    return ConstantAddress(InsertResult.first->second,
+                           llvm::cast<llvm::GlobalVariable>(
+                               InsertResult.first->second->stripPointerCasts())
+                               ->getValueType(),
+                           Align);
   }
 
   // FIXME: If an externally-visible declaration extends multiple temporaries,
@@ -6775,7 +6774,8 @@ void CodeGenModule::EmitOMPThreadPrivateDecl(const OMPThreadPrivateDecl *D) {
         !VD->getAnyInitializer()->isConstantInitializer(getContext(),
                                                         /*ForRef=*/false);
 
-    Address Addr(GetAddrOfGlobalVar(VD), getContext().getDeclAlign(VD));
+    Address Addr = Address::deprecated(GetAddrOfGlobalVar(VD),
+                                       getContext().getDeclAlign(VD));
     if (auto InitFunction = getOpenMPRuntime().emitThreadPrivateVarDefinition(
             VD, Addr, RefExpr->getBeginLoc(), PerformInit))
       CXXGlobalInits.push_back(InitFunction);
