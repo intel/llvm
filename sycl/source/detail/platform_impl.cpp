@@ -259,8 +259,8 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // If platform doesn't have devices (even without filter)
     // LastDeviceIds[PlatformId] stay 0 that affects next platform devices num
     // analysis. Doing adjustment by simple copy of last device num from
-    // previous platform. Needs non const plugin reference. std::vector<plugin>
-    // &Plugins = RT::initialize();
+    // previous platform.
+    // Needs non const plugin reference.
     std::vector<plugin> &Plugins = RT::initialize();
     auto It = std::find_if(Plugins.begin(), Plugins.end(),
                            [&Platform = MPlatform](plugin &Plugin) {
