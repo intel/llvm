@@ -12,4 +12,6 @@ jobs:
       image: ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers
     steps:
     - run: apt update && apt install -yqq gdb
-    - run: sycl-ls --verbose
+    - run: |
+        source /runtimes/oneapi-tbb/env/vars.sh
+        sycl-ls --verbose
