@@ -255,8 +255,21 @@ platform_impl::get_devices(info::device_type DeviceType) const {
       MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,
       pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
 
-  if (NumDevices == 0)
+  if (NumDevices == 0) {
+    // If platform doesn't have devices (even without filter)
+    // LastDeviceIds[PlatformId] stay 0 that affects next platform devices num
+    // analysis. Doing adjustment by simple copy of last device num from
+    // previous platform. Needs non const plugin reference. std::vector<plugin>
+    // &Plugins = RT::initialize();
+    std::vector<plugin> &Plugins = RT::initialize();
+    auto It = std::find_if(Plugins.begin(), Plugins.end(),
+                           [&Platform = MPlatform](plugin &Plugin) {
+                             return Plugin.containsPiPlatform(Platform);
+                           });
+    if (It != Plugins.end())
+      (*It).adjustLastDeviceId(MPlatform);
     return Res;
+  }
 
   std::vector<RT::PiDevice> PiDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
