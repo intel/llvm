@@ -2,6 +2,8 @@
 
 = `sycl_ext_oneapi_properties`
 
+:dpcpp: pass:[DPC++]
+
 == Introduction
 
 The `sycl::property_list` found in SYCL 2020 is used to store properties used in the construction of runtime classes. It does so in a fully dynamic manner, such that it is not possible to obtain any useful information about the types of properties passed nor their values at compile time.
@@ -25,11 +27,12 @@ Copyright (c) 2021 Intel Corporation.  All rights reserved.
 
 == Status
 
-Working Draft
-
-This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
-
-Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
 
 == Version
 
