@@ -3496,18 +3496,16 @@ void SPIRVToLLVM::transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V) {
   Instruction *Inst = dyn_cast<Instruction>(V);
   if (!Inst)
     return;
-  if (BV->hasDecorateId(internal::DecorationAliasScopeINTEL)) {
+  if (BV->hasDecorateId(DecorationAliasScopeINTEL)) {
     std::vector<SPIRVId> AliasListIds;
-    AliasListIds =
-        BV->getDecorationIdLiterals(internal::DecorationAliasScopeINTEL);
+    AliasListIds = BV->getDecorationIdLiterals(DecorationAliasScopeINTEL);
     assert(AliasListIds.size() == 1 &&
            "Memory aliasing decorations must have one argument");
     addMemAliasMetadata(Inst, AliasListIds[0], LLVMContext::MD_alias_scope);
   }
-  if (BV->hasDecorateId(internal::DecorationNoAliasINTEL)) {
+  if (BV->hasDecorateId(DecorationNoAliasINTEL)) {
     std::vector<SPIRVId> AliasListIds;
-    AliasListIds =
-        BV->getDecorationIdLiterals(internal::DecorationNoAliasINTEL);
+    AliasListIds = BV->getDecorationIdLiterals(DecorationNoAliasINTEL);
     assert(AliasListIds.size() == 1 &&
            "Memory aliasing decorations must have one argument");
     addMemAliasMetadata(Inst, AliasListIds[0], LLVMContext::MD_noalias);

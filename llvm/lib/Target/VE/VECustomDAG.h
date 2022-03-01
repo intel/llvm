@@ -25,9 +25,19 @@ Optional<unsigned> getVVPOpcode(unsigned Opcode);
 
 bool isVVPBinaryOp(unsigned Opcode);
 
+MVT splitVectorType(MVT VT);
+
 bool isPackedVectorType(EVT SomeVT);
 
+bool isMaskType(EVT SomeVT);
+
+bool isMaskArithmetic(SDValue Op);
+
 bool isVVPOrVEC(unsigned);
+
+bool supportsPackedMode(unsigned Opcode, EVT IdiomVT);
+
+bool isPackingSupportOpcode(unsigned Opc);
 
 bool maySafelyIgnoreMask(SDValue Op);
 
@@ -67,11 +77,39 @@ bool isLegalAVL(SDValue AVL);
 // The AVL operand of this node.
 SDValue getNodeAVL(SDValue);
 
+// Mask position of this node.
+Optional<int> getMaskPos(unsigned);
+
+SDValue getNodeMask(SDValue);
+
 // Return the AVL operand of this node. If it is a LEGALAVL node, unwrap it.
 // Return with the boolean whether unwrapping happened.
 std::pair<SDValue, bool> getAnnotatedNodeAVL(SDValue);
 
 /// } AVL Functions
+
+enum class Packing {
+  Normal = 0, // 256 element standard mode.
+  Dense = 1   // 512 element packed mode.
+};
+
+// Get the vector or mask register type for this packing and element type.
+MVT getLegalVectorType(Packing P, MVT ElemVT);
+
+// Whether this type belongs to a packed mask or vector register.
+Packing getTypePacking(EVT);
+
+enum class PackElem : int8_t {
+  Lo = 0, // Integer (63, 32]
+  Hi = 1  // Float   (32,  0]
+};
+
+struct VETargetMasks {
+  SDValue Mask;
+  SDValue AVL;
+  VETargetMasks(SDValue Mask = SDValue(), SDValue AVL = SDValue())
+      : Mask(Mask), AVL(AVL) {}
+};
 
 class VECustomDAG {
   SelectionDAG &DAG;
@@ -114,13 +152,22 @@ public:
   SDValue getUNDEF(EVT VT) const { return DAG.getUNDEF(VT); }
   /// } getNode
 
+  /// Packing {
+  SDValue getUnpack(EVT DestVT, SDValue Vec, PackElem Part, SDValue AVL) const;
+  SDValue getPack(EVT DestVT, SDValue LoVec, SDValue HiVec, SDValue AVL) const;
+  /// } Packing
+
   SDValue getConstant(uint64_t Val, EVT VT, bool IsTarget = false,
                       bool IsOpaque = false) const;
 
+  SDValue getConstantMask(Packing Packing, bool AllTrue) const;
+  SDValue getMaskBroadcast(EVT ResultVT, SDValue Scalar, SDValue AVL) const;
   SDValue getBroadcast(EVT ResultVT, SDValue Scalar, SDValue AVL) const;
 
   // Wrap AVL in a LEGALAVL node (unless it is one already).
   SDValue annotateLegalAVL(SDValue AVL) const;
+  VETargetMasks getTargetSplitMask(SDValue RawMask, SDValue RawAVL,
+                                   PackElem Part) const;
 };
 
 } // namespace llvm

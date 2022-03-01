@@ -100,8 +100,6 @@ public:
   void markLive(uint64_t off) override { live = true; }
   bool isCoalescedWeak() const { return wasCoalesced && symbols.empty(); }
   bool shouldOmitFromOutput() const { return !live || isCoalescedWeak(); }
-  bool isHashableForICF() const;
-  void hashForICF();
   void writeTo(uint8_t *buf);
 
   void foldIdentical(ConcatInputSection *redundant);
@@ -283,6 +281,7 @@ constexpr const char binding[] = "__binding";
 constexpr const char bitcodeBundle[] = "__bundle";
 constexpr const char cString[] = "__cstring";
 constexpr const char cfString[] = "__cfstring";
+constexpr const char cgProfile[] = "__cg_profile";
 constexpr const char codeSignature[] = "__code_signature";
 constexpr const char common[] = "__common";
 constexpr const char compactUnwind[] = "__compact_unwind";
