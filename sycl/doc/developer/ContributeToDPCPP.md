@@ -89,11 +89,11 @@ end-to-end or SYCL-CTS tests.
 
 #### DPC++ headers and runtime tests
 
-- [check-sycl](sycl/test) target contains 2 types of tests: LIT tests and
+- [check-sycl](/sycl/test) target contains 2 types of tests: LIT tests and
   unit tests. LIT tests make compile-time checks of DPC++ headers, e.g. device
   code IR verification, static_assert tests. Unit tests check DPC++ runtime
   behavior and do not perform any device code compilation, instead relying on
-  redefining plugin API with [PiMock](sycl/unittests/helpers/PiMock.hpp) when
+  redefining plugin API with [PiMock](/sycl/unittests/helpers/PiMock.hpp) when
   necessary.
 
 ### DPC++ end-to-end (E2E) tests

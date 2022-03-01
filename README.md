@@ -55,7 +55,7 @@ See available containers with pre-built/pre-installed DPC++ compiler at:
 
 Daily builds of the sycl branch on Linux are available at
 [releases](/../../releases).
-A few times a year, we publish [Release Notes](/../sycl/ReleaseNotes.md) to
+A few times a year, we publish [Release Notes](/../sycl/sycl/ReleaseNotes.md) to
 highlight all important changes made in the project: features implemented and
 issues addressed. The corresponding builds can be found using
 [search](https://github.com/intel/llvm/releases?q=oneAPI+DPC%2B%2B+Compiler&expanded=true)
@@ -69,7 +69,7 @@ See [Get Started Guide](/../sycl/sycl/doc/GetStartedGuide.md).
 
 ### Report a problem
 
-Submit an [issue](/../../issues) or initiate a [discussion](/../../llvm/discussions).
+Submit an [issue](/../../issues) or initiate a [discussion](/../../discussions).
 
 ### How to contribute to DPC++
 
