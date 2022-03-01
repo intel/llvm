@@ -91,7 +91,7 @@ q.parallel_for(sycl::range<1>(N), [=] (sycl::id<1> i){
 
 === Changes to runtime properties
 
-This extension adds the new property `sycl::ext::intel::experimental::property::usm::buffer_location`` which applications can pass in the property_list parameter to all overloads of the `sycl::malloc_device()`, `sycl::malloc_shared()`, `sycl::malloc_host()`  function. However, this property has no effect when passed to `sycl::malloc_shared()`, `sycl::malloc_host()`. Following is a synopsis of this property.
+This extension adds the new property `sycl::ext::intel::experimental::property::usm::buffer_location` which applications can pass in the property_list parameter to all overloads of the `sycl::malloc_device()`, `sycl::malloc_shared()`, `sycl::malloc_host()`  function. However, this property has no effect when passed to `sycl::malloc_shared()`, `sycl::malloc_host()`. Following is a synopsis of this property.
 
 [source,c++]
 ----
@@ -106,7 +106,7 @@ class buffer_location {
 } // namespace sycl::ext::intel::experimental::property::usm
 ----
 
-On targets that provide more than one type of global memory, `buffer_location` allows user to specify which of the global memory to allocate memory to. This provide user the flexibility to choose the global memory that satisfy requirements for bandwodth and throughput.
+On targets that provide more than one type of global memory, `buffer_location` allows user to specify which of the global memory to allocate memory to. This provide user the flexibility to choose the global memory that satisfy requirements for bandwidth and throughput.
 
 This property is ignored for non-FPGA devices. Attempting to use this extension on other devices or backends will result in no effect.
 
