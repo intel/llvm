@@ -1544,7 +1544,6 @@ pi_result _pi_queue::executeOpenCommandList(bool IsCopy) {
   return PI_SUCCESS;
 }
 
-// NOTE: this function must be called before createAndRetainPiZeEventList.
 pi_result _pi_queue::AddBarrierInPreviousCmdListIfNeeded(bool UseCopyEngine) {
   auto &PrevCommandBatch =
       IsPrevCopyEngine ? CopyCommandBatch : ComputeCommandBatch;
@@ -1587,7 +1586,13 @@ static const bool FilterEventWaitList = [] {
 }();
 
 pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
-    pi_uint32 EventListLength, const pi_event *EventList, pi_queue CurQueue) {
+    pi_uint32 EventListLength, const pi_event *EventList, pi_queue CurQueue,
+    bool UseCopyEngine) {
+  if (CurQueue->EventlessMode) {
+    if (auto Res = CurQueue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
+      return Res;
+  }
+
   this->Length = 0;
   this->ZeEventList = nullptr;
   this->PiEventList = nullptr;
@@ -4919,16 +4924,11 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   std::lock_guard<std::mutex> QueueLock(Queue->PiQueueMutex);
 
   bool UseCopyEngine = false;
-
   Queue->EventlessMode |= !Event;
-  if (Queue->EventlessMode) {
-    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
-      return Res;
-  }
 
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
     return Res;
 
   // Get a new command list to be used on this call
@@ -5715,16 +5715,11 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
     bool UseCopyEngine = false;
-
     Queue->EventlessMode |= !Event;
-    if (Queue->EventlessMode) {
-      if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
-        return Res;
-    }
 
     _pi_ze_event_list_t TmpWaitList = {};
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
-            NumEventsInWaitList, EventWaitList, Queue))
+            NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
       return Res;
 
     // Get a new command list to be used on this call
@@ -5824,16 +5819,11 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   bool UseCopyEngine = false;
-
   Queue->EventlessMode |= !Event;
-  if (Queue->EventlessMode) {
-    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
-      return Res;
-  }
 
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
     return Res;
 
   // Get a new command list to be used on this call
@@ -5925,16 +5915,11 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
-
   Queue->EventlessMode |= !Event;
-  if (Queue->EventlessMode) {
-    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
-      return Res;
-  }
 
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
     return Res;
 
   // Get a new command list to be used on this call
@@ -6003,14 +5988,9 @@ static pi_result enqueueMemCopyRectHelper(
 
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
 
-  if (Queue->EventlessMode) {
-    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
-      return Res;
-  }
-
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
     return Res;
 
   // Get a new command list to be used on this call
@@ -6214,16 +6194,11 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   }
 
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
-
   Queue->EventlessMode |= !Event;
-  if (Queue->EventlessMode) {
-    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
-      return Res;
-  }
 
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
     return Res;
 
   if (!UseCopyEngine) {
@@ -6325,14 +6300,9 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
     // Lock automatically releases when this goes out of scope.
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-    if (Queue->EventlessMode) {
-      if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
-        return Res;
-    }
-
     _pi_ze_event_list_t TmpWaitList;
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
-            NumEventsInWaitList, EventWaitList, Queue))
+            NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
       return Res;
 
     auto Res = createEventAndAssociateQueue(Queue, Event,
@@ -6452,14 +6422,9 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     // Lock automatically releases when this goes out of scope.
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-    if (Queue->EventlessMode) {
-      if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
-        return Res;
-    }
-
     _pi_ze_event_list_t TmpWaitList;
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
-            NumEventsInWaitList, EventWaitList, Queue))
+            NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
       return Res;
 
     auto Res = createEventAndAssociateQueue(Queue, Event,
@@ -6630,17 +6595,11 @@ static pi_result enqueueMemImageCommandHelper(
 
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
 
-  if (Queue->EventlessMode) {
-    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
-      return Res;
-  }
-
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
     return Res;
 
   // Get a new command list to be used on this call
@@ -7565,12 +7524,7 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // TODO: Change UseCopyEngine argument to 'true' once L0 backend
   // support is added
   bool UseCopyEngine = false;
-
   Queue->EventlessMode |= !Event;
-  if (Queue->EventlessMode) {
-    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
-      return Res;
-  }
 
   /**
    * @brief Please note that the following code should be run before the
@@ -7578,8 +7532,8 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
    * dead-lock from waiting unsubmitted events in an open batch.
    */
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
     return Res;
 
   // Get a new command list to be used on this call
@@ -7647,17 +7601,12 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // TODO: Additional analysis is required to check if this operation will
   // run faster on copy engines.
   bool UseCopyEngine = false;
-
   Queue->EventlessMode |= !Event;
-  if (Queue->EventlessMode) {
-    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
-      return Res;
-  }
-
   auto ZeAdvice = pi_cast<ze_memory_advice_t>(Advice);
 
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(0, nullptr, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(0, nullptr, Queue,
+                                                          UseCopyEngine))
     return Res;
 
   // Get a new command list to be used on this call
