@@ -1,4 +1,4 @@
-; RUN: spirv-to-ir-wrapper %s -o %t.out -skip-non-llvmir
+; RUN: spirv-to-ir-wrapper %s -o %t.out -skip-unknown-input
 ; RUN: FileCheck %s --input-file %t.out --allow-empty --check-prefix=CHECK_EMPTY
 ; CHECK_EMPTY-NOT: JUST SOME TEXT
 

@@ -47,10 +47,11 @@ static cl::opt<std::string>
     LlvmSpirvOpts("llvm-spirv-opts", cl::value_desc("llvm-spirv options"),
                   cl::desc("options to pass to llvm-spirv"));
 
-// SkipNonLLVMIR - Skip non-LLVM-IR files (create empty output instead)
+// SkipUnknown - Skip unknown files (create empty output instead)
 static cl::opt<bool>
-    SkipNonLLVMIR("skip-non-llvmir",
-                  cl::desc("Do not pass through non-IR files"));
+    SkipUnknown("skip-unknown-input",
+                cl::desc("Only pass through files that are LLVM-IR or "
+                         "converted from SPIR-V"));
 
 static void error(const Twine &Message) {
   llvm::errs() << "spirv-to-ir-wrapper: " << Message << '\n';
@@ -129,7 +130,7 @@ static int checkInputFileIsAlreadyLLVM(const char *Argv0) {
   if (Ext == "spv" || isSPIRVBinary(InputFilename))
     return convertSPIRVToLLVMIR(Argv0);
 
-  if (SkipNonLLVMIR)
+  if (SkipUnknown)
     return createEmptyOutput();
 
   // We could not directly determine the input file, so we just copy it

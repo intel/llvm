@@ -1,6 +1,6 @@
 ; Check for passthrough abilities
 ; RUN: llvm-as %s -o %t.bc
-; RUN: spirv-to-ir-wrapper %t.bc -o %t_1.bc -skip-non-llvmir
+; RUN: spirv-to-ir-wrapper %t.bc -o %t_1.bc -skip-unknown-input
 ; RUN: llvm-dis %t_1.bc -o %t_1.ll
 ; RUN: FileCheck %s --input-file %t_1.ll
 
