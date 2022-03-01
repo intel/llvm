@@ -12,10 +12,8 @@ on:
 jobs:
   ubuntu2004_build_test:
     if: github.repository == 'intel/llvm'
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
-      build_runs_on: build
-      build_github_cache: true
       build_cache_root: "/__w/"
       build_artifact_suffix: default
       lts_config: "ocl_gen9;ocl_x64;hip_amdgpu"
@@ -64,7 +62,7 @@ jobs:
   ubuntu2004_build_test_new_pm:
     # Default Linux building and LIT testing using new Pass Manager by default
     if: github.repository == 'intel/llvm'
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
       build_runs_on: build
       build_cache_root: "/__w/"
