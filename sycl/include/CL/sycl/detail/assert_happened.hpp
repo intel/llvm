@@ -12,7 +12,7 @@
 
 #include <cstdint>
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__) && __SYCL_USE_FALLBACK_ASSERT
 // Reads Flag of AssertHappened on device
 SYCL_EXTERNAL __attribute__((weak)) extern "C" void
 __devicelib_assert_read(void *);
