@@ -20,6 +20,7 @@
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/APSInt.h"
@@ -419,9 +420,9 @@ bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   return false;
 }
 
-static bool isZeroSizedArray(QualType Ty) {
-  if (const auto *CATy = dyn_cast<ConstantArrayType>(Ty))
-    return CATy->getSize() == 0;
+static bool isZeroSizedArray(Sema &SemaRef, QualType Ty) {
+  if (const auto *CAT = SemaRef.getASTContext().getAsConstantArrayType(Ty))
+    return CAT->getSize() == 0;
   return false;
 }
 
@@ -443,8 +444,9 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
   //--- check types ---
 
   // zero length arrays
-  if (isZeroSizedArray(Ty)) {
-    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size);
+  if (isZeroSizedArray(S, Ty)) {
+    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size)
+        << 1;
     Emitting = true;
   }
 
@@ -514,6 +516,10 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   if (!Callee)
     return false;
 
+  // The check below requires declaration name, make sure we have it.
+  if (!Callee->getIdentifier())
+    return false;
+
   // libstdc++-11 introduced an undefined function "void __failed_assertion()"
   // which may lead to SemaSYCL check failure. However, this undefined function
   // is used to trigger some compilation error when the check fails at compile
@@ -569,7 +575,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
       return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
                  SYCLIntelFPGADisableLoopPipeliningAttr,
                  SYCLIntelFPGAInitiationIntervalAttr,
-                 SYCLIntelUseStallEnableClustersAttr>(A);
+                 SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr>(A);
     });
   }
 }
@@ -630,9 +636,16 @@ public:
       }
     } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr &&
                !e->isTypeDependent() &&
-               !isa<CXXPseudoDestructorExpr>(e->getCallee()))
-      SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-          << Sema::KernelCallFunctionPointer;
+               !isa<CXXPseudoDestructorExpr>(e->getCallee())) {
+      bool MaybeConstantExpr = false;
+      Expr *NonDirectCallee = e->getCallee();
+      if (!NonDirectCallee->isValueDependent())
+        MaybeConstantExpr =
+            NonDirectCallee->isCXX11ConstantExpr(SemaRef.getASTContext());
+      if (!MaybeConstantExpr)
+        SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
+            << Sema::KernelCallFunctionPointer;
+    }
     return true;
   }
 
@@ -810,7 +823,8 @@ class SingleDeviceFunctionTracker {
     // false-positives.
     if (isSYCLKernelBodyFunction(CurrentDecl)) {
       // This is a direct callee of the kernel.
-      if (CallStack.size() == 1) {
+      if (CallStack.size() == 1 &&
+          CallStack.back()->hasAttr<SYCLKernelAttr>()) {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
                               "function can be called");
         KernelBody = CurrentDecl;
@@ -1274,7 +1288,6 @@ class KernelObjVisitor {
     assert(CAT && "Should only be called on constant-size array.");
     QualType ET = CAT->getElementType();
     uint64_t ElemCount = CAT->getSize().getZExtValue();
-    assert(ElemCount > 0 && "SYCL prohibits 0 sized arrays");
 
     (void)std::initializer_list<int>{
         (Handlers.enterArray(Field, ArrayTy, ET), 0)...};
@@ -1562,6 +1575,7 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
 class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
+  bool IsSIMD = false;
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, QualType FieldTy) {
@@ -1647,6 +1661,10 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     assert(Util::isSyclSpecialType(Ty) &&
            "Should only be called on sycl special class types.");
     const RecordDecl *RecD = Ty->getAsRecordDecl();
+    if (IsSIMD && !Util::isSyclType(Ty, "accessor", true /*Tmp*/))
+      return SemaRef.Diag(Loc.getBegin(),
+                          diag::err_sycl_esimd_not_supported_for_type)
+             << RecD;
     if (const ClassTemplateSpecializationDecl *CTSD =
             dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
       const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
@@ -1661,8 +1679,9 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   }
 
 public:
-  SyclKernelFieldChecker(Sema &S)
-      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
+  SyclKernelFieldChecker(Sema &S, bool isSIMD)
+      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()),
+        IsSIMD(isSIMD) {}
   static constexpr const bool VisitNthArrayElement = false;
   bool isValid() { return !IsInvalid; }
 
@@ -1962,10 +1981,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // Additional processing is required for accessor type.
   void handleAccessorType(const CXXRecordDecl *RecordDecl, SourceLocation Loc) {
     handleAccessorPropertyList(Params.back(), RecordDecl, Loc);
-    if (KernelDecl->hasAttr<SYCLSimdAttr>())
-      // In ESIMD, the kernels accessor's pointer argument needs to be marked.
-      Params.back()->addAttr(
-          SYCLSimdAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
     // Get access mode of accessor.
     const auto *AccessorSpecializationDecl =
         cast<ClassTemplateSpecializationDecl>(RecordDecl);
@@ -1977,6 +1992,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     if (isReadOnlyAccessor(AccessModeArg))
       Params.back()->addAttr(
           SYCLAccessorReadonlyAttr::CreateImplicit(SemaRef.getASTContext()));
+    Params.back()->addAttr(
+        SYCLAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
   }
 
   // All special SYCL objects must have __init method. We extract types for
@@ -2247,7 +2264,9 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
-        IsSIMD ? InitESIMDMethodName : InitMethodName;
+        (IsSIMD && Util::isSyclType(FieldTy, "accessor", true /*Tmp*/))
+            ? InitESIMDMethodName
+            : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
     for (const ParmVarDecl *Param : InitMethod->parameters())
@@ -3072,10 +3091,6 @@ public:
     CollectionInitExprs.pop_back();
     ArrayInfos.pop_back();
 
-    assert(
-        !SemaRef.getASTContext().getAsConstantArrayType(ArrayType)->getSize() ==
-            0 &&
-        "Constant arrays must have at least 1 element");
     // Remove the IndexExpr.
     MemberExprBases.pop_back();
 
@@ -3550,11 +3565,12 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   if (KernelObj->isInvalidDecl())
     return;
 
+  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
+
   SyclKernelDecompMarker DecompMarker(*this);
-  SyclKernelFieldChecker FieldChecker(*this);
+  SyclKernelFieldChecker FieldChecker(*this, IsSIMDKernel);
   SyclKernelUnionChecker UnionChecker(*this);
 
-  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
   SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc(),
                                             IsSIMDKernel);
 
@@ -3895,9 +3911,9 @@ static void PropagateAndDiagnoseDeviceAttr(
     } else if (auto *Existing =
                    SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
       ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) < RWGSA->getXDimVal(Ctx) ||
-          Existing->getYDimVal(Ctx) < RWGSA->getYDimVal(Ctx) ||
-          Existing->getZDimVal(Ctx) < RWGSA->getZDimVal(Ctx)) {
+      if (*Existing->getXDimVal() < RWGSA->getXDimVal(Ctx) ||
+          *Existing->getYDimVal() < RWGSA->getYDimVal(Ctx) ||
+          *Existing->getZDimVal() < RWGSA->getZDimVal(Ctx)) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3915,9 +3931,9 @@ static void PropagateAndDiagnoseDeviceAttr(
     auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
       ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) > SIMWGSA->getXDimVal(Ctx) ||
-          Existing->getYDimVal(Ctx) > SIMWGSA->getYDimVal(Ctx) ||
-          Existing->getZDimVal(Ctx) > SIMWGSA->getZDimVal(Ctx)) {
+      if (Existing->getXDimVal(Ctx) > *SIMWGSA->getXDimVal() ||
+          Existing->getYDimVal(Ctx) > *SIMWGSA->getYDimVal() ||
+          Existing->getZDimVal(Ctx) > *SIMWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3952,6 +3968,7 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
   case attr::Kind::SYCLIntelFPGAInitiationInterval:
   case attr::Kind::SYCLIntelUseStallEnableClusters:
+  case attr::Kind::SYCLDeviceHas:
     SYCLKernel->addAttr(A);
     break;
   case attr::Kind::IntelNamedSubGroupSize:
@@ -4046,6 +4063,98 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
          DiagKind != SemaDiagnosticBuilder::K_ImmediateWithCallStack;
 }
 
+void Sema::deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
+                                      llvm::DenseSet<QualType> Visited,
+                                      ValueDecl *DeclToCheck) {
+  assert(getLangOpts().SYCLIsDevice &&
+         "Should only be called during SYCL compilation");
+  // Emit notes only for the first discovered declaration of unsupported type
+  // to avoid mess of notes. This flag is to track that error already happened.
+  bool NeedToEmitNotes = true;
+
+  auto Check = [&](QualType TypeToCheck, const ValueDecl *D) {
+    bool ErrorFound = false;
+    if (isZeroSizedArray(*this, TypeToCheck)) {
+      SYCLDiagIfDeviceCode(UsedAt, diag::err_typecheck_zero_array_size) << 1;
+      ErrorFound = true;
+    }
+    // Checks for other types can also be done here.
+    if (ErrorFound) {
+      if (NeedToEmitNotes) {
+        if (auto *FD = dyn_cast<FieldDecl>(D))
+          SYCLDiagIfDeviceCode(FD->getLocation(),
+                               diag::note_illegal_field_declared_here)
+              << FD->getType()->isPointerType() << FD->getType();
+        else
+          SYCLDiagIfDeviceCode(D->getLocation(), diag::note_declared_at);
+      }
+    }
+
+    return ErrorFound;
+  };
+
+  // In case we have a Record used do the DFS for a bad field.
+  SmallVector<const ValueDecl *, 4> StackForRecursion;
+  StackForRecursion.push_back(DeclToCheck);
+
+  // While doing DFS save how we get there to emit a nice set of notes.
+  SmallVector<const FieldDecl *, 4> History;
+  History.push_back(nullptr);
+
+  do {
+    const ValueDecl *Next = StackForRecursion.pop_back_val();
+    if (!Next) {
+      assert(!History.empty());
+      // Found a marker, we have gone up a level.
+      History.pop_back();
+      continue;
+    }
+    QualType NextTy = Next->getType();
+
+    if (!Visited.insert(NextTy).second)
+      continue;
+
+    auto EmitHistory = [&]() {
+      // The first element is always nullptr.
+      for (uint64_t Index = 1; Index < History.size(); ++Index) {
+        SYCLDiagIfDeviceCode(History[Index]->getLocation(),
+                             diag::note_within_field_of_type)
+            << History[Index]->getType();
+      }
+    };
+
+    if (Check(NextTy, Next)) {
+      if (NeedToEmitNotes)
+        EmitHistory();
+      NeedToEmitNotes = false;
+    }
+
+    // In case pointer/array/reference type is met get pointee type, then
+    // proceed with that type.
+    while (NextTy->isAnyPointerType() || NextTy->isArrayType() ||
+           NextTy->isReferenceType()) {
+      if (NextTy->isArrayType())
+        NextTy = QualType{NextTy->getArrayElementTypeNoTypeQual(), 0};
+      else
+        NextTy = NextTy->getPointeeType();
+      if (Check(NextTy, Next)) {
+        if (NeedToEmitNotes)
+          EmitHistory();
+        NeedToEmitNotes = false;
+      }
+    }
+
+    if (const auto *RecDecl = NextTy->getAsRecordDecl()) {
+      if (auto *NextFD = dyn_cast<FieldDecl>(Next))
+        History.push_back(NextFD);
+      // When nullptr is discovered, this means we've gone back up a level, so
+      // the history should be cleaned.
+      StackForRecursion.push_back(nullptr);
+      llvm::copy(RecDecl->fields(), std::back_inserter(StackForRecursion));
+    }
+  } while (!StackForRecursion.empty());
+}
+
 void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
                                        const FunctionDecl *Callee,
                                        SourceLocation Loc,
@@ -4067,6 +4176,7 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   // Currently, there is an exception of "__failed_assertion" in libstdc++-11,
   // this undefined function is used to trigger a compiling error.
   if (!Callee->isDefined() && !Callee->getBuiltinID() &&
+      !Callee->isReplaceableGlobalAllocationFunction() &&
       !isSYCLUndefinedAllowed(Callee, getSourceManager())) {
     Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
     Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
@@ -4508,6 +4618,21 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   Policy.SuppressUnwrittenScope = true;
   SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
+  // Predefines which need to be set for custom host compilation
+  // must be defined in integration header.
+  for (const std::pair<StringRef, StringRef> &Macro :
+       getSYCLVersionMacros(S.getLangOpts())) {
+    O << "#ifndef " << Macro.first << '\n';
+    O << "#define " << Macro.first << " " << Macro.second << '\n';
+    O << "#endif //" << Macro.first << "\n\n";
+  }
+
+  if (S.getLangOpts().SYCLDisableRangeRounding) {
+    O << "#ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ \n";
+    O << "#define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
+    O << "#endif //__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
+  }
+
   if (SpecConsts.size() > 0) {
     O << "// Forward declarations of templated spec constant types:\n";
     for (const auto &SC : SpecConsts)
@@ -4598,6 +4723,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
+    PresumedLoc PLoc = S.Context.getSourceManager().getPresumedLoc(
+        S.Context.getSourceManager()
+            .getExpansionRange(K.KernelLocation)
+            .getEnd());
     if (K.IsUnnamedKernel) {
       O << "template <> struct KernelInfoData<";
       OutputStableNameInChars(O, K.StableName);
@@ -4621,6 +4750,44 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
       << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getFileName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \""
+      << std::string(PLoc.getFilename())
+             .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getFunctionName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \"";
+    SYCLKernelNameTypePrinter Printer(O, Policy);
+    Printer.Visit(K.NameType);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getLineNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getLine() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getColumnNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getColumn() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
     O << "};\n";
     CurStart += N;
   }
@@ -4965,14 +5132,14 @@ bool Util::isSyclKernelHandlerType(QualType Ty) {
 
 bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
   std::array<DeclContextDesc, 7> Scopes = {
-      Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "ext"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "oneapi"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
-      Util::DeclContextDesc{Decl::Kind::CXXRecord, "no_alias"},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
-                            "instance"}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
+      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "no_alias"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "instance")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 

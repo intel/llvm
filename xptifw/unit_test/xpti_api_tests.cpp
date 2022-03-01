@@ -3,6 +3,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
+#include "xpti/xpti_trace_framework.h"
 #include "xpti/xpti_trace_framework.hpp"
 
 #include <gtest/gtest.h>
@@ -433,8 +434,16 @@ TEST_F(xptiApiTest, xptiNotifySubscribersGoodInput) {
       StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_destruct,
       fn_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_release,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_accessor,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
-  xpti::offload_buffer_data_t UserBufferData{0x01020304};
+  xpti::offload_buffer_data_t UserBufferData{1, 5, "int", 4, 2, {3, 2, 0}};
   xpti::offload_buffer_association_data_t AssociationData{0x01020304,
                                                           0x05060708};
   xpti::offload_accessor_data_t UserAccessorData{0x01020304, 0x09000102, 1, 2};
@@ -513,13 +522,9 @@ TEST_F(xptiApiTest, xptiAddMetadataBadInput) {
                              &instance);
   EXPECT_NE(Event, nullptr);
 
-  auto Result = xptiAddMetadata(nullptr, nullptr, nullptr);
+  auto Result = xptiAddMetadata(nullptr, nullptr, 0);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
-  Result = xptiAddMetadata(Event, nullptr, nullptr);
-  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
-  Result = xptiAddMetadata(Event, "foo", nullptr);
-  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
-  Result = xptiAddMetadata(Event, nullptr, "bar");
+  Result = xptiAddMetadata(Event, nullptr, 0);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
 }
 
@@ -531,9 +536,10 @@ TEST_F(xptiApiTest, xptiAddMetadataGoodInput) {
                              &instance);
   EXPECT_NE(Event, nullptr);
 
-  auto Result = xptiAddMetadata(Event, "foo", "bar");
+  xpti::object_id_t ID = xptiRegisterObject("bar", 3, 0);
+  auto Result = xptiAddMetadata(Event, "foo", ID);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
-  Result = xptiAddMetadata(Event, "foo", "bar");
+  Result = xptiAddMetadata(Event, "foo", ID);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_DUPLICATE);
 }
 
@@ -548,12 +554,14 @@ TEST_F(xptiApiTest, xptiQueryMetadata) {
   auto md = xptiQueryMetadata(Event);
   EXPECT_NE(md, nullptr);
 
-  auto Result = xptiAddMetadata(Event, "foo1", "bar1");
+  xpti::object_id_t ID = xptiRegisterObject("bar1", 4, 0);
+  auto Result = xptiAddMetadata(Event, "foo1", ID);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
   char *ts;
   EXPECT_EQ(md->size(), 1);
-  auto ID = (*md)[xptiRegisterString("foo1", &ts)];
-  auto str = xptiLookupString(ID);
-  EXPECT_STREQ(str, "bar1");
+  auto MDID = (*md)[xptiRegisterString("foo1", &ts)];
+  auto obj = xptiLookupObject(MDID);
+  std::string str{obj.data, obj.size};
+  EXPECT_EQ(str, "bar1");
 }

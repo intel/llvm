@@ -60,10 +60,13 @@ public:
     return static_cast<const T *>(this)->FlagAndTDataAlignment &
            AuxiHeaderFlagMask;
   }
+
   uint8_t getTDataAlignment() const {
     return static_cast<const T *>(this)->FlagAndTDataAlignment &
            AuxiHeaderTDataAlignmentMask;
   }
+
+  uint16_t getVersion() const { return static_cast<const T *>(this)->Version; }
 };
 
 struct XCOFFAuxiliaryHeader32 : XCOFFAuxiliaryHeader<XCOFFAuxiliaryHeader32> {
@@ -347,6 +350,57 @@ struct XCOFFSectAuxEntForStat {
   support::ubig16_t NumberOfLineNum;
   uint8_t Pad[10];
 }; // 32-bit XCOFF file only.
+
+struct XCOFFFunctionAuxEnt32 {
+  support::ubig32_t OffsetToExceptionTbl;
+  support::ubig32_t SizeOfFunction;
+  support::ubig32_t PtrToLineNum;
+  support::big32_t SymIdxOfNextBeyond;
+  uint8_t Pad[2];
+};
+
+struct XCOFFFunctionAuxEnt64 {
+  support::ubig64_t PtrToLineNum;
+  support::ubig32_t SizeOfFunction;
+  support::big32_t SymIdxOfNextBeyond;
+  uint8_t Pad;
+  XCOFF::SymbolAuxType AuxType; // Contains _AUX_FCN; Type of auxiliary entry
+};
+
+struct XCOFFExceptionAuxEnt {
+  support::ubig64_t OffsetToExceptionTbl;
+  support::ubig32_t SizeOfFunction;
+  support::big32_t SymIdxOfNextBeyond;
+  uint8_t Pad;
+  XCOFF::SymbolAuxType AuxType; // Contains _AUX_EXCEPT; Type of auxiliary entry
+};
+
+struct XCOFFBlockAuxEnt32 {
+  uint8_t ReservedZeros1[2];
+  support::ubig16_t LineNumHi;
+  support::ubig16_t LineNumLo;
+  uint8_t ReservedZeros2[12];
+};
+
+struct XCOFFBlockAuxEnt64 {
+  support::ubig32_t LineNum;
+  uint8_t Pad[13];
+  XCOFF::SymbolAuxType AuxType; // Contains _AUX_SYM; Type of auxiliary entry
+};
+
+struct XCOFFSectAuxEntForDWARF32 {
+  support::ubig32_t LengthOfSectionPortion;
+  uint8_t Pad1[4];
+  support::ubig32_t NumberOfRelocEnt;
+  uint8_t Pad2[6];
+};
+
+struct XCOFFSectAuxEntForDWARF64 {
+  support::ubig64_t LengthOfSectionPortion;
+  support::ubig64_t NumberOfRelocEnt;
+  uint8_t Pad;
+  XCOFF::SymbolAuxType AuxType; // Contains _AUX_SECT; Type of Auxillary entry
+};
 
 template <typename AddressType> struct XCOFFRelocation {
   // Masks for packing/unpacking the r_rsize field of relocations.

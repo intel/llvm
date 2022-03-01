@@ -42,7 +42,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
-#include "llvm/SYCLLowerIR/ESIMDVerifier.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/Support/BuryPointer.h"
@@ -88,6 +88,7 @@
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/Debugify.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
 #include <memory>
@@ -201,8 +202,7 @@ public:
   PassManagerBuilderWrapper(const Triple &TargetTriple,
                             const CodeGenOptions &CGOpts,
                             const LangOptions &LangOpts)
-      : PassManagerBuilder(), TargetTriple(TargetTriple), CGOpts(CGOpts),
-        LangOpts(LangOpts) {}
+      : TargetTriple(TargetTriple), CGOpts(CGOpts), LangOpts(LangOpts) {}
   const Triple &getTargetTriple() const { return TargetTriple; }
   const CodeGenOptions &getCGOpts() const { return CGOpts; }
   const LangOptions &getLangOpts() const { return LangOpts; }
@@ -285,7 +285,7 @@ static bool asanUseGlobalsGC(const Triple &T, const CodeGenOptions &CGOpts) {
   case Triple::COFF:
     return true;
   case Triple::ELF:
-    return CGOpts.DataSections && !CGOpts.DisableIntegratedAS;
+    return !CGOpts.DisableIntegratedAS;
   case Triple::GOFF:
     llvm::report_fatal_error("ASan not implemented for GOFF");
   case Triple::XCOFF:
@@ -363,7 +363,8 @@ static void addGeneralOptsForMemorySanitizer(const PassManagerBuilder &Builder,
   int TrackOrigins = CGOpts.SanitizeMemoryTrackOrigins;
   bool Recover = CGOpts.SanitizeRecover.has(SanitizerKind::Memory);
   PM.add(createMemorySanitizerLegacyPassPass(
-      MemorySanitizerOptions{TrackOrigins, Recover, CompileKernel}));
+      MemorySanitizerOptions{TrackOrigins, Recover, CompileKernel,
+                             CGOpts.SanitizeMemoryParamRetval != 0}));
 
   // MemorySanitizer inserts complex instrumentation that mostly follows
   // the logic of the original code, but operates on "shadow" values.
@@ -609,6 +610,10 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.EnableAIXExtendedAltivecABI = CodeGenOpts.EnableAIXExtendedAltivecABI;
   Options.XRayOmitFunctionIndex = CodeGenOpts.XRayOmitFunctionIndex;
   Options.LoopAlignment = CodeGenOpts.LoopAlignment;
+  Options.DebugStrictDwarf = CodeGenOpts.DebugStrictDwarf;
+  Options.ObjectFilenameForDebug = CodeGenOpts.ObjectFilenameForDebug;
+  Options.Hotpatch = CodeGenOpts.HotPatch;
+  Options.JMCInstrument = CodeGenOpts.JMCInstrument;
 
   switch (CodeGenOpts.getSwiftAsyncFramePointer()) {
   case CodeGenOptions::SwiftAsyncFramePointerKind::Auto:
@@ -647,8 +652,6 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
           Entry.IgnoreSysRoot ? Entry.Path : HSOpts.Sysroot + Entry.Path);
   Options.MCOptions.Argv0 = CodeGenOpts.Argv0;
   Options.MCOptions.CommandLineArgs = CodeGenOpts.CommandLineArgs;
-  Options.DebugStrictDwarf = CodeGenOpts.DebugStrictDwarf;
-  Options.ObjectFilenameForDebug = CodeGenOpts.ObjectFilenameForDebug;
 
   return true;
 }
@@ -1045,9 +1048,8 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
   // -fsycl-instrument-device-code option was passed. This option can be
   // used only with spir triple.
   if (CodeGenOpts.SPIRITTAnnotations) {
-    if (!llvm::Triple(TheModule->getTargetTriple()).isSPIR())
-      llvm::report_fatal_error(
-          "ITT annotations can only by added to a module with spir target");
+    assert(llvm::Triple(TheModule->getTargetTriple()).isSPIR() &&
+           "ITT annotations can only be added to a module with spir target");
     PerModulePasses.add(createSPIRITTAnnotationsLegacyPass());
   }
 
@@ -1198,11 +1200,11 @@ static void addSanitizers(const Triple &TargetTriple,
         int TrackOrigins = CodeGenOpts.SanitizeMemoryTrackOrigins;
         bool Recover = CodeGenOpts.SanitizeRecover.has(Mask);
 
-        MPM.addPass(
-            ModuleMemorySanitizerPass({TrackOrigins, Recover, CompileKernel}));
+        MemorySanitizerOptions options(TrackOrigins, Recover, CompileKernel,
+                                       CodeGenOpts.SanitizeMemoryParamRetval);
+        MPM.addPass(ModuleMemorySanitizerPass(options));
         FunctionPassManager FPM;
-        FPM.addPass(
-            MemorySanitizerPass({TrackOrigins, Recover, CompileKernel}));
+        FPM.addPass(MemorySanitizerPass(options));
         if (Level != OptimizationLevel::O0) {
           // MemorySanitizer inserts complex instrumentation that mostly
           // follows the logic of the original code, but operates on
@@ -1491,9 +1493,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   // -fsycl-instrument-device-code option was passed. This option can be used
   // only with spir triple.
   if (CodeGenOpts.SPIRITTAnnotations) {
-    if (!llvm::Triple(TheModule->getTargetTriple()).isSPIR())
-      llvm::report_fatal_error(
-          "ITT annotations can only by added to a module with spir target");
+    assert(llvm::Triple(TheModule->getTargetTriple()).isSPIR() &&
+           "ITT annotations can only be added to a module with spir target");
     MPM.addPass(SPIRITTAnnotationsPass());
   }
 
@@ -1555,8 +1556,11 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   }
 
   // Now that we have all of the passes ready, run them.
-  PrettyStackTraceString CrashInfo("Optimizer");
-  MPM.run(*TheModule, MAM);
+  {
+    PrettyStackTraceString CrashInfo("Optimizer");
+    llvm::TimeTraceScope TimeScope("Optimizer");
+    MPM.run(*TheModule, MAM);
+  }
 }
 
 void EmitAssemblyHelper::RunCodegenPipeline(
@@ -1588,8 +1592,11 @@ void EmitAssemblyHelper::RunCodegenPipeline(
     return;
   }
 
-  PrettyStackTraceString CrashInfo("Code generation");
-  CodeGenPasses.run(*TheModule);
+  {
+    PrettyStackTraceString CrashInfo("Code generation");
+    llvm::TimeTraceScope TimeScope("CodeGenPasses");
+    CodeGenPasses.run(*TheModule);
+  }
 }
 
 /// A clean version of `EmitAssembly` that uses the new pass manager.
@@ -1802,8 +1809,36 @@ void clang::EmbedBitcode(llvm::Module *M, const CodeGenOptions &CGOpts,
                          llvm::MemoryBufferRef Buf) {
   if (CGOpts.getEmbedBitcode() == CodeGenOptions::Embed_Off)
     return;
-  llvm::EmbedBitcodeInModule(
+  llvm::embedBitcodeInModule(
       *M, Buf, CGOpts.getEmbedBitcode() != CodeGenOptions::Embed_Marker,
       CGOpts.getEmbedBitcode() != CodeGenOptions::Embed_Bitcode,
       CGOpts.CmdArgs);
+}
+
+void clang::EmbedObject(llvm::Module *M, const CodeGenOptions &CGOpts,
+                        DiagnosticsEngine &Diags) {
+  if (CGOpts.OffloadObjects.empty())
+    return;
+
+  for (StringRef OffloadObject : CGOpts.OffloadObjects) {
+    if (OffloadObject.count(',') != 1) {
+      Diags.Report(Diags.getCustomDiagID(
+          DiagnosticsEngine::Error, "Invalid string pair for embedding '%0'"))
+          << OffloadObject;
+      return;
+    }
+    auto FilenameAndSection = OffloadObject.split(',');
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ObjectOrErr =
+        llvm::MemoryBuffer::getFileOrSTDIN(std::get<0>(FilenameAndSection));
+    if (std::error_code EC = ObjectOrErr.getError()) {
+      auto DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                                          "could not open '%0' for embedding");
+      Diags.Report(DiagID) << std::get<0>(FilenameAndSection);
+      return;
+    }
+
+    SmallString<128> SectionName(
+        {".llvm.offloading.", std::get<1>(FilenameAndSection)});
+    llvm::embedBufferInModule(*M, **ObjectOrErr, SectionName);
+  }
 }

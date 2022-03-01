@@ -14,14 +14,12 @@
 #define LLVM_ANALYSIS_INLINECOST_H
 
 #include "llvm/Analysis/AssumptionCache.h"
-#include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/InlineModelFeatureMaps.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include <cassert>
 #include <climits>
 
 namespace llvm {
-class AssumptionCacheTracker;
 class BlockFrequencyInfo;
 class CallBase;
 class DataLayout;

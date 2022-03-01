@@ -9,15 +9,14 @@
 #ifndef LLD_ELF_SYMBOL_TABLE_H
 #define LLD_ELF_SYMBOL_TABLE_H
 
-#include "InputFiles.h"
 #include "Symbols.h"
-#include "lld/Common/Strings.h"
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/STLExtras.h"
 
 namespace lld {
 namespace elf {
+
+class InputFile;
 
 // SymbolTable is a bucket of all known symbols, including defined,
 // undefined, or lazy symbols (the last one is symbols in archive
@@ -32,23 +31,15 @@ namespace elf {
 // add*() functions, which are called by input files as they are parsed. There
 // is one add* function per symbol type.
 class SymbolTable {
-  struct FilterOutPlaceholder {
-    bool operator()(Symbol *S) const { return !S->isPlaceholder(); }
-  };
-  using iterator =
-      llvm::filter_iterator<SmallVector<Symbol *, 0>::const_iterator,
-                            FilterOutPlaceholder>;
-
 public:
-  llvm::iterator_range<iterator> symbols() const {
-    return llvm::make_filter_range(symVector, FilterOutPlaceholder());
-  }
+  ArrayRef<Symbol *> symbols() const { return symVector; }
 
   void wrap(Symbol *sym, Symbol *real, Symbol *wrap);
 
   Symbol *insert(StringRef name);
 
   Symbol *addSymbol(const Symbol &newSym);
+  Symbol *addAndCheckDuplicate(const Defined &newSym);
 
   void scanVersionScript();
 
@@ -57,7 +48,7 @@ public:
   void handleDynamicList();
 
   // Set of .so files to not link the same shared object file more than once.
-  llvm::DenseMap<StringRef, SharedFile *> soNames;
+  llvm::DenseMap<llvm::CachedHashStringRef, SharedFile *> soNames;
 
   // Comdat groups define "link once" sections. If two comdat groups have the
   // same name, only one of them is linked, and the other is ignored. This map

@@ -9,6 +9,7 @@
 #ifndef _LIBCPP___RANGES_EMPTY_H
 #define _LIBCPP___RANGES_EMPTY_H
 
+#include <__concepts/class_or_enum.h>
 #include <__config>
 #include <__iterator/concepts.h>
 #include <__ranges/access.h>
@@ -16,21 +17,23 @@
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_RANGES)
+#if !defined(_LIBCPP_HAS_NO_CONCEPTS) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
 
 // [range.prim.empty]
 
 namespace ranges {
 namespace __empty {
   template <class _Tp>
-  concept __member_empty = requires(_Tp&& __t) {
-    bool(__t.empty());
-  };
+  concept __member_empty =
+    __workaround_52970<_Tp> &&
+    requires(_Tp&& __t) {
+      bool(__t.empty());
+    };
 
   template<class _Tp>
   concept __can_invoke_size =
@@ -65,14 +68,14 @@ namespace __empty {
       return ranges::begin(__t) == ranges::end(__t);
     }
   };
-}
+} // namespace __empty
 
 inline namespace __cpo {
   inline constexpr auto empty = __empty::__fn{};
 } // namespace __cpo
 } // namespace ranges
 
-#endif // !defined(_LIBCPP_HAS_NO_RANGES)
+#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
 

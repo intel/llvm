@@ -246,10 +246,10 @@ let Defs = [SCC] in {
 def S_BCNT0_I32_B32 : SOP1_32 <"s_bcnt0_i32_b32">;
 def S_BCNT0_I32_B64 : SOP1_32_64 <"s_bcnt0_i32_b64">;
 def S_BCNT1_I32_B32 : SOP1_32 <"s_bcnt1_i32_b32",
-  [(set i32:$sdst, (ctpop i32:$src0))]
+  [(set i32:$sdst, (UniformUnaryFrag<ctpop> i32:$src0))]
 >;
 def S_BCNT1_I32_B64 : SOP1_32_64 <"s_bcnt1_i32_b64",
-  [(set i32:$sdst, (ctpop i64:$src0))]
+  [(set i32:$sdst, (UniformUnaryFrag<ctpop> i64:$src0))]
 >;
 } // End Defs = [SCC]
 
@@ -276,10 +276,10 @@ def S_FLBIT_I32 : SOP1_32 <"s_flbit_i32",
 >;
 def S_FLBIT_I32_I64 : SOP1_32_64 <"s_flbit_i32_i64">;
 def S_SEXT_I32_I8 : SOP1_32 <"s_sext_i32_i8",
-  [(set i32:$sdst, (sext_inreg i32:$src0, i8))]
+  [(set i32:$sdst, (UniformSextInreg<i8> i32:$src0))]
 >;
 def S_SEXT_I32_I16 : SOP1_32 <"s_sext_i32_i16",
-  [(set i32:$sdst, (sext_inreg i32:$src0, i16))]
+  [(set i32:$sdst, (UniformSextInreg<i16> i32:$src0))]
 >;
 } // End isReMaterializable = 1
 
@@ -341,7 +341,7 @@ def S_CBRANCH_JOIN : SOP1_0_32R <"s_cbranch_join">;
 
 let Defs = [SCC] in {
 def S_ABS_I32 : SOP1_32 <"s_abs_i32",
-    [(set i32:$sdst, (abs i32:$src0))]
+    [(set i32:$sdst, (UniformUnaryFrag<abs> i32:$src0))]
   >;
 } // End Defs = [SCC]
 
@@ -518,10 +518,9 @@ let Uses = [SCC] in {
     def S_CSELECT_B32 : SOP2_32 <"s_cselect_b32",
       [(set i32:$sdst, (SelectPat<select> i32:$src0, i32:$src1))]
     >;
-    def S_CSELECT_B64 : SOP2_64 <"s_cselect_b64",
-      [(set i64:$sdst, (SelectPat<select> i64:$src0, i64:$src1))]
-    >;
   }
+
+  def S_CSELECT_B64 : SOP2_64 <"s_cselect_b64">;
 } // End Uses = [SCC]
 
 let Defs = [SCC] in {
@@ -551,11 +550,11 @@ def S_XOR_B64 : SOP2_64 <"s_xor_b64",
 >;
 
 def S_XNOR_B32 : SOP2_32 <"s_xnor_b32",
-  [(set i32:$sdst, (not (xor_oneuse i32:$src0, i32:$src1)))]
+  [(set i32:$sdst, (UniformUnaryFrag<not> (xor_oneuse i32:$src0, i32:$src1)))]
 >;
 
 def S_XNOR_B64 : SOP2_64 <"s_xnor_b64",
-  [(set i64:$sdst, (not (xor_oneuse i64:$src0, i64:$src1)))]
+  [(set i64:$sdst, (UniformUnaryFrag<not> (xor_oneuse i64:$src0, i64:$src1)))]
 >;
 
 def S_NAND_B32 : SOP2_32 <"s_nand_b32",
@@ -1371,14 +1370,14 @@ def : GCNPat <
 >;
 
 def : GCNPat <
-  (i64 (ctpop i64:$src)),
+  (i64 (UniformUnaryFrag<ctpop> i64:$src)),
     (i64 (REG_SEQUENCE SReg_64,
      (i32 (COPY_TO_REGCLASS (S_BCNT1_I32_B64 $src), SReg_32)), sub0,
      (S_MOV_B32 (i32 0)), sub1))
 >;
 
 def : GCNPat <
-  (i32 (smax i32:$x, (i32 (ineg i32:$x)))),
+  (i32 (UniformBinFrag<smax> i32:$x, (i32 (ineg i32:$x)))),
   (S_ABS_I32 SReg_32:$x)
 >;
 
@@ -1409,7 +1408,7 @@ def : GCNPat <
 // REG_SEQUENCE patterns don't support instructions with multiple
 // outputs.
 def : GCNPat<
-  (i64 (zext i16:$src)),
+  (i64 (UniformUnaryFrag<zext> i16:$src)),
     (REG_SEQUENCE SReg_64,
       (i32 (COPY_TO_REGCLASS (S_AND_B32 $src, (S_MOV_B32 (i32 0xffff))), SGPR_32)), sub0,
       (S_MOV_B32 (i32 0)), sub1)
@@ -1422,7 +1421,7 @@ def : GCNPat <
 >;
 
 def : GCNPat<
-  (i32 (zext i16:$src)),
+  (i32 (UniformUnaryFrag<zext> i16:$src)),
   (S_AND_B32 (S_MOV_B32 (i32 0xffff)), $src)
 >;
 

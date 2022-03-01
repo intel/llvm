@@ -37,7 +37,6 @@
 
 using namespace mlir;
 using namespace llvm;
-using llvm::SMLoc;
 
 /// Perform the actions on the input file indicated by the command line flags
 /// within the specified context.
@@ -60,7 +59,7 @@ static LogicalResult performActions(raw_ostream &os, bool verifyDiagnostics,
 
   // Parse the input file and reset the context threading state.
   TimingScope parserTiming = timing.nest("Parser");
-  OwningModuleRef module(parseSourceFile(sourceMgr, context));
+  OwningOpRef<ModuleOp> module(parseSourceFile(sourceMgr, context));
   context->enableMultithreading(wasThreadingEnabled);
   if (!module)
     return failure();
@@ -94,7 +93,7 @@ processBuffer(raw_ostream &os, std::unique_ptr<MemoryBuffer> ownedBuffer,
               bool verifyDiagnostics, bool verifyPasses,
               bool allowUnregisteredDialects, bool preloadDialectsInContext,
               PassPipelineFn passManagerSetupFn, DialectRegistry &registry,
-              llvm::ThreadPool &threadPool) {
+              llvm::ThreadPool *threadPool) {
   // Tell sourceMgr about this buffer, which is what the parser will pick up.
   SourceMgr sourceMgr;
   sourceMgr.AddNewSourceBuffer(std::move(ownedBuffer), SMLoc());
@@ -102,7 +101,8 @@ processBuffer(raw_ostream &os, std::unique_ptr<MemoryBuffer> ownedBuffer,
   // Create a context just for the current buffer. Disable threading on creation
   // since we'll inject the thread-pool separately.
   MLIRContext context(registry, MLIRContext::Threading::DISABLED);
-  context.setThreadPool(threadPool);
+  if (threadPool)
+    context.setThreadPool(*threadPool);
 
   // Parse the input file.
   if (preloadDialectsInContext)
@@ -144,15 +144,25 @@ LogicalResult mlir::MlirOptMain(raw_ostream &outputStream,
   // up into small pieces and checks each independently.
   // We use an explicit threadpool to avoid creating and joining/destroying
   // threads for each of the split.
-  llvm::ThreadPool threadPool;
+  ThreadPool *threadPool = nullptr;
+  // Create a temporary context for the sake of checking if
+  // --mlir-disable-threading was passed on the command line.
+  // We use the thread-pool this context is creating, and avoid
+  // creating any thread when disabled.
+  MLIRContext threadPoolCtx;
+  if (threadPoolCtx.isMultithreadingEnabled())
+    threadPool = &threadPoolCtx.getThreadPool();
+
   if (splitInputFile)
     return splitAndProcessBuffer(
         std::move(buffer),
         [&](std::unique_ptr<MemoryBuffer> chunkBuffer, raw_ostream &os) {
-          return processBuffer(os, std::move(chunkBuffer), verifyDiagnostics,
-                               verifyPasses, allowUnregisteredDialects,
-                               preloadDialectsInContext, passManagerSetupFn,
-                               registry, threadPool);
+          LogicalResult result = processBuffer(
+              os, std::move(chunkBuffer), verifyDiagnostics, verifyPasses,
+              allowUnregisteredDialects, preloadDialectsInContext,
+              passManagerSetupFn, registry, threadPool);
+          os << "// -----\n";
+          return result;
         },
         outputStream);
 

@@ -12,28 +12,27 @@
 
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/Statistic.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManagers.h"
-#include "llvm/IR/LegacyPassNameParser.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassTimingInfo.h"
 #include "llvm/IR/PrintPasses.h"
-#include "llvm/IR/StructuralHash.h"
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/ManagedStatic.h"
-#include "llvm/Support/Mutex.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
-#include <unordered_set>
+
+#ifdef EXPENSIVE_CHECKS
+#include "llvm/IR/StructuralHash.h"
+#endif
+
 using namespace llvm;
 
 // See PassManagers.h for Pass Manager infrastructure overview.
@@ -256,9 +255,9 @@ private:
   bool wasRun;
 public:
   static char ID;
-  explicit FunctionPassManagerImpl() :
-    Pass(PT_PassManager, ID), PMDataManager(),
-    PMTopLevelManager(new FPPassManager()), wasRun(false) {}
+  explicit FunctionPassManagerImpl()
+      : Pass(PT_PassManager, ID), PMTopLevelManager(new FPPassManager()),
+        wasRun(false) {}
 
   /// \copydoc FunctionPassManager::add()
   void add(Pass *P) {
@@ -387,8 +386,7 @@ namespace {
 class MPPassManager : public Pass, public PMDataManager {
 public:
   static char ID;
-  explicit MPPassManager() :
-    Pass(PT_PassManager, ID), PMDataManager() { }
+  explicit MPPassManager() : Pass(PT_PassManager, ID) {}
 
   // Delete on the fly managers.
   ~MPPassManager() override {
@@ -478,9 +476,8 @@ class PassManagerImpl : public Pass,
 
 public:
   static char ID;
-  explicit PassManagerImpl() :
-    Pass(PT_PassManager, ID), PMDataManager(),
-                              PMTopLevelManager(new MPPassManager()) {}
+  explicit PassManagerImpl()
+      : Pass(PT_PassManager, ID), PMTopLevelManager(new MPPassManager()) {}
 
   /// \copydoc PassManager::add()
   void add(Pass *P) {
@@ -1770,4 +1767,4 @@ void FunctionPass::assignPassManager(PMStack &PMS,
   PM->add(this);
 }
 
-legacy::PassManagerBase::~PassManagerBase() {}
+legacy::PassManagerBase::~PassManagerBase() = default;

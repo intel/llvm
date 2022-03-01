@@ -132,7 +132,7 @@ void propagateShapesToTosaWhile(
     }
 
     for (auto yieldOp : yieldOps) {
-      for (auto it : llvm::enumerate(yieldOp.getOperands())) {
+      for (const auto &it : llvm::enumerate(yieldOp.getOperands())) {
         auto newKnowledge =
             ValueKnowledge::getKnowledgeFromType(it.value().getType());
         yieldTypeInfo[it.index()] =
@@ -278,7 +278,7 @@ void propagateShapesInRegion(Region &region) {
 /// migrating to within the regions of if/while operations.
 struct TosaInferShapes : public TosaInferShapesBase<TosaInferShapes> {
 public:
-  void runOnFunction() override {
+  void runOnOperation() override {
     FuncOp func = getOperation();
 
     IRRewriter rewriter(func.getContext());

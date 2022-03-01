@@ -14,6 +14,7 @@
 #include "lldb/Interpreter/OptionValueProperties.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Listener.h"
 #include "lldb/Utility/Log.h"
 
@@ -160,9 +161,12 @@ static Environment ComputeLaunchEnvironment(Environment target,
 lldb::ProcessSP PlatformQemuUser::DebugProcess(ProcessLaunchInfo &launch_info,
                                                Debugger &debugger,
                                                Target &target, Status &error) {
-  Log *log = GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM);
+  Log *log = GetLog(LLDBLog::Platform);
 
-  std::string qemu = GetGlobalProperties().GetEmulatorPath().GetPath();
+  FileSpec qemu = GetGlobalProperties().GetEmulatorPath();
+  if (!qemu)
+    qemu.SetPath(("qemu-" + GetGlobalProperties().GetArchitecture()).str());
+  FileSystem::Instance().ResolveExecutableLocation(qemu);
 
   llvm::SmallString<0> socket_model, socket_path;
   HostInfo::GetProcessTempDir().GetPath(socket_model);
@@ -171,7 +175,11 @@ lldb::ProcessSP PlatformQemuUser::DebugProcess(ProcessLaunchInfo &launch_info,
     llvm::sys::fs::createUniquePath(socket_model, socket_path, false);
   } while (FileSystem::Instance().Exists(socket_path));
 
-  Args args({qemu, "-g", socket_path});
+  Args args({qemu.GetPath(), "-g", socket_path});
+  if (!launch_info.GetArg0().empty()) {
+    args.AppendArgument("-0");
+    args.AppendArgument(launch_info.GetArg0());
+  }
   args.AppendArguments(GetGlobalProperties().GetEmulatorArgs());
   args.AppendArgument("--");
   args.AppendArgument(launch_info.GetExecutableFile().GetPath());
@@ -184,6 +192,8 @@ lldb::ProcessSP PlatformQemuUser::DebugProcess(ProcessLaunchInfo &launch_info,
   launch_info.SetArguments(args, true);
 
   Environment emulator_env = Host::GetEnvironment();
+  if (ConstString sysroot = GetSDKRootDirectory())
+    emulator_env["QEMU_LD_PREFIX"] = sysroot.GetStringRef().str();
   for (const auto &KV : GetGlobalProperties().GetEmulatorEnvVars())
     emulator_env[KV.first()] = KV.second;
   launch_info.GetEnvironment() = ComputeLaunchEnvironment(
@@ -207,11 +217,12 @@ lldb::ProcessSP PlatformQemuUser::DebugProcess(ProcessLaunchInfo &launch_info,
       launch_info.GetListener(),
       process_gdb_remote::ProcessGDBRemote::GetPluginNameStatic(), nullptr,
       true);
+  if (!process_sp) {
+    error.SetErrorString("Failed to create GDB process");
+    return nullptr;
+  }
 
-  ListenerSP listener_sp =
-      Listener::MakeListener("lldb.platform_qemu_user.debugprocess");
-  launch_info.SetHijackListener(listener_sp);
-  Process::ProcessEventHijacker hijacker(*process_sp, listener_sp);
+  process_sp->HijackProcessEvents(launch_info.GetHijackListener());
 
   error = process_sp->ConnectRemote(("unix-connect://" + socket_path).str());
   if (error.Fail())
@@ -222,7 +233,6 @@ lldb::ProcessSP PlatformQemuUser::DebugProcess(ProcessLaunchInfo &launch_info,
     process_sp->SetSTDIOFileDescriptor(
         launch_info.GetPTY().ReleasePrimaryFileDescriptor());
 
-  process_sp->WaitForProcessToStop(llvm::None, nullptr, false, listener_sp);
   return process_sp;
 }
 

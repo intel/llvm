@@ -10,13 +10,14 @@ endif()
 
 cmake_minimum_required(VERSION 3.13.4)
 
+set(LLVM_COMMON_CMAKE_UTILS "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
+
 # Add path for custom modules
-set(CMAKE_MODULE_PATH
+list(INSERT CMAKE_MODULE_PATH 0
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules"
-  "${CMAKE_CURRENT_SOURCE_DIR}/../cmake"
-  "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/Modules"
-  ${CMAKE_MODULE_PATH}
+  "${LLVM_COMMON_CMAKE_UTILS}"
+  "${LLVM_COMMON_CMAKE_UTILS}/Modules"
   )
 
 set(CMAKE_FOLDER "libc++")
@@ -27,6 +28,10 @@ set(LIBCXXABI_LIBCXX_PATH "${CMAKE_CURRENT_LIST_DIR}/../libcxx" CACHE PATH
         "Specify path to libc++ source.")
 
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBCXXABI_STANDALONE_BUILD)
+  message(FATAL_ERROR "The Standalone build has been deprecated since LLVM 14, and it is not supported anymore. "
+                      "Please use one of the ways described at https://libcxx.llvm.org/BuildingLibcxx.html for "
+                      "building libc++abi.")
+
   project(libcxxabi CXX C)
 
   set(PACKAGE_NAME libcxxabi)
@@ -34,21 +39,21 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBCXXABI_STANDALONE_B
   set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
   set(PACKAGE_BUGREPORT "llvm-bugs@lists.llvm.org")
 
-  # Add the CMake module path of libcxx so we can reuse HandleOutOfTreeLLVM.cmake
-  set(LIBCXXABI_LIBCXX_CMAKE_PATH "${LIBCXXABI_LIBCXX_PATH}/cmake/Modules")
-  list(APPEND CMAKE_MODULE_PATH "${LIBCXXABI_LIBCXX_CMAKE_PATH}")
+  set(LIBCXXABI_STANDALONE_BUILD TRUE)
 
   # In a standalone build, we don't have llvm to automatically generate the
   # llvm-lit script for us.  So we need to provide an explicit directory that
   # the configurator should write the script into.
-  set(LIBCXXABI_STANDALONE_BUILD 1)
   set(LLVM_LIT_OUTPUT_DIR "${LIBCXXABI_BINARY_DIR}/bin")
-
-  # Find the LLVM sources and simulate LLVM CMake options.
-  include(HandleOutOfTreeLLVM)
 endif()
 
+# Must go below project(..)
+include(GNUInstallDirs)
+
 if (LIBCXXABI_STANDALONE_BUILD)
+  # Find the LLVM sources and simulate LLVM CMake options.
+  include(HandleOutOfTreeLLVM)
+
   find_package(Python3 COMPONENTS Interpreter)
   if(NOT Python3_Interpreter_FOUND)
     message(WARNING "Python3 not found, using python2 as a fallback")
@@ -117,6 +122,16 @@ option(LIBCXXABI_INCLUDE_TESTS "Generate build targets for the libc++abi unit te
 set(LIBCXXABI_LIBDIR_SUFFIX "${LLVM_LIBDIR_SUFFIX}" CACHE STRING
     "Define suffix of library directory name (32/64)")
 option(LIBCXXABI_INSTALL_LIBRARY "Install the libc++abi library." ON)
+
+if(NOT CMAKE_SYSROOT AND LIBCXXABI_SYSROOT)
+  message(WARNING "LIBCXXABI_SYSROOT is deprecated, please use CMAKE_SYSROOT instead")
+endif()
+if(NOT CMAKE_CXX_COMPILER_TARGET AND LIBCXXABI_TARGET_TRIPLE)
+  message(WARNING "LIBCXXABI_TARGET_TRIPLE is deprecated, please use CMAKE_CXX_COMPILER_TARGET instead")
+endif()
+if(NOT CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN AND LIBCXXABI_GCC_TOOLCHAIN)
+  message(WARNING "LIBCXXABI_GCC_TOOLCHAIN is deprecated, please use CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN instead")
+endif()
 
 if(CMAKE_CXX_COMPILER_TARGET)
   set(LIBCXXABI_DEFAULT_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
@@ -209,31 +224,28 @@ set(CMAKE_MODULE_PATH
   ${CMAKE_MODULE_PATH}
   )
 
+set(LIBCXXABI_INSTALL_RUNTIME_DIR "${CMAKE_INSTALL_BINDIR}" CACHE PATH
+    "Path where built libc++abi runtime libraries should be installed.")
+
 if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
   set(LIBCXXABI_HEADER_DIR ${LLVM_BINARY_DIR})
   set(LIBCXXABI_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR}/${LLVM_DEFAULT_TARGET_TRIPLE})
   set(LIBCXXABI_INSTALL_LIBRARY_DIR lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE} CACHE PATH
       "Path where built libc++abi libraries should be installed.")
-  set(LIBCXXABI_INSTALL_RUNTIME_DIR bin CACHE PATH
-      "Path where built libc++abi runtime libraries should be installed.")
   if(LIBCXX_LIBDIR_SUBDIR)
     string(APPEND LIBCXXABI_LIBRARY_DIR /${LIBCXXABI_LIBDIR_SUBDIR})
     string(APPEND LIBCXXABI_INSTALL_LIBRARY_DIR /${LIBCXXABI_LIBDIR_SUBDIR})
   endif()
-elseif(LLVM_LIBRARY_OUTPUT_INTDIR)
-  set(LIBCXXABI_HEADER_DIR ${LLVM_BINARY_DIR})
-  set(LIBCXXABI_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR})
-  set(LIBCXXABI_INSTALL_LIBRARY_DIR lib${LIBCXXABI_LIBDIR_SUFFIX} CACHE PATH
-      "Path where built libc++abi libraries should be installed.")
-  set(LIBCXXABI_INSTALL_RUNTIME_DIR bin CACHE PATH
-      "Path where built libc++abi runtime libraries should be installed.")
 else()
-  set(LIBCXXABI_HEADER_DIR ${CMAKE_BINARY_DIR})
-  set(LIBCXXABI_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib${LIBCXXABI_LIBDIR_SUFFIX})
+  if(LLVM_LIBRARY_OUTPUT_INTDIR)
+    set(LIBCXXABI_HEADER_DIR ${LLVM_BINARY_DIR})
+    set(LIBCXXABI_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR})
+  else()
+    set(LIBCXXABI_HEADER_DIR ${CMAKE_BINARY_DIR})
+    set(LIBCXXABI_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib${LIBCXXABI_LIBDIR_SUFFIX})
+  endif()
   set(LIBCXXABI_INSTALL_LIBRARY_DIR lib${LIBCXXABI_LIBDIR_SUFFIX} CACHE PATH
       "Path where built libc++abi libraries should be installed.")
-  set(LIBCXXABI_INSTALL_RUNTIME_DIR bin CACHE PATH
-      "Path where built libc++abi runtime libraries should be installed.")
 endif()
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LIBCXXABI_LIBRARY_DIR})
@@ -269,6 +281,9 @@ include(HandleLibcxxabiFlags)
 #===============================================================================
 
 # Configure target flags
+if(ZOS)
+  add_target_flags_if_supported("-fzos-le-char-mode=ebcdic")
+endif()
 if(LIBCXXABI_TARGET_TRIPLE)
   add_target_flags_if_supported("--target=${LIBCXXABI_TARGET_TRIPLE}")
 endif()

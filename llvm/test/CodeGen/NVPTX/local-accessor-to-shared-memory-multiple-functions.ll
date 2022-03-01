@@ -1,4 +1,4 @@
-; RUN: opt -enable-new-pm=0 -localaccessortosharedmemory %s -S -o - | FileCheck %s
+; RUN: opt -enable-new-pm=0 -localaccessortosharedmemory -sycl-enable-local-accessor %s -S -o - | FileCheck %s
 ; ModuleID = 'multiple-functions.bc'
 source_filename = "multiple-functions.ll"
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"

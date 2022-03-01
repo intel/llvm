@@ -7,12 +7,14 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; CHECK-SPIRV: Undef [[#]] [[#UNDEF:]]
 ; CHECK-SPIRV: [[#DEBUG_LOC_VAR:]] [[#]] DebugLocalVariable
 ; CHECK-SPIRV: [[#EXPR_ARG_0:]] [[#]] DebugOperation 165 0
-; CHECK-SPIRV: [[#EXPR_ARG_1:]] [[#]] DebugOperation 165 1
-; CHECK-SPIRV: [[#EXPR_ARG_2:]] [[#]] DebugOperation 1
-; CHECK-SPIRV: [[#EXPRESSION:]] [[#]] DebugExpression [[#EXPR_ARG_0]] [[#EXPR_ARG_1]] [[#EXPR_ARG_2]]
-; CHECK-SPIRV: DebugValue [[#DEBUG_LOC_VAR]] [[#]] [[#EXPRESSION]]
+; CHECK-SPIRV: [[#EXPRESSION:]] [[#]] DebugExpression [[#EXPR_ARG_0]]
+; CHECK-SPIRV: [[#EXPR_EMPTY:]] [[#]] DebugExpression{{ *$}}
+; CHECK-SPIRV: Variable [[#]] [[#VAL:]]
+; CHECK-SPIRV: DebugValue [[#DEBUG_LOC_VAR]] [[#VAL]] [[#EXPRESSION]]
+; CHECK-SPIRV: DebugValue [[#DEBUG_LOC_VAR]] [[#UNDEF]] [[#EXPR_EMPTY]]
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
@@ -22,12 +24,13 @@ declare void @llvm.dbg.value(metadata, metadata, metadata) nounwind readnone spe
 define void @DbgIntrinsics() sanitize_memtag {
 entry:
   %x = alloca i32, align 4
-; CHECK-LLVM: call void @llvm.dbg.value(metadata i32* %x, metadata ![[#]], metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_plus))
+; CHECK-LLVM: call void @llvm.dbg.value(metadata !DIArgList(i32* %x), metadata ![[#]], metadata !DIExpression(DW_OP_LLVM_arg, 0))
+  call void @llvm.dbg.value(metadata !DIArgList(i32* %x), metadata !6, metadata !DIExpression(DW_OP_LLVM_arg, 0)), !dbg !10
+; CHECK-LLVM: call void @llvm.dbg.value(metadata i32* undef, metadata ![[#]], metadata !DIExpression())
   call void @llvm.dbg.value(metadata !DIArgList(i32* %x, i32* %x), metadata !6, metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_plus)), !dbg !10
   store i32 42, i32* %x, align 4
   ret void
 }
-
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!8, !9}

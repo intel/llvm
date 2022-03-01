@@ -296,14 +296,13 @@ public:
       Modules.insert(I, {{MD.ID, InputIndex}, std::move(MD)});
     }
 
-    ID.AdditionalCommandLine =
-        GenerateModulesPathArgs
-            ? FD.getAdditionalArgs(
-                  [&](ModuleID MID) { return lookupPCMPath(MID); },
-                  [&](ModuleID MID) -> const ModuleDeps & {
-                    return lookupModuleDeps(MID);
-                  })
-            : FD.getAdditionalArgsWithoutModulePaths();
+    ID.CommandLine = GenerateModulesPathArgs
+                         ? FD.getCommandLine(
+                               [&](ModuleID MID) { return lookupPCMPath(MID); },
+                               [&](ModuleID MID) -> const ModuleDeps & {
+                                 return lookupModuleDeps(MID);
+                               })
+                         : FD.getCommandLineWithoutModulePaths();
 
     Inputs.push_back(std::move(ID));
   }
@@ -353,7 +352,7 @@ public:
           {"clang-context-hash", I.ContextHash},
           {"file-deps", I.FileDeps},
           {"clang-module-deps", toJSONSorted(I.ModuleDeps)},
-          {"command-line", I.AdditionalCommandLine},
+          {"command-line", I.CommandLine},
       };
       TUs.push_back(std::move(O));
     }
@@ -415,7 +414,7 @@ private:
     std::string ContextHash;
     std::vector<std::string> FileDeps;
     std::vector<ModuleID> ModuleDeps;
-    std::vector<std::string> AdditionalCommandLine;
+    std::vector<std::string> CommandLine;
   };
 
   std::mutex Lock;
@@ -470,7 +469,7 @@ int main(int argc, const char **argv) {
   AdjustingCompilations->appendArgumentsAdjuster(
       [&ResourceDirCache](const tooling::CommandLineArguments &Args,
                           StringRef FileName) {
-        std::string LastO = "";
+        std::string LastO;
         bool HasResourceDir = false;
         bool ClangCLMode = false;
         auto FlagsEnd = llvm::find(Args, "--");
@@ -480,7 +479,7 @@ int main(int argc, const char **argv) {
               llvm::is_contained(Args, "--driver-mode=cl");
 
           // Reverse scan, starting at the end or at the element before "--".
-          auto R = llvm::make_reverse_iterator(FlagsEnd);
+          auto R = std::make_reverse_iterator(FlagsEnd);
           for (auto I = R, E = Args.rend(); I != E; ++I) {
             StringRef Arg = *I;
             if (ClangCLMode) {

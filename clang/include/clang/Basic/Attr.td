@@ -555,6 +555,8 @@ class Attr {
   //   match rules.
   // - It has GNU/CXX11 spelling and doesn't require delayed parsing.
   bit PragmaAttributeSupport;
+  // Set to true if this attribute accepts parameter pack expansion expressions.
+  bit AcceptsExprPack = 0;
   // Lists language options, one of which is required to be true for the
   // attribute to be applicable. If empty, no language options are required.
   list<LangOpt> LangOpts = [];
@@ -806,6 +808,7 @@ def Annotate : InheritableParamAttr {
   }
   }];
   let PragmaAttributeSupport = 1;
+  let AcceptsExprPack = 1;
   let Documentation = [Undocumented];
 }
 
@@ -1246,6 +1249,7 @@ def SYCLDeviceHas : InheritableAttr {
   let Args = [VariadicExprArgument<"Aspects">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLDeviceHasDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLUsesAspects : InheritableAttr {
@@ -1280,15 +1284,17 @@ def SYCLRegisterNum : InheritableAttr {
   let Documentation = [SYCLRegisterNumDocs];
 }
 
-// Used by FE to mark ESIMD kernel pointer parameters which correspond to the
+// Used by FE to mark SYCL kernel pointer parameters which correspond to the
 // original lambda's captured accessors. FE turns the attribute to some metadata
-// required by the ESIMD Back-End.
-// Not supposed to be used directly in the source - SYCL device compiler FE
-// automatically adds it for ESIMD kernels, hence undocumented.
-def SYCLSimdAccessorPtr : InheritableAttr {
-  // No spelling, as this attribute can't be created in the source code.
+// required by the device back-end.
+// This attribute does not require custom semantic handling 
+// hence we set the SemaHandler field to 0.
+// The attribute is not for public consumption, and is an implicitly-created attribute
+// that has no visible spelling, hence undocumented.
+def SYCLAccessorPtr : Attr {
+  // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
-  let Subjects = SubjectList<[ParmVar]>;
+  let SemaHandler = 0;
   let Documentation = [Undocumented];
 }
 
@@ -1341,7 +1347,7 @@ def SYCLScope : Attr {
 def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let Spellings = [ CXX11<"intel", "device_indirectly_callable"> ];
   let Subjects = SubjectList<[Function]>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
 }
 
@@ -1364,7 +1370,7 @@ def SYCLRequiresDecomposition : InheritableAttr {
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let Spellings = [CXX11<"intel", "kernel_args_restrict">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelKernelArgsRestrictDocs];
   let SimpleHandler = 1;
   let SupportsNonconformingLambdaSyntax = 1;
@@ -1373,7 +1379,7 @@ def SYCLIntelKernelArgsRestrict : InheritableAttr {
 def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let Spellings = [CXX11<"intel", "num_simd_work_items">];
   let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelNumSimdWorkItemsAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
@@ -1381,7 +1387,7 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
 
 def SYCLIntelUseStallEnableClusters : InheritableAttr {
   let Spellings = [CXX11<"intel","use_stall_enable_clusters">];
-  let LangOpts = [SYCLIsHost, SYCLIsDevice];
+  let LangOpts = [SilentlyIgnoreSYCLIsHost, SYCLIsDevice];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelUseStallEnableClustersAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
@@ -1390,7 +1396,7 @@ def SYCLIntelUseStallEnableClusters : InheritableAttr {
 def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
   let Spellings = [CXX11<"intel", "scheduler_target_fmax_mhz">];
   let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelSchedulerTargetFmaxMhzAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
@@ -1401,20 +1407,23 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
   let Args = [ExprArgument<"XDim">,
               ExprArgument<"YDim">,
               ExprArgument<"ZDim">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
-    ArrayRef<const Expr *> dimensions() const {
-      return {getXDim(), getYDim(), getZDim()};
+    Optional<llvm::APSInt> getXDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))
+        return CE->getResultAsAPSInt();
+      return None;
     }
-    Optional<llvm::APSInt> getXDimVal(ASTContext &Ctx) const {
-      return getXDim()->getIntegerConstantExpr(Ctx);
+    Optional<llvm::APSInt> getYDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getYDim()))
+        return CE->getResultAsAPSInt();
+      return None;
     }
-    Optional<llvm::APSInt> getYDimVal(ASTContext &Ctx) const {
-      return getYDim()->getIntegerConstantExpr(Ctx);
-    }
-    Optional<llvm::APSInt> getZDimVal(ASTContext &Ctx) const {
-      return getZDim()->getIntegerConstantExpr(Ctx);
+    Optional<llvm::APSInt> getZDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getZDim()))
+        return CE->getResultAsAPSInt();
+      return None;
     }
   }];
   let Documentation = [SYCLIntelMaxWorkGroupSizeAttrDocs];
@@ -1424,7 +1433,7 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
 def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let Spellings = [CXX11<"intel", "max_global_work_dim">];
   let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelMaxGlobalWorkDimAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
@@ -1459,10 +1468,10 @@ def C11NoReturn : InheritableAttr {
 }
 
 def CXX11NoReturn : InheritableAttr {
-  let Spellings = [CXX11<"", "noreturn", 200809>];
+  let Spellings = [CXX11<"", "noreturn", 200809>,
+                   C2x<"", "noreturn", 202202>, C2x<"", "_Noreturn", 202202>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [CXX11NoReturnDocs];
-  let SimpleHandler = 1;
 }
 
 // Similar to CUDA, OpenCL attributes do not receive a [[]] spelling because
@@ -1682,7 +1691,6 @@ def : MutualExclusions<[Likely, Unlikely]>;
 def NoMerge : DeclOrStmtAttr {
   let Spellings = [Clang<"nomerge">];
   let Documentation = [NoMergeDocs];
-  let InheritEvenIfAlreadyPresent = 1;
   let Subjects = SubjectList<[Function, Stmt], ErrorDiag,
                              "functions and statements">;
   let SimpleHandler = 1;
@@ -2053,12 +2061,14 @@ def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
 def SYCLIntelFPGALoopCount : StmtAttr {
   let Spellings = [CXX11<"intel", "loop_count_min">,
                    CXX11<"intel", "loop_count_max">,
-                   CXX11<"intel", "loop_count_avg">];
+                   CXX11<"intel", "loop_count_avg">,
+                   CXX11<"intel", "loop_count">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Accessors = [Accessor<"isMin", [CXX11<"intel", "loop_count_min">]>,
                    Accessor<"isMax", [CXX11<"intel", "loop_count_max">]>,
-                   Accessor<"isAvg", [CXX11<"intel", "loop_count_avg">]>];
+                   Accessor<"isAvg", [CXX11<"intel", "loop_count_avg">]>,
+                   Accessor<"isCount", [CXX11<"intel", "loop_count">]>];
   let Args = [ExprArgument<"NTripCount">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let IsStmtDependent = 1;
@@ -2245,10 +2255,10 @@ def SYCLFPGAPipe : TypeAttr {
   let Documentation = [SYCLFPGAPipeDocs];
 }
 
-def SYCLIntelPipeIO : Attr {
+def SYCLIntelPipeIO : InheritableAttr {
   let Spellings = [GNU<"io_pipe_id">];
   let Args = [ExprArgument<"ID">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Var]>;
   let Documentation = [SYCLIntelPipeIOAttrDocs];
 }
@@ -2259,7 +2269,7 @@ def IntelFPGABankBits : Attr {
   let Args = [VariadicExprArgument<"Args">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticAgentMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGABankBitsDocs];
 }
 def : MutualExclusions<[IntelFPGARegister, IntelFPGABankBits]>;
@@ -3213,6 +3223,19 @@ def VectorCall : DeclOrTypeAttr {
                    Keyword<"_vectorcall">];
 //  let Subjects = [Function, ObjCMethod];
   let Documentation = [VectorCallDocs];
+}
+
+def ZeroCallUsedRegs : InheritableAttr {
+  let Spellings = [GCC<"zero_call_used_regs">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Args = [
+    EnumArgument<"ZeroCallUsedRegs", "ZeroCallUsedRegsKind",
+                 ["skip", "used-gpr-arg", "used-gpr", "used-arg", "used",
+                  "all-gpr-arg", "all-gpr", "all-arg", "all"],
+                 ["Skip", "UsedGPRArg", "UsedGPR", "UsedArg", "Used",
+                  "AllGPRArg", "AllGPR", "AllArg", "All"]>
+  ];
+  let Documentation = [ZeroCallUsedRegsDocs];
 }
 
 def Pascal : DeclOrTypeAttr {
@@ -4346,6 +4369,8 @@ def OMPDeclareTargetDecl : InheritableAttr {
     EnumArgument<"DevType", "DevTypeTy",
                  [ "host", "nohost", "any" ],
                  [ "DT_Host", "DT_NoHost", "DT_Any" ]>,
+    ExprArgument<"IndirectExpr">,
+    BoolArgument<"Indirect">,
     UnsignedArgument<"Level">
   ];
   let AdditionalMembers = [{

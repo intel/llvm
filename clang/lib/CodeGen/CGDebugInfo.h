@@ -40,7 +40,6 @@ class ClassTemplateSpecializationDecl;
 class GlobalDecl;
 class ModuleMap;
 class ObjCInterfaceDecl;
-class ObjCIvarDecl;
 class UsingDecl;
 class VarDecl;
 enum class DynamicInitKind : unsigned;
@@ -368,7 +367,7 @@ class CGDebugInfo {
   /// Extended dereferencing mechanism is has the following format:
   ///     DW_OP_constu <DWARF Address Space> DW_OP_swap DW_OP_xderef
   void AppendAddressSpaceXDeref(unsigned AddressSpace,
-                                SmallVectorImpl<int64_t> &Expr) const;
+                                SmallVectorImpl<uint64_t> &Expr) const;
 
   /// A helper function to collect debug info for the default elements of a
   /// block.
@@ -585,6 +584,14 @@ private:
   /// Returns a pointer to the DILocalVariable associated with the
   /// llvm.dbg.declare, or nullptr otherwise.
   llvm::DILocalVariable *EmitDeclare(const VarDecl *decl, llvm::Value *AI,
+                                     llvm::Optional<unsigned> ArgNo,
+                                     CGBuilderTy &Builder,
+                                     const bool UsePointerValue = false);
+
+  /// Emit call to llvm.dbg.declare for a binding declaration.
+  /// Returns a pointer to the DILocalVariable associated with the
+  /// llvm.dbg.declare, or nullptr otherwise.
+  llvm::DILocalVariable *EmitDeclare(const BindingDecl *decl, llvm::Value *AI,
                                      llvm::Optional<unsigned> ArgNo,
                                      CGBuilderTy &Builder,
                                      const bool UsePointerValue = false);

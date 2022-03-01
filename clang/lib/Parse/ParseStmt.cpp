@@ -1068,7 +1068,7 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
     SourceLocation LabelLoc = ConsumeToken();
 
     SmallVector<Decl *, 8> DeclsInGroup;
-    while (1) {
+    while (true) {
       if (Tok.isNot(tok::identifier)) {
         Diag(Tok, diag::err_expected) << tok::identifier;
         break;
@@ -1153,6 +1153,16 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
     if (R.isUsable())
       Stmts.push_back(R.get());
   }
+  // Warn the user that using option `-ffp-eval-method=source` on a
+  // 32-bit target and feature `sse` disabled, or using
+  // `pragma clang fp eval_method=source` and feature `sse` disabled, is not
+  // supported.
+  if (!PP.getTargetInfo().supportSourceEvalMethod() &&
+      (PP.getLastFPEvalPragmaLocation().isValid() ||
+       PP.getCurrentFPEvalMethod() ==
+           LangOptions::FPEvalMethodKind::FEM_Source))
+    Diag(Tok.getLocation(),
+         diag::warn_no_support_for_eval_method_source_on_m32);
 
   SourceLocation CloseLoc = Tok.getLocation();
 
@@ -1191,22 +1201,24 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
 bool Parser::ParseParenExprOrCondition(StmtResult *InitStmt,
                                        Sema::ConditionResult &Cond,
                                        SourceLocation Loc,
-                                       Sema::ConditionKind CK,
+                                       Sema::ConditionKind CK, bool MissingOK,
                                        SourceLocation *LParenLoc,
                                        SourceLocation *RParenLoc) {
   BalancedDelimiterTracker T(*this, tok::l_paren);
   T.consumeOpen();
+  SourceLocation Start = Tok.getLocation();
 
-  if (getLangOpts().CPlusPlus)
-    Cond = ParseCXXCondition(InitStmt, Loc, CK);
-  else {
+  if (getLangOpts().CPlusPlus) {
+    Cond = ParseCXXCondition(InitStmt, Loc, CK, MissingOK);
+  } else {
     ExprResult CondExpr = ParseExpression();
 
     // If required, convert to a boolean value.
     if (CondExpr.isInvalid())
       Cond = Sema::ConditionError();
     else
-      Cond = Actions.ActOnCondition(getCurScope(), Loc, CondExpr.get(), CK);
+      Cond = Actions.ActOnCondition(getCurScope(), Loc, CondExpr.get(), CK,
+                                    MissingOK);
   }
 
   // If the parser was confused by the condition and we don't have a ')', try to
@@ -1220,7 +1232,16 @@ bool Parser::ParseParenExprOrCondition(StmtResult *InitStmt,
       return true;
   }
 
-  // Otherwise the condition is valid or the rparen is present.
+  if (Cond.isInvalid()) {
+    ExprResult CondExpr = Actions.CreateRecoveryExpr(
+        Start, Tok.getLocation() == Start ? Start : PrevTokLocation, {},
+        Actions.PreferredConditionType(CK));
+    if (!CondExpr.isInvalid())
+      Cond = Actions.ActOnCondition(getCurScope(), Loc, CondExpr.get(), CK,
+                                    MissingOK);
+  }
+
+  // Either the condition is valid or the rparen is present.
   T.consumeClose();
 
   if (LParenLoc != nullptr) {
@@ -1404,7 +1425,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
     if (ParseParenExprOrCondition(&InitStmt, Cond, IfLoc,
                                   IsConstexpr ? Sema::ConditionKind::ConstexprIf
                                               : Sema::ConditionKind::Boolean,
-                                  &LParen, &RParen))
+                                  /*MissingOK=*/false, &LParen, &RParen))
       return StmtError();
 
     if (IsConstexpr)
@@ -1599,7 +1620,8 @@ StmtResult Parser::ParseSwitchStatement(SourceLocation *TrailingElseLoc) {
   SourceLocation LParen;
   SourceLocation RParen;
   if (ParseParenExprOrCondition(&InitStmt, Cond, SwitchLoc,
-                                Sema::ConditionKind::Switch, &LParen, &RParen))
+                                Sema::ConditionKind::Switch,
+                                /*MissingOK=*/false, &LParen, &RParen))
     return StmtError();
 
   StmtResult Switch = Actions.ActOnStartOfSwitchStmt(
@@ -1689,7 +1711,8 @@ StmtResult Parser::ParseWhileStatement(SourceLocation *TrailingElseLoc) {
   SourceLocation LParen;
   SourceLocation RParen;
   if (ParseParenExprOrCondition(nullptr, Cond, WhileLoc,
-                                Sema::ConditionKind::Boolean, &LParen, &RParen))
+                                Sema::ConditionKind::Boolean,
+                                /*MissingOK=*/false, &LParen, &RParen))
     return StmtError();
 
   // C99 6.8.5p5 - In C99, the body of the while statement is a scope, even if
@@ -1780,10 +1803,18 @@ StmtResult Parser::ParseDoStatement() {
   // A do-while expression is not a condition, so can't have attributes.
   DiagnoseAndSkipCXX11Attributes();
 
+  SourceLocation Start = Tok.getLocation();
   ExprResult Cond = ParseExpression();
   // Correct the typos in condition before closing the scope.
   if (Cond.isUsable())
     Cond = Actions.CorrectDelayedTyposInExpr(Cond);
+  else {
+    if (!Tok.isOneOf(tok::r_paren, tok::r_square, tok::r_brace))
+      SkipUntil(tok::semi);
+    Cond = Actions.CreateRecoveryExpr(
+        Start, Start == Tok.getLocation() ? Start : PrevTokLocation, {},
+        Actions.getASTContext().BoolTy);
+  }
   T.consumeClose();
   DoScope.Exit();
 
@@ -2038,10 +2069,11 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
         // for-range-declaration next.
         bool MightBeForRangeStmt = !ForRangeInfo.ParsedForRangeDecl();
         ColonProtectionRAIIObject ColonProtection(*this, MightBeForRangeStmt);
-        SecondPart =
-            ParseCXXCondition(nullptr, ForLoc, Sema::ConditionKind::Boolean,
-                              MightBeForRangeStmt ? &ForRangeInfo : nullptr,
-                              /*EnterForConditionScope*/ true);
+        SecondPart = ParseCXXCondition(
+            nullptr, ForLoc, Sema::ConditionKind::Boolean,
+            // FIXME: recovery if we don't see another semi!
+            /*MissingOK=*/true, MightBeForRangeStmt ? &ForRangeInfo : nullptr,
+            /*EnterForConditionScope*/ true);
 
         if (ForRangeInfo.ParsedForRangeDecl()) {
           Diag(FirstPart.get() ? FirstPart.get()->getBeginLoc()
@@ -2065,9 +2097,9 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
         if (SecondExpr.isInvalid())
           SecondPart = Sema::ConditionError();
         else
-          SecondPart =
-              Actions.ActOnCondition(getCurScope(), ForLoc, SecondExpr.get(),
-                                     Sema::ConditionKind::Boolean);
+          SecondPart = Actions.ActOnCondition(
+              getCurScope(), ForLoc, SecondExpr.get(),
+              Sema::ConditionKind::Boolean, /*MissingOK=*/true);
       }
     }
   }

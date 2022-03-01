@@ -11,8 +11,9 @@
 
 #include "DWARFDIE.h"
 #include "DWARFDebugInfoEntry.h"
-#include "lldb/lldb-enumerations.h"
 #include "lldb/Utility/XcodeSDK.h"
+#include "lldb/lldb-enumerations.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugRnglists.h"
 #include "llvm/Support/RWMutex.h"
 #include <atomic>
 
@@ -153,7 +154,7 @@ public:
   const DWARFAbbreviationDeclarationSet *GetAbbreviations() const;
   dw_offset_t GetAbbrevOffset() const;
   uint8_t GetAddressByteSize() const { return m_header.GetAddressByteSize(); }
-  dw_addr_t GetAddrBase() const { return m_addr_base ? *m_addr_base : 0; }
+  dw_addr_t GetAddrBase() const { return m_addr_base.getValueOr(0); }
   dw_addr_t GetBaseAddress() const { return m_base_addr; }
   dw_offset_t GetLineTableOffset();
   dw_addr_t GetRangesBase() const { return m_ranges_base; }
@@ -269,7 +270,7 @@ protected:
     ExtractUnitDIENoDwoIfNeeded();
     // m_first_die_mutex is not required as m_first_die is never cleared.
     if (!m_first_die)
-      return NULL;
+      return nullptr;
     return &m_first_die;
   }
 
@@ -277,7 +278,7 @@ protected:
   const DWARFDebugInfoEntry *DIEPtr() {
     ExtractDIEsIfNeeded();
     if (m_die_array.empty())
-      return NULL;
+      return nullptr;
     return &m_die_array[0];
   }
 

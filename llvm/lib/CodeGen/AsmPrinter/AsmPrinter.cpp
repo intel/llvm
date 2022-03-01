@@ -247,6 +247,11 @@ void AsmPrinter::emitInitialRawDwarfLocDirective(const MachineFunction &MF) {
   if (DD) {
     assert(OutStreamer->hasRawTextSupport() &&
            "Expected assembly output mode.");
+    // This is NVPTX specific and it's unclear why.
+    // PR51079: If we have code without debug information we need to give up.
+    DISubprogram *MFSP = MF.getFunction().getSubprogram();
+    if (!MFSP)
+      return;
     (void)DD->emitInitialLocDirective(MF, /*CUID=*/0);
   }
 }
@@ -1147,16 +1152,19 @@ void AsmPrinter::emitBBAddrMapSection(const MachineFunction &MF) {
   OutStreamer->emitSymbolValue(FunctionSymbol, getPointerSize());
   // Emit the total number of basic blocks in this function.
   OutStreamer->emitULEB128IntValue(MF.size());
+  const MCSymbol *PrevMBBEndSymbol = FunctionSymbol;
   // Emit BB Information for each basic block in the funciton.
   for (const MachineBasicBlock &MBB : MF) {
     const MCSymbol *MBBSymbol =
         MBB.isEntryBlock() ? FunctionSymbol : MBB.getSymbol();
-    // Emit the basic block offset.
-    emitLabelDifferenceAsULEB128(MBBSymbol, FunctionSymbol);
+    // Emit the basic block offset relative to the end of the previous block.
+    // This is zero unless the block is padded due to alignment.
+    emitLabelDifferenceAsULEB128(MBBSymbol, PrevMBBEndSymbol);
     // Emit the basic block size. When BBs have alignments, their size cannot
     // always be computed from their offsets.
     emitLabelDifferenceAsULEB128(MBB.getEndSymbol(), MBBSymbol);
     OutStreamer->emitULEB128IntValue(getBBAddrMapMetadata(MBB));
+    PrevMBBEndSymbol = MBB.getEndSymbol();
   }
   OutStreamer->PopSection();
 }
@@ -1612,10 +1620,7 @@ void AsmPrinter::emitGlobalAlias(Module &M, const GlobalAlias &GA) {
   // Treat bitcasts of functions as functions also. This is important at least
   // on WebAssembly where object and function addresses can't alias each other.
   if (!IsFunction)
-    if (auto *CE = dyn_cast<ConstantExpr>(GA.getAliasee()))
-      if (CE->getOpcode() == Instruction::BitCast)
-        IsFunction =
-          CE->getOperand(0)->getType()->getPointerElementType()->isFunctionTy();
+    IsFunction = isa<Function>(GA.getAliasee()->stripPointerCasts());
 
   // AIX's assembly directive `.set` is not usable for aliasing purpose,
   // so AIX has to use the extra-label-at-definition strategy. At this
@@ -1642,8 +1647,18 @@ void AsmPrinter::emitGlobalAlias(Module &M, const GlobalAlias &GA) {
 
   // Set the symbol type to function if the alias has a function type.
   // This affects codegen when the aliasee is not a function.
-  if (IsFunction)
+  if (IsFunction) {
     OutStreamer->emitSymbolAttribute(Name, MCSA_ELF_TypeFunction);
+    if (TM.getTargetTriple().isOSBinFormatCOFF()) {
+      OutStreamer->BeginCOFFSymbolDef(Name);
+      OutStreamer->EmitCOFFSymbolStorageClass(
+          GA.hasLocalLinkage() ? COFF::IMAGE_SYM_CLASS_STATIC
+                               : COFF::IMAGE_SYM_CLASS_EXTERNAL);
+      OutStreamer->EmitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_FUNCTION
+                                      << COFF::SCT_COMPLEX_TYPE_SHIFT);
+      OutStreamer->EndCOFFSymbolDef();
+    }
+  }
 
   emitVisibility(Name, GA.getVisibility());
 
@@ -2477,7 +2492,8 @@ void AsmPrinter::emitLabelPlusOffset(const MCSymbol *Label, uint64_t Offset,
 // two boundary.  If a global value is specified, and if that global has
 // an explicit alignment requested, it will override the alignment request
 // if required for correctness.
-void AsmPrinter::emitAlignment(Align Alignment, const GlobalObject *GV) const {
+void AsmPrinter::emitAlignment(Align Alignment, const GlobalObject *GV,
+                               unsigned MaxBytesToEmit) const {
   if (GV)
     Alignment = getGVAlignment(GV, GV->getParent()->getDataLayout(), Alignment);
 
@@ -2490,9 +2506,9 @@ void AsmPrinter::emitAlignment(Align Alignment, const GlobalObject *GV) const {
       STI = &getSubtargetInfo();
     else
       STI = TM.getMCSubtargetInfo();
-    OutStreamer->emitCodeAlignment(Alignment.value(), STI);
+    OutStreamer->emitCodeAlignment(Alignment.value(), STI, MaxBytesToEmit);
   } else
-    OutStreamer->emitValueToAlignment(Alignment.value());
+    OutStreamer->emitValueToAlignment(Alignment.value(), 0, 1, MaxBytesToEmit);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3286,7 +3302,7 @@ void AsmPrinter::emitBasicBlockStart(const MachineBasicBlock &MBB) {
   // Emit an alignment directive for this block, if needed.
   const Align Alignment = MBB.getAlignment();
   if (Alignment != Align(1))
-    emitAlignment(Alignment);
+    emitAlignment(Alignment, nullptr, MBB.getMaxBytesForAlignment());
 
   // Switch to a new section if this basic block must begin a section. The
   // entry block is always placed in the function section and is handled
@@ -3646,6 +3662,12 @@ bool AsmPrinter::isDwarf64() const {
 unsigned int AsmPrinter::getDwarfOffsetByteSize() const {
   return dwarf::getDwarfOffsetByteSize(
       OutStreamer->getContext().getDwarfFormat());
+}
+
+dwarf::FormParams AsmPrinter::getDwarfFormParams() const {
+  return {getDwarfVersion(), uint8_t(getPointerSize()),
+          OutStreamer->getContext().getDwarfFormat(),
+          MAI->doesDwarfUseRelocationsAcrossSections()};
 }
 
 unsigned int AsmPrinter::getUnitLengthFieldByteSize() const {

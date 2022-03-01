@@ -881,7 +881,8 @@ static ScalarizationResult canScalarizeAccess(FixedVectorType *VecTy,
   ConstantRange IdxRange(IntWidth, true);
 
   if (isGuaranteedNotToBePoison(Idx, &AC)) {
-    if (ValidIndices.contains(computeConstantRange(Idx, true, &AC, CtxI, &DT)))
+    if (ValidIndices.contains(computeConstantRange(Idx, /* ForSigned */ false,
+                                                   true, &AC, CtxI, &DT)))
       return ScalarizationResult::safe();
     return ScalarizationResult::unsafe();
   }
@@ -1018,12 +1019,8 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
           return false;
         NumInstChecked++;
       }
+      LastCheckedInst = UI;
     }
-
-    if (!LastCheckedInst)
-      LastCheckedInst = UI;
-    else if (LastCheckedInst->comesBefore(UI))
-      LastCheckedInst = UI;
 
     auto ScalarIdx = canScalarizeAccess(FixedVT, UI->getOperand(1), &I, AC, DT);
     if (!ScalarIdx.isSafe()) {

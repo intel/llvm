@@ -15,9 +15,7 @@
 
 #include "SymbolTable.h"
 #include "Config.h"
-#include "LinkerScript.h"
 #include "Symbols.h"
-#include "SyntheticSections.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
@@ -40,8 +38,6 @@ void SymbolTable::wrap(Symbol *sym, Symbol *real, Symbol *wrap) {
   idx2 = idx1;
   idx1 = idx3;
 
-  if (real->exportDynamic)
-    sym->exportDynamic = true;
   if (!real->isUsedInRegularObj && sym->isUndefined())
     sym->isUsedInRegularObj = false;
 
@@ -72,8 +68,10 @@ Symbol *SymbolTable::insert(StringRef name) {
   auto p = symMap.insert({CachedHashStringRef(stem), (int)symVector.size()});
   if (!p.second) {
     Symbol *sym = symVector[p.first->second];
-    if (stem.size() != name.size())
+    if (stem.size() != name.size()) {
       sym->setName(name);
+      sym->hasVersionSuffix = true;
+    }
     return sym;
   }
 
@@ -84,21 +82,32 @@ Symbol *SymbolTable::insert(StringRef name) {
   // when it is a placeholder must be initialized here.
   sym->setName(name);
   sym->symbolKind = Symbol::PlaceholderKind;
-  sym->versionId = VER_NDX_GLOBAL;
+  sym->partition = 1;
   sym->visibility = STV_DEFAULT;
   sym->isUsedInRegularObj = false;
   sym->exportDynamic = false;
   sym->inDynamicList = false;
-  sym->canInline = true;
   sym->referenced = false;
   sym->traced = false;
   sym->scriptDefined = false;
-  sym->partition = 1;
+  sym->versionId = VER_NDX_GLOBAL;
+  if (pos != StringRef::npos)
+    sym->hasVersionSuffix = true;
   return sym;
 }
 
 Symbol *SymbolTable::addSymbol(const Symbol &newSym) {
   Symbol *sym = insert(newSym.getName());
+  sym->resolve(newSym);
+  return sym;
+}
+
+// This variant of addSymbol is used by BinaryFile::parse to check duplicate
+// symbol errors.
+Symbol *SymbolTable::addAndCheckDuplicate(const Defined &newSym) {
+  Symbol *sym = insert(newSym.getName());
+  if (sym->isDefined())
+    sym->checkDuplicate(newSym);
   sym->resolve(newSym);
   return sym;
 }
@@ -139,12 +148,13 @@ StringMap<SmallVector<Symbol *, 0>> &SymbolTable::getDemangledSyms() {
         StringRef name = sym->getName();
         size_t pos = name.find('@');
         if (pos == std::string::npos)
-          demangled = demangleItanium(name);
+          demangled = demangle(name, config->demangle);
         else if (pos + 1 == name.size() || name[pos + 1] == '@')
-          demangled = demangleItanium(name.substr(0, pos));
+          demangled = demangle(name.substr(0, pos), config->demangle);
         else
-          demangled =
-              (demangleItanium(name.substr(0, pos)) + name.substr(pos)).str();
+          demangled = (demangle(name.substr(0, pos), config->demangle) +
+                       name.substr(pos))
+                          .str();
         (*demangledSyms)[demangled].push_back(sym);
       }
   }
@@ -316,7 +326,8 @@ void SymbolTable::scanVersionScript() {
   // can contain versions in the form of <name>@<version>.
   // Let them parse and update their names to exclude version suffix.
   for (Symbol *sym : symVector)
-    sym->parseSymbolVersion();
+    if (sym->hasVersionSuffix)
+      sym->parseSymbolVersion();
 
   // isPreemptible is false at this point. To correctly compute the binding of a
   // Defined (which is used by includeInDynsym()), we need to know if it is

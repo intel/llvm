@@ -77,14 +77,15 @@ enum NodeType : unsigned {
   SBC, // adc, sbc instructions
 
   // Predicated instructions where inactive lanes produce undefined results.
-  ADD_PRED,
+  ABDS_PRED,
+  ABDU_PRED,
   FADD_PRED,
   FDIV_PRED,
   FMA_PRED,
-  FMAXNM_PRED,
-  FMINNM_PRED,
   FMAX_PRED,
+  FMAXNM_PRED,
   FMIN_PRED,
+  FMINNM_PRED,
   FMUL_PRED,
   FSUB_PRED,
   MUL_PRED,
@@ -96,7 +97,6 @@ enum NodeType : unsigned {
   SMIN_PRED,
   SRA_PRED,
   SRL_PRED,
-  SUB_PRED,
   UDIV_PRED,
   UMAX_PRED,
   UMIN_PRED,
@@ -230,15 +230,8 @@ enum NodeType : unsigned {
   SADDV,
   UADDV,
 
-  // Vector halving addition
-  SHADD,
-  UHADD,
-
-  // Vector rounding halving addition
-  SRHADD,
-  URHADD,
-
-  // Unsigned Add Long Pairwise
+  // Add Long Pairwise
+  SADDLP,
   UADDLP,
 
   // udot/sdot instructions
@@ -450,6 +443,12 @@ enum NodeType : unsigned {
   LDP,
   STP,
   STNP,
+
+  // Memory Operations
+  MOPS_MEMSET,
+  MOPS_MEMSET_TAGGING,
+  MOPS_MEMCOPY,
+  MOPS_MEMMOVE,
 };
 
 } // end namespace AArch64ISD
@@ -487,7 +486,6 @@ const unsigned RoundingBitsPos = 22;
 } // namespace AArch64
 
 class AArch64Subtarget;
-class AArch64TargetMachine;
 
 class AArch64TargetLowering : public TargetLowering {
 public:
@@ -603,8 +601,8 @@ public:
   bool isLegalAddImmediate(int64_t) const override;
   bool isLegalICmpImmediate(int64_t) const override;
 
-  bool isMulAddWithConstProfitable(const SDValue &AddNode,
-                                   const SDValue &ConstNode) const override;
+  bool isMulAddWithConstProfitable(SDValue AddNode,
+                                   SDValue ConstNode) const override;
 
   bool shouldConsiderGEPOffsetSplit() const override;
 
@@ -842,7 +840,7 @@ public:
     return 128;
   }
 
-  bool isAllActivePredicate(SDValue N) const;
+  bool isAllActivePredicate(SelectionDAG &DAG, SDValue N) const;
   EVT getPromotedVTForPredicate(EVT VT) const;
 
   EVT getAsmOperandValueType(const DataLayout &DL, Type *Ty,
@@ -888,6 +886,7 @@ private:
 
   SDValue LowerMLOAD(SDValue Op, SelectionDAG &DAG) const;
 
+  SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
 
   bool isEligibleForTailCallOptimization(
@@ -972,8 +971,8 @@ private:
   SDValue LowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSPLAT_VECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerDUPQLane(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerToPredicatedOp(SDValue Op, SelectionDAG &DAG, unsigned NewOp,
-                              bool OverrideNEON = false) const;
+  SDValue LowerToPredicatedOp(SDValue Op, SelectionDAG &DAG,
+                              unsigned NewOp) const;
   SDValue LowerToScalableOp(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVECTOR_SPLICE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
@@ -1137,8 +1136,8 @@ private:
   // with BITCAST used otherwise.
   SDValue getSVESafeBitCast(EVT VT, SDValue Op, SelectionDAG &DAG) const;
 
-  bool isConstantUnsignedBitfieldExtactLegal(unsigned Opc, LLT Ty1,
-                                             LLT Ty2) const override;
+  bool isConstantUnsignedBitfieldExtractLegal(unsigned Opc, LLT Ty1,
+                                              LLT Ty2) const override;
 };
 
 namespace AArch64 {

@@ -2539,12 +2539,10 @@ void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
       if (Op.getDescription().Op[I] == Encoding::SizeNA)
         continue;
       if (Op.getDescription().Op[I] == Encoding::BaseTypeRef) {
-        uint64_t Offset =
-            CU->ExprRefedBaseTypes[Op.getRawOperand(I)].Die->getOffset();
-        assert(Offset < (1ULL << (ULEB128PadSize * 7)) && "Offset wont fit");
-        Streamer.emitULEB128(Offset, "", ULEB128PadSize);
+        unsigned Length =
+          Streamer.emitDIERef(*CU->ExprRefedBaseTypes[Op.getRawOperand(I)].Die);
         // Make sure comments stay aligned.
-        for (unsigned J = 0; J < ULEB128PadSize; ++J)
+        for (unsigned J = 0; J < Length; ++J)
           if (Comment != End)
             Comment++;
       } else {

@@ -1,8 +1,10 @@
 #include "TestingSupport.h"
+#include "NoopAnalysis.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Tooling/Tooling.h"
+#include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -18,32 +20,6 @@ using ::testing::_;
 using ::testing::IsEmpty;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
-
-class NoopLattice {
-public:
-  bool operator==(const NoopLattice &) const { return true; }
-
-  LatticeJoinEffect join(const NoopLattice &) {
-    return LatticeJoinEffect::Unchanged;
-  }
-};
-
-std::ostream &operator<<(std::ostream &OS, const NoopLattice &S) {
-  OS << "noop";
-  return OS;
-}
-
-class NoopAnalysis : public DataflowAnalysis<NoopAnalysis, NoopLattice> {
-public:
-  NoopAnalysis(ASTContext &Context)
-      : DataflowAnalysis<NoopAnalysis, NoopLattice>(Context) {}
-
-  static NoopLattice initialElement() { return {}; }
-
-  NoopLattice transfer(const Stmt *S, const NoopLattice &E, Environment &Env) {
-    return {};
-  }
-};
 
 template <typename T>
 const FunctionDecl *findTargetFunc(ASTContext &Context, T FunctionMatcher) {
@@ -102,10 +78,14 @@ void checkDataflow(
                            std::string, DataflowAnalysisState<NoopLattice>>>,
                        ASTContext &)>
         Expectations) {
-  test::checkDataflow<NoopAnalysis>(
-      Code, Target,
-      [](ASTContext &Context, Environment &) { return NoopAnalysis(Context); },
-      std::move(Expectations), {"-fsyntax-only", "-std=c++17"});
+  ASSERT_THAT_ERROR(
+      test::checkDataflow<NoopAnalysis>(
+          Code, Target,
+          [](ASTContext &Context, Environment &) {
+            return NoopAnalysis(Context, /*ApplyBuiltinTransfer=*/false);
+          },
+          std::move(Expectations), {"-fsyntax-only", "-std=c++17"}),
+      llvm::Succeeded());
 }
 
 TEST(ProgramPointAnnotations, NoAnnotations) {

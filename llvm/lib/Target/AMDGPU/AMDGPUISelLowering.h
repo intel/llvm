@@ -335,8 +335,8 @@ public:
 
   AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *) const override;
 
-  bool isConstantUnsignedBitfieldExtactLegal(unsigned Opc, LLT Ty1,
-                                             LLT Ty2) const override;
+  bool isConstantUnsignedBitfieldExtractLegal(unsigned Opc, LLT Ty1,
+                                              LLT Ty2) const override;
 };
 
 namespace AMDGPUISD {
@@ -483,6 +483,9 @@ enum NodeType : unsigned {
   CONST_DATA_PTR,
   PC_ADD_REL_OFFSET,
   LDS,
+  FPTRUNC_ROUND_UPWARD,
+  FPTRUNC_ROUND_DOWNWARD,
+
   DUMMY_CHAIN,
   FIRST_MEM_OPCODE_NUMBER = ISD::FIRST_TARGET_MEMORY_OPCODE,
   LOAD_D16_HI,

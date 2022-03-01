@@ -179,7 +179,7 @@ bool HardwareLoopInfo::isHardwareLoopCandidate(ScalarEvolution &SE,
 TargetTransformInfo::TargetTransformInfo(const DataLayout &DL)
     : TTIImpl(new Model<NoTTIImpl>(NoTTIImpl(DL))) {}
 
-TargetTransformInfo::~TargetTransformInfo() {}
+TargetTransformInfo::~TargetTransformInfo() = default;
 
 TargetTransformInfo::TargetTransformInfo(TargetTransformInfo &&Arg)
     : TTIImpl(std::move(Arg.TTIImpl)) {}
@@ -406,6 +406,16 @@ bool TargetTransformInfo::isLegalMaskedGather(Type *DataType,
 bool TargetTransformInfo::isLegalMaskedScatter(Type *DataType,
                                                Align Alignment) const {
   return TTIImpl->isLegalMaskedScatter(DataType, Alignment);
+}
+
+bool TargetTransformInfo::forceScalarizeMaskedGather(VectorType *DataType,
+                                                     Align Alignment) const {
+  return TTIImpl->forceScalarizeMaskedGather(DataType, Alignment);
+}
+
+bool TargetTransformInfo::forceScalarizeMaskedScatter(VectorType *DataType,
+                                                      Align Alignment) const {
+  return TTIImpl->forceScalarizeMaskedScatter(DataType, Alignment);
 }
 
 bool TargetTransformInfo::isLegalMaskedCompressStore(Type *DataType) const {
@@ -1145,7 +1155,7 @@ TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
   }
 }
 
-TargetTransformInfo::Concept::~Concept() {}
+TargetTransformInfo::Concept::~Concept() = default;
 
 TargetIRAnalysis::TargetIRAnalysis() : TTICallback(&getDefaultTTI) {}
 
