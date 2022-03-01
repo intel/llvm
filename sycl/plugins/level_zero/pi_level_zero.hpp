@@ -643,7 +643,7 @@ private:
 };
 
 struct _pi_queue : _pi_object {
-  _pi_queue(ze_command_queue_handle_t Queue,
+  _pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
             std::vector<ze_command_queue_handle_t> &CopyQueues,
             pi_context Context, pi_device Device, bool OwnZeCommandQueue,
             pi_queue_properties Properties = 0);

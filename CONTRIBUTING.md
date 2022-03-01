@@ -28,7 +28,8 @@ section of Get Started guide for more information.
 **Note (October, 2020)**: DPC++ runtime and compiler ABI is currently in frozen
 state. This means that no ABI-breaking changes will be accepted by default.
 Project maintainers may still approve breaking changes in some cases. Please,
-see [ABI Policy Guide](sycl/doc/ABIPolicyGuide.md) for more information.
+see [ABI Policy Guide](sycl/doc/developer/ABIPolicyGuide.md) for more
+information.
 
 - Create a personal fork of the project on GitHub
   - For the DPC++ Compiler project, use **sycl** branch as baseline for your
