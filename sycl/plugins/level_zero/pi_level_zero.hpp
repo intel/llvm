@@ -431,14 +431,6 @@ struct pi_command_list_info_t {
   // events.
   int NumEventlessCommands{0};
 
-  // Since an application can combine commands with events and eventless
-  // commands, we have to save dependency allocations inside such command-lists
-  // to keep them valid during execution and can release them in
-  // resetCommandList.
-  std::list<pi_event *> PiEventLists{};
-  std::list<ze_event_handle_t *> ZeEventLists{};
-  std::list<pi_uint32> Lengths{};
-
   // Since event is not necessarily created for tracking during
   // piEnqueueKernelLaunch. We need to save the kernel in this variable for
   // cases when event is not created to have the ability to do a piKernelRelease

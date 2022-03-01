@@ -33,7 +33,8 @@ extern "C" {
 static pi_result EventRelease(pi_event Event, pi_queue LockedQueue);
 static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue);
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
-                             bool HostVisible, pi_event *RetEvent);
+                             bool HostVisible, pi_event *RetEvent,
+                             bool NeedZeEvent);
 }
 
 namespace {
@@ -611,11 +612,11 @@ inline static void piQueueRetainNoLock(pi_queue Queue) { Queue->RefCount++; }
 inline static pi_result createEventAndAssociateQueue(
     pi_queue Queue, pi_event *Event, pi_command_type CommandType,
     pi_command_list_ptr_t CommandList, bool ForceHostVisible = false,
-    bool IsNormalEvent = true) {
+    bool IsNormalEvent = true, bool NeedZeEvent = true) {
 
   PI_CALL(EventCreate(Queue->Context, Queue,
                       ForceHostVisible ? true : EventsScope == AllHostVisible,
-                      Event));
+                      Event, NeedZeEvent));
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
@@ -859,26 +860,6 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   ZE_CALL(zeCommandListReset, (CommandList->first));
   CommandList->second.InUse = false;
   CommandList->second.NumEventlessCommands = 0;
-
-  auto &PiEventLists = CommandList->second.PiEventLists;
-  auto &ZeEventLists = CommandList->second.ZeEventLists;
-  auto &Lengths = CommandList->second.Lengths;
-  assert(Lengths.size() == PiEventLists.size());
-  assert(Lengths.size() == ZeEventLists.size());
-  while (!Lengths.empty()) {
-    pi_event *PiEvents = PiEventLists.front();
-    PiEventLists.pop_front();
-    ze_event_handle_t *ZeEvents = ZeEventLists.front();
-    ZeEventLists.pop_front();
-    pi_uint32 Length = Lengths.front();
-    Lengths.pop_front();
-
-    for (auto i = 0u; i < Length; ++i) {
-      PI_CALL(EventRelease(PiEvents[i], this));
-    }
-    delete[] PiEvents;
-    delete[] ZeEvents;
-  }
 
   auto &EventlessKernelsInUse = CommandList->second.EventlessKernelsInUse;
   while (!EventlessKernelsInUse.empty()) {
@@ -4952,11 +4933,16 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     (*Event)->CommandData = (void *)Kernel;
   } else {
     auto &CommandListInfo = CommandList->second;
-    ++CommandListInfo.NumEventlessCommands;
     if (TmpWaitList.Length != 0) {
-      CommandListInfo.PiEventLists.emplace_back(TmpWaitList.PiEventList);
-      CommandListInfo.ZeEventLists.emplace_back(TmpWaitList.ZeEventList);
-      CommandListInfo.Lengths.emplace_back(TmpWaitList.Length);
+      pi_event InternalEvent;
+      pi_result Res = createEventAndAssociateQueue(
+          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
+          false, false, false);
+      if (Res != PI_SUCCESS)
+        return Res;
+      InternalEvent->WaitList = TmpWaitList;
+    } else {
+      ++CommandListInfo.NumEventlessCommands;
     }
     CommandListInfo.EventlessKernelsInUse.emplace_back(Kernel);
   }
@@ -5084,43 +5070,47 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
 // a host-visible pool.
 //
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
-                             bool HostVisible, pi_event *RetEvent) {
+                             bool HostVisible, pi_event *RetEvent,
+                             bool NeedZeEvent = true) {
 
-  bool ProfilingEnabled =
-      !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
+  ze_event_handle_t ZeEvent = nullptr;
+  ze_event_pool_handle_t ZeEventPool = nullptr;
+  if (NeedZeEvent) {
+    bool ProfilingEnabled =
+        !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
 
-  size_t Index = 0;
-  ze_event_pool_handle_t ZeEventPool = {};
-  if (auto Res = Context->getFreeSlotInExistingOrNewPool(
-          ZeEventPool, Index, HostVisible, ProfilingEnabled))
-    return Res;
+    size_t Index = 0;
 
-  ze_event_handle_t ZeEvent;
-  ZeStruct<ze_event_desc_t> ZeEventDesc;
-  ZeEventDesc.index = Index;
-  ZeEventDesc.wait = 0;
+    if (auto Res = Context->getFreeSlotInExistingOrNewPool(
+            ZeEventPool, Index, HostVisible, ProfilingEnabled))
+      return Res;
 
-  if (HostVisible) {
-    ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
-  } else {
-    //
-    // Set the scope to "device" for every event. This is sufficient for global
-    // device access and peer device access. If needed to be seen on the host
-    // we are doing special handling, see EventsScope options.
-    //
-    // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
-    //       used in some circumstances.
-    //
-    ZeEventDesc.signal = 0;
+    ZeStruct<ze_event_desc_t> ZeEventDesc;
+    ZeEventDesc.index = Index;
+    ZeEventDesc.wait = 0;
+
+    if (HostVisible) {
+      ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
+    } else {
+      //
+      // Set the scope to "device" for every event. This is sufficient for
+      // global device access and peer device access. If needed to be seen on
+      // the host we are doing special handling, see EventsScope options.
+      //
+      // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
+      //       used in some circumstances.
+      //
+      ZeEventDesc.signal = 0;
+    }
+
+    ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
   }
-
-  ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
 
   try {
     PI_ASSERT(RetEvent, PI_INVALID_VALUE);
 
     *RetEvent = new _pi_event(ZeEvent, ZeEventPool, Context,
-                              PI_COMMAND_TYPE_USER, true);
+                              PI_COMMAND_TYPE_USER, NeedZeEvent);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -5744,12 +5734,17 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
       ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
     } else {
-      auto &CommandListInfo = CommandList->second;
-      ++CommandListInfo.NumEventlessCommands;
       if (TmpWaitList.Length != 0) {
-        CommandListInfo.PiEventLists.emplace_back(TmpWaitList.PiEventList);
-        CommandListInfo.ZeEventLists.emplace_back(TmpWaitList.ZeEventList);
-        CommandListInfo.Lengths.emplace_back(TmpWaitList.Length);
+        pi_event InternalEvent;
+        pi_result Res = createEventAndAssociateQueue(
+            Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
+            false, false, false);
+        if (Res != PI_SUCCESS)
+          return Res;
+        InternalEvent->WaitList = TmpWaitList;
+      } else {
+        auto &CommandListInfo = CommandList->second;
+        ++CommandListInfo.NumEventlessCommands;
       }
       ZE_CALL(
           zeCommandListAppendWaitOnEvents,
@@ -5843,12 +5838,17 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   } else {
-    auto &CommandListInfo = CommandList->second;
-    ++CommandListInfo.NumEventlessCommands;
     if (TmpWaitList.Length != 0) {
-      CommandListInfo.PiEventLists.emplace_back(TmpWaitList.PiEventList);
-      CommandListInfo.ZeEventLists.emplace_back(TmpWaitList.ZeEventList);
-      CommandListInfo.Lengths.emplace_back(TmpWaitList.Length);
+      pi_event InternalEvent;
+      pi_result Res = createEventAndAssociateQueue(
+          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
+          false, false, false);
+      if (Res != PI_SUCCESS)
+        return Res;
+      InternalEvent->WaitList = TmpWaitList;
+    } else {
+      auto &CommandListInfo = CommandList->second;
+      ++CommandListInfo.NumEventlessCommands;
     }
   }
 
@@ -5940,12 +5940,17 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   } else {
-    auto &CommandListInfo = CommandList->second;
-    ++CommandListInfo.NumEventlessCommands;
     if (TmpWaitList.Length != 0) {
-      CommandListInfo.PiEventLists.emplace_back(TmpWaitList.PiEventList);
-      CommandListInfo.ZeEventLists.emplace_back(TmpWaitList.ZeEventList);
-      CommandListInfo.Lengths.emplace_back(TmpWaitList.Length);
+      pi_event InternalEvent;
+      pi_result Res = createEventAndAssociateQueue(
+          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
+          false, false, false);
+      if (Res != PI_SUCCESS)
+        return Res;
+      InternalEvent->WaitList = TmpWaitList;
+    } else {
+      auto &CommandListInfo = CommandList->second;
+      ++CommandListInfo.NumEventlessCommands;
     }
   }
 
@@ -6226,12 +6231,17 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   } else {
-    auto &CommandListInfo = CommandList->second;
-    ++CommandListInfo.NumEventlessCommands;
     if (TmpWaitList.Length != 0) {
-      CommandListInfo.PiEventLists.emplace_back(TmpWaitList.PiEventList);
-      CommandListInfo.ZeEventLists.emplace_back(TmpWaitList.ZeEventList);
-      CommandListInfo.Lengths.emplace_back(TmpWaitList.Length);
+      pi_event InternalEvent;
+      pi_result Res = createEventAndAssociateQueue(
+          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
+          false, false, false);
+      if (Res != PI_SUCCESS)
+        return Res;
+      InternalEvent->WaitList = TmpWaitList;
+    } else {
+      auto &CommandListInfo = CommandList->second;
+      ++CommandListInfo.NumEventlessCommands;
     }
   }
 
@@ -7553,12 +7563,17 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   } else {
-    auto &CommandListInfo = CommandList->second;
-    ++CommandListInfo.NumEventlessCommands;
     if (TmpWaitList.Length != 0) {
-      CommandListInfo.PiEventLists.emplace_back(TmpWaitList.PiEventList);
-      CommandListInfo.ZeEventLists.emplace_back(TmpWaitList.ZeEventList);
-      CommandListInfo.Lengths.emplace_back(TmpWaitList.Length);
+      pi_event InternalEvent;
+      pi_result Res = createEventAndAssociateQueue(
+          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
+          false, false, false);
+      if (Res != PI_SUCCESS)
+        return Res;
+      InternalEvent->WaitList = TmpWaitList;
+    } else {
+      auto &CommandListInfo = CommandList->second;
+      ++CommandListInfo.NumEventlessCommands;
     }
   }
 
@@ -7626,12 +7641,17 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   } else {
-    auto &CommandListInfo = CommandList->second;
-    ++CommandListInfo.NumEventlessCommands;
     if (TmpWaitList.Length != 0) {
-      CommandListInfo.PiEventLists.emplace_back(TmpWaitList.PiEventList);
-      CommandListInfo.ZeEventLists.emplace_back(TmpWaitList.ZeEventList);
-      CommandListInfo.Lengths.emplace_back(TmpWaitList.Length);
+      pi_event InternalEvent;
+      pi_result Res = createEventAndAssociateQueue(
+          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
+          false, false, false);
+      if (Res != PI_SUCCESS)
+        return Res;
+      InternalEvent->WaitList = TmpWaitList;
+    } else {
+      auto &CommandListInfo = CommandList->second;
+      ++CommandListInfo.NumEventlessCommands;
     }
   }
 
