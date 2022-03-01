@@ -45,20 +45,12 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
-[NOTE]
-====
-This extension is currently implemented in {dpcpp} only for FPGA devices.  Attempting to use this extension on other devices or backends may result in no effect.
-
-This serves as a temporary workaround for usm allocation to accept buffer location properties, and the formal solution will come in the future.
-====
 
 == Overview
 
 This document propose a new buffer_location runtime property that can be passed to `malloc_device`.
 
 On targets that provide more than one type of global memory, this provide users the flexibility of choosing which memory the device usm should be allocated to.
-
-This information is not a hint; it is a functional requirement of the program that must be respected.
 
 == Specification
 
@@ -86,12 +78,12 @@ supports.
 
 [source,c++]
 ----
-array = (int *)malloc_device<int>(
-        N * sizeof(int), q,
-        property_list{sycl::ext::intel::experimental::property::usm::buffer_location(2)});
+array = (int *)sycl::malloc_device<int>(
+        N, q,
+        sycl::property_list{sycl::ext::intel::experimental::property::usm::buffer_location(2)});
 
 sycl::queue q;
-q.parallel_for(range<1>(N), [=] (id<1> i){
+q.parallel_for(sycl::range<1>(N), [=] (sycl::id<1> i){
   data[i] *= 2;
 }).wait();
 ----
@@ -99,7 +91,7 @@ q.parallel_for(range<1>(N), [=] (id<1> i){
 
 === Changes to runtime properties
 
-To pass the runtime properties into malloc API, a new buffer properties is introduced.
+This extension adds the new property `sycl::ext::intel::experimental::property::usm::buffer_location`` which applications can pass in the property_list parameter to all overloads of the `sycl::malloc_device()`, `sycl::malloc_shared()`, `sycl::malloc_host()`  function. However, this property has no effect when passed to `sycl::malloc_shared()`, `sycl::malloc_host()`. Following is a synopsis of this property.
 
 [source,c++]
 ----
@@ -113,6 +105,11 @@ class buffer_location {
 
 } // namespace sycl::ext::intel::experimental::property::usm
 ----
+
+On targets that provide more than one type of global memory, `buffer_location` allows user to specify which of the global memory to allocate memory to. This provide user the flexibility to choose the global memory that satisfy requirements for bandwodth and throughput.
+
+This property is ignored for non-FPGA devices. Attempting to use this extension on other devices or backends will result in no effect.
+
 
 == Issues
 
