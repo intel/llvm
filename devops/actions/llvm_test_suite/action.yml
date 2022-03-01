@@ -84,12 +84,13 @@ runs:
         source /runtimes/oneapi-tbb/env/vars.sh;
       fi
       echo "::group::sycl-ls --verbose"
-      sycl-ls --verbose
+      # TODO re-enable sycl-ls
+      # sycl-ls --verbose
       echo "::endgroup::"
       echo "::group::SYCL_PI_TRACE=-1 sycl-ls"
       echo $LD_LIBRARY_PATH
       ldd $PWD/toolchain/lib/libpi_hip.so
-      SYCL_PI_TRACE=-1 sycl-ls
+      # SYCL_PI_TRACE=-1 sycl-ls
       echo "::endgroup::"
       cd build
       ninja check-sycl-all
