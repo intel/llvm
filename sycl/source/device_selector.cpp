@@ -98,7 +98,6 @@ device device_selector::select_device() const {
 /// 2. CPU
 /// 3. Host
 int default_selector::operator()(const device &dev) const {
-
   int Score = REJECT_DEVICE_SCORE;
 
   // Give preference to device of SYCL BE.
@@ -186,6 +185,33 @@ int host_selector::operator()(const device &dev) const {
       Score += 50;
   }
   return Score;
+}
+
+int aspect_selector_t::operator()(const device &Dev) const {
+  // neither aspect from deny list is allowed
+  for (const aspect &Asp : MDenyList)
+    if (Dev.has(Asp))
+      return -1;
+
+  // all aspects from require list are required
+  for (const aspect &Asp : MRequireList)
+    if (!Dev.has(Asp))
+      return -1;
+
+  // SYCL 2020 spec says:
+  // > In places where only one device has to be picked and the high score is
+  // > obtained by more than one device, then one of the tied devices will be
+  // > returned, but which one is not defined and may depend on enumeration
+  // > order, for example, outside the control of the SYCL runtime.
+  //
+  // Hence, we're fine to have default device selector in place when all of
+  // required aspects and none of denied ones are present for the device
+  return default_selector::operator()(Dev);
+}
+
+aspect_selector_t aspect_selector (const std::vector<aspect> &AspectList,
+                                   const std::vector<aspect> &DenyList) {
+  return aspect_selector_t{AspectList, DenyList};
 }
 
 namespace ext {
