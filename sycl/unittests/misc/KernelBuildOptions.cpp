@@ -243,7 +243,7 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
   auto ExecBundle = sycl::build(KernelBundle);
-  EXPECT_EQ(BuildOpts, "-compile-img -vc-codegen");
+  EXPECT_EQ(BuildOpts, "-compile-img -vc-codegen -link-img");
 
   auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices());
   // TODO: uncomment when image options are passed to BE
