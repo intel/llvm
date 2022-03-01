@@ -3718,7 +3718,7 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
 	      : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getXDim());
     bool CheckSecondArgument =
 	      checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), A.getYDim());
-    bool checkThirdArgument = getLangOpts().OpenCL
+    bool CheckThirdArgument = getLangOpts().OpenCL
 	      ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getXDim())
 	      : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getZDim());
 
