@@ -420,7 +420,7 @@ public:
 
     if (Value *Result = ConstantEmitter(CGF).tryEmitConstantExpr(E)) {
       if (E->isGLValue())
-        return CGF.Builder.CreateLoad(Address(
+        return CGF.Builder.CreateLoad(Address::deprecated(
             Result, CGF.getContext().getTypeAlignInChars(E->getType())));
       return Result;
     }
@@ -2060,11 +2060,16 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     }
 
     if (CGF.SanOpts.has(SanitizerKind::CFIUnrelatedCast)) {
-      if (auto PT = DestTy->getAs<PointerType>())
-        CGF.EmitVTablePtrCheckForCast(PT->getPointeeType(), Src,
-                                      /*MayBeNull=*/true,
-                                      CodeGenFunction::CFITCK_UnrelatedCast,
-                                      CE->getBeginLoc());
+      if (auto PT = DestTy->getAs<PointerType>()) {
+        CGF.EmitVTablePtrCheckForCast(
+            PT->getPointeeType(),
+            Address(Src,
+                    CGF.ConvertTypeForMem(
+                        E->getType()->getAs<PointerType>()->getPointeeType()),
+                    CGF.getPointerAlign()),
+            /*MayBeNull=*/true, CodeGenFunction::CFITCK_UnrelatedCast,
+            CE->getBeginLoc());
+      }
     }
 
     if (CGF.CGM.getCodeGenOpts().StrictVTablePointers) {
@@ -2219,10 +2224,10 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
                         Derived.getPointer(), DestTy->getPointeeType());
 
     if (CGF.SanOpts.has(SanitizerKind::CFIDerivedCast))
-      CGF.EmitVTablePtrCheckForCast(
-          DestTy->getPointeeType(), Derived.getPointer(),
-          /*MayBeNull=*/true, CodeGenFunction::CFITCK_DerivedCast,
-          CE->getBeginLoc());
+      CGF.EmitVTablePtrCheckForCast(DestTy->getPointeeType(), Derived,
+                                    /*MayBeNull=*/true,
+                                    CodeGenFunction::CFITCK_DerivedCast,
+                                    CE->getBeginLoc());
 
     return Derived.getPointer();
   }
@@ -4917,7 +4922,7 @@ LValue CodeGenFunction::EmitObjCIsaExpr(const ObjCIsaExpr *E) {
   Expr *BaseExpr = E->getBase();
   Address Addr = Address::invalid();
   if (BaseExpr->isPRValue()) {
-    Addr = Address(EmitScalarExpr(BaseExpr), getPointerAlign());
+    Addr = Address::deprecated(EmitScalarExpr(BaseExpr), getPointerAlign());
   } else {
     Addr = EmitLValue(BaseExpr).getAddress(*this);
   }
