@@ -7057,7 +7057,7 @@ static void copyAttrFromTypedefToDecl(Sema &S, Decl *D, const TypedefType *TT) {
     D->addAttr(Clone);
   }
 }
-static bool isSyclDeviceGlobalType(QualType Ty) {
+bool Sema::isSyclDeviceGlobalType(QualType Ty) {
   const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
   if (!RecTy)
     return false;
@@ -7410,7 +7410,8 @@ NamedDecl *Sema::ActOnVariableDeclarator(
         SCSpec != DeclSpec::SCS_static && !NewVD->hasGlobalStorage()) {
       Diag(D.getIdentifierLoc(), diag::err_sycl_device_global_incorrect_scope);
     }
-    if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context))
+    if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context) &&
+        !isSyclGlobalVariableAllowedType(NewVD->getType()))
       SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
           << Sema::KernelNonConstStaticDataVariable;
   }

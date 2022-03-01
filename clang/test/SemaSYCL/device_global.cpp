@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -std=c++17 -sycl-std=2020 -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -std=c++17 -sycl-std=2020 -ast-dump -verify %s | FileCheck %s
 #include "Inputs/sycl.hpp"
 
 using namespace sycl::ext::oneapi;
@@ -13,18 +13,18 @@ struct Foo {
 };
 device_global<char> Foo::d;
 
-//struct Bar {
-//  device_global<int> e;         // ILLEGAL: non-static member variable not
-//};                              // allowed
+struct Bar {
+  device_global<int> e;         // ILLEGAL: non-static member variable not
+};                              // allowed
 
-//struct Baz {
-// private:
-//  static device_global<int> f;  // ILLEGAL: not publicly accessible from
-//};                              // namespace scope
-//device_global<int> Baz::f;
+struct Baz {
+ private:
+  static device_global<int> f;  // ILLEGAL: not publicly accessible from
+};                              // namespace scope
+device_global<int> Baz::f;
 
 device_global<int[4]> not_array;        // OK
-//device_global<int> h[4];        // ILLEGAL: array of "device_global" not
+device_global<int> h[4];        // ILLEGAL: array of "device_global" not
                                 // allowed
 
 device_global<int> same_name;   // OK
@@ -54,8 +54,13 @@ int main() {
     (void)Foo::d;
   });
 
-  cl::sycl::kernel_single_task<class KernelName3>([]() {
-//    static device_global<int> non_const_static;
+  cl::sycl::kernel_single_task<class KernelName2>([]() {
+    // expected-error@+1{{`device_global` variables must be static or declared at namespace scope}}
+    device_global<int> non_static;
+
+    // expect no error on non_const_static declaration if decorated with
+    // [[__sycl_detail__::global_variable_allowed]]
+    static device_global<int> non_const_static;
   });
 }
 //
