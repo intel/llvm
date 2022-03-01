@@ -1,6 +1,25 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -fsycl-unique-prefix=THE_PREFIX -std=c++17 -emit-llvm %s -o - | FileCheck %s
 #include "sycl.hpp"
 
+namespace cl {
+namespace sycl {
+namespace ext {
+namespace oneapi {
+// decorated with only global_variable_allowed attribute
+template <typename T>
+class [[__sycl_detail__::global_variable_allowed]] only_global_var_allowed {
+public :
+  const T & get() const noexcept { return *Data; }
+  only_global_var_allowed() {}
+  operator T&() noexcept { return *Data; }
+private:
+  T *Data;
+};
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+} // namespace cl
+
 using namespace sycl::ext::oneapi;
 using namespace cl::sycl;
 queue q;

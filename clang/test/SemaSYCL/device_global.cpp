@@ -72,19 +72,3 @@ int main() {
 // CHECK: SYCLDeviceGlobalAttr {{.*}}
 // CHECK: SYCLGlobalVariableAllowedAttr {{.*}}
 
-// CHECK: VarDecl {{.*}} used glob 'device_global<int>':'sycl::ext::oneapi::device_global<int>' callinit
-// CHECK: CXXConstructExpr {{.*}} 'device_global<int>':'sycl::ext::oneapi::device_global<int>' 'void ()'
-// CHECK: VarDecl {{.*}} used static_glob 'device_global<float>':'sycl::ext::oneapi::device_global<float>' static callinit
-// CHECK: CXXConstructExpr {{.*}} 'device_global<float>':'sycl::ext::oneapi::device_global<float>' 'void ()'
-// CHECK: VarDecl {{.*}} used inline_glob 'device_global<double>':'sycl::ext::oneapi::device_global<double>' inline callinit
-// CHECK: CXXConstructExpr {{.*}} 'device_global<double>':'sycl::ext::oneapi::device_global<double>' 'void ()'
-// CHECK: VarDecl {{.*}} used static_const_glob 'const device_global<int>':'const sycl::ext::oneapi::device_global<int>' static callinit
-// CHECK: CXXConstructExpr {{.*}} 'const device_global<int>':'const sycl::ext::oneapi::device_global<int>' 'void ()'
-// CHECK: CXXRecordDecl {{.*}} struct Foo definition
-// CHECK: VarDecl {{.*}} used d 'device_global<char>':'sycl::ext::oneapi::device_global<char>' static
-// CHECK: VarDecl {{.*}} d 'device_global<char>':'sycl::ext::oneapi::device_global<char>' callinit
-// CHECK: CXXConstructExpr {{.*}} 'device_global<char>':'sycl::ext::oneapi::device_global<char>' 'void ()'
-// CHECK: VarDecl {{.*}} not_array 'device_global<int[4]>':'sycl::ext::oneapi::device_global<int[4]>' callinit
-// CHECK: CXXConstructExpr {{.*}} 'device_global<int[4]>':'sycl::ext::oneapi::device_global<int[4]>' 'void ()'
-// CHECK: VarDecl {{.*}} same_name 'device_global<int>':'sycl::ext::oneapi::device_global<int>' callinit
-//
