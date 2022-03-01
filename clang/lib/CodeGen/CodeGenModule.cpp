@@ -572,21 +572,29 @@ void CodeGenModule::Release() {
     EmitMainVoidAlias();
   }
 
-  // Emit reference of __amdgpu_device_library_preserve_asan_functions to
-  // preserve ASAN functions in bitcode libraries.
-  if (LangOpts.Sanitize.has(SanitizerKind::Address) && getTriple().isAMDGPU()) {
-    auto *FT = llvm::FunctionType::get(VoidTy, {});
-    auto *F = llvm::Function::Create(
-        FT, llvm::GlobalValue::ExternalLinkage,
-        "__amdgpu_device_library_preserve_asan_functions", &getModule());
-    auto *Var = new llvm::GlobalVariable(
-        getModule(), FT->getPointerTo(),
-        /*isConstant=*/true, llvm::GlobalValue::WeakAnyLinkage, F,
-        "__amdgpu_device_library_preserve_asan_functions_ptr", nullptr,
-        llvm::GlobalVariable::NotThreadLocal);
-    addCompilerUsedGlobal(Var);
-    if (!getModule().getModuleFlag("amdgpu_hostcall")) {
-      getModule().addModuleFlag(llvm::Module::Override, "amdgpu_hostcall", 1);
+  if (getTriple().isAMDGPU()) {
+    // Emit reference of __amdgpu_device_library_preserve_asan_functions to
+    // preserve ASAN functions in bitcode libraries.
+    if (LangOpts.Sanitize.has(SanitizerKind::Address)) {
+      auto *FT = llvm::FunctionType::get(VoidTy, {});
+      auto *F = llvm::Function::Create(
+          FT, llvm::GlobalValue::ExternalLinkage,
+          "__amdgpu_device_library_preserve_asan_functions", &getModule());
+      auto *Var = new llvm::GlobalVariable(
+          getModule(), FT->getPointerTo(),
+          /*isConstant=*/true, llvm::GlobalValue::WeakAnyLinkage, F,
+          "__amdgpu_device_library_preserve_asan_functions_ptr", nullptr,
+          llvm::GlobalVariable::NotThreadLocal);
+      addCompilerUsedGlobal(Var);
+    }
+    // Emit amdgpu_code_object_version module flag, which is code object version
+    // times 100.
+    // ToDo: Enable module flag for all code object version when ROCm device
+    // library is ready.
+    if (getTarget().getTargetOpts().CodeObjectVersion == TargetOptions::COV_5) {
+      getModule().addModuleFlag(llvm::Module::Error,
+                                "amdgpu_code_object_version",
+                                getTarget().getTargetOpts().CodeObjectVersion);
     }
   }
 
@@ -732,6 +740,9 @@ void CodeGenModule::Release() {
                               1);
   }
 
+  if (CodeGenOpts.IBTSeal)
+    getModule().addModuleFlag(llvm::Module::Override, "ibt-seal", 1);
+
   // Add module metadata for return address signing (ignoring
   // non-leaf/all) and stack tagging. These are actually turned on by function
   // attributes, but we use module metadata to emit build attributes. This is
@@ -748,6 +759,7 @@ void CodeGenModule::Release() {
                               "tag-stack-memory-buildattr", 1);
 
   if (Arch == llvm::Triple::thumb || Arch == llvm::Triple::thumbeb ||
+      Arch == llvm::Triple::arm || Arch == llvm::Triple::armeb ||
       Arch == llvm::Triple::aarch64 || Arch == llvm::Triple::aarch64_32 ||
       Arch == llvm::Triple::aarch64_be) {
     getModule().addModuleFlag(llvm::Module::Error, "branch-target-enforcement",
@@ -759,11 +771,9 @@ void CodeGenModule::Release() {
     getModule().addModuleFlag(llvm::Module::Error, "sign-return-address-all",
                               LangOpts.isSignReturnAddressScopeAll());
 
-    if (Arch != llvm::Triple::thumb && Arch != llvm::Triple::thumbeb) {
-      getModule().addModuleFlag(llvm::Module::Error,
-                                "sign-return-address-with-bkey",
-                                !LangOpts.isSignReturnAddressWithAKey());
-    }
+    getModule().addModuleFlag(llvm::Module::Error,
+                              "sign-return-address-with-bkey",
+                              !LangOpts.isSignReturnAddressWithAKey());
   }
 
   if (!CodeGenOpts.MemoryProfileOutput.empty()) {
@@ -881,7 +891,7 @@ void CodeGenModule::Release() {
   if (CodeGenOpts.NoPLT)
     getModule().setRtLibUseGOT();
   if (CodeGenOpts.UnwindTables)
-    getModule().setUwtable();
+    getModule().setUwtable(llvm::UWTableKind(CodeGenOpts.UnwindTables));
 
   switch (CodeGenOpts.getFramePointer()) {
   case CodeGenOptions::FramePointerKind::None:
@@ -1952,7 +1962,7 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
   llvm::AttrBuilder B(F->getContext());
 
   if (CodeGenOpts.UnwindTables)
-    B.addAttribute(llvm::Attribute::UWTable);
+    B.addUWTableAttr(llvm::UWTableKind(CodeGenOpts.UnwindTables));
 
   if (CodeGenOpts.StackClashProtector)
     B.addAttribute("probe-stack", "inline-asm");
@@ -4590,6 +4600,14 @@ LangAS CodeGenModule::GetGlobalConstantAddressSpace() const {
     return LangAS::opencl_constant;
   if (LangOpts.SYCLIsDevice)
     return LangAS::sycl_global;
+  if (LangOpts.HIP && LangOpts.CUDAIsDevice && getTriple().isSPIRV())
+    // For HIPSPV map literals to cuda_device (maps to CrossWorkGroup in SPIR-V)
+    // instead of default AS (maps to Generic in SPIR-V). Otherwise, we end up
+    // with OpVariable instructions with Generic storage class which is not
+    // allowed (SPIR-V V1.6 s3.42.8). Also, mapping literals to SPIR-V
+    // UniformConstant storage class is not viable as pointers to it may not be
+    // casted to Generic pointers which are used to model HIP's "flat" pointers.
+    return LangAS::cuda_device;
   if (auto AS = getTarget().getConstantAddressSpace())
     return AS.getValue();
   return LangAS::Default;
@@ -5995,9 +6013,11 @@ ConstantAddress CodeGenModule::GetAddrOfGlobalTemporary(
           getModule(), Type, false, llvm::GlobalVariable::InternalLinkage,
           nullptr);
     }
-    return ConstantAddress(
-        InsertResult.first->second,
-        InsertResult.first->second->getType()->getPointerElementType(), Align);
+    return ConstantAddress(InsertResult.first->second,
+                           llvm::cast<llvm::GlobalVariable>(
+                               InsertResult.first->second->stripPointerCasts())
+                               ->getValueType(),
+                           Align);
   }
 
   // FIXME: If an externally-visible declaration extends multiple temporaries,
@@ -6066,6 +6086,9 @@ ConstantAddress CodeGenModule::GetAddrOfGlobalTemporary(
       /*InsertBefore=*/nullptr, llvm::GlobalVariable::NotThreadLocal, TargetAS);
   if (emitter) emitter->finalize(GV);
   setGVProperties(GV, VD);
+  if (GV->getDLLStorageClass() == llvm::GlobalVariable::DLLExportStorageClass)
+    // The reference temporary should never be dllexport.
+    GV->setDLLStorageClass(llvm::GlobalVariable::DefaultStorageClass);
   GV->setAlignment(Align.getAsAlign());
   if (supportsCOMDAT() && GV->isWeakForLinker())
     GV->setComdat(TheModule.getOrInsertComdat(GV->getName()));
@@ -6751,7 +6774,8 @@ void CodeGenModule::EmitOMPThreadPrivateDecl(const OMPThreadPrivateDecl *D) {
         !VD->getAnyInitializer()->isConstantInitializer(getContext(),
                                                         /*ForRef=*/false);
 
-    Address Addr(GetAddrOfGlobalVar(VD), getContext().getDeclAlign(VD));
+    Address Addr = Address::deprecated(GetAddrOfGlobalVar(VD),
+                                       getContext().getDeclAlign(VD));
     if (auto InitFunction = getOpenMPRuntime().emitThreadPrivateVarDefinition(
             VD, Addr, RefExpr->getBeginLoc(), PerformInit))
       CXXGlobalInits.push_back(InitFunction);

@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SpecConstants.h"
+#include "Support.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
@@ -17,7 +18,6 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
 
@@ -51,10 +51,13 @@ constexpr char SPEC_CONST_MD_STRING[] = "sycl.specialization-constants";
 constexpr char SPEC_CONST_DEFAULT_VAL_MD_STRING[] =
     "sycl.specialization-constants-default-values";
 
-void AssertRelease(bool Cond, const char *Msg) {
-  if (!Cond)
-    report_fatal_error((Twine("SpecConstants.cpp: ") + Msg).str().c_str());
-}
+/// Spec. Constant ID is a pair of Id and a flag whether this Id belongs to an
+/// undefined value. Undefined values ('undef' in the IR) are used to get the
+/// required alignment and should be handled in a special manner as padding.
+struct ID {
+  unsigned ID;
+  bool Undef;
+};
 
 StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
                               SmallVectorImpl<Instruction *> &DelInsts) {
@@ -241,18 +244,27 @@ MDNode *generateSpecConstDefaultValueMetadata(StringRef SymID, Value *Default) {
 /// Recursively iterates over a composite type in order to collect information
 /// about its scalar elements.
 void collectCompositeElementsInfoRecursive(
-    const Module &M, Type *Ty, unsigned &Index, unsigned &Offset,
+    const Module &M, Type *Ty, const ID *&IDIter, unsigned &Offset,
     std::vector<SpecConstantDescriptor> &Result) {
+  if (IDIter->Undef) {
+    // We can just skip undefined values because every such value is just a
+    // padding and will be handled in a different manner.
+    return;
+  }
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
       // TODO: this is a spot for potential optimization: for arrays we could
       // just make a single recursive call here and use it to populate Result
       // in a loop.
-      collectCompositeElementsInfoRecursive(M, ArrTy->getElementType(), Index,
+      collectCompositeElementsInfoRecursive(M, ArrTy->getElementType(), IDIter,
                                             Offset, Result);
     }
-  } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
+    return;
+  }
+  if (auto *StructTy = dyn_cast<StructType>(Ty)) {
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
+    const unsigned BaseOffset = Offset;
+    unsigned LocalOffset = Offset;
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
       auto *ElTy = StructTy->getElementType(I);
       // When handling elements of a structure, we do not use manually
@@ -260,29 +272,54 @@ void collectCompositeElementsInfoRecursive(
       // encountered elements), but instead rely on data provided for us by
       // DataLayout, because the structure can be unpacked, i.e. padded in
       // order to ensure particular alignment of its elements.
-      unsigned LocalOffset = Offset + SL->getElementOffset(I);
-      collectCompositeElementsInfoRecursive(M, ElTy, Index, LocalOffset,
+      LocalOffset = Offset + SL->getElementOffset(I);
+      collectCompositeElementsInfoRecursive(M, ElTy, IDIter, LocalOffset,
                                             Result);
     }
+
+    // Add a special descriptor if the struct has padding at the end.
+    const unsigned PostStructPadding =
+        BaseOffset + SL->getSizeInBytes() - LocalOffset;
+    if (PostStructPadding > 0) {
+      SpecConstantDescriptor Desc;
+      // ID of padding descriptors is the max value possible. This value is a
+      // magic value for the runtime and will just be skipped. Even if there
+      // are many specialization constants and every constant has padding of
+      // a different length, everything will work regardless rewriting
+      // the descriptions with Desc.ID equals to the max value: they will just
+      // be ignored at all.
+      Desc.ID = std::numeric_limits<unsigned>::max();
+      Desc.Offset = LocalOffset;
+      Desc.Size = PostStructPadding;
+      Result.push_back(Desc);
+    }
+
     // Update "global" offset according to the total size of a handled struct
     // type.
     Offset += SL->getSizeInBytes();
-  } else if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
+    return;
+  }
+  if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     for (size_t I = 0; I < VecTy->getNumElements(); ++I) {
       // TODO: this is a spot for potential optimization: for vectors we could
       // just make a single recursive call here and use it to populate Result
       // in a loop.
-      collectCompositeElementsInfoRecursive(M, VecTy->getElementType(), Index,
+      collectCompositeElementsInfoRecursive(M, VecTy->getElementType(), IDIter,
                                             Offset, Result);
     }
-  } else { // Assume that we encountered some scalar element
-    SpecConstantDescriptor Desc;
-    Desc.ID = 0; // To be filled later
-    Desc.Offset = Offset;
-    Desc.Size = M.getDataLayout().getTypeStoreSize(Ty);
-    Result[Index++] = Desc;
-    Offset += Desc.Size;
+    return;
   }
+
+  // Assume that we encountered some scalar element
+  SpecConstantDescriptor Desc;
+  Desc.ID = IDIter->ID;
+  Desc.Offset = Offset;
+  Desc.Size = M.getDataLayout().getTypeStoreSize(Ty);
+  Result.push_back(Desc);
+
+  // Move current ID and offset
+  ++IDIter;
+  Offset += Desc.Size;
 }
 
 /// Recursively iterates over a composite type in order to collect information
@@ -293,8 +330,8 @@ void collectCompositeElementsInfoRecursive(
 void collectCompositeElementsDefaultValuesRecursive(
     const Module &M, Constant *C, unsigned &Offset,
     std::vector<char> &DefaultValues) {
-  if (isa<ConstantAggregateZero>(C)) {
-    // This code is generic for zeroinitializer for both arrays and structs
+  if (isa<ConstantAggregateZero>(C) || isa<UndefValue>(C)) {
+    // This code is generic for both arrays and structs
     size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
     std::fill_n(std::back_inserter(DefaultValues), NumBytes, 0);
     Offset += NumBytes;
@@ -356,11 +393,11 @@ void collectCompositeElementsDefaultValuesRecursive(
 
   // Assume that we encountered some scalar element
   size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
-  if (auto IntConst = dyn_cast<ConstantInt>(C)) {
+  if (auto *IntConst = dyn_cast<ConstantInt>(C)) {
     auto Val = IntConst->getValue().getZExtValue();
     std::copy_n(reinterpret_cast<char *>(&Val), NumBytes,
                 std::back_inserter(DefaultValues));
-  } else if (auto FPConst = dyn_cast<ConstantFP>(C)) {
+  } else if (auto *FPConst = dyn_cast<ConstantFP>(C)) {
     auto Val = FPConst->getValue();
 
     if (NumBytes == 2) {
@@ -370,12 +407,12 @@ void collectCompositeElementsDefaultValuesRecursive(
       std::copy_n(reinterpret_cast<char *>(&Storage), NumBytes,
                   std::back_inserter(DefaultValues));
     } else if (NumBytes == 4) {
-      float v = Val.convertToFloat();
-      std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
+      float V = Val.convertToFloat();
+      std::copy_n(reinterpret_cast<char *>(&V), NumBytes,
                   std::back_inserter(DefaultValues));
     } else if (NumBytes == 8) {
-      double v = Val.convertToDouble();
-      std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
+      double V = Val.convertToDouble();
+      std::copy_n(reinterpret_cast<char *>(&V), NumBytes,
                   std::back_inserter(DefaultValues));
     } else {
       llvm_unreachable("Unexpected constant floating point type");
@@ -387,7 +424,7 @@ void collectCompositeElementsDefaultValuesRecursive(
 }
 
 MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
-                                     Type *SCTy, ArrayRef<unsigned> IDs,
+                                     Type *SCTy, ArrayRef<ID> IDs,
                                      bool IsNativeSpecConstant) {
   SmallVector<Metadata *, 16> MDOps;
   LLVMContext &Ctx = M.getContext();
@@ -397,13 +434,19 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
   MDOps.push_back(MDString::get(Ctx, SymbolicID));
 
   if (IsNativeSpecConstant) {
-    std::vector<SpecConstantDescriptor> Result(IDs.size());
-    unsigned Index = 0, Offset = 0;
-    collectCompositeElementsInfoRecursive(M, SCTy, Index, Offset, Result);
+    std::vector<SpecConstantDescriptor> Result;
+    Result.reserve(IDs.size());
+    unsigned Offset = 0;
+    const ID *IDPtr = IDs.data();
+    collectCompositeElementsInfoRecursive(M, SCTy, IDPtr, Offset, Result);
+
+    // We may have padding elements so size should be at least the same size as
+    // the ID vector.
+    assert(Result.size() >= IDs.size());
 
     for (unsigned I = 0; I < Result.size(); ++I) {
       MDOps.push_back(ConstantAsMetadata::get(
-          Constant::getIntegerValue(Int32Ty, APInt(32, IDs[I]))));
+          Constant::getIntegerValue(Int32Ty, APInt(32, Result[I].ID))));
       MDOps.push_back(ConstantAsMetadata::get(
           Constant::getIntegerValue(Int32Ty, APInt(32, Result[I].Offset))));
       MDOps.push_back(ConstantAsMetadata::get(
@@ -413,7 +456,7 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
     assert(IDs.size() == 1 &&
            "There must be a single ID for emulated spec constant");
     MDOps.push_back(ConstantAsMetadata::get(
-        Constant::getIntegerValue(Int32Ty, APInt(32, IDs[0]))));
+        Constant::getIntegerValue(Int32Ty, APInt(32, IDs[0].ID))));
     // Second element is always zero here
     MDOps.push_back(ConstantAsMetadata::get(
         Constant::getIntegerValue(Int32Ty, APInt(32, 0))));
@@ -500,14 +543,9 @@ Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
   return emitCall(Ty, SPIRV_GET_SPEC_CONST_VAL, Args, InsertBefore);
 }
 
-Instruction *emitSpecConstantComposite(Type *Ty,
-                                       ArrayRef<Instruction *> Elements,
+Instruction *emitSpecConstantComposite(Type *Ty, ArrayRef<Value *> Elements,
                                        Instruction *InsertBefore) {
-  SmallVector<Value *, 8> Args(Elements.size());
-  for (unsigned I = 0; I < Elements.size(); ++I) {
-    Args[I] = cast<Value>(Elements[I]);
-  }
-  return emitCall(Ty, SPIRV_GET_SPEC_CONST_COMPOSITE, Args, InsertBefore);
+  return emitCall(Ty, SPIRV_GET_SPEC_CONST_COMPOSITE, Elements, InsertBefore);
 }
 
 /// For specified specialization constant type emits LLVM IR which is required
@@ -534,28 +572,46 @@ Instruction *emitSpecConstantComposite(Type *Ty,
 /// composite (plus for the top-level composite). Also enumerates all
 /// encountered scalars and assigns them IDs (or re-uses existing ones).
 Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
-                                           SmallVectorImpl<unsigned> &IDs,
+                                           SmallVectorImpl<ID> &IDs,
                                            unsigned &Index,
                                            Constant *DefaultValue) {
   if (!Ty->isArrayTy() && !Ty->isStructTy() && !Ty->isVectorTy()) { // Scalar
     if (Index >= IDs.size()) {
       // If it is a new specialization constant, we need to generate IDs for
       // scalar elements, starting with the second one.
-      IDs.push_back(IDs.back() + 1);
+      assert(!isa_and_nonnull<UndefValue>(DefaultValue) &&
+             "All scalar values should be defined");
+      IDs.push_back({IDs.back().ID + 1, false});
     }
-    return emitSpecConstant(IDs[Index++], Ty, InsertBefore, DefaultValue);
+    return emitSpecConstant(IDs[Index++].ID, Ty, InsertBefore, DefaultValue);
   }
 
-  SmallVector<Instruction *, 8> Elements;
+  SmallVector<Value *, 8> Elements;
+  auto HandleUndef = [&](Constant *Def) {
+    if (Index >= IDs.size()) {
+      // If it is a new specialization constant, we need to generate IDs for
+      // the whole undef value.
+      IDs.push_back({IDs.back().ID + 1, true});
+    }
+    Elements.push_back(Def);
+  };
   auto LoopIteration = [&](Type *Ty, unsigned LocalIndex) {
     // Select corresponding element of the default value if it was provided
     Constant *Def =
         DefaultValue ? DefaultValue->getAggregateElement(LocalIndex) : nullptr;
-    Elements.push_back(
-        emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index, Def));
+    if (isa_and_nonnull<UndefValue>(Def))
+      HandleUndef(Def);
+    else
+      Elements.push_back(
+          emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index, Def));
   };
 
-  if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
+  if (isa_and_nonnull<UndefValue>(DefaultValue)) {
+    // If the default value is a composite and has the value 'undef', we should
+    // not generate a bunch of __spirv_SpecConstant for its elements but
+    // pass it into __spirv_SpecConstantComposite as is.
+    HandleUndef(DefaultValue);
+  } else if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
       LoopIteration(ArrTy->getElementType(), I);
     }
@@ -577,7 +633,7 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
 
 /// Wrapper intended to hide IsFirstElement argument from the caller
 Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
-                                       SmallVectorImpl<unsigned> &IDs,
+                                       SmallVectorImpl<ID> &IDs,
                                        Constant *DefaultValue) {
   unsigned Index = 0;
   return emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index,
@@ -588,9 +644,9 @@ Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
 
 PreservedAnalyses SpecConstantsPass::run(Module &M,
                                          ModuleAnalysisManager &MAM) {
-  unsigned NextID = 0;
+  ID NextID = {0, false};
   unsigned NextOffset = 0;
-  StringMap<SmallVector<unsigned, 1>> IDMap;
+  StringMap<SmallVector<ID, 1>> IDMap;
   StringMap<unsigned> OffsetMap;
   MapVector<StringRef, MDNode *> SCMetadata;
   SmallVector<MDNode *, 4> DefaultsMetadata;
@@ -671,9 +727,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       if (SetValAtRT) {
         // 2. Spec constant value will be set at run time - then add the literal
         // to a "spec const string literal ID" -> "vector of integer IDs" map,
-        // uniquing the integer IDs if this is a new literal
-        auto Ins =
-            IDMap.insert(std::make_pair(SymID, SmallVector<unsigned, 1>{}));
+        // making the integer IDs unique if this is a new literal
+        auto Ins = IDMap.insert(std::make_pair(SymID, SmallVector<ID, 1>{}));
         IsNewSpecConstant = Ins.second;
         auto &IDs = Ins.first->second;
         if (IsNewSpecConstant) {
@@ -689,7 +744,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // emitSpecConstantRecursive might emit more than one spec constant
           // (because of composite types) and therefore, we need to adjust
           // NextID according to the actual amount of emitted spec constants.
-          NextID += IDs.size();
+          NextID.ID += IDs.size();
 
           // Generate necessary metadata which later will be pulled by
           // sycl-post-link and transformed into device image properties
@@ -721,7 +776,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
             SCMetadata[SymID] = generateSpecConstantMetadata(
                 M, SymID, SCTy, NextID, /* is native spec constant */ false);
 
-            ++NextID;
+            ++NextID.ID;
             NextOffset += Size;
           }
 

@@ -10,6 +10,7 @@
 #define BOLT_PASSES_SHRINKWRAPPING_H
 
 #include "bolt/Passes/FrameAnalysis.h"
+#include "llvm/MC/MCRegisterInfo.h"
 
 namespace llvm {
 namespace bolt {
@@ -307,8 +308,8 @@ class ShrinkWrapping {
   std::vector<MCInst *> BestSavePos;
 
   /// Pass stats
-  static uint64_t SpillsMovedRegularMode;
-  static uint64_t SpillsMovedPushPopMode;
+  static std::atomic_uint64_t SpillsMovedRegularMode;
+  static std::atomic_uint64_t SpillsMovedPushPopMode;
 
   Optional<unsigned> AnnotationIndex;
 

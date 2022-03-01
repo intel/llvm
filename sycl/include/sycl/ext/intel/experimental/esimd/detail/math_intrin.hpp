@@ -11,6 +11,8 @@
 
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 #include <CL/sycl/builtins.hpp>
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/elem_type_traits.hpp>
@@ -276,6 +278,29 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
   return retv.data();
 }
 #endif // __SYCL_DEVICE_ONLY__
+
+template <typename T, typename T0, typename T1, typename T2, int N, int N1,
+          int N2>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N> __esimd_dpas(
+    __SEIEED::vector_type_t<T0, N> src0, __SEIEED::vector_type_t<T1, N1> src1,
+    __SEIEED::vector_type_t<T2, N2> src2, int src1_precision,
+    int src2_precision, int depth, int repeat, int sign_res, int sign_acc);
+
+template <typename T, typename T1, typename T2, int N, int N1, int N2>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__esimd_dpas2(__SEIEED::vector_type_t<T1, N1> src1,
+              __SEIEED::vector_type_t<T2, N2> src2, int dpas_info);
+
+template <typename T, typename T1, typename T2, int N, int N1, int N2>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__esimd_dpasw(__SEIEED::vector_type_t<T, N> src0,
+              __SEIEED::vector_type_t<T1, N1> src1,
+              __SEIEED::vector_type_t<T2, N2> src2, int dpas_info);
+
+template <typename T, typename T1, typename T2, int N, int N1, int N2>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__esimd_dpasw2(__SEIEED::vector_type_t<T1, N1> src1,
+               __SEIEED::vector_type_t<T2, N2> src2, int dpas_info);
 
 #ifdef __SYCL_DEVICE_ONLY__
 
@@ -1196,6 +1221,278 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
   return retv;
 }
 
+inline constexpr __SEIEE::uint
+__esimd_dpas_bits_precision(__SEIEE::argument_type precisionType) {
+  return precisionType == __SEIEE::argument_type::TF32 ? 32
+         : precisionType == __SEIEE::argument_type::BF16 ||
+                 precisionType == __SEIEE::argument_type::FP16
+             ? 16
+         : precisionType == __SEIEE::argument_type::S8 ||
+                 precisionType == __SEIEE::argument_type::U8
+             ? 8
+         : precisionType == __SEIEE::argument_type::S4 ||
+                 precisionType == __SEIEE::argument_type::U4
+             ? 4
+         : precisionType == __SEIEE::argument_type::S2 ||
+                 precisionType == __SEIEE::argument_type::U2
+             ? 2
+             : 1;
+}
+
+template <__SEIEE::argument_type src1_precision,
+          __SEIEE::argument_type src2_precision, int systolic_depth,
+          int repeat_count, typename RT, typename T1, typename T2,
+          __SEIEE::uint SZ, __SEIEE::uint N1, __SEIEE::uint N2>
+inline __SEIEED::vector_type_t<RT, SZ>
+__esimd_dpas_inner(const __SEIEED::vector_type_t<RT, SZ> *src0,
+                   const __SEIEED::vector_type_t<T1, N1> &src1,
+                   const __SEIEED::vector_type_t<T2, N2> &src2) {
+  __SEIEED::vector_type_t<RT, SZ> retv;
+
+  __SEIEE::uint sat1 =
+      __SEIEEED::SetSatur<T1, __SEIEEED::is_inttype<RT>::value>::set() ||
+      __SEIEEED::SetSatur<T2, __SEIEEED::is_inttype<RT>::value>::set();
+
+  constexpr __SEIEE::uint ops_per_chan =
+      src1_precision == __SEIEE::argument_type::BF16 ||
+              src1_precision == __SEIEE::argument_type::FP16 ||
+              src2_precision == __SEIEE::argument_type::BF16 ||
+              src2_precision == __SEIEE::argument_type::FP16
+          ? 2
+      : src1_precision == __SEIEE::argument_type::S8 ||
+              src1_precision == __SEIEE::argument_type::U8 ||
+              src2_precision == __SEIEE::argument_type::S8 ||
+              src2_precision == __SEIEE::argument_type::U8
+          ? 4
+          : 8;
+
+  __SEIEE::uint V = 0, U = 0, k = 0, temp = 0, src1_ops_per_dword = 0, p = 0;
+
+  constexpr auto src1_el_bits = __esimd_dpas_bits_precision(src1_precision);
+  constexpr auto src2_el_bits = __esimd_dpas_bits_precision(src2_precision);
+
+  uint32_t src1_signed = src1_precision == __SEIEE::argument_type::S2 ||
+                                 src1_precision == __SEIEE::argument_type::S4 ||
+                                 src1_precision == __SEIEE::argument_type::S8
+                             ? 1
+                             : 0;
+
+  uint32_t src2_signed = src2_precision == __SEIEE::argument_type::S2 ||
+                                 src2_precision == __SEIEE::argument_type::S4 ||
+                                 src2_precision == __SEIEE::argument_type::S8
+                             ? 1
+                             : 0;
+
+#if defined(ESIMD_XE_HPC) || defined(ESIMD_XE_HPG)
+  constexpr bool isPvc = true;
+  constexpr size_t SIMDSize = 16;
+#else
+  constexpr bool isPvc = false;
+  constexpr size_t SIMDSize = 8;
+#endif
+
+  constexpr bool
+      pvcHfDest = isPvc && std::is_same<RT, __SEIEEED::half>::value,
+      pvcBfDest = isPvc && std::is_same<RT, short>::value,
+      pvcBfOrHfDest = pvcBfDest || pvcHfDest,
+
+      pvcBfDestChecks = pvcBfDest &&
+                        src1_precision == __SEIEE::argument_type::BF16 &&
+                        src2_precision == __SEIEE::argument_type::BF16,
+
+      pvcHfDestChecks =
+          pvcHfDest && ((src1_precision == __SEIEE::argument_type::FP16 &&
+                         src2_precision == __SEIEE::argument_type::FP16) ||
+                        (src1_precision == __SEIEE::argument_type::BF16 &&
+                         src2_precision == __SEIEE::argument_type::BF16)),
+
+      destTypeChk =
+          (!pvcBfOrHfDest && __SEIEEED::is_fp_or_dword_type<RT>::value) ||
+          (pvcBfOrHfDest && (pvcBfDestChecks || pvcHfDestChecks)),
+
+      srcTypeChk = __SEIEEED::is_dword_type<T1>::value &&
+                   __SEIEEED::is_dword_type<T2>::value,
+
+      destSizeChk = SZ >= /*TODO: ==*/SIMDSize * repeat_count,
+
+      systolicDepthAndRepeatCountChk =
+          systolic_depth == 8 && repeat_count >= 1 && repeat_count <= 8,
+
+      src1CountChk =
+          N1 == ((src1_el_bits * systolic_depth * ops_per_chan * SZ) /
+                 (repeat_count * sizeof(T1) * 8)),
+      src2CountChk =
+          N2 >= ((src2_el_bits * systolic_depth * ops_per_chan * repeat_count) /
+                 (sizeof(T2) * 8))
+      /*TODO: ==; fix PVCIGEMM24*/
+      ;
+
+  if constexpr (!isPvc)
+    static_assert(!pvcBfOrHfDest, "dpas: hfloat and bfloat16 destination "
+                                  "element type is only supported on PVC.");
+  static_assert(destTypeChk, "dpas: unsupported dest and accumulator type.");
+  static_assert(srcTypeChk, "dpas: unsupported src element type.");
+  static_assert(destSizeChk,
+                "dpas: destination size must be SIMDSize x repeat_count.");
+  static_assert(systolicDepthAndRepeatCountChk,
+                "dpas: only systolic_depth = 8 and repeat_count of 1 to 8 are "
+                "supported.");
+  static_assert(src1CountChk, "dpas: invalid size for src1.");
+  static_assert(src2CountChk, "dpas: invalid size for src2.");
+
+  using TmpAccEl = typename std::conditional<
+      pvcBfOrHfDest, float,
+      typename __SEIEEED::restype_ex<
+          RT, typename __SEIEEED::restype_ex<T1, T2>::type>::type>::type;
+
+  __SEIEED::vector_type_t<TmpAccEl, SIMDSize> simdAcc;
+
+  for (uint r = 0; r < repeat_count; r++) {
+    V = r;
+    k = 0;
+
+    for (uint n = 0; n < SIMDSize; n++) {
+      if (src0 != nullptr) {
+        auto src0El = src0[0][r * SIMDSize + n];
+
+        if (pvcBfDest) {
+          const auto tmp = (uint32_t)(src0El) << 16;
+          simdAcc[n] = reinterpret_cast<const TmpAccEl &>(tmp);
+        } else
+          simdAcc[n] = src0El;
+      } else
+        simdAcc[n] = 0;
+    }
+
+    for (uint s = 0; s < systolic_depth; s++) {
+      src1_ops_per_dword = 32 / (ops_per_chan * src1_el_bits);
+      // U = s / src1_ops_per_dword;
+      U = s >> uint(log2(src1_ops_per_dword));
+
+      for (uint n = 0; n < SIMDSize; n++) {
+        for (uint d = 0; d < ops_per_chan; d++) {
+          p = d + (s % src1_ops_per_dword) * ops_per_chan;
+          uint32_t extension_temp = false;
+
+          if (src2_precision == __SEIEE::argument_type::BF16) {
+            const auto s1 =
+                extract<uint32_t>(src1_el_bits, p * src1_el_bits,
+                                  src1[U * SIMDSize + n], extension_temp)
+                << 16;
+            const auto s2 =
+                extract<uint32_t>(src2_el_bits, d * src2_el_bits,
+                                  src2[V * 8 + k / ops_per_chan], src2_signed)
+                << 16;
+            simdAcc[n] += reinterpret_cast<const float &>(s2) *
+                          reinterpret_cast<const float &>(s1);
+          } else if (src2_precision == __SEIEE::argument_type::FP16) {
+            const auto s1 =
+                extract<short>(src1_el_bits, p * src1_el_bits,
+                               src1[U * SIMDSize + n], extension_temp);
+            const auto s2 =
+                extract<short>(src2_el_bits, d * src2_el_bits,
+                               src2[V * 8 + k / ops_per_chan], src2_signed);
+            simdAcc[n] += reinterpret_cast<const __SEIEEED::half &>(s1) *
+                          reinterpret_cast<const __SEIEEED::half &>(s2);
+          } else {
+            int src = (sizeof(T2) * 8) / (ops_per_chan * src2_el_bits);
+            int off = s % src * (ops_per_chan * src2_el_bits);
+            int src1_tmp = extract<T1>(src1_el_bits, p * src1_el_bits,
+                                       src1[U * SIMDSize + n], src1_signed);
+            int src2_tmp = extract<T2>(src2_el_bits, d * src2_el_bits + off,
+                                       src2[(V * 8 + k / ops_per_chan) / src],
+                                       src2_signed);
+            simdAcc[n] += src1_tmp * src2_tmp;
+          }
+        }
+      }
+
+      k += ops_per_chan;
+
+    } // Systolic phase.
+
+    for (uint n = 0; n < SIMDSize; n++) {
+      if constexpr (pvcBfDest) {
+        // TODO: make abstraction, support saturation, review rounding algo for
+        // corner cases.
+        auto tmpFloat = simdAcc[n];
+        auto tmpUint = reinterpret_cast<uint32_t &>(tmpFloat);
+        if (std::isnormal(tmpFloat) && tmpUint & 1ull << 15 &&
+            (tmpUint & 0x7fff || tmpUint & 1ull << 16)) {
+          tmpUint += 1ull << 16;
+        }
+        retv[r * SIMDSize + n] =
+            static_cast<short>(reinterpret_cast<uint32_t &>(tmpUint) >> 16);
+      } else
+        retv[r * SIMDSize + n] =
+            __SEIEEED::satur<RT>::saturate(simdAcc[n], sat1);
+    }
+
+  } // Repeat.
+
+  return retv;
+}
+
+template <__SEIEE::argument_type src1_precision,
+          __SEIEE::argument_type src2_precision, int systolic_depth,
+          int repeat_count, typename T, typename T0, typename T1, typename T2,
+          int N, int N1, int N2>
+inline __SEIEED::vector_type_t<T, N>
+__esimd_dpas(__SEIEED::vector_type_t<T0, N> src0,
+             __SEIEED::vector_type_t<T1, N1> src1,
+             __SEIEED::vector_type_t<T2, N2> src2) {
+#ifdef __SYCL_EXPLICIT_SIMD_PLUGIN__
+  return __esimd_dpas_inner<src1_precision, src2_precision, systolic_depth,
+                            repeat_count, T, T1, T2, N, N1, N2>(
+      std::addressof(src0), src1, src2);
+#else  // __SYCL_EXPLICIT_SIMD_PLUGIN__
+  throw cl::sycl::feature_not_supported();
+  return __SEIEED::vector_type_t<T, N>();
+#endif // __SYCL_EXPLICIT_SIMD_PLUGIN__
+}
+
+template <__SEIEE::argument_type src1_precision,
+          __SEIEE::argument_type src2_precision, int systolic_depth,
+          int repeat_count, typename T, typename T1, typename T2, int N, int N1,
+          int N2>
+inline __SEIEED::vector_type_t<T, N>
+__esimd_dpas2(__SEIEED::vector_type_t<T1, N1> src1,
+              __SEIEED::vector_type_t<T2, N2> src2) {
+#ifdef __SYCL_EXPLICIT_SIMD_PLUGIN__
+  return __esimd_dpas_inner<src1_precision, src2_precision, systolic_depth,
+                            repeat_count, T, T1, T2, N, N1, N2>(nullptr, src1,
+                                                                src2);
+#else  // __SYCL_EXPLICIT_SIMD_PLUGIN__
+  throw cl::sycl::feature_not_supported();
+  return __SEIEED::vector_type_t<T, N>();
+#endif // __SYCL_EXPLICIT_SIMD_PLUGIN__
+}
+
+template <__SEIEE::argument_type src1_precision,
+          __SEIEE::argument_type src2_precision, int systolic_depth,
+          int repeat_count, typename T, typename T1, typename T2, int N, int N1,
+          int N2>
+inline __SEIEED::vector_type_t<T, N>
+__esimd_dpasw(__SEIEED::vector_type_t<T, N> src0,
+              __SEIEED::vector_type_t<T1, N1> src1,
+              __SEIEED::vector_type_t<T2, N2> src2) {
+  throw cl::sycl::feature_not_supported();
+  return __SEIEED::vector_type_t<T, N>();
+}
+
+template <__SEIEE::argument_type src1_precision,
+          __SEIEE::argument_type src2_precision, int systolic_depth,
+          int repeat_count, typename T, typename T1, typename T2, int N, int N1,
+          int N2>
+inline __SEIEED::vector_type_t<T, N>
+__esimd_dpasw2(__SEIEED::vector_type_t<T1, N1> src1,
+               __SEIEED::vector_type_t<T2, N2> src2) {
+  throw cl::sycl::feature_not_supported();
+  return __SEIEED::vector_type_t<T, N>();
+}
+
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 
 #undef __ESIMD_raw_vec_t
+
+/// @endcond ESIMD_DETAIL

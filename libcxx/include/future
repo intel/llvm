@@ -361,14 +361,15 @@ template <class R, class Alloc> struct uses_allocator<packaged_task<R>, Alloc>;
 
 */
 
+#include <__assert>
 #include <__availability>
+#include <__chrono/duration.h>
+#include <__chrono/time_point.h>
 #include <__config>
-#include <__debug>
 #include <__memory/allocator_arg_t.h>
 #include <__memory/uses_allocator.h>
 #include <__utility/auto_cast.h>
 #include <__utility/forward.h>
-#include <chrono>
 #include <exception>
 #include <memory>
 #include <mutex>
@@ -376,8 +377,10 @@ template <class R, class Alloc> struct uses_allocator<packaged_task<R>, Alloc>;
 #include <thread>
 #include <version>
 
+#include <chrono> // TODO: Remove unused header
+
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 #ifdef _LIBCPP_HAS_NO_THREADS
@@ -1885,25 +1888,11 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     packaged_task() _NOEXCEPT : __p_(nullptr) {}
     template <class _Fp,
-              class = typename enable_if
-              <
-                  !is_same<
-                      typename __uncvref<_Fp>::type,
-                      packaged_task
-                      >::value
-                  >::type
-             >
+              class = __enable_if_t<!is_same<__uncvref_t<_Fp>, packaged_task>::value> >
         _LIBCPP_INLINE_VISIBILITY
         explicit packaged_task(_Fp&& __f) : __f_(_VSTD::forward<_Fp>(__f)) {}
     template <class _Fp, class _Allocator,
-              class = typename enable_if
-              <
-                  !is_same<
-                      typename __uncvref<_Fp>::type,
-                      packaged_task
-                      >::value
-                  >::type
-              >
+              class = __enable_if_t<!is_same<__uncvref_t<_Fp>, packaged_task>::value> >
         _LIBCPP_INLINE_VISIBILITY
         packaged_task(allocator_arg_t, const _Allocator& __a, _Fp&& __f)
              : __f_(allocator_arg, __a, _VSTD::forward<_Fp>(__f)),
@@ -2014,25 +2003,11 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     packaged_task() _NOEXCEPT : __p_(nullptr) {}
     template <class _Fp,
-              class = typename enable_if
-              <
-                  !is_same<
-                      typename __uncvref<_Fp>::type,
-                      packaged_task
-                      >::value
-                  >::type
-              >
+              class = __enable_if_t<!is_same<__uncvref_t<_Fp>, packaged_task>::value> >
         _LIBCPP_INLINE_VISIBILITY
         explicit packaged_task(_Fp&& __f) : __f_(_VSTD::forward<_Fp>(__f)) {}
     template <class _Fp, class _Allocator,
-              class = typename enable_if
-              <
-                  !is_same<
-                      typename __uncvref<_Fp>::type,
-                      packaged_task
-                      >::value
-                  >::type
-              >
+              class = __enable_if_t<!is_same<__uncvref_t<_Fp>, packaged_task>::value> >
         _LIBCPP_INLINE_VISIBILITY
         packaged_task(allocator_arg_t, const _Allocator& __a, _Fp&& __f)
              : __f_(allocator_arg, __a, _VSTD::forward<_Fp>(__f)),

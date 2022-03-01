@@ -9,15 +9,14 @@
 #ifndef LLD_ELF_SYMBOL_TABLE_H
 #define LLD_ELF_SYMBOL_TABLE_H
 
-#include "InputFiles.h"
 #include "Symbols.h"
-#include "lld/Common/Strings.h"
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/STLExtras.h"
 
 namespace lld {
 namespace elf {
+
+class InputFile;
 
 // SymbolTable is a bucket of all known symbols, including defined,
 // undefined, or lazy symbols (the last one is symbols in archive
@@ -40,6 +39,7 @@ public:
   Symbol *insert(StringRef name);
 
   Symbol *addSymbol(const Symbol &newSym);
+  Symbol *addAndCheckDuplicate(const Defined &newSym);
 
   void scanVersionScript();
 

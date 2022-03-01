@@ -5,7 +5,11 @@
 // RUN: mlir-opt %s -linalg-comprehensive-module-bufferize="allow-return-memref test-analysis-only analysis-fuzzer-seed=59" -split-input-file -o /dev/null
 // RUN: mlir-opt %s -linalg-comprehensive-module-bufferize="allow-return-memref test-analysis-only analysis-fuzzer-seed=91" -split-input-file -o /dev/null
 
+// Test bufferization using memref types that have no layout map.
+// RUN: mlir-opt %s -linalg-comprehensive-module-bufferize="allow-return-memref fully-dynamic-layout-maps=0" -split-input-file | FileCheck %s --check-prefix=CHECK-NO-LAYOUT-MAP
+
 // CHECK-LABEL: func @transfer_read(%{{.*}}: memref<?xf32, #map>) -> vector<4xf32> {
+// CHECK-NO-LAYOUT-MAP-LABEL: func @transfer_read(%{{.*}}: memref<?xf32>) -> vector<4xf32>
 func @transfer_read(
     %A : tensor<?xf32> {linalg.inplaceable = false})
   -> (vector<4xf32>)
@@ -26,6 +30,7 @@ func @transfer_read(
 
 // CHECK-LABEL: func @fill_inplace(
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]*]]: memref<?xf32, #[[$map_1d_dyn]]>
+// CHECK-NO-LAYOUT-MAP-LABEL: func @fill_inplace(%{{.*}}: memref<?xf32>) {
 func @fill_inplace(
     %A : tensor<?xf32> {linalg.inplaceable = true})
   -> tensor<?xf32>
@@ -63,6 +68,7 @@ func @tensor_extract(%A : tensor<?xf32> {linalg.inplaceable = false}) -> (f32) {
 /// No linalg.inplaceable flag, must allocate.
 // CHECK-LABEL: func @not_inplace(
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]*]]: memref<?xf32, #[[$map_1d_dyn]]>) -> memref<?xf32> {
+// CHECK-NO-LAYOUT-MAP-LABEL: func @not_inplace(%{{.*}}: memref<?xf32>) -> memref<?xf32>
 func @not_inplace(
     %A : tensor<?xf32> {linalg.inplaceable = false})
   -> tensor<?xf32>
@@ -86,6 +92,7 @@ func @not_inplace(
 
 // CHECK-LABEL: func @not_inplace
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]*]]: memref<?x?xf32, #[[$map_2d_dyn]]>) {
+// CHECK-NO-LAYOUT-MAP-LABEL: func @not_inplace(%{{.*}}: memref<?x?xf32>) {
 func @not_inplace(
     %A : tensor<?x?xf32> {linalg.inplaceable = true})
   -> tensor<?x?xf32>
@@ -597,16 +604,16 @@ func @main() {
   // CHECK-NEXT:   %[[A:.*]] = memref.alloc() {alignment = 128 : i64} : memref<64xf32>
   // CHECK-NEXT:   %[[B:.*]] = memref.alloc() {alignment = 128 : i64} : memref<64xf32>
   // CHECK-NEXT:   %[[C:.*]] = memref.alloc() {alignment = 128 : i64} : memref<f32>
+  // CHECK-NEXT:   %[[cA:.*]] = memref.cast %[[A]] : memref<64xf32> to memref<64xf32, #[[$DYN_1D_MAP]]>
+  // CHECK-NEXT:   %[[cB:.*]] = memref.cast %[[B]] : memref<64xf32> to memref<64xf32, #[[$DYN_1D_MAP]]>
+  // CHECK-NEXT:   %[[cC:.*]] = memref.cast %[[C]] : memref<f32> to memref<f32, #[[$DYN_0D_MAP]]>
   %A = linalg.init_tensor [64] : tensor<64xf32>
   %B = linalg.init_tensor [64] : tensor<64xf32>
   %C = linalg.init_tensor [] : tensor<f32>
 
   // CHECK-NEXT:   linalg.fill(%[[C1]], %[[A]]) : f32, memref<64xf32>
-  // CHECK-NEXT:   %[[cA:.*]] = memref.cast %[[A]] : memref<64xf32> to memref<64xf32, #[[$DYN_1D_MAP]]>
   // CHECK-NEXT:   linalg.fill(%[[C2]], %[[B]]) : f32, memref<64xf32>
-  // CHECK-NEXT:   %[[cB:.*]] = memref.cast %[[B]] : memref<64xf32> to memref<64xf32, #[[$DYN_1D_MAP]]>
   // CHECK-NEXT:   linalg.fill(%[[C0]], %[[C]]) : f32, memref<f32>
-  // CHECK-NEXT:   %[[cC:.*]] = memref.cast %[[C]] : memref<f32> to memref<f32, #[[$DYN_0D_MAP]]>
   %AA = linalg.fill(%v1, %A) : f32, tensor<64xf32> -> tensor<64xf32>
   %BB = linalg.fill(%v2, %B) : f32, tensor<64xf32> -> tensor<64xf32>
   %CC = linalg.fill(%v0, %C) : f32, tensor<f32> -> tensor<f32>
@@ -1002,7 +1009,7 @@ func @scf_if_non_equiv_yields(
     %B : tensor<4xf32> {linalg.inplaceable = false})
   -> tensor<4xf32>
 {
-  // CHECK: %[[r:.*]] = select %[[cond]], %[[A]], %[[B]]
+  // CHECK: %[[r:.*]] = arith.select %[[cond]], %[[A]], %[[B]]
   %r = scf.if %b -> (tensor<4xf32>) {
     scf.yield %A : tensor<4xf32>
   } else {
@@ -1314,8 +1321,8 @@ func @write_to_select_op_source(
   // CHECK: memref.copy %[[t1]], %[[alloc]]
   // CHECK: memref.store %{{.*}}, %[[alloc]]
   %w = tensor.insert %cst into %t1[%idx] : tensor<?xf32>
-  // CHECK: %[[select:.*]] = select %{{.*}}, %[[t1]], %[[t2]]
-  %s = std.select %c, %t1, %t2 : tensor<?xf32>
+  // CHECK: %[[select:.*]] = arith.select %{{.*}}, %[[t1]], %[[t2]]
+  %s = arith.select %c, %t1, %t2 : tensor<?xf32>
   // CHECK: return %[[select]], %[[alloc]]
   return %s, %w : tensor<?xf32>, tensor<?xf32>
 }
@@ -1336,8 +1343,8 @@ func @write_after_select_read_one(
   // CHECK: %[[alloc:.*]] = memref.alloc
   // CHECK: %[[casted:.*]] = memref.cast %[[alloc]]
   // CHECK: memref.copy %[[t1]], %[[alloc]]
-  // CHECK: %[[select:.*]] = select %{{.*}}, %[[casted]], %[[t2]]
-  %s = std.select %c, %t1, %t2 : tensor<?xf32>
+  // CHECK: %[[select:.*]] = arith.select %{{.*}}, %[[casted]], %[[t2]]
+  %s = arith.select %c, %t1, %t2 : tensor<?xf32>
 
   // CHECK: memref.store %{{.*}}, %[[select]]
   %w = tensor.insert %cst into %s[%idx] : tensor<?xf32>
@@ -1347,4 +1354,36 @@ func @write_after_select_read_one(
 
   // CHECK: return %[[f]], %[[select]]
   return %f, %w : f32, tensor<?xf32>
+}
+
+// -----
+
+// A regression test to make sure that we handle rank-reducing extract_slice
+// correctly.
+
+// CHECK-LABEL: func @rank_reducing
+func @rank_reducing(
+    %i: index, %j: index,
+    %arg0: tensor<8x18x32xf32>)
+      -> tensor<?x1x6x8xf32> {
+  %c1 = arith.constant 1 : index
+  %c6 = arith.constant 6 : index
+  %c8 = arith.constant 8 : index
+  %c32 = arith.constant 32 : index
+  %c0 = arith.constant 0 : index
+  %0 = linalg.init_tensor [4, 1, 6, 8] : tensor<4x1x6x8xf32>
+  %1 = tensor.cast %0 : tensor<4x1x6x8xf32> to tensor<?x1x6x8xf32>
+  %2 = linalg.init_tensor [1, 6, 8] : tensor<1x6x8xf32>
+  %5 = scf.for %arg7 = %c0 to %c32 step %c8 iter_args(%arg8 = %1) -> (tensor<?x1x6x8xf32>) {
+    %7 = affine.apply affine_map<(d0) -> (d0 ceildiv 8)>(%arg7)
+    %8 = tensor.extract_slice %arg0[%i, %j, %arg7] [1, 6, 8] [1, 1, 1] : tensor<8x18x32xf32> to tensor<1x6x8xf32>
+    %9 = scf.for %arg9 = %c0 to %c6 step %c1 iter_args(%arg10 = %2) -> (tensor<1x6x8xf32>) {
+      %11 = tensor.extract_slice %8[0, %arg9, 0] [1, 1, 8] [1, 1, 1] : tensor<1x6x8xf32> to tensor<1x1x8xf32>
+      %12 = tensor.insert_slice %11 into %arg10[0, %arg9, 0] [1, 1, 8] [1, 1, 1] : tensor<1x1x8xf32> into tensor<1x6x8xf32>
+      scf.yield %12 : tensor<1x6x8xf32>
+    }
+    %10 = tensor.insert_slice %9 into %arg8[%7, 0, 0, 0] [1, 1, 6, 8] [1, 1, 1, 1] : tensor<1x6x8xf32> into tensor<?x1x6x8xf32>
+    scf.yield %10 : tensor<?x1x6x8xf32>
+  }
+  return %5: tensor<?x1x6x8xf32>
 }

@@ -1288,6 +1288,9 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
   if (Instruction *X = foldVectorBinop(I))
     return X;
 
+  if (Instruction *Phi = foldBinopWithPhiOperands(I))
+    return Phi;
+
   // (A*B)+(A*C) -> A*(B+C) etc
   if (Value *V = SimplifyUsingDistributiveLaws(I))
     return replaceInstUsesWith(I, V);
@@ -1536,6 +1539,9 @@ Instruction *InstCombinerImpl::visitFAdd(BinaryOperator &I) {
   if (Instruction *X = foldVectorBinop(I))
     return X;
 
+  if (Instruction *Phi = foldBinopWithPhiOperands(I))
+    return Phi;
+
   if (Instruction *FoldedFAdd = foldBinOpIntoSelectOrPhi(I))
     return FoldedFAdd;
 
@@ -1750,6 +1756,9 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
 
   if (Instruction *X = foldVectorBinop(I))
     return X;
+
+  if (Instruction *Phi = foldBinopWithPhiOperands(I))
+    return Phi;
 
   Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
 
@@ -2178,9 +2187,20 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
     return replaceInstUsesWith(
         I, Builder.CreateIntrinsic(Intrinsic::usub_sat, {Ty}, {X, Op1}));
 
+  // Op0 - umin(X, Op0) --> usub.sat(Op0, X)
+  if (match(Op1, m_OneUse(m_c_UMin(m_Value(X), m_Specific(Op0)))))
+    return replaceInstUsesWith(
+        I, Builder.CreateIntrinsic(Intrinsic::usub_sat, {Ty}, {Op0, X}));
+
   // Op0 - umax(X, Op0) --> 0 - usub.sat(X, Op0)
   if (match(Op1, m_OneUse(m_c_UMax(m_Value(X), m_Specific(Op0))))) {
     Value *USub = Builder.CreateIntrinsic(Intrinsic::usub_sat, {Ty}, {X, Op0});
+    return BinaryOperator::CreateNeg(USub);
+  }
+
+  // umin(X, Op1) - Op1 --> 0 - usub.sat(Op1, X)
+  if (match(Op0, m_OneUse(m_c_UMin(m_Value(X), m_Specific(Op1))))) {
+    Value *USub = Builder.CreateIntrinsic(Intrinsic::usub_sat, {Ty}, {Op1, X});
     return BinaryOperator::CreateNeg(USub);
   }
 
@@ -2312,6 +2332,9 @@ Instruction *InstCombinerImpl::visitFSub(BinaryOperator &I) {
 
   if (Instruction *X = foldVectorBinop(I))
     return X;
+
+  if (Instruction *Phi = foldBinopWithPhiOperands(I))
+    return Phi;
 
   // Subtraction from -0.0 is the canonical form of fneg.
   // fsub -0.0, X ==> fneg X

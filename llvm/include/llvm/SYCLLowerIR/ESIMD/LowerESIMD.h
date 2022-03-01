@@ -19,10 +19,15 @@
 #ifndef LLVM_SYCLLOWERIR_LOWERESIMD_H
 #define LLVM_SYCLLOWERIR_LOWERESIMD_H
 
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
+
+class FunctionPass;
+class ModulePass;
+class PassRegistry;
 
 /// SPIRV (ESIMD) target specific pass to transform ESIMD specific constructs
 /// like intrinsics to a form parsable by the ESIMD-aware SPIRV translator.

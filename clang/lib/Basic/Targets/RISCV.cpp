@@ -232,8 +232,16 @@ bool RISCVTargetInfo::initFeatureMap(
     return false;
   }
 
-  return TargetInfo::initFeatureMap(Features, Diags, CPU,
-                                    (*ParseResult)->toFeatureVector());
+  // RISCVISAInfo makes implications for ISA features
+  std::vector<std::string> ImpliedFeatures = (*ParseResult)->toFeatureVector();
+  // Add non-ISA features like `relax` and `save-restore` back
+  for (std::string Feature : FeaturesVec) {
+    if (std::find(begin(ImpliedFeatures), end(ImpliedFeatures), Feature) ==
+        end(ImpliedFeatures))
+      ImpliedFeatures.push_back(Feature);
+  }
+
+  return TargetInfo::initFeatureMap(Features, Diags, CPU, ImpliedFeatures);
 }
 
 /// Return true if has this feature, need to sync with handleTargetFeatures.
@@ -272,7 +280,7 @@ bool RISCVTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   }
 
   if (ABI.empty())
-    ABI = llvm::RISCV::computeDefaultABIFromArch(*ISAInfo).str();
+    ABI = ISAInfo->computeDefaultABI().str();
 
   return true;
 }

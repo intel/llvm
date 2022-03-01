@@ -845,6 +845,7 @@ pi_result hip_piContextGetInfo(pi_context context, pi_context_info param_name,
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
+  case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
@@ -1408,6 +1409,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
   }
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
+  }
   case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
@@ -1625,6 +1630,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_ATOMIC_64:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   // TODO: Investigate if this information is available on HIP.
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:

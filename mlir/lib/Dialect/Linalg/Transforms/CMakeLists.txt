@@ -1,4 +1,5 @@
 add_mlir_dialect_library(MLIRLinalgTransforms
+  BufferizableOpInterfaceImpl.cpp
   Bufferize.cpp
   CodegenStrategy.cpp
   ComprehensiveBufferizePass.cpp
@@ -19,6 +20,7 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   NamedOpConversions.cpp
   PadOpInterchange.cpp
   Promotion.cpp
+  SparseTensorRewriting.cpp
   Tiling.cpp
   Transforms.cpp
   Vectorization.cpp
@@ -34,32 +36,33 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRAffineBufferizableOpInterfaceImpl
   MLIRAffineUtils
   MLIRAnalysis
-  MLIRArithBufferizableOpInterfaceImpl
   MLIRArithmetic
-  MLIRBufferizableOpInterface
+  MLIRArithmeticTransforms
+  MLIRBufferization
   MLIRComplex
   MLIRInferTypeOpInterface
   MLIRIR
   MLIRMemRef
   MLIRLinalg
   MLIRLinalgAnalysis
-  MLIRLinalgBufferizableOpInterfaceImpl
   MLIRLinalgUtils
   MLIRModuleBufferization
   MLIRSCF
-  MLIRSCFBufferizableOpInterfaceImpl
   MLIRSCFTransforms
-  MLIRStdBufferizableOpInterfaceImpl
+  MLIRSCFUtils
   MLIRPass
+  MLIRSparseTensor
   MLIRStandard
   MLIRStandardOpsTransforms
   MLIRStandardToLLVM
   MLIRTensor
-  MLIRTensorBufferizableOpInterfaceImpl
+  MLIRTensorTilingInterfaceImpl
+  MLIRTensorTransforms
   MLIRTransforms
   MLIRTransformUtils
   MLIRVector
-  MLIRVectorBufferizableOpInterfaceImpl
+  MLIRVectorTransforms
+  MLIRVectorUtils
   MLIRX86VectorTransforms
   MLIRVectorToSCF
 )

@@ -22,9 +22,11 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 #include "clang/Basic/OperatorKinds.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Casting.h"
 #include <cassert>
 #include <memory>
+#include <tuple>
 
 namespace clang {
 namespace dataflow {
@@ -37,10 +39,12 @@ static const Expr *skipExprWithCleanups(const Expr *E) {
 
 class TransferVisitor : public ConstStmtVisitor<TransferVisitor> {
 public:
-  TransferVisitor(Environment &Env) : Env(Env) {}
+  TransferVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env)
+      : StmtToEnv(StmtToEnv), Env(Env) {}
 
   void VisitBinaryOperator(const BinaryOperator *S) {
-    if (S->getOpcode() == BO_Assign) {
+    switch (S->getOpcode()) {
+    case BO_Assign: {
       // The CFG does not contain `ParenExpr` as top-level statements in basic
       // blocks, however sub-expressions can still be of that type.
       assert(S->getLHS() != nullptr);
@@ -49,7 +53,7 @@ public:
       assert(LHS != nullptr);
       auto *LHSLoc = Env.getStorageLocation(*LHS, SkipPast::Reference);
       if (LHSLoc == nullptr)
-        return;
+        break;
 
       // The CFG does not contain `ParenExpr` as top-level statements in basic
       // blocks, however sub-expressions can still be of that type.
@@ -59,15 +63,57 @@ public:
       assert(RHS != nullptr);
       Value *RHSVal = Env.getValue(*RHS, SkipPast::Reference);
       if (RHSVal == nullptr)
-        return;
+        break;
 
       // Assign a value to the storage location of the left-hand side.
       Env.setValue(*LHSLoc, *RHSVal);
 
       // Assign a storage location for the whole expression.
       Env.setStorageLocation(*S, *LHSLoc);
+      break;
     }
-    // FIXME: Add support for BO_EQ, BO_NE.
+    case BO_LAnd:
+    case BO_LOr: {
+      const Expr *LHS = S->getLHS();
+      assert(LHS != nullptr);
+
+      const Expr *RHS = S->getRHS();
+      assert(RHS != nullptr);
+
+      BoolValue *LHSVal =
+          dyn_cast_or_null<BoolValue>(Env.getValue(*LHS, SkipPast::Reference));
+
+      // `RHS` and `S` might be part of different basic blocks. We need to
+      // access their values from the corresponding environments.
+      BoolValue *RHSVal = nullptr;
+      const Environment *RHSEnv = StmtToEnv.getEnvironment(*RHS);
+      if (RHSEnv != nullptr)
+        RHSVal = dyn_cast_or_null<BoolValue>(
+            RHSEnv->getValue(*RHS, SkipPast::Reference));
+
+      // Create fresh values for unknown boolean expressions.
+      // FIXME: Consider providing a `GetOrCreateFresh` util in case this style
+      // is expected to be common or make sure that all expressions are assigned
+      // values and drop this.
+      if (LHSVal == nullptr)
+        LHSVal = &Env.takeOwnership(std::make_unique<AtomicBoolValue>());
+      if (RHSVal == nullptr)
+        RHSVal = &Env.takeOwnership(std::make_unique<AtomicBoolValue>());
+
+      auto &Loc = Env.createStorageLocation(*S);
+      Env.setStorageLocation(*S, Loc);
+      if (S->getOpcode() == BO_LAnd)
+        Env.setValue(Loc, Env.takeOwnership(std::make_unique<ConjunctionValue>(
+                              *LHSVal, *RHSVal)));
+      else
+        Env.setValue(Loc, Env.takeOwnership(std::make_unique<DisjunctionValue>(
+                              *LHSVal, *RHSVal)));
+      break;
+    }
+    default:
+      // FIXME: Add support for BO_EQ, BO_NE.
+      break;
+    }
   }
 
   void VisitDeclRefExpr(const DeclRefExpr *S) {
@@ -90,6 +136,11 @@ public:
     // Group decls are converted into single decls in the CFG so the cast below
     // is safe.
     const auto &D = *cast<VarDecl>(S->getSingleDecl());
+
+    // Static local vars are already initialized in `Environment`.
+    if (D.hasGlobalStorage())
+      return;
+
     auto &Loc = Env.createStorageLocation(D);
     Env.setStorageLocation(D, Loc);
 
@@ -210,8 +261,19 @@ public:
       Env.setValue(PointerLoc, PointerVal);
       break;
     }
+    case UO_LNot: {
+      auto *SubExprVal =
+          dyn_cast_or_null<BoolValue>(Env.getValue(*SubExpr, SkipPast::None));
+      if (SubExprVal == nullptr)
+        break;
+
+      auto &ExprLoc = Env.createStorageLocation(*S);
+      Env.setStorageLocation(*S, ExprLoc);
+      Env.setValue(ExprLoc, Env.takeOwnership(
+                                std::make_unique<NegationValue>(*SubExprVal)));
+      break;
+    }
     default:
-      // FIXME: Add support for UO_LNot.
       break;
     }
   }
@@ -233,6 +295,24 @@ public:
     // FIXME: Consider assigning pointer values to function member expressions.
     if (Member->isFunctionOrFunctionTemplate())
       return;
+
+    if (auto *D = dyn_cast<VarDecl>(Member)) {
+      if (D->hasGlobalStorage()) {
+        auto *VarDeclLoc = Env.getStorageLocation(*D, SkipPast::None);
+        if (VarDeclLoc == nullptr)
+          return;
+
+        if (VarDeclLoc->getType()->isReferenceType()) {
+          Env.setStorageLocation(*S, *VarDeclLoc);
+        } else {
+          auto &Loc = Env.createStorageLocation(*S);
+          Env.setStorageLocation(*S, Loc);
+          Env.setValue(Loc, Env.takeOwnership(
+                                std::make_unique<ReferenceValue>(*VarDeclLoc)));
+        }
+        return;
+      }
+    }
 
     // The receiver can be either a value or a pointer to a value. Skip past the
     // indirection to handle both cases.
@@ -414,16 +494,47 @@ public:
       Env.setValue(Loc, *Val);
   }
 
-  // FIXME: Add support for:
-  // - CXXBoolLiteralExpr
+  void VisitInitListExpr(const InitListExpr *S) {
+    QualType Type = S->getType();
+
+    auto &Loc = Env.createStorageLocation(*S);
+    Env.setStorageLocation(*S, Loc);
+
+    auto *Val = Env.createValue(Type);
+    if (Val == nullptr)
+      return;
+
+    Env.setValue(Loc, *Val);
+
+    if (Type->isStructureOrClassType()) {
+      for (auto IT : llvm::zip(Type->getAsRecordDecl()->fields(), S->inits())) {
+        const FieldDecl *Field = std::get<0>(IT);
+        assert(Field != nullptr);
+
+        const Expr *Init = std::get<1>(IT);
+        assert(Init != nullptr);
+
+        if (Value *InitVal = Env.getValue(*Init, SkipPast::None))
+          cast<StructValue>(Val)->setChild(*Field, *InitVal);
+      }
+    }
+    // FIXME: Implement array initialization.
+  }
+
+  void VisitCXXBoolLiteralExpr(const CXXBoolLiteralExpr *S) {
+    auto &Loc = Env.createStorageLocation(*S);
+    Env.setStorageLocation(*S, Loc);
+    Env.setValue(Loc, Env.getBoolLiteralValue(S->getValue()));
+  }
 
 private:
+  const StmtToEnvMap &StmtToEnv;
   Environment &Env;
 };
 
-void transfer(const Stmt &S, Environment &Env) {
+void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env) {
   assert(!isa<ParenExpr>(&S));
-  TransferVisitor(Env).Visit(&S);
+  TransferVisitor(StmtToEnv, Env).Visit(&S);
 }
 
 } // namespace dataflow

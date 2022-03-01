@@ -72,12 +72,16 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   return Img;
 }
 
-static sycl::unittest::PiImage Imgs[2] = {
+static sycl::unittest::PiImage Imgs[3] = {
     generateDefaultImage({"TestKernel"}, PI_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"TestKernelExeOnly"}, PI_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    // A device image without entires
+    generateDefaultImage({},
+                         PI_DEVICE_BINARY_TYPE_NATIVE,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
-static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
+static sycl::unittest::PiImageArray<3> ImgArray{Imgs};
 
 TEST(KernelBundle, GetKernelBundleFromKernel) {
   sycl::platform Plt{sycl::default_selector()};

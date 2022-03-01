@@ -530,22 +530,26 @@ elementwise to the input.
 
 Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±infinity
 
-========================================= ================================================================ =========================================
-         Name                              Operation                                                        Supported element types
-========================================= ================================================================ =========================================
- T __builtin_elementwise_abs(T x)          return the absolute value of a number x; the absolute value of   signed integer and floating point types
-                                           the most negative integer remains the most negative integer
- T __builtin_elementwise_ceil(T x)         return the smallest integral value greater than or equal to x    floating point types
- T __builtin_elementwise_floor(T x)        return the largest integral value less than or equal to x        floating point types
- T __builtin_elementwise_roundeven(T x)    round x to the nearest integer value in floating point format,   floating point types
-                                           rounding halfway cases to even (that is, to the nearest value
-                                           that is an even integer), regardless of the current rounding
-                                           direction.
- T__builtin_elementwise_trunc(T x)         return the integral value nearest to but no larger in            floating point types
-                                           magnitude than x
- T __builtin_elementwise_max(T x, T y)     return x or y, whichever is larger                               integer and floating point types
- T __builtin_elementwise_min(T x, T y)     return x or y, whichever is smaller                              integer and floating point types
-========================================= ================================================================ =========================================
+=========================================== ================================================================ =========================================
+         Name                                Operation                                                        Supported element types
+=========================================== ================================================================ =========================================
+ T __builtin_elementwise_abs(T x)            return the absolute value of a number x; the absolute value of   signed integer and floating point types
+                                             the most negative integer remains the most negative integer
+ T __builtin_elementwise_ceil(T x)           return the smallest integral value greater than or equal to x    floating point types
+ T __builtin_elementwise_floor(T x)          return the largest integral value less than or equal to x        floating point types
+ T __builtin_elementwise_roundeven(T x)      round x to the nearest integer value in floating point format,   floating point types
+                                             rounding halfway cases to even (that is, to the nearest value
+                                             that is an even integer), regardless of the current rounding
+                                             direction.
+ T__builtin_elementwise_trunc(T x)           return the integral value nearest to but no larger in            floating point types
+                                             magnitude than x
+ T __builtin_elementwise_max(T x, T y)       return x or y, whichever is larger                               integer and floating point types
+ T __builtin_elementwise_min(T x, T y)       return x or y, whichever is smaller                              integer and floating point types
+ T __builtin_elementwise_add_sat(T x, T y)   return the sum of x and y, clamped to the range of               integer types
+                                             representable values for the signed/unsigned integer type.
+ T __builtin_elementwise_sub_sat(T x, T y)   return the difference of x and y, clamped to the range of        integer types
+                                             representable values for the signed/unsigned integer type.
+=========================================== ================================================================ =========================================
 
 
 *Reduction Builtins*
@@ -1365,6 +1369,11 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__is_trivially_constructible`` (C++, GNU, Microsoft)
 * ``__is_trivially_copyable`` (C++, GNU, Microsoft)
 * ``__is_trivially_destructible`` (C++, MSVC 2013)
+* ``__is_trivially_relocatable`` (Clang): Returns true if moving an object
+  of the given type, and then destroying the source object, is known to be
+  functionally equivalent to copying the underlying bytes and then dropping the
+  source object on the floor. This is true of trivial types and types which
+  were made trivially relocatable via the ``clang::trivial_abi`` attribute.
 * ``__is_union`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_unsigned`` (C++, Embarcadero):
   Returns false for enumeration types. Note, before Clang 13, returned true for
@@ -2196,6 +2205,39 @@ Query for this feature with ``__has_builtin(__builtin_alloca_with_align)``.
 
 .. _langext-__builtin_assume:
 
+``__builtin_assume``
+--------------------
+
+``__builtin_assume`` is used to provide the optimizer with a boolean
+invariant that is defined to be true.
+
+**Syntax**:
+
+.. code-block:: c++
+
+    __builtin_assume(bool)
+
+**Example of Use**:
+
+.. code-block:: c++
+
+  int foo(int x) {
+      __builtin_assume(x != 0);
+      // The optimizer may short-circuit this check using the invariant.
+      if (x == 0)
+            return do_something();
+      return do_something_else();
+  }
+
+**Description**:
+
+The boolean argument to this function is defined to be true. The optimizer may
+analyze the form of the expression provided as the argument and deduce from
+that information used to optimize the program. If the condition is violated
+during execution, the behavior is undefined. The argument itself is 
+
+Query for this feature with ``__has_builtin(__builtin_assume)``.
+
 ``__builtin_call_with_static_chain``
 ------------------------------------
 
@@ -2886,7 +2928,7 @@ internal linkage.
 .. code-block:: c++
 
   // Computes a unique stable name for a given variable.
-  constexpr bool  __builtin_sycl_unique_stable_id( expr );
+  constexpr const char * __builtin_sycl_unique_stable_id( expr );
 
 Multiprecision Arithmetic Builtins
 ----------------------------------
@@ -3919,6 +3961,38 @@ A ``#pragma clang fp`` pragma may contain any number of options:
     ...
   }
 
+``#pragma clang fp eval_method`` allows floating-point behavior to be specified
+for a section of the source code. This pragma can appear at file or namespace
+scope, or at the start of a compound statement (excluding comments).
+The pragma is active within the scope of the compound statement.
+
+When ``pragma clang fp eval_method(source)`` is enabled, the section of code
+governed by the pragma behaves as though the command-line option
+``-ffp-eval-method=source`` is enabled. Rounds intermediate results to
+source-defined precision.
+
+When ``pragma clang fp eval_method(double)`` is enabled, the section of code
+governed by the pragma behaves as though the command-line option
+``-ffp-eval-method=double`` is enabled. Rounds intermediate results to
+``double`` precision.
+
+When ``pragma clang fp eval_method(extended)`` is enabled, the section of code
+governed by the pragma behaves as though the command-line option
+``-ffp-eval-method=extended`` is enabled. Rounds intermediate results to
+target-dependent ``long double`` precision. In Win32 programming, for instance,
+the long double data type maps to the double, 64-bit precision data type.
+
+The full syntax this pragma supports is
+``#pragma clang fp eval_method(source|double|extended)``.
+
+.. code-block:: c++
+
+  for(...) {
+    // The compiler will use long double as the floating-point evaluation
+    // method.
+    #pragma clang fp eval_method(extended)
+    a = b[i] * c[i] + e;
+  }
 
 The ``#pragma float_control`` pragma allows precise floating-point
 semantics and floating-point exception behavior to be specified

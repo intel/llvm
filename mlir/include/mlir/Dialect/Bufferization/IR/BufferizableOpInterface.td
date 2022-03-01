@@ -124,7 +124,7 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           bufferized in-place. This method will never be called on OpOperands
           that do not have a tensor type.
         }],
-        /*retType=*/"OpResult",
+        /*retType=*/"SmallVector<OpResult>",
         /*methodName=*/"getAliasingOpResult",
         /*args=*/(ins "OpOperand &":$opOperand,
                       "const BufferizationState &":$state),
@@ -146,7 +146,7 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
 
           Note: This method can return multiple OpOperands, indicating that the
           given OpResult may at runtime alias with any of the OpOperands. This
-          is useful for branches and for ops such as `std.select`.
+          is useful for branches and for ops such as `arith.select`.
         }],
         /*retType=*/"SmallVector<OpOperand *>",
         /*methodName=*/"getAliasingOpOperand",
@@ -162,8 +162,10 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           for (OpOperand &opOperand : $_op.getOperation()->getOpOperands()) {
             if (!opOperand.get().getType().isa<TensorType>())
               continue;
-            if (bufferizableOp.getAliasingOpResult(opOperand, state) ==
-                    opResult)
+            SmallVector<OpResult> aliasingOpResults =
+                bufferizableOp.getAliasingOpResult(opOperand, state);
+            if (llvm::find(aliasingOpResults, opResult)
+                != aliasingOpResults.end())
               result.push_back(&opOperand);
           }
           return result;
@@ -288,6 +290,23 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         /*defaultImplementation=*/[{
           return false;
         }]
+      >,
+      InterfaceMethod<
+        /*desc=*/[{
+          Return `failure` if this op does not pass the analysis. This method
+          is run during One-Shot Bufferize (after all post-analysis steps). If
+          the op does not pass the analysis, bufferization is aborted.
+
+          This method can be used to check expected invariants and limitations
+          of the current bufferization implementation.
+        }],
+        /*retType=*/"LogicalResult",
+        /*methodName=*/"verifyAnalysis",
+        /*args=*/(ins "const BufferizationState &":$state),
+        /*methodBody=*/"",
+        /*defaultImplementation=*/[{
+          return success();
+        }]
       >
   ];
 
@@ -304,8 +323,7 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           cast<BufferizableOpInterface>(getOperation());
       return !bufferizableOp.bufferizesToMemoryRead(opOperand, state)
           && !bufferizableOp.bufferizesToMemoryWrite(opOperand, state)
-          && static_cast<bool>(
-              bufferizableOp.getAliasingOpResult(opOperand, state));
+          && !bufferizableOp.getAliasingOpResult(opOperand, state).empty();
     }
 
     // TODO: The following two attributes should belong to the tensor dialect.

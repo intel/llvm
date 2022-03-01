@@ -10,6 +10,8 @@
 
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 #include <CL/sycl/detail/defines.hpp>
 #include <cstdint>
 #include <type_traits>
@@ -21,6 +23,9 @@ namespace ext {
 namespace intel {
 namespace experimental {
 namespace esimd {
+
+/// @cond ESIMD_DETAIL
+// TODO move to detail?
 
 // The common base type of region types.
 template <bool Is2D, typename T, int SizeY, int StrideY, int SizeX, int StrideX>
@@ -129,9 +134,13 @@ template <typename T, typename U> T getBaseRegion(std::pair<T, U> Reg) {
   return Reg.second;
 }
 
+/// @endcond ESIMD_DETAIL
+
 } // namespace esimd
 } // namespace experimental
 } // namespace intel
 } // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+/// @endcond ESIMD_DETAIL

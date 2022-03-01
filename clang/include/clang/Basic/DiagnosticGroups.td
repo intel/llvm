@@ -58,7 +58,9 @@ def DeprecatedExperimentalCoroutine :
   DiagGroup<"deprecated-experimental-coroutine">;
 def DeprecatedCoroutine :
   DiagGroup<"deprecated-coroutine", [DeprecatedExperimentalCoroutine]>;
-def Coroutine : DiagGroup<"coroutine", [CoroutineMissingUnhandledException, DeprecatedCoroutine]>;
+def AlwaysInlineCoroutine :
+  DiagGroup<"always-inline-coroutine">;
+def Coroutine : DiagGroup<"coroutine", [CoroutineMissingUnhandledException, DeprecatedCoroutine, AlwaysInlineCoroutine]>;
 def ObjCBoolConstantConversion : DiagGroup<"objc-bool-constant-conversion">;
 def ConstantConversion : DiagGroup<"constant-conversion",
                                    [BitFieldConstantConversion,
@@ -272,6 +274,9 @@ def NoexceptType : DiagGroup<"noexcept-type", [CXX17CompatMangling]>;
 def CPre2xCompat : DiagGroup<"pre-c2x-compat">;
 def CPre2xCompatPedantic : DiagGroup<"pre-c2x-compat-pedantic",
                                      [CPre2xCompat]>;
+
+// Warning for treating C input as C++ input.
+def ExpectedFileType : DiagGroup<"expected-file-type">;
 
 // Warnings for C++ code which is not compatible with previous C++ standards.
 def CXXPre14Compat : DiagGroup<"pre-c++14-compat">;
@@ -543,6 +548,7 @@ def ExplicitInitializeCall : DiagGroup<"explicit-initialize-call">;
 def OrderedCompareFunctionPointers : DiagGroup<"ordered-compare-function-pointers">;
 def Packed : DiagGroup<"packed">;
 def Padded : DiagGroup<"padded">;
+def UnalignedAccess : DiagGroup<"unaligned-access">;
 
 def PessimizingMove : DiagGroup<"pessimizing-move">;
 def ReturnStdMove : DiagGroup<"return-std-move">;

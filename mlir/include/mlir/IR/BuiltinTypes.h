@@ -13,6 +13,7 @@
 #include "SubElementInterfaces.h"
 
 namespace llvm {
+class BitVector;
 struct fltSemantics;
 } // namespace llvm
 
@@ -52,6 +53,9 @@ public:
 
   /// Return the bitwidth of this float type.
   unsigned getWidth();
+
+  /// Return the width of the mantissa of this type.
+  unsigned getFPMantissaWidth();
 
   /// Get or create a new FloatType with bitwidth scaled by `scale`.
   /// Return null if the scaled element type cannot be represented.

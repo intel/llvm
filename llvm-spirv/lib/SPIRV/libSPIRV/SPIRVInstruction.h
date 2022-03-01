@@ -397,12 +397,12 @@ public:
       assert(MemoryAccess.size() > 1 && "Alignment operand is missing");
       Alignment = MemoryAccess[MemAccessNumParam++];
     }
-    if (MemoryAccess[0] & internal::MemoryAccessAliasScopeINTELMask) {
+    if (MemoryAccess[0] & MemoryAccessAliasScopeINTELMaskMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
       AliasScopeInstID = MemoryAccess[MemAccessNumParam++];
     }
-    if (MemoryAccess[0] & internal::MemoryAccessNoAliasINTELMask) {
+    if (MemoryAccess[0] & MemoryAccessNoAliasINTELMaskMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
       NoAliasInstID = MemoryAccess[MemAccessNumParam];
@@ -415,10 +415,10 @@ public:
     return getMemoryAccessMask() & MemoryAccessNontemporalMask;
   }
   SPIRVWord isAliasScope() const {
-    return getMemoryAccessMask() & internal::MemoryAccessAliasScopeINTELMask;
+    return getMemoryAccessMask() & MemoryAccessAliasScopeINTELMaskMask;
   }
   SPIRVWord isNoAlias() const {
-    return getMemoryAccessMask() & internal::MemoryAccessNoAliasINTELMask;
+    return getMemoryAccessMask() & MemoryAccessNoAliasINTELMaskMask;
   }
   SPIRVWord getMemoryAccessMask() const { return TheMemoryAccessMask; }
   SPIRVWord getAlignment() const { return Alignment; }
@@ -2092,6 +2092,9 @@ public:
 
   SPIRVValue *getVector() { return getValue(VectorId); }
   SPIRVValue *getIndex() const { return getValue(IndexId); }
+  std::vector<SPIRVValue *> getOperands() override {
+    return {getVector(), getIndex()};
+  }
 
 protected:
   _SPIRV_DEF_ENCDEC4(Type, Id, VectorId, IndexId)
@@ -2099,7 +2102,8 @@ protected:
     SPIRVInstruction::validate();
     if (getValue(VectorId)->isForward())
       return;
-    assert(getValueType(VectorId)->isTypeVector());
+    assert(getValueType(VectorId)->isTypeVector() ||
+           getValueType(VectorId)->isTypeJointMatrixINTEL());
   }
   SPIRVId VectorId;
   SPIRVId IndexId;
@@ -2124,8 +2128,11 @@ public:
         IndexId(SPIRVID_INVALID), ComponentId(SPIRVID_INVALID) {}
 
   SPIRVValue *getVector() { return getValue(VectorId); }
-  SPIRVValue *getIndex() const { return getValue(IndexId); }
   SPIRVValue *getComponent() { return getValue(ComponentId); }
+  SPIRVValue *getIndex() const { return getValue(IndexId); }
+  std::vector<SPIRVValue *> getOperands() override {
+    return {getVector(), getComponent(), getIndex()};
+  }
 
 protected:
   _SPIRV_DEF_ENCDEC5(Type, Id, VectorId, ComponentId, IndexId)
@@ -2133,7 +2140,8 @@ protected:
     SPIRVInstruction::validate();
     if (getValue(VectorId)->isForward())
       return;
-    assert(getValueType(VectorId)->isTypeVector());
+    assert(getValueType(VectorId)->isTypeVector() ||
+           getValueType(VectorId)->isTypeJointMatrixINTEL());
   }
   SPIRVId VectorId;
   SPIRVId IndexId;
@@ -3292,6 +3300,7 @@ class SPIRVJointMatrixINTELInst : public SPIRVJointMatrixINTELInstBase {
 _SPIRV_OP(JointMatrixLoad, true, 6, true)
 _SPIRV_OP(JointMatrixStore, false, 5, true)
 _SPIRV_OP(JointMatrixMad, true, 7)
+_SPIRV_OP(JointMatrixWorkItemLength, true, 4)
 #undef _SPIRV_OP
 } // namespace SPIRV
 

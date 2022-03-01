@@ -13,7 +13,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/Rewrite/PatternApplicator.h"
-#include "mlir/Transforms/Utils.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -2589,6 +2588,11 @@ static void computeNecessaryMaterializations(
         return !necessaryMaterializations.count(matIt->second);
       return rewriterImpl.isOpIgnored(user);
     };
+    // This value may be replacing another value that has a live user.
+    for (Value inv : inverseMapping.lookup(value))
+      if (llvm::find_if_not(inv.getUsers(), findFn) != inv.user_end())
+        return true;
+    // Or have live users itself.
     return llvm::find_if_not(value.getUsers(), findFn) != value.user_end();
   };
 
