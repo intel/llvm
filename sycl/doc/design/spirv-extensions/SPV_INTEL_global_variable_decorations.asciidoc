@@ -109,7 +109,8 @@ Modify Section 3.20, Decoration, adding these rows to the Decoration table:
 | 6147
 a|
 *HostAccessINTEL* +
-Only valid on global (module scope) *OpVariable*.
+Only valid on global (module scope) *OpVariable* or *OpConstantPipeStorage*
+or *OpConstantPipeStorageINTEL*.
 
 The client API's execution environment may provide a way to access a global
 variable's value from the host system.  If it does, this decoration provides
