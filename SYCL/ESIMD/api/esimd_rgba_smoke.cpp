@@ -213,6 +213,8 @@ int main(void) {
   passed &= test<rgba_channel_mask::A>(q);
   passed &= test<rgba_channel_mask::R>(q);
   passed &= test<rgba_channel_mask::B>(q);
+  // TODO disabled due to a compiler bug:
+  //passed &= test<rgba_channel_mask::ABR>(q);
 
   std::cout << (passed ? "Test passed\n" : "Test FAILED\n");
   return passed ? 0 : 1;
