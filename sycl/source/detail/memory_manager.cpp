@@ -363,30 +363,19 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
   RT::PiMem NewMem = nullptr;
   const detail::plugin &Plugin = TargetContext->getPlugin();
 
-  // buffer_location property has a meaning only on FPGA devices
-  bool IsBufferLocSupported = true;
-  auto Devices = TargetContext->getDevices();
-  for (auto &Device : Devices) {
-    if (!Device.is_accelerator()) {
-      IsBufferLocSupported = false;
-      break;
-    }
-  }
-
-  if (PropsList.has_property<property::buffer::detail::buffer_location>() &&
-      IsBufferLocSupported) {
-    auto location =
+  if (PropsList.has_property<property::buffer::detail::buffer_location>())
+    if (TargetContext->isBufferLocationSupported()) {
+      auto location =
         PropsList.get_property<property::buffer::detail::buffer_location>()
             .get_buffer_location();
-    pi_mem_properties props[3] = {PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
+      pi_mem_properties props[3] = {PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
                                   location, 0};
-    memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
+      memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
                           Size, UserPtr, &NewMem, props);
-
-  } else {
-    memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
-                          Size, UserPtr, &NewMem, nullptr);
-  }
+      return NewMem;
+    }
+  memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
+                        Size, UserPtr, &NewMem, nullptr);
   return NewMem;
 }
 
