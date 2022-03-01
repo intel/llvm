@@ -1347,7 +1347,7 @@ def SYCLScope : Attr {
 def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let Spellings = [ CXX11<"intel", "device_indirectly_callable"> ];
   let Subjects = SubjectList<[Function]>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
 }
 
@@ -1370,7 +1370,7 @@ def SYCLRequiresDecomposition : InheritableAttr {
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let Spellings = [CXX11<"intel", "kernel_args_restrict">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelKernelArgsRestrictDocs];
   let SimpleHandler = 1;
   let SupportsNonconformingLambdaSyntax = 1;
@@ -1379,7 +1379,7 @@ def SYCLIntelKernelArgsRestrict : InheritableAttr {
 def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let Spellings = [CXX11<"intel", "num_simd_work_items">];
   let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelNumSimdWorkItemsAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
@@ -1387,7 +1387,7 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
 
 def SYCLIntelUseStallEnableClusters : InheritableAttr {
   let Spellings = [CXX11<"intel","use_stall_enable_clusters">];
-  let LangOpts = [SYCLIsHost, SYCLIsDevice];
+  let LangOpts = [SilentlyIgnoreSYCLIsHost, SYCLIsDevice];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelUseStallEnableClustersAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
@@ -1396,7 +1396,7 @@ def SYCLIntelUseStallEnableClusters : InheritableAttr {
 def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
   let Spellings = [CXX11<"intel", "scheduler_target_fmax_mhz">];
   let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelSchedulerTargetFmaxMhzAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
@@ -1407,7 +1407,7 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
   let Args = [ExprArgument<"XDim">,
               ExprArgument<"YDim">,
               ExprArgument<"ZDim">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
     Optional<llvm::APSInt> getXDimVal() const {
@@ -1433,7 +1433,7 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
 def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let Spellings = [CXX11<"intel", "max_global_work_dim">];
   let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelMaxGlobalWorkDimAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
@@ -1468,10 +1468,10 @@ def C11NoReturn : InheritableAttr {
 }
 
 def CXX11NoReturn : InheritableAttr {
-  let Spellings = [CXX11<"", "noreturn", 200809>];
+  let Spellings = [CXX11<"", "noreturn", 200809>,
+                   C2x<"", "noreturn", 202202>, C2x<"", "_Noreturn", 202202>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [CXX11NoReturnDocs];
-  let SimpleHandler = 1;
 }
 
 // Similar to CUDA, OpenCL attributes do not receive a [[]] spelling because
@@ -2269,7 +2269,7 @@ def IntelFPGABankBits : Attr {
   let Args = [VariadicExprArgument<"Args">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticAgentMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGABankBitsDocs];
 }
 def : MutualExclusions<[IntelFPGARegister, IntelFPGABankBits]>;

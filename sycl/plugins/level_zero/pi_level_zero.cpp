@@ -32,8 +32,8 @@ extern "C" {
 // Forward declarartions.
 static pi_result EventRelease(pi_event Event, pi_queue LockedQueue);
 static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue);
-static pi_result EventCreate(pi_context Context, bool HostVisible,
-                             pi_event *RetEvent);
+static pi_result EventCreate(pi_context Context, pi_queue Queue,
+                             bool HostVisible, pi_event *RetEvent);
 }
 
 namespace {
@@ -342,6 +342,26 @@ private:
 
 } // anonymous namespace
 
+// SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE can be set to an integer (>=0) in
+// which case all compute commands will be submitted to the command-queue
+// with the given index in the compute command group. If it is instead set
+// to negative (or unset) then all available compute engines may be used.
+//
+static const std::pair<int, int> getRangeOfAllowedComputeEngines = [] {
+  const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
+  // If the environment variable is not set, all available compute engines
+  // can be used.
+  if (!EnvVar)
+    return std::pair<int, int>(0, INT_MAX);
+
+  auto EnvVarValue = std::atoi(EnvVar);
+  if (EnvVarValue >= 0) {
+    return std::pair<int, int>(EnvVarValue, EnvVarValue);
+  }
+
+  return std::pair<int, int>(0, INT_MAX);
+}();
+
 // SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE can be set to an integer value, or
 // a pair of integer values of the form "lower_index:upper_index".
 // Here, the indices point to copy engines in a list of all available copy
@@ -428,20 +448,13 @@ pi_result _pi_mem::removeMapping(void *MappedTo, Mapping &MapInfo) {
 
 pi_result
 _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
-                                            size_t &Index, bool HostVisible) {
+                                            size_t &Index, bool HostVisible,
+                                            bool ProfilingEnabled) {
   // Lock while updating event pool machinery.
   std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
 
-  // Setup for host-visible pool as needed.
-  ze_event_pool_flag_t ZePoolFlag = {};
-  std::list<ze_event_pool_handle_t> *ZePoolCache;
-
-  if (HostVisible) {
-    ZePoolFlag = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
-    ZePoolCache = &ZeHostVisibleEventPoolCache;
-  } else {
-    ZePoolCache = &ZeDeviceScopeEventPoolCache;
-  }
+  std::list<ze_event_pool_handle_t> *ZePoolCache =
+      getZeEventPoolCache(HostVisible, ProfilingEnabled);
 
   // Remove full pool from the cache.
   if (!ZePoolCache->empty()) {
@@ -460,7 +473,12 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
   if (*ZePool == nullptr) {
     ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
-    ZeEventPoolDesc.flags = ZePoolFlag | ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+    ZeEventPoolDesc.flags = 0;
+    if (HostVisible)
+      ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
+    if (ProfilingEnabled)
+      ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+    zePrint("ze_event_pool_desc_t flags set to: %d\n", ZeEventPoolDesc.flags);
 
     std::vector<ze_device_handle_t> ZeDevices;
     std::for_each(Devices.begin(), Devices.end(),
@@ -486,12 +504,8 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
     return PI_SUCCESS;
   }
 
-  std::list<ze_event_pool_handle_t> *ZePoolCache;
-  if (Event->IsHostVisible()) {
-    ZePoolCache = &ZeHostVisibleEventPoolCache;
-  } else {
-    ZePoolCache = &ZeDeviceScopeEventPoolCache;
-  }
+  std::list<ze_event_pool_handle_t> *ZePoolCache =
+      getZeEventPoolCache(Event->isHostVisible(), Event->isProfilingEnabled());
 
   // Put the empty pool to the cache of the pools.
   std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
@@ -611,13 +625,15 @@ inline static void piQueueRetainNoLock(pi_queue Queue) { Queue->RefCount++; }
 // \param Event a pointer to hold the newly created pi_event
 // \param CommandType various command type determined by the caller
 // \param CommandList is the command list where the event is added
-inline static pi_result
-createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
-                             pi_command_type CommandType,
-                             pi_command_list_ptr_t CommandList) {
-  pi_result Res = piEventCreate(Queue->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+// \param ForceHostVisible tells if the event must be created in
+//        the host-visible pool
+inline static pi_result createEventAndAssociateQueue(
+    pi_queue Queue, pi_event *Event, pi_command_type CommandType,
+    pi_command_list_ptr_t CommandList, bool ForceHostVisible = false) {
+
+  PI_CALL(EventCreate(Queue->Context, Queue,
+                      ForceHostVisible ? true : EventsScope == AllHostVisible,
+                      Event));
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
@@ -663,67 +679,54 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (ZeDevice, &numQueueGroups, QueueGroupProperties.data()));
 
-  int ComputeGroupIndex = -1;
-
   // Initialize a sub-sub-device with its own ordinal and index
   if (SubSubDeviceOrdinal >= 0) {
-    ComputeGroupIndex = SubSubDeviceOrdinal;
-    ZeComputeEngineIndex = SubSubDeviceIndex;
+    QueueGroup[queue_group_info_t::Compute].ZeOrdinal = SubSubDeviceOrdinal;
+    QueueGroup[queue_group_info_t::Compute].ZeIndex = SubSubDeviceIndex;
   } else { // This is a root or a sub-device
     for (uint32_t i = 0; i < numQueueGroups; i++) {
       if (QueueGroupProperties[i].flags &
           ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
-        ComputeGroupIndex = i;
+        QueueGroup[queue_group_info_t::Compute].ZeOrdinal = i;
+        QueueGroup[queue_group_info_t::Compute].ZeProperties =
+            QueueGroupProperties[i];
         break;
       }
     }
     // How is it possible that there are no "compute" capabilities?
-    if (ComputeGroupIndex < 0) {
+    if (QueueGroup[queue_group_info_t::Compute].ZeOrdinal < 0) {
       return PI_ERROR_UNKNOWN;
     }
-    // The index for a root or a sub-device is always 0.
-    ZeComputeEngineIndex = 0;
 
-    int MainCopyGroupIndex = -1;
-    int LinkCopyGroupIndex = -1;
     if (CopyEngineRequested) {
       for (uint32_t i = 0; i < numQueueGroups; i++) {
         if (((QueueGroupProperties[i].flags &
               ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
             (QueueGroupProperties[i].flags &
              ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
-          if (QueueGroupProperties[i].numQueues == 1)
-            MainCopyGroupIndex = i;
-          else {
-            LinkCopyGroupIndex = i;
+          if (QueueGroupProperties[i].numQueues == 1) {
+            QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal = i;
+            QueueGroup[queue_group_info_t::MainCopy].ZeProperties =
+                QueueGroupProperties[i];
+          } else {
+            QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal = i;
+            QueueGroup[queue_group_info_t::LinkCopy].ZeProperties =
+                QueueGroupProperties[i];
             break;
           }
         }
       }
-      if (MainCopyGroupIndex < 0)
+      if (QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal < 0)
         zePrint("NOTE: main blitter/copy engine is not available\n");
       else
         zePrint("NOTE: main blitter/copy engine is available\n");
 
-      if (LinkCopyGroupIndex < 0)
+      if (QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal < 0)
         zePrint("NOTE: link blitter/copy engines are not available\n");
       else
         zePrint("NOTE: link blitter/copy engines are available\n");
     }
-
-    ZeMainCopyQueueGroupIndex = MainCopyGroupIndex;
-    if (MainCopyGroupIndex >= 0) {
-      ZeMainCopyQueueGroupProperties = QueueGroupProperties[MainCopyGroupIndex];
-    }
-
-    ZeLinkCopyQueueGroupIndex = LinkCopyGroupIndex;
-    if (LinkCopyGroupIndex >= 0) {
-      ZeLinkCopyQueueGroupProperties = QueueGroupProperties[LinkCopyGroupIndex];
-    }
   }
-
-  ZeComputeQueueGroupIndex = ComputeGroupIndex;
-  ZeComputeQueueGroupProperties = QueueGroupProperties[ComputeGroupIndex];
 
   // Maintain various device properties cache.
   // Note that we just describe here how to compute the data.
@@ -790,9 +793,13 @@ pi_result _pi_context::initialize() {
   // TODO: get rid of using Devices[0] for the context with multiple
   // root-devices. We should somehow make the data initialized on all devices.
   pi_device Device = SingleRootDevice ? SingleRootDevice : Devices[0];
+
+  // NOTE: we always submit to the "0" index compute engine with immediate
+  // command list since this is one for context.
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
-  ZeCommandQueueDesc.index = Device->ZeComputeEngineIndex;
+  ZeCommandQueueDesc.ordinal =
+      Device->QueueGroup[_pi_device::queue_group_info_t::Compute].ZeOrdinal;
+  ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
   ZE_CALL(
       zeCommandListCreateImmediate,
@@ -806,13 +813,11 @@ pi_result _pi_context::finalize() {
   // For example, event pool caches would be still alive.
   {
     std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
-    for (auto &ZePool : ZeDeviceScopeEventPoolCache)
-      ZE_CALL(zeEventPoolDestroy, (ZePool));
-    for (auto &ZePool : ZeHostVisibleEventPoolCache)
-      ZE_CALL(zeEventPoolDestroy, (ZePool));
-
-    ZeDeviceScopeEventPoolCache.clear();
-    ZeHostVisibleEventPoolCache.clear();
+    for (auto &ZePoolCache : ZeEventPoolCache) {
+      for (auto &ZePool : ZePoolCache)
+        ZE_CALL(zeEventPoolDestroy, (ZePool));
+      ZePoolCache.clear();
+    }
   }
 
   // Destroy the command list used for initializations
@@ -839,15 +844,21 @@ pi_result _pi_context::finalize() {
   return PI_SUCCESS;
 }
 
+bool pi_command_list_info_t::isCopy(pi_queue Queue) const {
+  return ZeQueueGroupOrdinal !=
+         (uint32_t)Queue->Device
+             ->QueueGroup[_pi_device::queue_group_info_t::type::Compute]
+             .ZeOrdinal;
+}
+
 bool _pi_queue::isInOrderQueue() const {
   // If out-of-order queue property is not set, then this is a in-order queue.
-  return ((this->PiQueueProperties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) ==
-          0);
+  return ((this->Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) == 0);
 }
 
 pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                                       bool MakeAvailable) {
-  bool UseCopyEngine = CommandList->second.isCopy();
+  bool UseCopyEngine = CommandList->second.isCopy(this);
   auto &ZeCommandListCache =
       UseCopyEngine
           ? this->Context->ZeCopyCommandListCache[this->Device->ZeDevice]
@@ -1029,14 +1040,60 @@ static const zeCommandListBatchConfig ZeCommandListBatchCopyConfig = [] {
   return ZeCommandListBatchConfig(IsCopy{true});
 }();
 
-_pi_queue::_pi_queue(ze_command_queue_handle_t Queue,
+_pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      pi_context Context, pi_device Device,
                      bool OwnZeCommandQueue,
                      pi_queue_properties PiQueueProperties)
-    : ZeComputeCommandQueue{Queue}, ZeCopyCommandQueues{CopyQueues},
-      Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
-      PiQueueProperties(PiQueueProperties) {
+    : Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
+      Properties(PiQueueProperties) {
+
+  // Compute group initialization.
+  // First, see if the queue's device allows for round-robin or it is
+  // fixed to one particular compute CCS (it is so for sub-sub-devices).
+  auto &ComputeQueueGroupInfo = Device->QueueGroup[queue_type::Compute];
+  if (ComputeQueueGroupInfo.ZeIndex >= 0) {
+    ComputeQueueGroup.LowerIndex = ComputeQueueGroupInfo.ZeIndex;
+    ComputeQueueGroup.UpperIndex = ComputeQueueGroupInfo.ZeIndex;
+    ComputeQueueGroup.NextIndex = ComputeQueueGroupInfo.ZeIndex;
+  } else {
+    ComputeQueueGroup.LowerIndex = 0;
+    ComputeQueueGroup.UpperIndex = INT_MAX;
+    ComputeQueueGroup.NextIndex = 0;
+  }
+
+  uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines.first;
+  uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines.second;
+  FilterUpperIndex =
+      std::min((size_t)FilterUpperIndex, ComputeQueues.size() - 1);
+  if (FilterLowerIndex <= FilterUpperIndex) {
+    ComputeQueueGroup.ZeQueues = ComputeQueues;
+    ComputeQueueGroup.LowerIndex = FilterLowerIndex;
+    ComputeQueueGroup.UpperIndex = FilterUpperIndex;
+    ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
+  } else {
+    die("No compute queue available.");
+  }
+
+  // Copy group initialization.
+  if (getRangeOfAllowedCopyEngines.first < 0 ||
+      getRangeOfAllowedCopyEngines.second < 0) {
+    // We are asked not to use copy engines, just do nothing.
+    // Leave CopyQueueGroup.ZeQueues empty, and it won't be used.
+  } else {
+    uint32_t FilterLowerIndex = getRangeOfAllowedCopyEngines.first;
+    uint32_t FilterUpperIndex = getRangeOfAllowedCopyEngines.second;
+    FilterUpperIndex =
+        std::min((size_t)FilterUpperIndex, CopyQueues.size() - 1);
+    if (FilterLowerIndex <= FilterUpperIndex) {
+      CopyQueueGroup.ZeQueues = CopyQueues;
+      CopyQueueGroup.LowerIndex = FilterLowerIndex;
+      CopyQueueGroup.UpperIndex = FilterUpperIndex;
+      CopyQueueGroup.NextIndex = CopyQueueGroup.LowerIndex;
+    }
+  }
+
+  // Initialize compute/copy command batches.
   ComputeCommandBatch.OpenCommandList = CommandListMap.end();
   CopyCommandBatch.OpenCommandList = CommandListMap.end();
   ComputeCommandBatch.QueueBatchSize =
@@ -1099,21 +1156,17 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
         // wasn't yet used in this queue then create a new entry in this
         // queue's map to hold the fence and other associated command
         // list information.
-
-        // If needed, get the next available copy command queue
-        int CopyQueueIndex = -1;
-        ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
-        if (UseCopyEngine)
-          ZeCopyCommandQueue = Queue->getZeCopyCommandQueue(&CopyQueueIndex);
+        uint32_t QueueGroupOrdinal;
         auto &ZeCommandQueue =
-            UseCopyEngine ? ZeCopyCommandQueue : Queue->ZeComputeCommandQueue;
+            Queue->getQueueGroup(UseCopyEngine).getZeQueue(&QueueGroupOrdinal);
 
         ze_fence_handle_t ZeFence;
         ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
         CommandList =
             Queue->CommandListMap
                 .emplace(ZeCommandList,
-                         pi_command_list_info_t{ZeFence, true, CopyQueueIndex})
+                         pi_command_list_info_t{ZeFence, true, ZeCommandQueue,
+                                                QueueGroupOrdinal})
                 .first;
       }
       ZeCommandListCache.pop_front();
@@ -1130,7 +1183,7 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
   for (auto it = Queue->CommandListMap.begin();
        it != Queue->CommandListMap.end(); ++it) {
     // Make sure this is the command list type needed.
-    if (UseCopyEngine != it->second.isCopy())
+    if (UseCopyEngine != it->second.isCopy(Queue))
       continue;
 
     ze_result_t ZeResult =
@@ -1153,17 +1206,12 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
     ze_command_list_handle_t ZeCommandList;
     ze_fence_handle_t ZeFence;
 
-    int CopyQueueIndex = -1;
-    ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
-    int ZeCopyCommandQueueGroupIndex = -1;
-    if (UseCopyEngine) {
-      ZeCopyCommandQueue = Queue->getZeCopyCommandQueue(
-          &CopyQueueIndex, &ZeCopyCommandQueueGroupIndex);
-    }
+    uint32_t QueueGroupOrdinal;
+    auto &ZeCommandQueue =
+        Queue->getQueueGroup(UseCopyEngine).getZeQueue(&QueueGroupOrdinal);
+
     ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
-    ZeCommandListDesc.commandQueueGroupOrdinal =
-        UseCopyEngine ? ZeCopyCommandQueueGroupIndex
-                      : Queue->Device->ZeComputeQueueGroupIndex;
+    ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
 
     ZE_CALL(zeCommandListCreate,
             (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -1171,12 +1219,10 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
     // Increments the total number of command lists created on this platform.
     Queue->Device->Platform->ZeGlobalCommandListCount++;
 
-    auto &ZeCommandQueue =
-        UseCopyEngine ? ZeCopyCommandQueue : Queue->ZeComputeCommandQueue;
     ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
     std::tie(CommandList, std::ignore) = Queue->CommandListMap.insert(
         std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
-            ZeCommandList, {ZeFence, true, CopyQueueIndex}));
+            ZeCommandList, {ZeFence, true, ZeCommandQueue, QueueGroupOrdinal}));
     pi_result = PI_SUCCESS;
   }
 
@@ -1239,10 +1285,7 @@ void _pi_queue::adjustBatchSizeForPartialBatch(bool IsCopy) {
 pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
                                         bool IsBlocking,
                                         bool OKToBatchCommand) {
-  int Index = CommandList->second.CopyQueueIndex;
-  bool UseCopyEngine = (Index != -1);
-  if (UseCopyEngine)
-    zePrint("Command list to be executed on copy engine %d\n", Index);
+  bool UseCopyEngine = CommandList->second.isCopy(this);
 
   // If the current LastCommandEvent is the nullptr, then it means
   // either that no command has ever been issued to the queue
@@ -1292,15 +1335,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     CommandBatch.OpenCommandList = CommandListMap.end();
   }
 
-  // If available, get the copy command queue assosciated with
-  // ZeCommandList
-  ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
-  if (Index != -1) {
-    if (auto Res = getOrCreateCopyCommandQueue(Index, ZeCopyCommandQueue))
-      return Res;
-  }
-  auto &ZeCommandQueue =
-      UseCopyEngine ? ZeCopyCommandQueue : ZeComputeCommandQueue;
+  auto &ZeCommandQueue = CommandList->second.ZeQueue;
   // Scope of the lock must be till the end of the function, otherwise new mem
   // allocs can be created between the moment when we made a snapshot and the
   // moment when command list is closed and executed. But mutex is locked only
@@ -1350,7 +1385,10 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // Create a "proxy" host-visible event.
     //
     pi_event HostVisibleEvent;
-    PI_CALL(EventCreate(Context, true, &HostVisibleEvent));
+    auto Res = createEventAndAssociateQueue(
+        this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
+    if (Res)
+      return Res;
 
     // Update each command's event in the command-list to "see" this
     // proxy event as a host-visible counterpart.
@@ -1359,10 +1397,14 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
       PI_CALL(piEventRetain(HostVisibleEvent));
     }
 
-    // Decrement the reference count by 1 so all the remaining references
-    // are from the other commands in this batch. This host-visible event
-    // will be destroyed after all events in the batch are gone.
+    // Decrement the reference count of the event such that all the remaining
+    // references are from the other commands in this batch. This host-visible
+    // event will not be waited/release by SYCL RT, so it must be destroyed
+    // after all events in the batch are gone.
     PI_CALL(piEventRelease(HostVisibleEvent));
+    PI_CALL(piEventRelease(HostVisibleEvent));
+    PI_CALL(piEventRelease(HostVisibleEvent));
+
     // Indicate no cleanup is needed for this PI event as it is special.
     HostVisibleEvent->CleanedUp = true;
 
@@ -1378,7 +1420,6 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   ZE_CALL(zeCommandListClose, (CommandList->first));
   // Offload command list to the GPU for asynchronous execution
   auto ZeCommandList = CommandList->first;
-  zePrint("Calling zeCommandQueueExecuteCommandLists with Index = %d\n", Index);
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueExecuteCommandLists,
       (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
@@ -1405,124 +1446,57 @@ bool _pi_queue::isBatchingAllowed(bool IsCopy) const {
           ((ZeSerialize & ZeSerializeBlock) == 0));
 }
 
-pi_result _pi_queue::getOrCreateCopyCommandQueue(
-    int Index, ze_command_queue_handle_t &ZeCopyCommandQueue) {
-  ZeCopyCommandQueue = nullptr;
-
-  // Make sure 'Index' is within limits
-  PI_ASSERT((Index >= 0) && (Index < (int)(ZeCopyCommandQueues.size())),
-            PI_INVALID_VALUE);
-
-  // Return the Ze copy command queue, if already available
-  if (ZeCopyCommandQueues[Index]) {
-    ZeCopyCommandQueue = ZeCopyCommandQueues[Index];
-    return PI_SUCCESS;
-  }
-
-  // Ze copy command queue is not available at 'Index'. So we create it below.
-  ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  // There are two copy queues: main copy queues and link copy queues.
-  // Index is the 'index' into the overall list of copy queues
-  // (one queue per copy engine).
-  // ZeCommandQueueDesc.ordinal specifies the copy group (main or link)
-  // ZeCommandQueueDesc.index specifies the copy queue/engine within a group
-  // Following are possible scenarios:
-  // 1. (Index == 0) and main copy engine is available:
-  //    ZeCommandQueueDesc.ordinal = Device->ZeMainCopyQueueGroupIndex
-  //    ZeCommandQueueDesc.index = 0
-  // 2. (Index == 0) and main copy engine is not available:
-  //    ZeCommandQueueDesc.ordinal = Device->ZeLinkCopyQueueGroupIndex
-  //    ZeCommandQueueDesc.index = 0
-  // 3. (Index != 0) and main copy engine is available:
-  //    ZeCommandQueueDesc.ordinal = Device->ZeLinkCopyQueueGroupIndex
-  //    ZeCommandQueueDesc.index = Index - 1
-  // 4. (Index != 0) and main copy engine is not available:
-  //    ZeCommandQueueDesc.ordinal = Device->ZeLinkCopyQueueGroupIndex
-  //    ZeCommandQueueDesc.index = Index
-  ZeCommandQueueDesc.ordinal = (Index == 0 && Device->hasMainCopyEngine())
-                                   ? Device->ZeMainCopyQueueGroupIndex
-                                   : Device->ZeLinkCopyQueueGroupIndex;
-  ZeCommandQueueDesc.index =
-      (Index != 0 && Device->hasMainCopyEngine()) ? Index - 1 : Index;
-  zePrint("NOTE: Copy Engine ZeCommandQueueDesc.ordinal = %d, "
-          "ZeCommandQueueDesc.index = %d\n",
-          ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index);
-  ZE_CALL(zeCommandQueueCreate,
-          (Context->ZeContext, Device->ZeDevice,
-           &ZeCommandQueueDesc, // TODO: translate properties
-           &ZeCopyCommandQueue));
-  ZeCopyCommandQueues[Index] = ZeCopyCommandQueue;
-  return PI_SUCCESS;
-}
-
-// This function will return one of possibly multiple available copy queues.
+// This function will return one of possibly multiple available native queues.
 // Currently, a round robin strategy is used.
-// This function also sends back the value of CopyQueueIndex and
-// CopyQueueGroupIndex (optional)
-ze_command_queue_handle_t
-_pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
-                                 int *CopyQueueGroupIndex) {
-  assert(CopyQueueIndex);
-  int n = ZeCopyCommandQueues.size();
-  int LowerCopyQueueIndex = getRangeOfAllowedCopyEngines.first;
-  int UpperCopyQueueIndex = getRangeOfAllowedCopyEngines.second;
+// This function also sends back the value of the queue group ordinal.
+ze_command_queue_handle_t &
+_pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
 
-  // Return nullptr when no copy command queues are allowed to be used or if
-  // no copy command queues are available.
-  if ((LowerCopyQueueIndex == -1) || (UpperCopyQueueIndex == -1) || (n == 0)) {
-    if (CopyQueueGroupIndex)
-      *CopyQueueGroupIndex = -1;
-    *CopyQueueIndex = -1;
-    return nullptr;
+  auto CurrentIndex = NextIndex;
+  ++NextIndex;
+  if (NextIndex > UpperIndex)
+    NextIndex = LowerIndex;
+
+  // Find out the right queue group ordinal (first queue might be "main" or
+  // "link")
+  auto QueueType = Type;
+  if (QueueType != queue_type::Compute)
+    QueueType = (CurrentIndex == 0 && Queue->Device->hasMainCopyEngine())
+                    ? queue_type::MainCopy
+                    : queue_type::LinkCopy;
+
+  *QueueGroupOrdinal = Queue->Device->QueueGroup[QueueType].ZeOrdinal;
+
+  ze_command_queue_handle_t &ZeQueue = ZeQueues[CurrentIndex];
+  if (ZeQueue)
+    return ZeQueue;
+
+  // Command queue is not available at chosen index. So we create it below.
+  ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
+
+  // Adjust the index to the L0 queue group since we represent "main" and "link"
+  // L0 groups with a single copy group ("main" would take "0" index).
+  auto ZeCommandQueueIndex = CurrentIndex;
+  if (QueueType == queue_type::LinkCopy && Queue->Device->hasMainCopyEngine()) {
+    ZeCommandQueueIndex -= 1;
   }
 
-  LowerCopyQueueIndex = std::max(0, LowerCopyQueueIndex);
-  UpperCopyQueueIndex = std::min(UpperCopyQueueIndex, n - 1);
+  ZeCommandQueueDesc.ordinal = *QueueGroupOrdinal;
+  ZeCommandQueueDesc.index = ZeCommandQueueIndex;
+  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
 
-  // If there is only one copy queue, it is the main copy queue (if available),
-  // or the first link copy queue in ZeCopyCommandQueues.
-  if (n == 1) {
-    *CopyQueueIndex = 0;
-    if (CopyQueueGroupIndex) {
-      if (Device->hasMainCopyEngine())
-        *CopyQueueGroupIndex = Device->ZeMainCopyQueueGroupIndex;
-      else
-        *CopyQueueGroupIndex = Device->ZeLinkCopyQueueGroupIndex;
-      zePrint("Note: CopyQueueGroupIndex = %d\n", *CopyQueueGroupIndex);
-    }
-    zePrint("Note: CopyQueueIndex = %d\n", *CopyQueueIndex);
-    ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
-    if (getOrCreateCopyCommandQueue(0, ZeCopyCommandQueue))
-      return nullptr;
-    return ZeCopyCommandQueue;
+  zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
+          "(round robin in [%d, %d])\n",
+          ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+          UpperIndex);
+
+  auto ZeResult = ZE_CALL_NOCHECK(
+      zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
+                             &ZeCommandQueueDesc, &ZeQueue));
+  if (ZeResult) {
+    die("[L0] getZeQueue: failed to create queue");
   }
-
-  // Round robin logic is used here to access copy command queues.
-  // Initial value of LastUsedCopyCommandQueueIndex is -1.
-  // So, the round robin logic will start its access at 'LowerCopyQueueIndex'
-  // queue.
-  // TODO: In this implementation, all the copy engines (main and link)
-  // have equal priority. It is expected that main copy engine will be
-  // advantageous for H2D and D2H copies, whereas the link copy engines will
-  // be advantageous for D2D. We will perform experiments and then assign
-  // priority to different copy engines for different types of copy operations.
-  if ((LastUsedCopyCommandQueueIndex == -1) ||
-      (LastUsedCopyCommandQueueIndex == UpperCopyQueueIndex))
-    *CopyQueueIndex = LowerCopyQueueIndex;
-  else
-    *CopyQueueIndex = LastUsedCopyCommandQueueIndex + 1;
-  LastUsedCopyCommandQueueIndex = *CopyQueueIndex;
-  if (CopyQueueGroupIndex)
-    // First queue in the vector of copy queues is the main copy queue,
-    // if available. Otherwise it's a link copy queue.
-    *CopyQueueGroupIndex =
-        ((*CopyQueueIndex == 0) && Device->hasMainCopyEngine())
-            ? Device->ZeMainCopyQueueGroupIndex
-            : Device->ZeLinkCopyQueueGroupIndex;
-  ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
-  if (getOrCreateCopyCommandQueue(*CopyQueueIndex, ZeCopyCommandQueue))
-    return nullptr;
-  return ZeCopyCommandQueue;
+  return ZeQueue;
 }
 
 pi_result _pi_queue::executeOpenCommandListWithEvent(pi_event Event) {
@@ -2029,7 +2003,7 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_INVALID_VALUE;
 }
 
-// Get the cahched PI device created for the L0 device handle.
+// Get the cached PI device created for the L0 device handle.
 // Return NULL if no such PI device found.
 pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
@@ -2105,7 +2079,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     *NumDevices = ZeDeviceCount;
 
   if (NumEntries == 0) {
-    // Devices should be nullptr when querying the number of devices
+    // Devices should be nullptr when querying the number of devices.
     PI_ASSERT(Devices == nullptr, PI_INVALID_VALUE);
     return PI_SUCCESS;
   }
@@ -2189,6 +2163,11 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
         // Create PI sub-sub-devices with the sub-device for all the ordinals.
         // Each {ordinal, index} points to a specific CCS which constructs
         // a sub-sub-device at this point.
+        // FIXME: Level Zero creates multiple PiDevices for a single physical
+        // device when sub-device is partitioned into sub-sub-devices.
+        // Sub-sub-device is technically a command queue and we should not build
+        // program for each command queue. PiDevice is probably not the right
+        // abstraction for a Level Zero command queue.
         for (uint32_t J = 0; J < Ordinals.size(); ++J) {
           for (uint32_t K = 0; K < QueueGroupProperties[Ordinals[J]].numQueues;
                ++K) {
@@ -2277,8 +2256,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     }
   }
   case PI_DEVICE_INFO_PARENT_DEVICE:
-    // TODO: all Level Zero devices are parent ?
-    return ReturnValue(pi_device{0});
+    return ReturnValue(Device->RootDevice);
   case PI_DEVICE_INFO_PLATFORM:
     return ReturnValue(Device->Platform);
   case PI_DEVICE_INFO_VENDOR_ID:
@@ -2286,7 +2264,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_UUID:
     // Intel extension for device UUID. This returns the UUID as
     // std::array<std::byte, 16>. For details about this extension,
-    // see sycl/doc/extensions/supported/SYCL_EXT_INTEL_DEVICE_INFO.md.
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
     return ReturnValue(Device->ZeDeviceProperties->uuid.id);
   case PI_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
@@ -2338,6 +2316,11 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   }
   case PI_DEVICE_INFO_NAME:
     return ReturnValue(Device->ZeDeviceProperties->name);
+  // zeModuleCreate allows using root device module for sub-devices:
+  // > The application must only use the module for the device, or its
+  // > sub-devices, which was provided during creation.
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE:
+    return ReturnValue(PI_FALSE);
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
     return ReturnValue(pi_bool{1});
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
@@ -3071,52 +3054,38 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
                              PI_QUEUE_ON_DEVICE_DEFAULT)),
             PI_INVALID_VALUE);
 
-  ze_device_handle_t ZeDevice;
-  ze_command_queue_handle_t ZeComputeCommandQueue;
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
+  PI_ASSERT(Queue, PI_INVALID_QUEUE);
+  PI_ASSERT(Device, PI_INVALID_DEVICE);
 
   if (std::find(Context->Devices.begin(), Context->Devices.end(), Device) ==
       Context->Devices.end()) {
     return PI_INVALID_DEVICE;
   }
 
-  PI_ASSERT(Device, PI_INVALID_DEVICE);
+  // Create placeholder queues in the compute queue group.
+  // Actual L0 queues will be created at first use.
+  std::vector<ze_command_queue_handle_t> ZeComputeCommandQueues(
+      Device->QueueGroup[_pi_queue::queue_type::Compute].ZeProperties.numQueues,
+      nullptr);
 
-  ZeDevice = Device->ZeDevice;
-  ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
-  ZeCommandQueueDesc.index = Device->ZeComputeEngineIndex;
-  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
-
-  ZE_CALL(zeCommandQueueCreate,
-          (Context->ZeContext, ZeDevice,
-           &ZeCommandQueueDesc, // TODO: translate properties
-           &ZeComputeCommandQueue));
-
-  std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
-
-  // Create a placeholder in ZeCopyCommandQueues for a queue that will be used
-  // to submit commands to main copy engine. This queue is initially NULL and
-  // will be replaced by the Ze Command Queue which gets created just before its
-  // first use.
-  ze_command_queue_handle_t ZeMainCopyCommandQueue = nullptr;
+  // Create placeholder queues in the copy queue group (main and link
+  // native groups are combined into one group).
+  // Actual L0 queues will be created at first use.
+  size_t NumCopyGroups = 0;
   if (Device->hasMainCopyEngine()) {
-    ZeCopyCommandQueues.push_back(ZeMainCopyCommandQueue);
+    NumCopyGroups += Device->QueueGroup[_pi_queue::queue_type::MainCopy]
+                         .ZeProperties.numQueues;
   }
-
-  // Create additional 'placeholder queues' to link copy engines and push them
-  // into ZeCopyCommandQueues.
   if (Device->hasLinkCopyEngine()) {
-    auto ZeNumLinkCopyQueues = Device->ZeLinkCopyQueueGroupProperties.numQueues;
-    for (uint32_t i = 0; i < ZeNumLinkCopyQueues; ++i) {
-      ze_command_queue_handle_t ZeLinkCopyCommandQueue = nullptr;
-      ZeCopyCommandQueues.push_back(ZeLinkCopyCommandQueue);
-    }
+    NumCopyGroups += Device->QueueGroup[_pi_queue::queue_type::LinkCopy]
+                         .ZeProperties.numQueues;
   }
-  PI_ASSERT(Queue, PI_INVALID_QUEUE);
+  std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues(NumCopyGroups,
+                                                             nullptr);
 
   try {
-    *Queue = new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueues, Context,
+    *Queue = new _pi_queue(ZeComputeCommandQueues, ZeCopyCommandQueues, Context,
                            Device, true, Properties);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
@@ -3190,10 +3159,13 @@ pi_result piQueueRelease(pi_queue Queue) {
       // Make sure all commands get executed.
       // Only do so for a healthy queue as otherwise sync may not be valid.
       if (Queue->Healthy) {
-        ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
-        for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
-          if (Queue->ZeCopyCommandQueues[i])
-            ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
+        for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
+          if (ZeQueue)
+            ZE_CALL(zeHostSynchronize, (ZeQueue));
+        }
+        for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
+          if (ZeQueue)
+            ZE_CALL(zeHostSynchronize, (ZeQueue));
         }
       }
 
@@ -3237,18 +3209,15 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
       RefCountZero = true;
 
       if (Queue->OwnZeCommandQueue) {
-        ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
-        for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
-          if (Queue->ZeCopyCommandQueues[i])
-            ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCopyCommandQueues[i]));
+        for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
+          if (ZeQueue)
+            ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
+        }
+        for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
+          if (ZeQueue)
+            ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
         }
       }
-
-      Queue->ZeComputeCommandQueue = nullptr;
-      for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
-        Queue->ZeCopyCommandQueues[i] = nullptr;
-      }
-      Queue->ZeCopyCommandQueues.clear();
 
       zePrint("piQueueRelease(compute) NumTimesClosedFull %d, "
               "NumTimesClosedEarly %d\n",
@@ -3279,8 +3248,11 @@ pi_result piQueueFinish(pi_queue Queue) {
     if (auto Res = Queue->executeAllOpenCommandLists())
       return Res;
 
-    ZeQueues = Queue->ZeCopyCommandQueues;
-    ZeQueues.push_back(Queue->ZeComputeCommandQueue);
+    // Make a copy of queues to sync and release the lock.
+    ZeQueues = Queue->CopyQueueGroup.ZeQueues;
+    std::copy(Queue->ComputeQueueGroup.ZeQueues.begin(),
+              Queue->ComputeQueueGroup.ZeQueues.end(),
+              std::back_inserter(ZeQueues));
   }
 
   // Don't hold a lock to the queue's mutex while waiting.
@@ -3314,9 +3286,8 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
-  // Extract the Level Zero queue handle from the given PI queue
-  *ZeQueue = Queue->ZeComputeCommandQueue; // TODO: Can we try to return copy
-                                           // command queue here?
+  // Extract the Level Zero compute queue handle from the given PI queue
+  *ZeQueue = Queue->ComputeQueueGroup.ZeQueues[0];
   return PI_SUCCESS;
 }
 
@@ -3328,6 +3299,8 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
+  // Assume this is the "0" index queue in the compute command-group.
+  std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
 
   // Attach the queue to the "0" device.
   // TODO: see if we need to let user choose the device.
@@ -3337,7 +3310,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   // all commands to the "ZeQueue".
   std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
   *Queue =
-      new _pi_queue(ZeQueue, ZeroCopyQueues, Context, Device, OwnNativeHandle);
+      new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device, OwnNativeHandle);
   return PI_SUCCESS;
 }
 
@@ -3442,7 +3415,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   if (Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
     // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
     // pinned host memory, see:
-    // sycl/doc/extensions/supported/SYCL_EXT_ONEAPI_USE_PINNED_HOST_MEMORY_PROPERTY.asciidoc
+    // sycl/doc/extensions/supported/sycl_ext_oneapi_use_pinned_host_memory_property.asciidoc
     // We are however missing such functionality in Level Zero, so we just
     // ignore the flag for now.
     //
@@ -4297,28 +4270,37 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   ze_device_handle_t ZeDevice = DeviceList[0]->ZeDevice;
   ze_context_handle_t ZeContext = Program->Context->ZeContext;
   ze_module_handle_t ZeModule = nullptr;
-  ZE_CALL(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule,
-                           &Program->ZeBuildLog));
 
-  // The call to zeModuleCreate does not report an error if there are
-  // unresolved symbols because it thinks these could be resolved later via a
-  // call to zeModuleDynamicLink.  However, modules created with piProgramBuild
-  // are supposed to be fully linked and ready to use.  Therefore, do an extra
-  // check now for unresolved symbols.
-  ze_result_t ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
-  if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
-    return PI_BUILD_PROGRAM_FAILURE;
-  } else if (ZeResult != ZE_RESULT_SUCCESS) {
-    return mapError(ZeResult);
+  pi_result Result = PI_SUCCESS;
+  Program->State = _pi_program::Exe;
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
+                                       &ZeModule, &Program->ZeBuildLog));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    // We adjust pi_program below to avoid attempting to release zeModule when
+    // RT calls piProgramRelease().
+    ZeModule = nullptr;
+    Program->State = _pi_program::Invalid;
+    Result = mapError(ZeResult);
+  } else {
+    // The call to zeModuleCreate does not report an error if there are
+    // unresolved symbols because it thinks these could be resolved later via a
+    // call to zeModuleDynamicLink.  However, modules created with
+    // piProgramBuild are supposed to be fully linked and ready to use.
+    // Therefore, do an extra check now for unresolved symbols.
+    ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
+    if (ZeResult != ZE_RESULT_SUCCESS) {
+      Program->State = _pi_program::Invalid;
+      Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
+                   ? PI_BUILD_PROGRAM_FAILURE
+                   : mapError(ZeResult);
+    }
   }
 
   // We no longer need the IL / native code.
   Program->Code.reset();
-
   Program->ZeModule = ZeModule;
-  Program->State = _pi_program::Exe;
-
-  return PI_SUCCESS;
+  return Result;
 }
 
 pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
@@ -4955,10 +4937,6 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
     if (EventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
-    // Create a "proxy" host-visible event on demand.
-    PI_CALL(EventCreate(Context, true, &HostVisibleEvent));
-    HostVisibleEvent->CleanedUp = true;
-
     // Submit the command(s) signalling the proxy event to the queue.
     // We have to first submit a wait for the device-only event for which this
     // proxy is created.
@@ -4975,6 +4953,13 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
               Queue, CommandList, false /* UseCopyEngine */, OkToBatch))
         return Res;
 
+      // Create a "proxy" host-visible event.
+      auto Res = createEventAndAssociateQueue(
+          Queue, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
+      // HostVisibleEvent->CleanedUp = true;
+      if (Res != PI_SUCCESS)
+        return Res;
+
       ZE_CALL(zeCommandListAppendWaitOnEvents,
               (CommandList->first, 1, &ZeEvent));
       ZE_CALL(zeCommandListAppendSignalEvent,
@@ -4989,12 +4974,21 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
   return PI_SUCCESS;
 }
 
-static pi_result EventCreate(pi_context Context, bool HostVisible,
-                             pi_event *RetEvent) {
+// Helper function for creating a PI event.
+// The "Queue" argument specifies the PI queue where a command is submitted.
+// The "HostVisible" argument specifies if event needs to be allocated from
+// a host-visible pool.
+//
+static pi_result EventCreate(pi_context Context, pi_queue Queue,
+                             bool HostVisible, pi_event *RetEvent) {
+
+  bool ProfilingEnabled =
+      !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
+
   size_t Index = 0;
   ze_event_pool_handle_t ZeEventPool = {};
-  if (auto Res = Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index,
-                                                         HostVisible))
+  if (auto Res = Context->getFreeSlotInExistingOrNewPool(
+          ZeEventPool, Index, HostVisible, ProfilingEnabled))
     return Res;
 
   ze_event_handle_t ZeEvent;
@@ -5035,8 +5029,9 @@ static pi_result EventCreate(pi_context Context, bool HostVisible,
   return PI_SUCCESS;
 }
 
+// Exteral PI API entry
 pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
-  return EventCreate(Context, EventsScope == AllHostVisible, RetEvent);
+  return EventCreate(Context, nullptr, EventsScope == AllHostVisible, RetEvent);
 }
 
 pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
@@ -5101,6 +5096,11 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
                                   size_t *ParamValueSizeRet) {
 
   PI_ASSERT(Event, PI_INVALID_EVENT);
+
+  if (Event->Queue &&
+      (Event->Queue->Properties & PI_QUEUE_PROFILING_ENABLE) == 0) {
+    return PI_PROFILING_INFO_NOT_AVAILABLE;
+  }
 
   uint64_t ZeTimerResolution =
       Event->Queue
@@ -5374,7 +5374,7 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
     // and release a reference to it.
     if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
       // Decrement ref-count of the host-visible proxy event.
-      PI_CALL(piEventRelease(Event->HostVisibleEvent));
+      PI_CALL(EventRelease(Event->HostVisibleEvent, LockedQueue));
     }
 
     auto Context = Event->Context;
@@ -5651,10 +5651,13 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   if (Res != PI_SUCCESS)
     return Res;
 
-  ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
-  for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
-    if (Queue->ZeCopyCommandQueues[i])
-      ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
+  for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
+    if (ZeQueue)
+      ZE_CALL(zeHostSynchronize, (ZeQueue));
+  }
+  for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
+    if (ZeQueue)
+      ZE_CALL(zeHostSynchronize, (ZeQueue));
   }
 
   Queue->LastCommandEvent = *Event;
@@ -5754,8 +5757,7 @@ pi_result piEnqueueMemBufferReadRect(
 } // extern "C"
 
 bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
-  return PreferCopyEngine && Device->hasCopyEngine() &&
-         ZeCopyCommandQueues.size() > 0 && // TODO: initialize interop queues
+  return PreferCopyEngine && CopyQueueGroup.ZeQueues.size() > 0 &&
          (!isInOrderQueue() || UseCopyEngineForInOrderQueue);
 }
 
@@ -6012,6 +6014,9 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
                      const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
+  // Pattern size must be a power of two.
+  PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
+            PI_INVALID_VALUE);
 
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
@@ -6021,33 +6026,39 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
                                                           EventWaitList, Queue))
     return Res;
 
-  bool PreferCopyEngine = true;
-  size_t MaxPatternSize =
-      Queue->Device->ZeComputeQueueGroupProperties.maxMemoryFillPatternSize;
+  auto &Device = Queue->Device;
 
   // Performance analysis on a simple SYCL data "fill" test shows copy engine
   // is faster than compute engine for such operations.
   //
-  // Make sure that pattern size matches the capability of the copy queue.
+  bool PreferCopyEngine = true;
+
+  // Make sure that pattern size matches the capability of the copy queues.
+  // Check both main and link groups as we don't known which one will be used.
   //
-  if (PreferCopyEngine && Queue->Device->hasCopyEngine() &&
-      PatternSize <= Queue->Device->ZeMainCopyQueueGroupProperties
-                         .maxMemoryFillPatternSize) {
-    MaxPatternSize =
-        Queue->Device->ZeMainCopyQueueGroupProperties.maxMemoryFillPatternSize;
-  } else {
-    // pattern size does not fit within capability of copy queue.
-    // Try compute queue instead.
-    PreferCopyEngine = false;
+  if (Device->hasCopyEngine()) {
+    if (Device->hasMainCopyEngine() &&
+        Device->QueueGroup[_pi_device::queue_group_info_t::MainCopy]
+                .ZeProperties.maxMemoryFillPatternSize < PatternSize) {
+      PreferCopyEngine = false;
+    }
+    if (Device->hasLinkCopyEngine() &&
+        Device->QueueGroup[_pi_device::queue_group_info_t::LinkCopy]
+                .ZeProperties.maxMemoryFillPatternSize < PatternSize) {
+      PreferCopyEngine = false;
+    }
   }
-  // Pattern size must fit the queue.
-  PI_ASSERT(PatternSize <= MaxPatternSize, PI_INVALID_VALUE);
-  // Pattern size must be a power of two.
-  PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
-            PI_INVALID_VALUE);
+
+  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
+  if (!UseCopyEngine) {
+    // Pattern size must fit the compute queue capabilities.
+    PI_ASSERT(PatternSize <=
+                  Device->QueueGroup[_pi_device::queue_group_info_t::Compute]
+                      .ZeProperties.maxMemoryFillPatternSize,
+              PI_INVALID_VALUE);
+  }
 
   pi_command_list_ptr_t CommandList{};
-  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
   if (auto Res = Queue->Context->getAvailableCommandList(

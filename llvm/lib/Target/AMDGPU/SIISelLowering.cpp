@@ -17,6 +17,7 @@
 #include "AMDGPUTargetMachine.h"
 #include "SIMachineFunctionInfo.h"
 #include "SIRegisterInfo.h"
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/LegacyDivergenceAnalysis.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
@@ -602,6 +603,7 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::SINT_TO_FP, MVT::f16, Promote);
     setOperationAction(ISD::UINT_TO_FP, MVT::f16, Promote);
     setOperationAction(ISD::FROUND, MVT::f16, Custom);
+    setOperationAction(ISD::FPTRUNC_ROUND, MVT::f16, Custom);
 
     // F16 - VOP2 Actions.
     setOperationAction(ISD::BR_CC, MVT::f16, Expand);
@@ -1118,6 +1120,10 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
                                           const CallInst &CI,
                                           MachineFunction &MF,
                                           unsigned IntrID) const {
+  Info.flags = MachineMemOperand::MONone;
+  if (CI.hasMetadata(LLVMContext::MD_invariant_load))
+    Info.flags |= MachineMemOperand::MOInvariant;
+
   if (const AMDGPU::RsrcIntrinsic *RsrcIntr =
           AMDGPU::lookupRsrcIntrinsic(IntrID)) {
     AttributeList Attr = Intrinsic::getAttributes(CI.getContext(),
@@ -1136,7 +1142,7 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
           MFI->getBufferPSV(*MF.getSubtarget<GCNSubtarget>().getInstrInfo());
     }
 
-    Info.flags = MachineMemOperand::MODereferenceable;
+    Info.flags |= MachineMemOperand::MODereferenceable;
     if (Attr.hasFnAttr(Attribute::ReadOnly)) {
       unsigned DMaskLanes = 4;
 
@@ -1178,9 +1184,9 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
       Info.opc = CI.getType()->isVoidTy() ? ISD::INTRINSIC_VOID :
                                             ISD::INTRINSIC_W_CHAIN;
       Info.memVT = MVT::getVT(CI.getArgOperand(0)->getType());
-      Info.flags = MachineMemOperand::MOLoad |
-                   MachineMemOperand::MOStore |
-                   MachineMemOperand::MODereferenceable;
+      Info.flags |= MachineMemOperand::MOLoad |
+                    MachineMemOperand::MOStore |
+                    MachineMemOperand::MODereferenceable;
 
       // XXX - Should this be volatile without known ordering?
       Info.flags |= MachineMemOperand::MOVolatile;
@@ -1200,7 +1206,7 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.memVT = MVT::getVT(CI.getType());
     Info.ptrVal = CI.getOperand(0);
     Info.align.reset();
-    Info.flags = MachineMemOperand::MOLoad | MachineMemOperand::MOStore;
+    Info.flags |= MachineMemOperand::MOLoad | MachineMemOperand::MOStore;
 
     const ConstantInt *Vol = cast<ConstantInt>(CI.getOperand(4));
     if (!Vol->isZero())
@@ -1216,7 +1222,7 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.ptrVal =
         MFI->getBufferPSV(*MF.getSubtarget<GCNSubtarget>().getInstrInfo());
     Info.align.reset();
-    Info.flags = MachineMemOperand::MOLoad | MachineMemOperand::MOStore;
+    Info.flags |= MachineMemOperand::MOLoad | MachineMemOperand::MOStore;
 
     const ConstantInt *Vol = dyn_cast<ConstantInt>(CI.getOperand(4));
     if (!Vol || !Vol->isZero())
@@ -1230,7 +1236,7 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.memVT = MVT::getVT(CI.getType());
     Info.ptrVal = CI.getOperand(0);
     Info.align.reset();
-    Info.flags = MachineMemOperand::MOLoad | MachineMemOperand::MOStore;
+    Info.flags |= MachineMemOperand::MOLoad | MachineMemOperand::MOStore;
 
     const ConstantInt *Vol = cast<ConstantInt>(CI.getOperand(1));
     if (!Vol->isZero())
@@ -1243,9 +1249,9 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.memVT = MVT::getVT(CI.getType());
     Info.ptrVal = CI.getOperand(0);
     Info.align.reset();
-    Info.flags = MachineMemOperand::MOLoad |
-                 MachineMemOperand::MOStore |
-                 MachineMemOperand::MOVolatile;
+    Info.flags |= MachineMemOperand::MOLoad |
+                  MachineMemOperand::MOStore |
+                  MachineMemOperand::MOVolatile;
     return true;
   }
   case Intrinsic::amdgcn_image_bvh_intersect_ray: {
@@ -1255,8 +1261,8 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.ptrVal =
         MFI->getImagePSV(*MF.getSubtarget<GCNSubtarget>().getInstrInfo());
     Info.align.reset();
-    Info.flags = MachineMemOperand::MOLoad |
-                 MachineMemOperand::MODereferenceable;
+    Info.flags |= MachineMemOperand::MOLoad |
+                  MachineMemOperand::MODereferenceable;
     return true;
   }
   case Intrinsic::amdgcn_global_atomic_fadd:
@@ -1269,10 +1275,10 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.memVT = MVT::getVT(CI.getType());
     Info.ptrVal = CI.getOperand(0);
     Info.align.reset();
-    Info.flags = MachineMemOperand::MOLoad |
-                 MachineMemOperand::MOStore |
-                 MachineMemOperand::MODereferenceable |
-                 MachineMemOperand::MOVolatile;
+    Info.flags |= MachineMemOperand::MOLoad |
+                  MachineMemOperand::MOStore |
+                  MachineMemOperand::MODereferenceable |
+                  MachineMemOperand::MOVolatile;
     return true;
   }
   case Intrinsic::amdgcn_ds_gws_init:
@@ -1292,9 +1298,10 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.size = 4;
     Info.align = Align(4);
 
-    Info.flags = MachineMemOperand::MOStore;
     if (IntrID == Intrinsic::amdgcn_ds_gws_barrier)
-      Info.flags = MachineMemOperand::MOLoad;
+      Info.flags |= MachineMemOperand::MOLoad;
+    else
+      Info.flags |= MachineMemOperand::MOStore;
     return true;
   }
   default:
@@ -4740,6 +4747,24 @@ SDValue SITargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     return lowerBUILD_VECTOR(Op, DAG);
   case ISD::FP_ROUND:
     return lowerFP_ROUND(Op, DAG);
+  case ISD::FPTRUNC_ROUND: {
+    unsigned Opc;
+    SDLoc DL(Op);
+
+    if (Op.getOperand(0)->getValueType(0) != MVT::f32)
+      return SDValue();
+
+    // Get the rounding mode from the last operand
+    int RoundMode = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
+    if (RoundMode == (int)RoundingMode::TowardPositive)
+      Opc = AMDGPUISD::FPTRUNC_ROUND_UPWARD;
+    else if (RoundMode == (int)RoundingMode::TowardNegative)
+      Opc = AMDGPUISD::FPTRUNC_ROUND_DOWNWARD;
+    else
+      return SDValue();
+
+    return DAG.getNode(Opc, DL, Op.getNode()->getVTList(), Op->getOperand(0));
+  }
   case ISD::TRAP:
     return lowerTRAP(Op, DAG);
   case ISD::DEBUGTRAP:
