@@ -1,0 +1,301 @@
+= sycl_ext_oneapi_named_sub_group_sizes
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2019-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 4 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties
+
+* link:../proposed/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+SYCL provides a mechanism to set a required sub-group size for a kernel via
+an attribute, and the sycl_ext_oneapi_kernel_properties extension provides an
+equivalent property.
+
+Either mechanism is sufficient when tuning individual kernels for specific
+devices, but their usage quickly becomes complicated in real-life scenarios
+because:
+
+1. An integral sub-group size must be provided at host compile-time.
+
+2. The sub-group sizes supported by a device are not known until run-time.
+
+3. It is common for the same sub-group size to be used for all kernels
+   (e.g. because the sub-group size is reflected in data structures).
+
+Applications wishing to write portable sub-group code that can target multiple
+architectures must therefore multi-version their C++ code (e.g. via templates),
+dispatch to the correct kernel(s) based on the result of a run-time query, and
+repeat this process for every kernel individually.
+
+This extension aims to simplify the process of using sub-groups by introducing
+the notion of _named_ sub-group sizes, allowing developers to request a
+sub-group size that meets certain requirements at host compile-time and
+deferring the selection of a specific sub-group size until the kernel is
+compiled for a specific device.
+
+This extension also changes the default behavior of sub-groups in SYCL code to
+improve the out-of-the-box experience for new developers, without preventing
+experts and existing developers from requesting the existing compiler behavior.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_NAMED_SUB_GROUP_SIZES` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== Changes to sub-group behavior
+
+Much of the behavior related to sub-groups in SYCL 2020 is
+implementation-defined. Different kernels may use different sub-group sizes,
+and even the same kernel may use different kernels on some devices (e.g. for
+different ND-range launch configurations).
+
+The extension introduces simpler behavior for sub-groups:
+
+- If no sub-group size property appears on a kernel or `SYCL_EXTERNAL`
+  function, the default behavior of an implementation must be to compile and
+  execute the kernel or function using a device's _primary_ sub-group size. The
+  primary sub-group size must be compatible with all core language features.
+
+- If a developer does not require a stable sub-group size across all kernels
+  and kernel launches, they can explicitly request an _automatic_ sub-group
+  size chosen by the implementation.
+
+- Implementations are free to provide mechanisms which override the default
+  sub-group behavior (e.g. via compiler flags), but developers must use this
+  mechanism explicitly in order to opt-in to any change in behavior.
+
+
+=== Device queries
+
+A new `info::device::primary_sub_group_size` device query is introduced to
+query a device's primary sub-group size.
+
+[%header,cols="1,5,5"]
+|===
+|Device Descriptor
+|Return Type
+|Description
+
+|`info::device::primary_sub_group_size`
+|`uint32_t`
+|Return a sub-group size supported by this device that is guaranteed to support
+ all core language features for the device.
+|===
+
+
+=== Properties
+
+```c++
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+
+enum named_sub_group_size : uint32_t {
+  primary = /* implementation-defined */,
+  automatic = /* implementation-defined */,
+};
+
+inline constexpr sub_group_size_key::value_t<named_sub_group_size::primary> sub_group_size_primary;
+
+inline constexpr sub_group_size_key::value_t<named_sub_group_size::automatic> sub_group_size_automatic;
+
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+```
+
+NOTE: The named sub-group size properties are deliberately designed to reuse as
+much of the existing `sub_group_size` property infrastructure as possible.
+Implementations are free to choose the integral value associated with each
+named sub-group type, but it is expected that many implementations will use
+values like 0 (which is otherwise not a meaningful sub-group size) or -1
+(which would otherwise correspond to a sub-group size so large it is unlikely
+any device would support it).
+
+|===
+|Property|Description
+
+|`sub_group_size_primary`
+|The `sub_group_size_primary` property adds the requirement that the kernel
+ must be compiled and executed with the primary sub-group size of the device to
+ which the kernel is submitted (as reported by the
+ `info::device::primary_sub_group_size` query).
+
+|`sub_group_size_automatic`
+|The `sub_group_size_automatic` property adds the requirement that the kernel
+ can be compiled and executed with any of the valid sub-group sizes associated
+ with the device to which the kernel is submitted (as reported by the
+ `info::device::sub_group_sizes` query). The manner in which the sub-group size
+ is selected is implementation-defined.
+
+|===
+
+At most one of the `sub_group_size`, `sub_group_size_primary` and
+`sub_group_size_automatic` properties may be associated with a kernel or
+device function.
+
+NOTE: No special handling is required to detect this case, since
+`sub_group_size_primary` and `sub_group_size_automatic` are simply named
+shorthands for properties associated with `sub_group_size_key`.
+
+There are special requirements whenever a device function defined in one
+translation unit makes a call to a device function that is defined in a second
+translation unit. In such a case, the second device function is always declared
+using `SYCL_EXTERNAL`. If the kernel calling these device functions is defined
+using a sub-group size property, the functions declared using `SYCL_EXTERNAL`
+must be similarly decorated to ensure that the same sub-group size is used.
+This decoration must exist in both the translation unit making the call and
+also in the translation unit that defines the function. If the sub-group size
+property is missing in the translation unit that makes the call, or if the
+sub-group size of the called function does not match the sub-group size of the
+calling function, the program is ill-formed and the compiler must raise a
+diagnostic.
+
+Note that a compiler may choose a different sub-group size for each kernel and
+`SYCL_EXTERNAL` function using an automatic sub-group size. If kernels with an
+automatic sub-group size call `SYCL_EXTERNAL` functions using an automatic
+sub-group size, the program may be ill-formed. The behavior when
+`SYCL_EXTERNAL` is used in conjunction with an automatic sub-group size is
+implementation-defined, and code relying on specific behavior should not be
+expected to be portable across implementations. If a kernel calls a
+`SYCL_EXTERNAL` function with an incompatible sub-group size, the compiler must
+raise a diagnostic -- it is expected that this diagnostic will be raised during
+link-time, since this is the first time the compiler will see both translation
+units together.
+
+
+=== Compiler flags
+
+The `-fsycl-default-sub-group-size` flag controls the default sub-group size
+used within a translation unit, which applies to all kernels and
+`SYCL_EXTERNAL` functions without an explicitly specified sub-group size.
+
+If the argument passed to `-fsycl-default-sub-group-size` is an integer `S`,
+all kernels and `SYCL_EXTERNAL` functions without an explicitly specified
+sub-group size are compiled as-if `sub_group_size<S>` was specified as a
+property of that kernel or function.
+
+If the argument passed to `-fsycl-default-sub-group-size` is a string `NAME`,
+all kernels and `SYCL_EXTERNAL` functions without an explicitly specified
+sub-group size are compiled as-if `sub_group_size_NAME` was
+specified as a property of that kernel or function.
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.  It is not part of the specification of the
+extension's API.
+
+The existing mechanism of describing a required sub-group size in SPIR-V may
+need to be augmented to support named sub-group sizes. The existing sub-group
+size descriptors could be used with reserved values (similar to the template
+arguments in the properties), or new descriptors could be created for each
+case.
+
+Device compilers will need to be taught to interpret these named sub-group
+sizes as equivalent to a device-specific integral sub-group size at
+compile-time.
+
+
+== Issues
+
+. What should the sub-group size compatible with all features be called?
++
+--
+*RESOLVED*: The name adopted is "primary", to convey that it is an integral
+part of sub-group support provided by the device. Other names considered are
+listed here for posterity: "default", "stable", "fixed", "core". These terms
+are easy to misunderstand (i.e. the "default" size may not be chosen by
+default, the "stable" size is unrelated to the software release cycle, the
+"fixed" sub-group size may change between devices or compiler releases, the
+"core" size is unrelated to hardware cores).
+--
+
+. How does sub-group size interact with `SYCL_EXTERNAL` functions? The current
+behavior requires exact matching. Should this be relaxed to allow alternative
+implementations (e.g. link-time optimization, multi-versioning)?
++
+--
+RESOLVED: Exact matching is required to ensure that developers can reason about
+the portability of their code across different implementations. Setting the
+default sub-group size to "primary" and providing an override flag to select
+"automatic" everywhere means that only advanced developers who are tuning
+sub-group size on a per-kernel basis will have to worry about potential
+matching issues.
+--
