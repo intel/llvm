@@ -91,7 +91,7 @@ q.parallel_for(sycl::range<1>(N), [=] (sycl::id<1> i){
 
 === Changes to runtime properties
 
-This extension adds the new property `sycl::ext::intel::experimental::property::usm::buffer_location` which applications can pass in the property_list parameter to all overloads of the `sycl::malloc_device()`, `sycl::malloc_shared()`, `sycl::malloc_host()`  function. However, this property has no effect when passed to `sycl::malloc_shared()`, `sycl::malloc_host()`. Following is a synopsis of this property.
+This extension adds the new property `sycl::ext::intel::experimental::property::usm::buffer_location` which applications can pass in the property_list parameter to all overloads of the `sycl::malloc_device()`, `sycl::malloc_shared()`, and `sycl::malloc_host()` functions. However, this property has no effect when passed to `sycl::malloc_shared()` or `sycl::malloc_host()`. Following is a synopsis of this property.
 
 [source,c++]
 ----
