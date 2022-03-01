@@ -23,6 +23,11 @@ namespace NS {
 // CHECK: @same_name = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ATTRS:[0-9]+]]
 // CHECK: @_ZN2NS9same_nameE = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_NS_ATTRS:[0-9]+]]
 
+// check that we don't generate `sycl-unique-id` IR attribute if class does not use
+// [[__sycl_detail__::device_global]]
+only_global_var_allowed<int> no_device_global;
+// CHECK: @no_device_global = addrspace(1) global %"class.cl::sycl::ext::oneapi::only_global_var_allowed" zeroinitializer, align 8{{$}}
+
 void foo() {
   q.submit([&](handler &h) {
     h.single_task<class kernel_name_1>([=]() {
@@ -31,6 +36,7 @@ void foo() {
       (void)Foo::C;
       (void)same_name;
       (void)NS::same_name;
+      (void)no_device_global;
       });
   });
 }

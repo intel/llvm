@@ -4056,28 +4056,6 @@ Sema::MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A) {
   return ::new (Context) SYCLIntelLoopFuseAttr(Context, A, A.getValue());
 }
 
-static void handleSYCLDeviceGlobalAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  auto *RD = dyn_cast<CXXRecordDecl>(D);
-    if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
-      ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
-      if (CXXRecordDecl *RDec = Template->getTemplatedDecl())
-        if (isa<FieldDecl>(RDec) && !S.isUnevaluatedContext())
-          S.Diag(AL.getLoc(), diag::err_invalid_non_static_member_use) << AL;
-    }
-  D->addAttr(::new (S.Context) SYCLDeviceGlobalAttr(S.Context, AL));
-}
-
-static void handleSYCLGlobalVariableAllowedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-// Avoid diagnosing any erors here, simply accept the 
-  if (const auto *DeclAttr = D->getAttr<SYCLGlobalVariableAllowedAttr>()) {
-    if (auto VD = dyn_cast<VarDecl>(D)) {
-        // avoid diagnosing error
-    }
-  }
-
-  D->addAttr(::new (S.Context) SYCLGlobalVariableAllowedAttr(S.Context, AL));
-}
-
 static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   // If no attribute argument is specified, set to default value '1'.
   Expr *E = A.isArgExpr(0)
@@ -10409,12 +10387,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim:
     handleSYCLIntelMaxGlobalWorkDimAttr(S, D, AL);
-    break;
-  case ParsedAttr::AT_SYCLDeviceGlobal:
-    handleSYCLDeviceGlobalAttr(S, D, AL);
-    break;
-  case ParsedAttr::AT_SYCLGlobalVariableAllowed:
-    handleSYCLGlobalVariableAllowedAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
     handleSYCLIntelNoGlobalWorkOffsetAttr(S, D, AL);

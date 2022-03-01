@@ -7099,10 +7099,10 @@ def warn_format_nonliteral : Warning<
   "format string is not a string literal">,
   InGroup<FormatNonLiteral>, DefaultIgnore;
 
-def err_non_static_member_use_not_allowed : Error<
-  "use of non-static member variable %0 is not allowed">;
+def err_sycl_device_global_incorrect_scope : Error<
+  "`device_global` variables must be static or declared at namespace scope">;
 def err_not_publicly_accessible: Error<
-  "member variable %0 not publicly accessible">;
+  "member variable %0 not publicly accessible from namespace scope">;
 def err_array_of_device_global_not_allowed : Error<
   "array of device_global %0 is not allowed">;
 def err_shadow_variable_within_same_namespace: Error<
