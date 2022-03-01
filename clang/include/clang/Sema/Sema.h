@@ -13125,8 +13125,8 @@ public:
                                    SourceLocation BuiltinLoc,
                                    SourceLocation RParenLoc);
 
-  bool isSyclGlobalVariableAllowedType(QualType Ty);
-  bool isSyclDeviceGlobalType(QualType Ty);
+  template <typename T>
+  bool isSyclGlobalType(QualType Ty);
 
 private:
   bool SemaBuiltinPrefetch(CallExpr *TheCall);

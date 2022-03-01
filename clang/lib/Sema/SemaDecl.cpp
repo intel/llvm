@@ -7057,17 +7057,6 @@ static void copyAttrFromTypedefToDecl(Sema &S, Decl *D, const TypedefType *TT) {
     D->addAttr(Clone);
   }
 }
-bool Sema::isSyclDeviceGlobalType(QualType Ty) {
-  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
-  if (!RecTy)
-    return false;
-  if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
-    ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
-    if (CXXRecordDecl *RD = Template->getTemplatedDecl())
-      return RD->hasAttr<SYCLDeviceGlobalAttr>();
-  }
-  return RecTy->hasAttr<SYCLDeviceGlobalAttr>();
-}
 
 NamedDecl *Sema::ActOnVariableDeclarator(
     Scope *S, Declarator &D, DeclContext *DC, TypeSourceInfo *TInfo,
@@ -7406,12 +7395,12 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   // Static variables declared inside SYCL device code must be const or
   // constexpr
   if (getLangOpts().SYCLIsDevice) {
-    if (isSyclDeviceGlobalType(NewVD->getType()) &&
+    if (isSyclGlobalType<SYCLDeviceGlobalAttr>(NewVD->getType()) &&
         SCSpec != DeclSpec::SCS_static && !NewVD->hasGlobalStorage()) {
       Diag(D.getIdentifierLoc(), diag::err_sycl_device_global_incorrect_scope);
     }
     if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context) &&
-        !isSyclGlobalVariableAllowedType(NewVD->getType()))
+        !isSyclGlobalType<SYCLGlobalVariableAllowedAttr>(NewVD->getType()))
       SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
           << Sema::KernelNonConstStaticDataVariable;
   }
