@@ -395,6 +395,16 @@ void event_impl::cleanupDependencyEvents() {
   MPreparedHostDepsEvents.clear();
 }
 
+void event_impl::cleanDepEventsThroughOneLevel() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  for (auto &Event : MPreparedDepsEvents) {
+    Event->cleanupDependencyEvents();
+  }
+  for (auto &Event : MPreparedHostDepsEvents) {
+    Event->cleanupDependencyEvents();
+  }
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
