@@ -168,7 +168,13 @@ public:
   pi_native_handle getNative() const;
 
   // Returns true if buffer_location property is supported by devices
-  bool isBufferLocationSupported(); 
+  bool isBufferLocationSupported() const;
+
+  enum PropertySupport {
+    NotSupported = 0,
+    Supported = 1,
+    NotChecked = 2
+  };
 
 private:
   async_handler MAsyncHandler;
@@ -180,8 +186,7 @@ private:
   std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
       MCachedLibPrograms;
   mutable KernelProgramCache MKernelProgramCache;
-  // 0 - not supported, 1 - supported, 2 - check has not done yet
-  int SupportBufferLocationByDevices;
+  mutable PropertySupport SupportBufferLocationByDevices;
 };
 
 } // namespace detail
