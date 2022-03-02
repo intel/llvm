@@ -4,14 +4,19 @@
 
 // IMPORTANT: before updating sm version support beyond sm_86 read the following NOTE!
 
-// NOTE: Technically the 'wrong' ptx instruction is called by joint_matrix_load/joint_matrix_store in this case:
-// notice that the load and store instructions use shape m16n16k16, rather than the correct shape m16n16k8.
-// The 'wrong' ptx instruction is used because it returns the correct SASS instructions for all existing supported sm versions:
-// sm_80 and sm_86. The Apparent reason for this ptx instruction redundancy is due to the ptx naming convention for the mnk shape triple;
-// however we cannot in principle a priori know that future sm versions will behave in the same way and that this redundancy will remain.
-// This should be validated before supporting any sm versions beyond sm_86.
-// The reason that we choose to use the m16n16k16 instruction is that it allows the significant advantage of being able
-// to use a portable interface across Intel and Nvidia backends.
+// NOTE: Technically the 'wrong' ptx instruction is called by
+// joint_matrix_load/joint_matrix_store in this case: notice that the load and
+// store instructions use shape m16n16k16, rather than the correct shape
+// m16n16k8. The 'wrong' ptx instruction is used because it returns the correct
+// SASS instructions for all existing supported sm versions: sm_80 and sm_86.
+// The reason for this ptx instruction redundancy is due to the ptx naming
+// convention for the mnk shape triple; however we cannot in principle a priori
+// know that future sm versions will behave in the same way and that this
+// redundancy will continue as future architecture is released. This should be
+// validated before supporting any sm versions beyond sm_86. The reason that we
+// choose to use the m16n16k16 instruction is that it allows the significant
+// advantage of being able to use a portable interface across Intel and Nvidia
+// backends.
 
 #include <CL/sycl.hpp>
 

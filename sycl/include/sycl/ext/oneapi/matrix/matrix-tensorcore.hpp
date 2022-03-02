@@ -276,16 +276,15 @@ struct joint_matrix_load_impl<
                            get_layout_id<Layout>());
       }
     } else if constexpr (std::is_same<T, uint32_t>::value) {
-          int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
-         if constexpr (NumRows == 16 && NumCols == 8) {
+      int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
+      if constexpr (NumRows == 16 && NumCols == 8) {
            __mma_tf32_m16n16k8_ld_a(res.data, tileptr, stride,
                                  get_layout_id<Layout>());
-        }
-        else if constexpr (NumRows == 8 && NumCols == 16) {
+      } else if constexpr (NumRows == 8 && NumCols == 16) {
            __mma_tf32_m16n16k8_ld_b(res.data, tileptr, stride,
                                  get_layout_id<Layout>());
-        }
-        }
+      }
+    }
   }
 };
 
@@ -509,10 +508,10 @@ struct joint_matrix_mad_impl<
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
       }
-    }  else if constexpr (M == 16 && N == 16 && K == 8) {
+    } else if constexpr (M == 16 && N == 16 && K == 8) {
       __mma_tf32_m16n16k8_mma_f32(D.data, A.data, B.data, C.data,
                                   get_layout_pair_id<LayoutA, LayoutB>(), 0);
-    }  else if constexpr (std::is_same<T1, double>::value) {
+    } else if constexpr (std::is_same<T1, double>::value) {
       __dmma_m8n8k4_mma_f64(D.data, A.data, B.data, C.data,
                             get_layout_pair_id<LayoutA, LayoutB>(), 0);
     }
