@@ -29,7 +29,7 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
       MPlatform(), MPropList(PropList), MHostContext(Device.is_host()),
-      SupportBufferLocationByDevices(2) {
+      SupportBufferLocationByDevices(NotChecked) {
   MKernelProgramCache.setContextPtr(this);
 }
 
@@ -38,7 +38,7 @@ context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
       MPlatform(), MPropList(PropList), MHostContext(false),
-      SupportBufferLocationByDevices(2) {
+      SupportBufferLocationByDevices(NotChecked) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<RT::PiDevice> DeviceIds;
   for (const auto &D : MDevices) {
@@ -68,7 +68,7 @@ context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                            const plugin &Plugin)
     : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
-      MHostContext(false), SupportBufferLocationByDevices(2) {
+      MHostContext(false), SupportBufferLocationByDevices(NotChecked) {
 
   std::vector<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
@@ -208,21 +208,20 @@ pi_native_handle context_impl::getNative() const {
   return Handle;
 }
 
-bool context_impl::isBufferLocationSupported() {
-  // If check has already done return resut
-  if (SupportBufferLocationByDevices < 2)
-    return SupportBufferLocationByDevices == 0 ? false : true;
+bool context_impl::isBufferLocationSupported() const {
+  if (SupportBufferLocationByDevices != NotChecked)
+    return SupportBufferLocationByDevices == Supported ? true : false;
   // Check that devices within context has support of buffer location
   size_t return_size = 0;
   pi_device_info device_info;
-  SupportBufferLocationByDevices = 1;
+  SupportBufferLocationByDevices = Supported;
   auto Plugin = getPlugin();
   for (auto &Device : MDevices) {
     const RT::PiDevice PiDevice = getSyclObjImpl(Device)->getHandleRef();
     if (Plugin.call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             PiDevice, (pi_device_info)PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
             sizeof(pi_device_info), &device_info, &return_size) != PI_SUCCESS) {
-      SupportBufferLocationByDevices = 0;
+      SupportBufferLocationByDevices = NotSupported;
       break;
     }
   }
