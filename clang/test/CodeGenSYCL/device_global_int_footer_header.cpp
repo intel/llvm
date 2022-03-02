@@ -2,12 +2,8 @@
 // RUN: FileCheck -input-file=%t.footer.h %s --check-prefix=CHECK-FOOTER
 // RUN: FileCheck -input-file=%t.header.h %s --check-prefix=CHECK-HEADER
 
-// Try and compile generated integration header and footer on host.
-// RUN: %clang_cc1 -fsycl-is-host -x c++ -std=c++17 -internal-isystem %S/Inputs -fsyntax-only -include %t.header.h -include %s %t.footer.h
-
 // This test checks that integration header and footer are emitted correctly
-// for device_global variables. It also checks that emitted constructs
-// are syntactically correct.
+// for device_global variables.
 
 #include "sycl.hpp"
 
