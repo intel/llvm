@@ -608,11 +608,10 @@ inline static void piQueueRetainNoLock(pi_queue Queue) { Queue->RefCount++; }
 // \param CommandList is the command list where the event is added
 // \param ForceHostVisible tells if the event must be created in
 //        the host-visible pool
-// \param IsNormalEvent is normal or special event used only by plugin itself
 inline static pi_result createEventAndAssociateQueue(
     pi_queue Queue, pi_event *Event, pi_command_type CommandType,
     pi_command_list_ptr_t CommandList, bool ForceHostVisible = false,
-    bool IsNormalEvent = true, bool NeedZeEvent = true) {
+    bool NeedZeEvent = true) {
 
   PI_CALL(EventCreate(Queue->Context, Queue,
                       ForceHostVisible ? true : EventsScope == AllHostVisible,
@@ -643,8 +642,7 @@ inline static pi_result createEventAndAssociateQueue(
   // it is really signalled, so retain it explicitly here and
   // release in Event->cleanup().
   //
-  if (IsNormalEvent)
-    PI_CALL(piEventRetain(*Event));
+  PI_CALL(piEventRetain(*Event));
 
   return PI_SUCCESS;
 }
@@ -1313,11 +1311,16 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   }
 
   if (this->EventlessMode && !this->SkipLastEventInEventlessMode) {
-    pi_result Res = createEventAndAssociateQueue(this, &LastEventInPrevCmdList,
-                                                 PI_COMMAND_TYPE_USER,
-                                                 CommandList, false, false);
+    pi_result Res =
+        createEventAndAssociateQueue(this, &LastEventInPrevCmdList,
+                                     PI_COMMAND_TYPE_USER, CommandList, false);
     if (Res != PI_SUCCESS)
       return Res;
+    // Decrement the reference count of the event as this event will not be
+    // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+    // resetCommandList.
+    PI_CALL(piEventRelease(LastEventInPrevCmdList));
+
     this->LastCommandEvent = LastEventInPrevCmdList;
     // Add barrier with the event into command-list to ensure in-order semantics
     // between command-lists
@@ -1525,9 +1528,14 @@ pi_result _pi_queue::AddBarrierInPreviousCmdListIfNeeded(bool UseCopyEngine) {
     if (IsPrevCopyEngine != UseCopyEngine) {
       pi_result Res = createEventAndAssociateQueue(
           this, &LastEventInPrevCmdList, PI_COMMAND_TYPE_USER, LastCommandList,
-          false, false);
+          false);
       if (Res != PI_SUCCESS)
         return Res;
+      // Decrement the reference count of the event as this event will not be
+      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+      // resetCommandList.
+      PI_CALL(piEventRelease(LastEventInPrevCmdList));
+
       // Since we have added a new event to the list, it will affect the
       // batching, but this is a special event and we do not want it to affect
       // batching, to have the batching for this command-list work correctly we
@@ -4926,11 +4934,15 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     (*Event)->CommandData = (void *)Kernel;
   } else {
     pi_event InternalEvent;
-    pi_result Res = createEventAndAssociateQueue(
-        Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-        false, false, false);
+    pi_result Res = createEventAndAssociateQueue(Queue, &InternalEvent,
+                                                 PI_COMMAND_TYPE_NDRANGE_KERNEL,
+                                                 CommandList, false, false);
     if (Res != PI_SUCCESS)
       return Res;
+    // Decrement the reference count of the event as this event will not be
+    // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+    // resetCommandList.
+    PI_CALL(piEventRelease(InternalEvent));
     InternalEvent->WaitList = TmpWaitList;
 
     // Save the kernel in the event, so that when the event is signalled
@@ -5729,9 +5741,13 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
         pi_event InternalEvent;
         pi_result Res = createEventAndAssociateQueue(
             Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-            false, false, false);
+            false, false);
         if (Res != PI_SUCCESS)
           return Res;
+        // Decrement the reference count of the event as this event will not be
+        // waited/released by SYCL RT, so it must be destroyed by EventRelease
+        // in resetCommandList.
+        PI_CALL(piEventRelease(InternalEvent));
         InternalEvent->WaitList = TmpWaitList;
       } else {
         auto &CommandListInfo = CommandList->second;
@@ -5833,9 +5849,13 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       pi_event InternalEvent;
       pi_result Res = createEventAndAssociateQueue(
           Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-          false, false, false);
+          false, false);
       if (Res != PI_SUCCESS)
         return Res;
+      // Decrement the reference count of the event as this event will not be
+      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+      // resetCommandList.
+      PI_CALL(piEventRelease(InternalEvent));
       InternalEvent->WaitList = TmpWaitList;
     } else {
       auto &CommandListInfo = CommandList->second;
@@ -5935,9 +5955,13 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
       pi_event InternalEvent;
       pi_result Res = createEventAndAssociateQueue(
           Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-          false, false, false);
+          false, false);
       if (Res != PI_SUCCESS)
         return Res;
+      // Decrement the reference count of the event as this event will not be
+      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+      // resetCommandList.
+      PI_CALL(piEventRelease(InternalEvent));
       InternalEvent->WaitList = TmpWaitList;
     } else {
       auto &CommandListInfo = CommandList->second;
@@ -6226,9 +6250,13 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
       pi_event InternalEvent;
       pi_result Res = createEventAndAssociateQueue(
           Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-          false, false, false);
+          false, false);
       if (Res != PI_SUCCESS)
         return Res;
+      // Decrement the reference count of the event as this event will not be
+      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+      // resetCommandList.
+      PI_CALL(piEventRelease(InternalEvent));
       InternalEvent->WaitList = TmpWaitList;
     } else {
       auto &CommandListInfo = CommandList->second;
@@ -7558,9 +7586,13 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
       pi_event InternalEvent;
       pi_result Res = createEventAndAssociateQueue(
           Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-          false, false, false);
+          false, false);
       if (Res != PI_SUCCESS)
         return Res;
+      // Decrement the reference count of the event as this event will not be
+      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+      // resetCommandList.
+      PI_CALL(piEventRelease(InternalEvent));
       InternalEvent->WaitList = TmpWaitList;
     } else {
       auto &CommandListInfo = CommandList->second;
@@ -7636,9 +7668,13 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
       pi_event InternalEvent;
       pi_result Res = createEventAndAssociateQueue(
           Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-          false, false, false);
+          false, false);
       if (Res != PI_SUCCESS)
         return Res;
+      // Decrement the reference count of the event as this event will not be
+      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+      // resetCommandList.
+      PI_CALL(piEventRelease(InternalEvent));
       InternalEvent->WaitList = TmpWaitList;
     } else {
       auto &CommandListInfo = CommandList->second;
