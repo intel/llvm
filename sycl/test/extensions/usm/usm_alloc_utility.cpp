@@ -83,8 +83,8 @@ int main() {
     array = (int *)malloc_device(N * sizeof(int), q);
     check_and_free(array, dev, ctxt);
 
-    array = (int *)malloc_device<int>(
-        N * sizeof(int), q,
+    array = malloc_device<int>(
+        N, q,
         property_list{
             ext::intel::experimental::property::usm::buffer_location(2)});
     check_and_free(array, dev, ctxt);
