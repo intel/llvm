@@ -211,7 +211,7 @@ pi_native_handle context_impl::getNative() const {
 bool context_impl::isBufferLocationSupported() const {
   if (SupportBufferLocationByDevices != NotChecked)
     return SupportBufferLocationByDevices == Supported ? true : false;
-  // Check that devices within context has support of buffer location
+  // Check that devices within context have support of buffer location
   size_t return_size = 0;
   pi_device_info device_info;
   SupportBufferLocationByDevices = Supported;
