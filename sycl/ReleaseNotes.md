@@ -11,11 +11,11 @@ Release notes for commit range 23ca0c2..27f59d8
    which can be used specify how many processes the compiler can use for
    linking the device code [c2221f0]
 ### SYCL Library
- - Added support for [default context extension](doc/extensions/supported/SYCL_EXT_ONEAPI_DEFAULT_CONTEXT.asciidoc)
+ - Added support for [default context extension](doc/extensions/supported/sycl_ext_oneapi_default_context.asciidoc)
    on Linux [315593d]
- - Added experimental support for [group sorting algorithm](doc/extensions/experimental/SYCL_EXT_ONEAPI_GROUP_SORT.asciidoc)
+ - Added experimental support for [group sorting algorithm](doc/extensions/experimental/sycl_ext_oneapi_group_sort.asciidoc)
    [932ae56]
- - Added support for [sub-group mask extension](doc/extensions/supported/SYCL_EXT_ONEAPI_SUB_GROUP_MASK.asciidoc)
+ - Added support for [sub-group mask extension](doc/extensions/supported/sycl_ext_oneapi_sub_group_mask.asciidoc)
    [78a3e77]
  - Added `sycl::ext::intel::experimental::esimd::simd_mask` as a replaced for
     `sycl::ext::intel::experimental::esimd::mask_type_t` to represent Gen
@@ -23,7 +23,7 @@ Release notes for commit range 23ca0c2..27f59d8
  - Added stripped PDBs for SYCL libraries [6e5dd483]
  - Added support ESIMD emulator backend [f4ad3c11]
  - Added support for [FPGA DSP control](https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/INTEL/SPV_INTEL_fpga_dsp_control.asciidoc) extension [790aa8ba]
- - Implemented [discard_events extension](doc/extensions/supported/SYCL_EXT_ONEAPI_DISCARD_QUEUE_EVENTS.asciidoc)
+ - Implemented [discard_events extension](doc/extensions/supported/sycl_ext_oneapi_discard_queue_events.asciidoc)
    [9542e288]
  - Extended XPTI notifications with information about SYCL memory management
    [a068b154] [8f9d0d2b]
@@ -43,17 +43,17 @@ Release notes for commit range 23ca0c2..27f59d8
    Level Zero, ESIMD emulator, HIP [2b0ebab376dc]
  - Added support for `sycl::ext::intel::experimental::esimd_ballot` function
    [0bbb091c1baa]
- - Added initial support for [Tensorcore matrix extension](doc/extensions/experimental/SYCL_EXT_ONEAPI_MATRIX.asciidoc)
+ - Added initial support for [Tensorcore matrix extension](doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc)
    [711ba58c30a8]
 
 ### Documentation
- - Added [device global extension specification](doc/extensions/proposed/SYCL_EXT_ONEAPI_DEVICE_GLOBAL.asciidoc)
+ - Added [device global extension specification](doc/extensions/proposed/sycl_ext_oneapi_device_global.asciidoc)
    [d3e70d4]
- - Added [property list extension specification](doc/extensions/proposed/SYCL_EXT_ONEAPI_PROPERTIES.asciidoc)
+ - Added [property list extension specification](doc/extensions/proposed/sycl_ext_oneapi_properties.asciidoc)
    [a7da8b4]
- - Added extension specification for [discard queue events](doc/extensions/supported/SYCL_EXT_ONEAPI_DISCARD_QUEUE_EVENTS.asciidoc)
+ - Added extension specification for [discard queue events](doc/extensions/supported/sycl_ext_oneapi_discard_queue_events.asciidoc)
    [23ca24bb]
- - Added [KernelProperties](doc/extensions/proposed/SYCL_EXT_ONEAPI_KERNEL_PROPERTIES.asciidoc)
+ - Added [KernelProperties](doc/extensions/proposed/sycl_ext_oneapi_kernel_properties.asciidoc)
    extension [64f5e707daed]
 
 ## Improvements
@@ -185,30 +185,30 @@ Release notes for commit range 23ca0c2..27f59d8
 ### Tools
  - Improved `sycl-ls` device indexing to handle new backends [0cee18e]
 ### Documentation
- - Updated [Level-Zero backend extension](doc/extensions/LevelZeroBackend/LevelZeroBackend.md)
+ - Updated [Level-Zero backend extension](doc/extensions/supported/sycl_ext_oneapi_backend_level_zero.md)
    to align with the SYCL 2020 specification [8bbebf5]
- - Updated [ITT instrumentation documentation](doc/ITTAnnotations.md) [9c0508b]
- - Extended [FPGA lsu](./sycl/doc/extensions/proposed/SYCL_EXT_INTEL_FPGA_LSU.md)
-   and [SYCL_INTEL_data_flow_pipes](./sycl/doc/extensions/proposed/SYCL_EXT_INTEL_DATAFLOW_PIPES.asciidoc)
+ - Updated [ITT instrumentation documentation](doc/design/ITTAnnotations.md) [9c0508b]
+ - Extended [FPGA lsu](doc/extensions/proposed/sycl_ext_intel_fpga_lsu.md)
+   and [SYCL_INTEL_data_flow_pipes](doc/extensions/proposed/sycl_ext_intel_dataflow_pipes.asciidoc)
    extensions to with latency control feature [5ab3cd3a]
  - Updated OpenCL CPU and FPGA emulator runtimes configuration on Windows to
    use OpenCL ICD registry records instead of `OCL_ICD_FILENAMES`. That is
    done to use the latest OpenCL ICD loader which ignores `OCL_ICD_FILENAMES`
    configuration in the administrative console [92bcb419]
- - Improved [group sorting spec](./sycl/doc/extensions/experimental/SYCL_EXT_ONEAPI_GROUP_SORT.asciidoc) [f1c3506b]
- - Clarified restrictions on [device global variables](doc/extensions/DeviceGlobal/SYCL_INTEL_device_global.asciidoc)
+ - Improved [group sorting spec](doc/extensions/experimental/sycl_ext_oneapi_group_sort.asciidoc) [f1c3506b]
+ - Clarified restrictions on [device global variables](doc/extensions/DeviceGlobal/sycl_intel_device_global.asciidoc)
    [589d48844edb]
- - Deprecated [group algorithms](doc/extensions/SYCL_INTEL_group_algorithms.asciidoc)
-   and [subgroup extensions](doc/extensions/SubGroup/SYCL_INTEL_sub_group.asciidoc)
+ - Deprecated [group algorithms](doc/extensions/deprecated/sycl_ext_oneapi_group_algorithms.asciidoc)
+   and [subgroup extensions](doc/extensions/deprecated/sycl_ext_oneapi_sub_group.asciidoc)
    as it's superseded by SYCL2020 [7dc82742b5ae] [d2a4f502b558]
  - Removed `SubGroupAlgorithms` extension [cd5417b13a27]
- - Added proposal to add [query](doc/extensions/IntelGPU/IntelGPUDeviceInfo.md)
+ - Added proposal to add [query](doc/extensions/supported/sycl_ext_intel_device_info.md)
    for number of hardware threads per execution unit [5b771a9c4eca]
  - Updated the experimental matrix interface to match new AMX/DPAS JIT
    implementation [6495575258a8]
  - Updated test section of the contribution guide [145b9e782258]
  - Updated CUDA documentation with Windows support details [1cf024ac32a3]
- - Added FPGA properties to [device global](doc/extensions/DeviceGlobal/SYCL_INTEL_device_global.asciidoc)
+ - Added FPGA properties to [device global](doc/extensions/proposed/sycl_ext_oneapi_device_global.asciidoc)
    specification [fd2bd6e1eac7]
  - Added clarifications in environment variables documentation [d5ba0dbb4912]
 
@@ -363,13 +363,27 @@ Release notes for commit range 23ca0c2..27f59d8
  - Removed `half` class from global namespace [c9128e68ef39]
 
 ## Known issues
+ - [new] Having MESA OpenCL implementation which provides no devices on a
+   system may cause incorrect device discovery. As a workaround such an OpenCL
+   implementation can be disabled by removing `/etc/OpenCL/vendor/mesa.icd`.
+ - [new] Compilation may fail on Windows in debug mode if a kernel uses
+   `std::array`.  This happens because debug version of `std::array` in
+   Microsoft STL C++ headers calls functions that are illegal for the device
+   code. As a workaround the following can be done:
+    1. Dump compiler pipeline execution strings by passing `-###` option to the
+       compiler. The compiler will print the internal execution strings of
+       compilation tools. The actual compilation will not happen.
+    2. Modify the (usually) first execution string (it should have
+       `-fsycl-is-device` option) by adding
+       `-D_CONTAINER_DEBUG_LEVEL=0 -D_ITERATOR_DEBUG_LEVEL=0` options to the
+       end of the string.  Execute all string one by one.
  - [new] `-fsycl-dead-args-optimization` can't help eliminate offset of
    accessor even though it's created with no offset specified
  - [new] `cuMemPrefetchAsync` has issues on Windows. Hence, using
-   `sycl::queue::prefetch` API` on Windows might lead to failure [0c33048e4926]
+   `sycl::queue::prefetch` API on Windows might lead to failure [0c33048e4926]
  - SYCL 2020 barriers show worse performance than SYCL 1.2.1 do [18c80fa]
  - [new] When using fallback assert in separate compilation flow it requires
-   explicit, linking against `lib/libsycl-fallback-cassert.o` or
+   explicit linking against `lib/libsycl-fallback-cassert.o` or
    `lib/libsycl-fallback-cassert.spv`
  - [new] Performance may be impacted by JIT-ing an extra 'copier' kernel and due
    running the 'copier' kernel and host-task after each kernel which uses
