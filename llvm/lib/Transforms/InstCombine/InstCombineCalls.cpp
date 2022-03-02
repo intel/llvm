@@ -879,6 +879,59 @@ static Instruction *foldClampRangeOfTwo(IntrinsicInst *II,
   return SelectInst::Create(Cmp, ConstantInt::get(II->getType(), *C0), I1);
 }
 
+/// If this min/max has a constant operand and an operand that is a matching
+/// min/max with a constant operand, constant-fold the 2 constant operands.
+static Instruction *reassociateMinMaxWithConstants(IntrinsicInst *II) {
+  Intrinsic::ID MinMaxID = II->getIntrinsicID();
+  auto *LHS = dyn_cast<IntrinsicInst>(II->getArgOperand(0));
+  if (!LHS || LHS->getIntrinsicID() != MinMaxID)
+    return nullptr;
+
+  Constant *C0, *C1;
+  if (!match(LHS->getArgOperand(1), m_ImmConstant(C0)) ||
+      !match(II->getArgOperand(1), m_ImmConstant(C1)))
+    return nullptr;
+
+  // max (max X, C0), C1 --> max X, (max C0, C1) --> max X, NewC
+  ICmpInst::Predicate Pred = MinMaxIntrinsic::getPredicate(MinMaxID);
+  Constant *CondC = ConstantExpr::getICmp(Pred, C0, C1);
+  Constant *NewC = ConstantExpr::getSelect(CondC, C0, C1);
+
+  Module *Mod = II->getModule();
+  Function *MinMax = Intrinsic::getDeclaration(Mod, MinMaxID, II->getType());
+  return CallInst::Create(MinMax, {LHS->getArgOperand(0), NewC});
+}
+
+/// If this min/max has a matching min/max operand with a constant, try to push
+/// the constant operand into this instruction. This can enable more folds.
+static Instruction *
+reassociateMinMaxWithConstantInOperand(IntrinsicInst *II,
+                                       InstCombiner::BuilderTy &Builder) {
+  // Match and capture a min/max operand candidate.
+  Value *X, *Y;
+  Constant *C;
+  Instruction *Inner;
+  if (!match(II, m_c_MaxOrMin(m_OneUse(m_CombineAnd(
+                                  m_Instruction(Inner),
+                                  m_MaxOrMin(m_Value(X), m_ImmConstant(C)))),
+                              m_Value(Y))))
+    return nullptr;
+
+  // The inner op must match. Check for constants to avoid infinite loops.
+  Intrinsic::ID MinMaxID = II->getIntrinsicID();
+  auto *InnerMM = dyn_cast<IntrinsicInst>(Inner);
+  if (!InnerMM || InnerMM->getIntrinsicID() != MinMaxID ||
+      match(X, m_ImmConstant()) || match(Y, m_ImmConstant()))
+    return nullptr;
+
+  // max (max X, C), Y --> max (max X, Y), C
+  Function *MinMax =
+      Intrinsic::getDeclaration(II->getModule(), MinMaxID, II->getType());
+  Value *NewInner = Builder.CreateBinaryIntrinsic(MinMaxID, X, Y);
+  NewInner->takeName(Inner);
+  return CallInst::Create(MinMax, {NewInner, C});
+}
+
 /// Reduce a sequence of min/max intrinsics with a common operand.
 static Instruction *factorizeMinMaxTree(IntrinsicInst *II) {
   // Match 3 of the same min/max ops. Example: umin(umin(), umin()).
@@ -1224,6 +1277,12 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
         if (Instruction *R = FoldOpIntoSelect(*II, Sel))
           return R;
 
+    if (Instruction *NewMinMax = reassociateMinMaxWithConstants(II))
+      return NewMinMax;
+
+    if (Instruction *R = reassociateMinMaxWithConstantInOperand(II, Builder))
+      return R;
+
     if (Instruction *NewMinMax = factorizeMinMaxTree(II))
        return NewMinMax;
 
@@ -1236,9 +1295,10 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     KnownBits Known = computeKnownBits(IIOperand, 0, II);
     uint64_t LZ = alignDown(Known.countMinLeadingZeros(), 8);
     uint64_t TZ = alignDown(Known.countMinTrailingZeros(), 8);
+    unsigned BW = Known.getBitWidth();
 
     // bswap(x) -> shift(x) if x has exactly one "active byte"
-    if (Known.getBitWidth() - LZ - TZ == 8) {
+    if (BW - LZ - TZ == 8) {
       assert(LZ != TZ && "active byte cannot be in the middle");
       if (LZ > TZ)  // -> shl(x) if the "active byte" is in the low part of x
         return BinaryOperator::CreateNUWShl(
@@ -1250,8 +1310,7 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
 
     // bswap(trunc(bswap(x))) -> trunc(lshr(x, c))
     if (match(IIOperand, m_Trunc(m_BSwap(m_Value(X))))) {
-      unsigned C = X->getType()->getScalarSizeInBits() -
-                   IIOperand->getType()->getScalarSizeInBits();
+      unsigned C = X->getType()->getScalarSizeInBits() - BW;
       Value *CV = ConstantInt::get(X->getType(), C);
       Value *V = Builder.CreateLShr(X, CV);
       return new TruncInst(V, IIOperand->getType());

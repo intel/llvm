@@ -1638,10 +1638,10 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       MemoryAccess[0] |= MemoryAccessNontemporalMask;
     if (MDNode *AliasingListMD = ST->getMetadata(LLVMContext::MD_alias_scope))
       transAliasingMemAccess(BM, AliasingListMD, MemoryAccess,
-                             internal::MemoryAccessAliasScopeINTELMask);
+                             MemoryAccessAliasScopeINTELMaskMask);
     if (MDNode *AliasingListMD = ST->getMetadata(LLVMContext::MD_noalias))
       transAliasingMemAccess(BM, AliasingListMD, MemoryAccess,
-                             internal::MemoryAccessNoAliasINTELMask);
+                             MemoryAccessNoAliasINTELMaskMask);
     if (MemoryAccess.front() == 0)
       MemoryAccess.clear();
 
@@ -1669,10 +1669,10 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       MemoryAccess[0] |= MemoryAccessNontemporalMask;
     if (MDNode *AliasingListMD = LD->getMetadata(LLVMContext::MD_alias_scope))
       transAliasingMemAccess(BM, AliasingListMD, MemoryAccess,
-                             internal::MemoryAccessAliasScopeINTELMask);
+                             MemoryAccessAliasScopeINTELMaskMask);
     if (MDNode *AliasingListMD = LD->getMetadata(LLVMContext::MD_noalias))
       transAliasingMemAccess(BM, AliasingListMD, MemoryAccess,
-                             internal::MemoryAccessNoAliasINTELMask);
+                             MemoryAccessNoAliasINTELMaskMask);
     if (MemoryAccess.front() == 0)
       MemoryAccess.clear();
     return mapValue(V, BM->addLoadInst(transValue(LD->getPointerOperand(), BB),
@@ -2135,8 +2135,8 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
     switch (static_cast<size_t>(DecoKind)) {
       ONE_STRING_DECORATION_CASE(MemoryINTEL, spv)
       ONE_STRING_DECORATION_CASE(UserSemantic, spv)
-      ONE_INT_DECORATION_CASE(AliasScopeINTEL, spv::internal, SPIRVId)
-      ONE_INT_DECORATION_CASE(NoAliasINTEL, spv::internal, SPIRVId)
+      ONE_INT_DECORATION_CASE(AliasScopeINTEL, spv, SPIRVId)
+      ONE_INT_DECORATION_CASE(NoAliasINTEL, spv, SPIRVId)
       ONE_INT_DECORATION_CASE(InitiationIntervalINTEL, spv::internal, SPIRVWord)
       ONE_INT_DECORATION_CASE(MaxConcurrencyINTEL, spv::internal, SPIRVWord)
       ONE_INT_DECORATION_CASE(PipelineEnableINTEL, spv::internal, SPIRVWord)
@@ -2355,16 +2355,16 @@ void LLVMToSPIRVBase::transMemAliasingINTELDecorations(Instruction *Inst,
         addMemAliasingINTELInstructions(BM, AliasingListMD);
     if (!MemAliasList)
       return;
-    BV->addDecorate(new SPIRVDecorateId(
-          internal::DecorationAliasScopeINTEL, BV, MemAliasList->getId()));
+    BV->addDecorate(new SPIRVDecorateId(DecorationAliasScopeINTEL, BV,
+                                        MemAliasList->getId()));
   }
   if (MDNode *AliasingListMD = Inst->getMetadata(LLVMContext::MD_noalias)) {
     auto *MemAliasList =
         addMemAliasingINTELInstructions(BM, AliasingListMD);
     if (!MemAliasList)
       return;
-    BV->addDecorate(new SPIRVDecorateId(
-          internal::DecorationNoAliasINTEL, BV, MemAliasList->getId()));
+    BV->addDecorate(
+        new SPIRVDecorateId(DecorationNoAliasINTEL, BV, MemAliasList->getId()));
   }
 }
 

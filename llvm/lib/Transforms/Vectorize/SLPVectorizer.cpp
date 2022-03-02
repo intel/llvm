@@ -728,19 +728,18 @@ static void inversePermutation(ArrayRef<unsigned> Indices,
 
 /// \returns inserting index of InsertElement or InsertValue instruction,
 /// using Offset as base offset for index.
-static Optional<int> getInsertIndex(Value *InsertInst, unsigned Offset = 0) {
+static Optional<unsigned> getInsertIndex(Value *InsertInst,
+                                         unsigned Offset = 0) {
   int Index = Offset;
   if (auto *IE = dyn_cast<InsertElementInst>(InsertInst)) {
     if (auto *CI = dyn_cast<ConstantInt>(IE->getOperand(2))) {
       auto *VT = cast<FixedVectorType>(IE->getType());
       if (CI->getValue().uge(VT->getNumElements()))
-        return UndefMaskElem;
+        return None;
       Index *= VT->getNumElements();
       Index += CI->getZExtValue();
       return Index;
     }
-    if (isa<UndefValue>(IE->getOperand(2)))
-      return UndefMaskElem;
     return None;
   }
 
@@ -2556,6 +2555,12 @@ private:
 
     Instruction *Inst = nullptr;
 
+    /// Opcode of the current instruction in the schedule data.
+    Value *OpValue = nullptr;
+
+    /// The TreeEntry that this instruction corresponds to.
+    TreeEntry *TE = nullptr;
+
     /// Points to the head in an instruction bundle (and always to this for
     /// single instructions).
     ScheduleData *FirstInBundle = nullptr;
@@ -2576,9 +2581,6 @@ private:
     /// the current SchedulingRegionID of BlockScheduling.
     int SchedulingRegionID = 0;
 
-    /// Used for getting a "good" final ordering of instructions.
-    int SchedulingPriority = 0;
-
     /// The number of dependencies. Constitutes of the number of users of the
     /// instruction plus the number of dependent memory instructions (if any).
     /// This value is calculated on demand.
@@ -2591,18 +2593,12 @@ private:
     /// Note that this is negative as long as Dependencies is not calculated.
     int UnscheduledDeps = InvalidDeps;
 
+    /// The lane of this node in the TreeEntry.
+    int Lane = -1;
+
     /// True if this instruction is scheduled (or considered as scheduled in the
     /// dry-run).
     bool IsScheduled = false;
-
-    /// Opcode of the current instruction in the schedule data.
-    Value *OpValue = nullptr;
-
-    /// The TreeEntry that this instruction corresponds to.
-    TreeEntry *TE = nullptr;
-
-    /// The lane of this node in the TreeEntry.
-    int Lane = -1;
   };
 
 #ifndef NDEBUG
@@ -2640,10 +2636,19 @@ private:
       ++SchedulingRegionID;
     }
 
-    ScheduleData *getScheduleData(Value *V) {
-      ScheduleData *SD = ScheduleDataMap[V];
-      if (SD && SD->SchedulingRegionID == SchedulingRegionID)
+    ScheduleData *getScheduleData(Instruction *I) {
+      if (BB != I->getParent())
+        // Avoid lookup if can't possibly be in map.
+        return nullptr;
+      ScheduleData *SD = ScheduleDataMap[I];
+      if (SD && isInSchedulingRegion(SD))
         return SD;
+      return nullptr;
+    }
+
+    ScheduleData *getScheduleData(Value *V) {
+      if (auto *I = dyn_cast<Instruction>(V))
+        return getScheduleData(I);
       return nullptr;
     }
 
@@ -2653,7 +2658,7 @@ private:
       auto I = ExtraScheduleDataMap.find(V);
       if (I != ExtraScheduleDataMap.end()) {
         ScheduleData *SD = I->second[Key];
-        if (SD && SD->SchedulingRegionID == SchedulingRegionID)
+        if (SD && isInSchedulingRegion(SD))
           return SD;
       }
       return nullptr;
@@ -2728,7 +2733,8 @@ private:
         }
         // Handle the memory dependencies.
         for (ScheduleData *MemoryDepSD : BundleMember->MemoryDependencies) {
-          if (MemoryDepSD->incrementUnscheduledDeps(-1) == 0) {
+          if (MemoryDepSD->hasValidDependencies() &&
+              MemoryDepSD->incrementUnscheduledDeps(-1) == 0) {
             // There are no more unscheduled dependencies after decrementing,
             // so we can put the dependent instruction into the ready list.
             ScheduleData *DepBundle = MemoryDepSD->FirstInBundle;
@@ -2756,6 +2762,8 @@ private:
         assert(SD && "primary scheduledata must exist in window");
         assert(isInSchedulingRegion(SD) &&
                "primary schedule data not in window?");
+        assert(isInSchedulingRegion(SD->FirstInBundle) &&
+               "entire bundle in window!");
         (void)SD;
         doForAllOpcodes(I, [](ScheduleData *SD) { SD->verify(); });
       }
@@ -2774,7 +2782,7 @@ private:
       auto I = ExtraScheduleDataMap.find(V);
       if (I != ExtraScheduleDataMap.end())
         for (auto &P : I->second)
-          if (P.second->SchedulingRegionID == SchedulingRegionID)
+          if (isInSchedulingRegion(P.second))
             Action(P.second);
     }
 
@@ -2783,7 +2791,8 @@ private:
     void initialFillReadyList(ReadyListType &ReadyList) {
       for (auto *I = ScheduleStart; I != ScheduleEnd; I = I->getNextNode()) {
         doForAllOpcodes(I, [&](ScheduleData *SD) {
-          if (SD->isSchedulingEntity() && SD->isReady()) {
+          if (SD->isSchedulingEntity() && SD->hasValidDependencies() &&
+              SD->isReady()) {
             ReadyList.insert(SD);
             LLVM_DEBUG(dbgs()
                        << "SLP:    initially in ready list: " << *SD << "\n");
@@ -2844,7 +2853,7 @@ private:
     /// Attaches ScheduleData to Instruction.
     /// Note that the mapping survives during all vectorization iterations, i.e.
     /// ScheduleData structures are recycled.
-    DenseMap<Value *, ScheduleData *> ScheduleDataMap;
+    DenseMap<Instruction *, ScheduleData *> ScheduleDataMap;
 
     /// Attaches ScheduleData to Instruction with the leading key.
     DenseMap<Value *, SmallDenseMap<Value *, ScheduleData *>>
@@ -2875,8 +2884,8 @@ private:
 
     /// The ID of the scheduling region. For a new vectorization iteration this
     /// is incremented which "removes" all ScheduleData from the region.
-    // Make sure that the initial SchedulingRegionID is greater than the
-    // initial SchedulingRegionID in ScheduleData (which is 0).
+    /// Make sure that the initial SchedulingRegionID is greater than the
+    /// initial SchedulingRegionID in ScheduleData (which is 0).
     int SchedulingRegionID = 1;
   };
 
@@ -4022,13 +4031,9 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
       // Check that we have a buildvector and not a shuffle of 2 or more
       // different vectors.
       ValueSet SourceVectors;
-      int MinIdx = std::numeric_limits<int>::max();
       for (Value *V : VL) {
         SourceVectors.insert(cast<Instruction>(V)->getOperand(0));
-        Optional<int> Idx = *getInsertIndex(V);
-        if (!Idx || *Idx == UndefMaskElem)
-          continue;
-        MinIdx = std::min(MinIdx, *Idx);
+        assert(getInsertIndex(V) != None && "Non-constant or undef index?");
       }
 
       if (count_if(VL, [&SourceVectors](Value *V) {
@@ -4050,10 +4055,8 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
                     decltype(OrdCompare)>
           Indices(OrdCompare);
       for (int I = 0, E = VL.size(); I < E; ++I) {
-        Optional<int> Idx = *getInsertIndex(VL[I]);
-        if (!Idx || *Idx == UndefMaskElem)
-          continue;
-        Indices.emplace(*Idx, I);
+        unsigned Idx = *getInsertIndex(VL[I]);
+        Indices.emplace(Idx, I);
       }
       OrdersType CurrentOrder(VL.size(), VL.size());
       bool IsIdentity = true;
@@ -4281,9 +4284,9 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
 
       // We can't combine several GEPs into one vector if they operate on
       // different types.
-      Type *Ty0 = VL0->getOperand(0)->getType();
+      Type *Ty0 = cast<GEPOperator>(VL0)->getSourceElementType();
       for (Value *V : VL) {
-        Type *CurTy = cast<Instruction>(V)->getOperand(0)->getType();
+        Type *CurTy = cast<GEPOperator>(V)->getSourceElementType();
         if (Ty0 != CurTy) {
           LLVM_DEBUG(dbgs()
                      << "SLP: not-vectorizable GEP (different types).\n");
@@ -4551,10 +4554,11 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
             Value *RHS = Cmp->getOperand(1);
             CmpInst::Predicate CurrentPred = Cmp->getPredicate();
             if (P0 == AltP0Swapped) {
-              if ((P0 == CurrentPred &&
-                   !areCompatibleCmpOps(BaseOp0, BaseOp1, LHS, RHS)) ||
-                  (AltP0 == CurrentPred &&
-                   areCompatibleCmpOps(BaseOp0, BaseOp1, LHS, RHS)))
+              if (CI != Cmp && S.AltOp != Cmp &&
+                  ((P0 == CurrentPred &&
+                    !areCompatibleCmpOps(BaseOp0, BaseOp1, LHS, RHS)) ||
+                   (AltP0 == CurrentPred &&
+                    areCompatibleCmpOps(BaseOp0, BaseOp1, LHS, RHS))))
                 std::swap(LHS, RHS);
             } else if (P0 != CurrentPred && AltP0 != CurrentPred) {
               std::swap(LHS, RHS);
@@ -4807,12 +4811,12 @@ computeExtractCost(ArrayRef<Value *> VL, FixedVectorType *VecTy,
 /// Build shuffle mask for shuffle graph entries and lists of main and alternate
 /// operations operands.
 static void
-buildSuffleEntryMask(ArrayRef<Value *> VL, ArrayRef<unsigned> ReorderIndices,
-                     ArrayRef<int> ReusesIndices,
-                     const function_ref<bool(Instruction *)> IsAltOp,
-                     SmallVectorImpl<int> &Mask,
-                     SmallVectorImpl<Value *> *OpScalars = nullptr,
-                     SmallVectorImpl<Value *> *AltScalars = nullptr) {
+buildShuffleEntryMask(ArrayRef<Value *> VL, ArrayRef<unsigned> ReorderIndices,
+                      ArrayRef<int> ReusesIndices,
+                      const function_ref<bool(Instruction *)> IsAltOp,
+                      SmallVectorImpl<int> &Mask,
+                      SmallVectorImpl<Value *> *OpScalars = nullptr,
+                      SmallVectorImpl<Value *> *AltScalars = nullptr) {
   unsigned Sz = VL.size();
   Mask.assign(Sz, UndefMaskElem);
   SmallVector<int> OrderMask;
@@ -4840,6 +4844,29 @@ buildSuffleEntryMask(ArrayRef<Value *> VL, ArrayRef<unsigned> ReorderIndices,
     });
     Mask.swap(NewMask);
   }
+}
+
+/// Checks if the specified instruction \p I is an alternate operation for the
+/// given \p MainOp and \p AltOp instructions.
+static bool isAlternateInstruction(const Instruction *I,
+                                   const Instruction *MainOp,
+                                   const Instruction *AltOp) {
+  if (auto *CI0 = dyn_cast<CmpInst>(MainOp)) {
+    auto *AltCI0 = cast<CmpInst>(AltOp);
+    auto *CI = cast<CmpInst>(I);
+    CmpInst::Predicate P0 = CI0->getPredicate();
+    CmpInst::Predicate AltP0 = AltCI0->getPredicate();
+    assert(P0 != AltP0 && "Expected different main/alternate predicates.");
+    CmpInst::Predicate AltP0Swapped = CmpInst::getSwappedPredicate(AltP0);
+    CmpInst::Predicate CurrentPred = CI->getPredicate();
+    if (P0 == AltP0Swapped)
+      return I == AltCI0 ||
+             (I != MainOp &&
+              !areCompatibleCmpOps(CI0->getOperand(0), CI0->getOperand(1),
+                                   CI->getOperand(0), CI->getOperand(1)));
+    return AltP0 == CurrentPred || AltP0Swapped == CurrentPred;
+  }
+  return I->getOpcode() == AltOp->getOpcode();
 }
 
 InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
@@ -5214,12 +5241,10 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
       SmallVector<int> PrevMask(NumElts, UndefMaskElem);
       Mask.swap(PrevMask);
       for (unsigned I = 0; I < NumScalars; ++I) {
-        Optional<int> InsertIdx = getInsertIndex(VL[PrevMask[I]]);
-        if (!InsertIdx || *InsertIdx == UndefMaskElem)
-          continue;
-        DemandedElts.setBit(*InsertIdx);
-        IsIdentity &= *InsertIdx - Offset == I;
-        Mask[*InsertIdx - Offset] = I;
+        unsigned InsertIdx = *getInsertIndex(VL[PrevMask[I]]);
+        DemandedElts.setBit(InsertIdx);
+        IsIdentity &= InsertIdx - Offset == I;
+        Mask[InsertIdx - Offset] = I;
       }
       assert(Offset < NumElts && "Failed to find vector index offset");
 
@@ -5565,32 +5590,11 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
       }
 
       SmallVector<int> Mask;
-      buildSuffleEntryMask(
+      buildShuffleEntryMask(
           E->Scalars, E->ReorderIndices, E->ReuseShuffleIndices,
           [E](Instruction *I) {
             assert(E->isOpcodeOrAlt(I) && "Unexpected main/alternate opcode");
-            if (auto *CI0 = dyn_cast<CmpInst>(E->getMainOp())) {
-              auto *AltCI0 = cast<CmpInst>(E->getAltOp());
-              auto *CI = cast<CmpInst>(I);
-              CmpInst::Predicate P0 = CI0->getPredicate();
-              CmpInst::Predicate AltP0 = AltCI0->getPredicate();
-              assert(P0 != AltP0 &&
-                     "Expected different main/alternate predicates.");
-              CmpInst::Predicate AltP0Swapped =
-                  CmpInst::getSwappedPredicate(AltP0);
-              CmpInst::Predicate CurrentPred = CI->getPredicate();
-              if (P0 == AltP0Swapped)
-                return (P0 == CurrentPred &&
-                        !areCompatibleCmpOps(
-                            CI0->getOperand(0), CI0->getOperand(1),
-                            CI->getOperand(0), CI->getOperand(1))) ||
-                       (AltP0 == CurrentPred &&
-                        !areCompatibleCmpOps(
-                            CI0->getOperand(0), CI0->getOperand(1),
-                            CI->getOperand(1), CI->getOperand(0)));
-              return AltP0 == CurrentPred || AltP0Swapped == CurrentPred;
-            }
-            return I->getOpcode() == E->getAltOpcode();
+            return isAlternateInstruction(I, E->getMainOp(), E->getAltOp());
           },
           Mask);
       CommonCost =
@@ -5923,42 +5927,41 @@ InstructionCost BoUpSLP::getTreeCost(ArrayRef<Value *> VectorizedVals) {
     // to detect it as a final shuffled/identity match.
     if (auto *VU = dyn_cast_or_null<InsertElementInst>(EU.User)) {
       if (auto *FTy = dyn_cast<FixedVectorType>(VU->getType())) {
-        Optional<int> InsertIdx = getInsertIndex(VU);
-        if (!InsertIdx || *InsertIdx == UndefMaskElem)
-          continue;
-        auto *It = find_if(FirstUsers, [VU](Value *V) {
-          return areTwoInsertFromSameBuildVector(VU,
-                                                 cast<InsertElementInst>(V));
-        });
-        int VecId = -1;
-        if (It == FirstUsers.end()) {
-          VF.push_back(FTy->getNumElements());
-          ShuffleMask.emplace_back(VF.back(), UndefMaskElem);
-          // Find the insertvector, vectorized in tree, if any.
-          Value *Base = VU;
-          while (isa<InsertElementInst>(Base)) {
-            // Build the mask for the vectorized insertelement instructions.
-            if (const TreeEntry *E = getTreeEntry(Base)) {
-              VU = cast<InsertElementInst>(Base);
-              do {
-                int Idx = E->findLaneForValue(Base);
-                ShuffleMask.back()[Idx] = Idx;
-                Base = cast<InsertElementInst>(Base)->getOperand(0);
-              } while (E == getTreeEntry(Base));
-              break;
+        Optional<unsigned> InsertIdx = getInsertIndex(VU);
+        if (InsertIdx) {
+          auto *It = find_if(FirstUsers, [VU](Value *V) {
+            return areTwoInsertFromSameBuildVector(VU,
+                                                   cast<InsertElementInst>(V));
+          });
+          int VecId = -1;
+          if (It == FirstUsers.end()) {
+            VF.push_back(FTy->getNumElements());
+            ShuffleMask.emplace_back(VF.back(), UndefMaskElem);
+            // Find the insertvector, vectorized in tree, if any.
+            Value *Base = VU;
+            while (isa<InsertElementInst>(Base)) {
+              // Build the mask for the vectorized insertelement instructions.
+              if (const TreeEntry *E = getTreeEntry(Base)) {
+                VU = cast<InsertElementInst>(Base);
+                do {
+                  int Idx = E->findLaneForValue(Base);
+                  ShuffleMask.back()[Idx] = Idx;
+                  Base = cast<InsertElementInst>(Base)->getOperand(0);
+                } while (E == getTreeEntry(Base));
+                break;
+              }
+              Base = cast<InsertElementInst>(Base)->getOperand(0);
             }
-            Base = cast<InsertElementInst>(Base)->getOperand(0);
+            FirstUsers.push_back(VU);
+            DemandedElts.push_back(APInt::getZero(VF.back()));
+            VecId = FirstUsers.size() - 1;
+          } else {
+            VecId = std::distance(FirstUsers.begin(), It);
           }
-          FirstUsers.push_back(VU);
-          DemandedElts.push_back(APInt::getZero(VF.back()));
-          VecId = FirstUsers.size() - 1;
-        } else {
-          VecId = std::distance(FirstUsers.begin(), It);
+          ShuffleMask[VecId][*InsertIdx] = EU.Lane;
+          DemandedElts[VecId].setBit(*InsertIdx);
+          continue;
         }
-        int Idx = *InsertIdx;
-        ShuffleMask[VecId][Idx] = EU.Lane;
-        DemandedElts[VecId].setBit(Idx);
-        continue;
       }
     }
 
@@ -6709,11 +6712,9 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
       Mask.swap(PrevMask);
       for (unsigned I = 0; I < NumScalars; ++I) {
         Value *Scalar = E->Scalars[PrevMask[I]];
-        Optional<int> InsertIdx = getInsertIndex(Scalar);
-        if (!InsertIdx || *InsertIdx == UndefMaskElem)
-          continue;
-        IsIdentity &= *InsertIdx - Offset == I;
-        Mask[*InsertIdx - Offset] = I;
+        unsigned InsertIdx = *getInsertIndex(Scalar);
+        IsIdentity &= InsertIdx - Offset == I;
+        Mask[InsertIdx - Offset] = I;
       }
       if (!IsIdentity || NumElts != NumScalars) {
         V = Builder.CreateShuffleVector(V, Mask);
@@ -7095,10 +7096,6 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
         V0 = Builder.CreateCmp(CI0->getPredicate(), LHS, RHS);
         auto *AltCI = cast<CmpInst>(E->getAltOp());
         CmpInst::Predicate AltPred = AltCI->getPredicate();
-        unsigned AltIdx =
-            std::distance(E->Scalars.begin(), find(E->Scalars, AltCI));
-        if (AltCI->getOperand(0) != E->getOperand(0)[AltIdx])
-          AltPred = CmpInst::getSwappedPredicate(AltPred);
         V1 = Builder.CreateCmp(AltPred, LHS, RHS);
       } else {
         V0 = Builder.CreateCast(
@@ -7120,32 +7117,11 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
       // each vector operation.
       ValueList OpScalars, AltScalars;
       SmallVector<int> Mask;
-      buildSuffleEntryMask(
+      buildShuffleEntryMask(
           E->Scalars, E->ReorderIndices, E->ReuseShuffleIndices,
           [E](Instruction *I) {
             assert(E->isOpcodeOrAlt(I) && "Unexpected main/alternate opcode");
-            if (auto *CI0 = dyn_cast<CmpInst>(E->getMainOp())) {
-              auto *AltCI0 = cast<CmpInst>(E->getAltOp());
-              auto *CI = cast<CmpInst>(I);
-              CmpInst::Predicate P0 = CI0->getPredicate();
-              CmpInst::Predicate AltP0 = AltCI0->getPredicate();
-              assert(P0 != AltP0 &&
-                     "Expected different main/alternate predicates.");
-              CmpInst::Predicate AltP0Swapped =
-                  CmpInst::getSwappedPredicate(AltP0);
-              CmpInst::Predicate CurrentPred = CI->getPredicate();
-              if (P0 == AltP0Swapped)
-                return (P0 == CurrentPred &&
-                        !areCompatibleCmpOps(
-                            CI0->getOperand(0), CI0->getOperand(1),
-                            CI->getOperand(0), CI->getOperand(1))) ||
-                       (AltP0 == CurrentPred &&
-                        !areCompatibleCmpOps(
-                            CI0->getOperand(0), CI0->getOperand(1),
-                            CI->getOperand(1), CI->getOperand(0)));
-              return AltP0 == CurrentPred || AltP0Swapped == CurrentPred;
-            }
-            return I->getOpcode() == E->getAltOpcode();
+            return isAlternateInstruction(I, E->getMainOp(), E->getAltOp());
           },
           Mask, &OpScalars, &AltScalars);
 
@@ -7794,8 +7770,7 @@ void BoUpSLP::BlockScheduling::calculateDependencies(ScheduleData *SD,
 
       // Handle def-use chain dependencies.
       if (BundleMember->OpValue != BundleMember->Inst) {
-        ScheduleData *UseSD = getScheduleData(BundleMember->Inst);
-        if (UseSD && isInSchedulingRegion(UseSD->FirstInBundle)) {
+        if (ScheduleData *UseSD = getScheduleData(BundleMember->Inst)) {
           BundleMember->Dependencies++;
           ScheduleData *DestBundle = UseSD->FirstInBundle;
           if (!DestBundle->IsScheduled)
@@ -7805,10 +7780,7 @@ void BoUpSLP::BlockScheduling::calculateDependencies(ScheduleData *SD,
         }
       } else {
         for (User *U : BundleMember->Inst->users()) {
-          assert(isa<Instruction>(U) &&
-                 "user of instruction must be instruction");
-          ScheduleData *UseSD = getScheduleData(U);
-          if (UseSD && isInSchedulingRegion(UseSD->FirstInBundle)) {
+          if (ScheduleData *UseSD = getScheduleData(cast<Instruction>(U))) {
             BundleMember->Dependencies++;
             ScheduleData *DestBundle = UseSD->FirstInBundle;
             if (!DestBundle->IsScheduled)
@@ -7908,33 +7880,36 @@ void BoUpSLP::scheduleBlock(BlockScheduling *BS) {
 
   LLVM_DEBUG(dbgs() << "SLP: schedule block " << BS->BB->getName() << "\n");
 
+  // A key point - if we got here, pre-scheduling was able to find a valid
+  // scheduling of the sub-graph of the scheduling window which consists
+  // of all vector bundles and their transitive users.  As such, we do not
+  // need to reschedule anything *outside of* that subgraph.
+
   BS->resetSchedule();
 
   // For the real scheduling we use a more sophisticated ready-list: it is
   // sorted by the original instruction location. This lets the final schedule
   // be as  close as possible to the original instruction order.
-  struct ScheduleDataCompare {
-    bool operator()(ScheduleData *SD1, ScheduleData *SD2) const {
-      return SD2->SchedulingPriority < SD1->SchedulingPriority;
-    }
+  DenseMap<ScheduleData *, unsigned> OriginalOrder;
+  auto ScheduleDataCompare = [&](ScheduleData *SD1, ScheduleData *SD2) {
+    return OriginalOrder[SD2] < OriginalOrder[SD1];
   };
-  std::set<ScheduleData *, ScheduleDataCompare> ReadyInsts;
+  std::set<ScheduleData *, decltype(ScheduleDataCompare)>
+    ReadyInsts(ScheduleDataCompare);
 
-  // Ensure that all dependency data is updated and fill the ready-list with
-  // initial instructions.
+  // Ensure that all dependency data is updated (for nodes in the sub-graph)
+  // and fill the ready-list with initial instructions.
   int Idx = 0;
-  int NumToSchedule = 0;
   for (auto *I = BS->ScheduleStart; I != BS->ScheduleEnd;
        I = I->getNextNode()) {
-    BS->doForAllOpcodes(I, [this, &Idx, &NumToSchedule, BS](ScheduleData *SD) {
+    BS->doForAllOpcodes(I, [&](ScheduleData *SD) {
       assert((isVectorLikeInstWithConstOps(SD->Inst) ||
               SD->isPartOfBundle() == (getTreeEntry(SD->Inst) != nullptr)) &&
              "scheduler and vectorizer bundle mismatch");
-      SD->FirstInBundle->SchedulingPriority = Idx++;
-      if (SD->isSchedulingEntity()) {
+      OriginalOrder[SD->FirstInBundle] = Idx++;
+
+      if (SD->isSchedulingEntity() && SD->isPartOfBundle())
         BS->calculateDependencies(SD, false, this);
-        NumToSchedule++;
-      }
     });
   }
   BS->initialFillReadyList(ReadyInsts);
@@ -7957,13 +7932,22 @@ void BoUpSLP::scheduleBlock(BlockScheduling *BS) {
     }
 
     BS->schedule(picked, ReadyInsts);
-    NumToSchedule--;
   }
-  assert(NumToSchedule == 0 && "could not schedule all instructions");
 
   // Check that we didn't break any of our invariants.
 #ifdef EXPENSIVE_CHECKS
   BS->verify();
+#endif
+
+#if !defined(NDEBUG) || defined(EXPENSIVE_CHECKS)
+  // Check that all schedulable entities got scheduled
+  for (auto *I = BS->ScheduleStart; I != BS->ScheduleEnd; I = I->getNextNode()) {
+    BS->doForAllOpcodes(I, [&](ScheduleData *SD) {
+      if (SD->isSchedulingEntity() && SD->hasValidDependencies()) {
+        assert(SD->IsScheduled && "must be scheduled at this point");
+      }
+    });
+  }
 #endif
 
   // Avoid duplicate scheduling of the block.
@@ -8624,6 +8608,8 @@ void SLPVectorizerPass::collectSeedInstructions(BasicBlock *BB) {
 
 bool SLPVectorizerPass::tryToVectorizePair(Value *A, Value *B, BoUpSLP &R) {
   if (!A || !B)
+    return false;
+  if (isa<InsertElementInst>(A) || isa<InsertElementInst>(B))
     return false;
   Value *VL[] = {A, B};
   return tryToVectorizeList(VL, R);
@@ -9599,21 +9585,22 @@ static Optional<unsigned> getAggregateSize(Instruction *InsertInst) {
   } while (true);
 }
 
-static bool findBuildAggregate_rec(Instruction *LastInsertInst,
+static void findBuildAggregate_rec(Instruction *LastInsertInst,
                                    TargetTransformInfo *TTI,
                                    SmallVectorImpl<Value *> &BuildVectorOpds,
                                    SmallVectorImpl<Value *> &InsertElts,
                                    unsigned OperandOffset) {
   do {
     Value *InsertedOperand = LastInsertInst->getOperand(1);
-    Optional<int> OperandIndex = getInsertIndex(LastInsertInst, OperandOffset);
+    Optional<unsigned> OperandIndex =
+        getInsertIndex(LastInsertInst, OperandOffset);
     if (!OperandIndex)
-      return false;
+      return;
     if (isa<InsertElementInst>(InsertedOperand) ||
         isa<InsertValueInst>(InsertedOperand)) {
-      if (!findBuildAggregate_rec(cast<Instruction>(InsertedOperand), TTI,
-                                  BuildVectorOpds, InsertElts, *OperandIndex))
-        return false;
+      findBuildAggregate_rec(cast<Instruction>(InsertedOperand), TTI,
+                             BuildVectorOpds, InsertElts, *OperandIndex);
+
     } else {
       BuildVectorOpds[*OperandIndex] = InsertedOperand;
       InsertElts[*OperandIndex] = LastInsertInst;
@@ -9623,7 +9610,6 @@ static bool findBuildAggregate_rec(Instruction *LastInsertInst,
            (isa<InsertValueInst>(LastInsertInst) ||
             isa<InsertElementInst>(LastInsertInst)) &&
            LastInsertInst->hasOneUse());
-  return true;
 }
 
 /// Recognize construction of vectors like
@@ -9658,13 +9644,11 @@ static bool findBuildAggregate(Instruction *LastInsertInst,
   BuildVectorOpds.resize(*AggregateSize);
   InsertElts.resize(*AggregateSize);
 
-  if (findBuildAggregate_rec(LastInsertInst, TTI, BuildVectorOpds, InsertElts,
-                             0)) {
-    llvm::erase_value(BuildVectorOpds, nullptr);
-    llvm::erase_value(InsertElts, nullptr);
-    if (BuildVectorOpds.size() >= 2)
-      return true;
-  }
+  findBuildAggregate_rec(LastInsertInst, TTI, BuildVectorOpds, InsertElts, 0);
+  llvm::erase_value(BuildVectorOpds, nullptr);
+  llvm::erase_value(InsertElts, nullptr);
+  if (BuildVectorOpds.size() >= 2)
+    return true;
 
   return false;
 }

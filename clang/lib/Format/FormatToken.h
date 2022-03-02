@@ -35,17 +35,20 @@ namespace format {
   TYPE(BinaryOperator)                                                         \
   TYPE(BitFieldColon)                                                          \
   TYPE(BlockComment)                                                           \
+  TYPE(BracedListLBrace)                                                       \
   TYPE(CastRParen)                                                             \
+  TYPE(ClassLBrace)                                                            \
+  TYPE(CompoundRequirementLBrace)                                              \
   TYPE(ConditionalExpr)                                                        \
   TYPE(ConflictAlternative)                                                    \
   TYPE(ConflictEnd)                                                            \
   TYPE(ConflictStart)                                                          \
-  TYPE(ConstraintJunctions)                                                    \
   TYPE(CtorInitializerColon)                                                   \
   TYPE(CtorInitializerComma)                                                   \
   TYPE(DesignatedInitializerLSquare)                                           \
   TYPE(DesignatedInitializerPeriod)                                            \
   TYPE(DictLiteral)                                                            \
+  TYPE(EnumLBrace)                                                             \
   TYPE(FatArrow)                                                               \
   TYPE(ForEachMacro)                                                           \
   TYPE(FunctionAnnotationRParen)                                               \
@@ -98,10 +101,16 @@ namespace format {
   TYPE(RangeBasedForLoopColon)                                                 \
   TYPE(RecordLBrace)                                                           \
   TYPE(RegexLiteral)                                                           \
+  TYPE(RequiresClause)                                                         \
+  TYPE(RequiresClauseInARequiresExpression)                                    \
+  TYPE(RequiresExpression)                                                     \
+  TYPE(RequiresExpressionLBrace)                                               \
+  TYPE(RequiresExpressionLParen)                                               \
   TYPE(SelectorName)                                                           \
   TYPE(StartOfName)                                                            \
   TYPE(StatementAttributeLikeMacro)                                            \
   TYPE(StatementMacro)                                                         \
+  TYPE(StructLBrace)                                                           \
   TYPE(StructuredBindingLSquare)                                               \
   TYPE(TemplateCloser)                                                         \
   TYPE(TemplateOpener)                                                         \
@@ -113,6 +122,7 @@ namespace format {
   TYPE(TypeDeclarationParen)                                                   \
   TYPE(TypenameMacro)                                                          \
   TYPE(UnaryOperator)                                                          \
+  TYPE(UnionLBrace)                                                            \
   TYPE(UntouchableMacroFunc)                                                   \
   TYPE(CSharpStringLiteral)                                                    \
   TYPE(CSharpNamedArgumentColon)                                               \
@@ -245,8 +255,9 @@ struct FormatToken {
         CanBreakBefore(false), ClosesTemplateDeclaration(false),
         StartsBinaryExpression(false), EndsBinaryExpression(false),
         PartOfMultiVariableDeclStmt(false), ContinuesLineCommentSection(false),
-        Finalized(false), BlockKind(BK_Unknown), Decision(FD_Unformatted),
-        PackingKind(PPK_Inconclusive), Type(TT_Unknown) {}
+        Finalized(false), ClosesRequiresClause(false), BlockKind(BK_Unknown),
+        Decision(FD_Unformatted), PackingKind(PPK_Inconclusive),
+        Type(TT_Unknown) {}
 
   /// The \c Token.
   Token Tok;
@@ -311,6 +322,9 @@ struct FormatToken {
   /// potentially re-formatted inside), and we do not allow further formatting
   /// changes.
   unsigned Finalized : 1;
+
+  /// \c true if this is the last token within requires clause.
+  unsigned ClosesRequiresClause : 1;
 
 private:
   /// Contains the kind of block if this token is a brace.
@@ -474,6 +488,12 @@ public:
 
   /// Is optional and can be removed.
   bool Optional = false;
+
+  /// Number of optional braces to be inserted after this token:
+  ///   -1: a single left brace
+  ///    0: no braces
+  ///   >0: number of right braces
+  int8_t BraceCount = 0;
 
   /// If this token starts a block, this contains all the unwrapped lines
   /// in it.
@@ -679,7 +699,7 @@ public:
   }
 
   /// Returns the previous token ignoring comments.
-  FormatToken *getPreviousNonComment() const {
+  LLVM_NODISCARD FormatToken *getPreviousNonComment() const {
     FormatToken *Tok = Previous;
     while (Tok && Tok->is(tok::comment))
       Tok = Tok->Previous;
@@ -929,6 +949,10 @@ struct AdditionalKeywords {
     kw_slots = &IdentTable.get("slots");
     kw_qslots = &IdentTable.get("Q_SLOTS");
 
+    // For internal clang-format use.
+    kw_internal_ident_after_define =
+        &IdentTable.get("__CLANG_FORMAT_INTERNAL_IDENT_AFTER_DEFINE__");
+
     // C# keywords
     kw_dollar = &IdentTable.get("dollar");
     kw_base = &IdentTable.get("base");
@@ -1048,6 +1072,9 @@ struct AdditionalKeywords {
   IdentifierInfo *kw_qsignals;
   IdentifierInfo *kw_slots;
   IdentifierInfo *kw_qslots;
+
+  // For internal use by clang-format.
+  IdentifierInfo *kw_internal_ident_after_define;
 
   // C# keywords
   IdentifierInfo *kw_dollar;

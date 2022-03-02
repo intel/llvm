@@ -1016,7 +1016,7 @@ def dispRI : Operand<iPTR> {
 }
 def PPCDispRIXOperand : AsmOperandClass {
  let Name = "DispRIX"; let PredicateMethod = "isS16ImmX4";
- let RenderMethod = "addImmOperands";
+ let RenderMethod = "addS16ImmOperands";
 }
 def dispRIX : Operand<iPTR> {
   let ParserMatchClass = PPCDispRIXOperand;
@@ -1030,7 +1030,7 @@ def dispRIHash : Operand<iPTR> {
 }
 def PPCDispRIX16Operand : AsmOperandClass {
  let Name = "DispRIX16"; let PredicateMethod = "isS16ImmX16";
- let RenderMethod = "addImmOperands";
+ let RenderMethod = "addS16ImmOperands";
 }
 def dispRIX16 : Operand<iPTR> {
   let ParserMatchClass = PPCDispRIX16Operand;
@@ -3748,7 +3748,7 @@ def       : Pat<(not i1:$in),
 
 // Prefixed instructions may require access to the above defs at a later
 // time so we include this after the def.
-include "PPCInstrPrefix.td"
+include "PPCInstrP10.td"
 
 // Patterns for arithmetic i1 operations.
 def : Pat<(add i1:$a, i1:$b),
