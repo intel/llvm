@@ -4708,7 +4708,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   const InputInfo *CudaDeviceInput = nullptr;
   const InputInfo *OpenMPDeviceInput = nullptr;
   const InputInfo *SYCLDeviceInput = nullptr;
-  const InputInfo *OpenMPHostInput = nullptr;
   for (const InputInfo &I : Inputs) {
     if (&I == &Input) {
       // This is the primary input.
@@ -4727,8 +4726,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       OpenMPDeviceInput = &I;
     } else if (IsSYCL && !SYCLDeviceInput) {
       SYCLDeviceInput = &I;
-    } else if (IsOpenMPHost && !OpenMPHostInput) {
-      OpenMPHostInput = &I;
     } else if (IsOpenMPHost) {
       OpenMPHostInputs.push_back(I);
     } else {
