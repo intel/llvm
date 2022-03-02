@@ -26,8 +26,8 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/Program.h"
 #include "llvm/Support/Process.h"
+#include "llvm/Support/Program.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/StringSaver.h"
 
@@ -91,9 +91,8 @@ static int copyInputToOutput() {
 
 static int createEmptyOutput() {
   int FD;
-  if (std::error_code EC =
-          openFileForWrite(Output, FD, sys::fs::CD_CreateAlways,
-                           sys::fs::OF_None))
+  if (std::error_code EC = openFileForWrite(
+          Output, FD, sys::fs::CD_CreateAlways, sys::fs::OF_None))
     return EC.value();
   return llvm::sys::Process::SafelyCloseFileDescriptor(FD).value();
 }
