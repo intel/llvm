@@ -3278,16 +3278,18 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
   // and follows the OpenCL rules.
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    bool CheckFirstArgument = S.getLangOpts().OpenCL
-              ? getExprValue(AL.getArgAsExpr(0), Ctx) <= *A->getZDimVal()
-	      : getExprValue(AL.getArgAsExpr(0), Ctx) <= *A->getXDimVal();
+    bool CheckFirstArgument =
+        S.getLangOpts().OpenCL
+            ? getExprValue(AL.getArgAsExpr(0), Ctx) > *A->getZDimVal()
+            : getExprValue(AL.getArgAsExpr(0), Ctx) > *A->getXDimVal();
     bool CheckSecondArgument =
-	      getExprValue(AL.getArgAsExpr(1), Ctx) <= *A->getYDimVal();
-    bool CheckThirdArgument = S.getLangOpts().OpenCL
-              ? getExprValue(AL.getArgAsExpr(2), Ctx) <= *A->getXDimVal()
-	      : getExprValue(AL.getArgAsExpr(2), Ctx) <= *A->getZDimVal();
+        getExprValue(AL.getArgAsExpr(1), Ctx) > *A->getYDimVal();
+    bool CheckThirdArgument =
+        S.getLangOpts().OpenCL
+            ? getExprValue(AL.getArgAsExpr(2), Ctx) > *A->getXDimVal()
+            : getExprValue(AL.getArgAsExpr(2), Ctx) > *A->getZDimVal();
 
-    if (!(CheckFirstArgument && CheckSecondArgument && CheckThirdArgument)) {
+    if (CheckFirstArgument || CheckSecondArgument || CheckThirdArgument) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << AL << A;
       S.Diag(A->getLocation(), diag::note_conflicting_attribute);
@@ -3621,18 +3623,20 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
   // and follows the OpenCL rules.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    bool CheckFirstArgument = getLangOpts().OpenCL
-              ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), ZDim)
-              : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), XDim);
+    bool CheckFirstArgument =
+        getLangOpts().OpenCL
+            ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), ZDim)
+            : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), XDim);
     bool CheckSecondArgument =
-              checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), YDim);
-    bool CheckThirdArgument = getLangOpts().OpenCL
-              ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), XDim)
-              : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), ZDim);
+        checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), YDim);
+    bool CheckThirdArgument =
+        getLangOpts().OpenCL
+            ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), XDim)
+            : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), ZDim);
 
     if (CheckFirstArgument || CheckSecondArgument || CheckThirdArgument) {
-      Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
-         << CI << DeclAttr;
+       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << CI << DeclAttr;
       Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
       return;
     }
@@ -3713,18 +3717,20 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
   // and follows the OpenCL rules.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    bool CheckFirstArgument = getLangOpts().OpenCL
-	      ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getZDim())
-	      : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getXDim());
+    bool CheckFirstArgument =
+        getLangOpts().OpenCL
+            ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getZDim())
+            : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getXDim());
     bool CheckSecondArgument =
-	      checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), A.getYDim());
-    bool CheckThirdArgument = getLangOpts().OpenCL
-	      ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getXDim())
-	      : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getZDim());
+        checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), A.getYDim());
+    bool CheckThirdArgument =
+        getLangOpts().OpenCL
+            ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getXDim())
+            : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getZDim());
 
     if (CheckFirstArgument || CheckSecondArgument || CheckThirdArgument) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
-         << DeclAttr << &A;
+          << DeclAttr << &A;
       Diag(A.getLoc(), diag::note_conflicting_attribute);
       return nullptr;
     }

@@ -36,10 +36,11 @@ struct Func {
 #ifdef TRIGGER_ERROR
 struct DAFuncObj {
   [[intel::max_work_group_size(4, 4, 4)]] // expected-note {{conflicting attribute is here}}
-  [[cl::reqd_work_group_size(8, 8, 4)]] // expected-error{{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}} \
-                                        // expected-warning{{attribute 'cl::reqd_work_group_size' is deprecated}} \
-                                        // expected-note{{did you mean to use 'sycl::reqd_work_group_size' instead?}}
-  void operator()() const {}
+  [[cl::reqd_work_group_size(8, 8, 4)]]   // expected-error{{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}} \
+                                         // expected-warning{{attribute 'cl::reqd_work_group_size' is deprecated}} \
+                                         // expected-note{{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+  void
+  operator()() const {}
 };
 
 #endif // TRIGGER_ERROR
