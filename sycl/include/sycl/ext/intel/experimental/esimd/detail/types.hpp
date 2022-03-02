@@ -17,7 +17,9 @@
 #include <sycl/ext/intel/experimental/esimd/detail/region.hpp>
 
 #if defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)
-#define __esimd_dbg_print(a) std::cout << ">>> " << #a << "\n"
+#define __esimd_dbg_print(a)                                                   \
+  std::cout << ">>> " << #a << " (" << __FUNCTION__ << ":" << __LINE__ << ")"  \
+            << "\n"
 #else
 #define __esimd_dbg_print(a)
 #endif // defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)
