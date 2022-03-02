@@ -87,7 +87,8 @@ template <>
 struct is_property<property::buffer::use_host_ptr> : std::true_type {};
 template <> struct is_property<property::buffer::use_mutex> : std::true_type {};
 template <>
-struct is_property<property::buffer::detail::buffer_location> : std::true_type {};
+struct is_property<property::buffer::detail::buffer_location> : std::true_type {
+};
 template <>
 struct is_property<property::buffer::context_bound> : std::true_type {};
 template <>

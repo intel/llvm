@@ -170,11 +170,7 @@ public:
   // Returns true if buffer_location property is supported by devices
   bool isBufferLocationSupported() const;
 
-  enum PropertySupport {
-    NotSupported = 0,
-    Supported = 1,
-    NotChecked = 2
-  };
+  enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 
 private:
   async_handler MAsyncHandler;

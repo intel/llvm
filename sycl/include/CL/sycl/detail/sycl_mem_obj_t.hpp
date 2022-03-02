@@ -116,8 +116,7 @@ public:
     MProps.add_or_replace_accessor_properties(PropertyList);
   }
 
-  __SYCL_DLL_LOCAL void
-  deleteAccessorProperty(const PropWithDataKind &Kind) {
+  __SYCL_DLL_LOCAL void deleteAccessorProperty(const PropWithDataKind &Kind) {
     MProps.delete_accessor_property(Kind);
   }
 

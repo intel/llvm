@@ -366,12 +366,12 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
   if (PropsList.has_property<property::buffer::detail::buffer_location>())
     if (TargetContext->isBufferLocationSupported()) {
       auto location =
-        PropsList.get_property<property::buffer::detail::buffer_location>()
-            .get_buffer_location();
+          PropsList.get_property<property::buffer::detail::buffer_location>()
+              .get_buffer_location();
       pi_mem_properties props[3] = {PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
-                                  location, 0};
-      memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
-                          Size, UserPtr, &NewMem, props);
+                                    location, 0};
+      memBufferCreateHelper(Plugin, TargetContext->getHandleRef(),
+                            CreationFlags, Size, UserPtr, &NewMem, props);
       return NewMem;
     }
   memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
