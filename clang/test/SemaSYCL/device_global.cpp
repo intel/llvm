@@ -19,6 +19,7 @@ struct Bar {
 
 struct Baz {
  private:
+  // expected-error@+1{{'device_global' member variable 'f' is not publicly accessible from namespace scope}}
   static device_global<int> f;  // ILLEGAL: not publicly accessible from
 };                              // namespace scope
 device_global<int> Baz::f;
@@ -55,7 +56,7 @@ int main() {
   });
 
   cl::sycl::kernel_single_task<class KernelName2>([]() {
-    // expected-error@+1{{`device_global` variables must be static or declared at namespace scope}}
+    // expected-error@+1{{'device_global' variables must be static or declared at namespace scope}}
     device_global<int> non_static;
 
     // expect no error on non_const_static declaration if decorated with
