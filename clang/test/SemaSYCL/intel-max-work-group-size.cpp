@@ -34,7 +34,6 @@ class FunctorC {
 public:
   [[sycl::reqd_work_group_size(64, 64, 64)]] [[intel::max_work_group_size(64, 64, 64)]] void operator()() const;
   [[sycl::reqd_work_group_size(64, 64, 64)]] [[intel::max_work_group_size(16, 16, 16)]] void operator()(int) const; // expected-error {{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}} expected-note {{conflicting attribute is here}}
-
 };
 // Ensure that template arguments behave appropriately based on instantiations.
 template <int N>
