@@ -83,7 +83,11 @@ runs:
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
       fi
-      export OCL_ICD_FILENAMES="/usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so:/runtimes/oclcpu/x64/libintelocl.so"
+      # TODO remove workaround of FPGA emu bug
+      mkdir icd
+      echo /usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so > icd/gpu.icd
+      echo /runtimes/oclcpu/x64/libintelocl.so > icd/cpu.icd
+      export OCL_ICD_VENDORS=$PWD/icd
       echo "::group::sycl-ls --verbose"
       sycl-ls --verbose
       echo "::endgroup::"
