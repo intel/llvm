@@ -92,10 +92,11 @@ public:
 class __SYCL_EXPORT aspect_selector_t : public default_selector {
   const std::vector<aspect> MRequireList;
   const std::vector<aspect> MDenyList;
+
 public:
   aspect_selector_t(const std::vector<aspect> &AspectList,
                     const std::vector<aspect> &DenyList = {})
-  : MRequireList{AspectList}, MDenyList{DenyList} {}
+      : MRequireList{AspectList}, MDenyList{DenyList} {}
 
   int operator()(const device &dev) const override;
 };
@@ -105,16 +106,16 @@ aspect_selector(const std::vector<aspect> &AspectList,
                 const std::vector<aspect> &DenyList = {});
 
 namespace detail {
-  template<typename LastT>
-  void fill_aspect_vector(std::vector<aspect> &V, LastT L) {
-    V.emplace_back(L);
-  }
+template<typename LastT>
+void fill_aspect_vector(std::vector<aspect> &V, LastT L) {
+  V.emplace_back(L);
+}
 
-  template<typename FirstT, typename... OtherTs>
-  void fill_aspect_vector(std::vector<aspect> &V, FirstT F, OtherTs... O) {
-    V.emplace_back(F);
-    fill_aspect_vector(V, O...);
-  }
+template<typename FirstT, typename... OtherTs>
+void fill_aspect_vector(std::vector<aspect> &V, FirstT F, OtherTs... O) {
+  V.emplace_back(F);
+  fill_aspect_vector(V, O...);
+}
 } // namespace detail
 
 template <typename... AspectListT>
@@ -127,8 +128,7 @@ aspect_selector_t aspect_selector(AspectListT... AspectList) {
   return aspect_selector(AllowList, {});
 }
 
-template <aspect... AspectList>
-aspect_selector_t aspect_selector() {
+template <aspect... AspectList> aspect_selector_t aspect_selector() {
   return aspect_selector({AspectList...}, {});
 }
 

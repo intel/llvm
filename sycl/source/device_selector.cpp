@@ -209,8 +209,8 @@ int aspect_selector_t::operator()(const device &Dev) const {
   return default_selector::operator()(Dev);
 }
 
-aspect_selector_t aspect_selector (const std::vector<aspect> &AspectList,
-                                   const std::vector<aspect> &DenyList) {
+aspect_selector_t aspect_selector(const std::vector<aspect> &AspectList,
+                                  const std::vector<aspect> &DenyList) {
   return aspect_selector_t{AspectList, DenyList};
 }
 
