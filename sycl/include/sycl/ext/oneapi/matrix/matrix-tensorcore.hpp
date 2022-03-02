@@ -81,7 +81,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, a, 16, 16, int32_t, 2)
 __SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, b, 16, 16, int32_t, 2)
 __SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 16, 16, int32_t, 8)
 
-  // m16n16k8 fp19
+// m16n16k8 fp19
 __SYCL_JOINT_MATRIX_OVERLOAD(uint32_t, a, 16, 8, int32_t, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD(uint32_t, b, 8, 16, int32_t, 4)
 
@@ -278,10 +278,10 @@ struct joint_matrix_load_impl<
     } else if constexpr (std::is_same<T, uint32_t>::value) {
       int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
       if constexpr (NumRows == 16 && NumCols == 8) {
-           __mma_tf32_m16n16k8_ld_a(res.data, tileptr, stride,
+        __mma_tf32_m16n16k8_ld_a(res.data, tileptr, stride,
                                  get_layout_id<Layout>());
       } else if constexpr (NumRows == 8 && NumCols == 16) {
-           __mma_tf32_m16n16k8_ld_b(res.data, tileptr, stride,
+        __mma_tf32_m16n16k8_ld_b(res.data, tileptr, stride,
                                  get_layout_id<Layout>());
       }
     }

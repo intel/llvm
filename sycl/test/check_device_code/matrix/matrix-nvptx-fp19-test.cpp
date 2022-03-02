@@ -2,7 +2,8 @@
 
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX=3 -S -Xclang -emit-llvm %s -o -| FileCheck %s
 
-// IMPORTANT: before updating sm version support beyond sm_86 read the following NOTE!
+// IMPORTANT: before updating sm version support beyond sm_86 read the following
+// NOTE!
 
 // NOTE: Technically the 'wrong' ptx instruction is called by
 // joint_matrix_load/joint_matrix_store in this case: notice that the load and
@@ -26,10 +27,10 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 // M, N, K define the sizes of dimensions of the three matrix types (a, b,
 // accumulator) used per subgroup operation.
 constexpr int M = 16; // number of rows of accumulator,
-                     // number of cols of b.
+                      // number of cols of b.
 constexpr int N = 16; // number of cols of accumulator,
-                     // number of rows of a.
-constexpr int K = 8; // number of cols of a/number of rows of b.
+                      // number of rows of a.
+constexpr int K = 8;  // number of cols of a/number of rows of b.
 
 uint32_t A[M * K];
 uint32_t B[K * N];
