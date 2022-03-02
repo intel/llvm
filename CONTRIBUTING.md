@@ -84,11 +84,12 @@ ready for merge.
 
 ### Merge
 
-Project maintainers merge pull requests using [Squash and merge] and using PR
-description as the commit message, replacing all individual comments made per
-commit.  Authors of the change must ensure PR description is up to date at the
-merge stage, as sometimes comments addressed during code reviews can invalidate
-original PR description.
+Project gatekeepers (@intel/llvm-gatekeepers) merge pull requests using [Squash
+and merge] and using PR description as the commit message, replacing all
+individual comments made per commit. Authors of the change must ensure PR
+description is up to date at the merge stage, as sometimes comments addressed
+during code reviews can invalidate original PR description. Feel free to ping
+@intel/llvm-gatekeepers if your PR is green and can be merged.
 
 Pulldown from LLVM upstream is done through merge commits to preserve hashes of
 the original commits pulled from the LLVM community repository.
