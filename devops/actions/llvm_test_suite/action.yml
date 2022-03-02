@@ -83,6 +83,7 @@ runs:
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
       fi
+      export OCL_ICD_FILENAMES="/usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so:/runtimes/oclcpu/x64/libintelocl.so"
       echo "::group::sycl-ls --verbose"
       sycl-ls --verbose
       echo "::endgroup::"
