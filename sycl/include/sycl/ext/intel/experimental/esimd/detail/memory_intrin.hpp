@@ -99,6 +99,7 @@ __ESIMD_INTRIN
         ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   auto NumBlkDecoded = __SEIEED::ElemsPerAddrDecoding(NumBlk);
   __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)> V = 0;
   ElemsPerAddr = __SEIEED::ElemsPerAddrDecoding(ElemsPerAddr);
@@ -132,6 +133,7 @@ __ESIMD_INTRIN void __esimd_svm_scatter(
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   auto NumBlkDecoded = __SEIEED::ElemsPerAddrDecoding(NumBlk);
   ElemsPerAddr = __SEIEED::ElemsPerAddrDecoding(ElemsPerAddr);
   if (sizeof(Ty) == 2)
@@ -160,6 +162,7 @@ __esimd_svm_block_ld_unaligned(uint64_t addr)
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   __SEIEED::vector_type_t<Ty, N> V;
 
   for (int I = 0; I < N; I++) {
@@ -178,6 +181,7 @@ __esimd_svm_block_ld(uint64_t addr)
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   __SEIEED::vector_type_t<Ty, N> V;
 
   for (int I = 0; I < N; I++) {
@@ -196,6 +200,7 @@ __ESIMD_INTRIN void __esimd_svm_block_st(uint64_t addr,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   for (int I = 0; I < N; I++) {
     Ty *Addr = reinterpret_cast<Ty *>(addr + I * sizeof(Ty));
     *Addr = vals[I];
@@ -211,6 +216,7 @@ __esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind, uint32_t offset)
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   __SEIEED::vector_type_t<Ty, N> retv;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
@@ -256,6 +262,7 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   offset <<= 4;
 
   sycl::detail::ESIMDDeviceInterface *I =
@@ -304,6 +311,7 @@ __esimd_svm_gather4_scaled(__SEIEED::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V = 0;
   unsigned int Next = 0;
   uint64_t Offset = 0;
@@ -334,6 +342,7 @@ __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V;
   unsigned int Next = 0;
   uint64_t Offset = 0;
@@ -382,6 +391,7 @@ __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   static_assert(N == 1 || N == 8 || N == 16 || N == 32);
   static_assert(TySizeLog2 <= 2 && Scale == 0);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
@@ -424,6 +434,7 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   static_assert(N == 1 || N == 8 || N == 16 || N == 32);
   static_assert(TySizeLog2 <= 2);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
@@ -476,6 +487,7 @@ __esimd_svm_atomic0(__SEIEED::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   throw cl::sycl::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -489,6 +501,7 @@ __esimd_svm_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   __SEIEED::vector_type_t<Ty, N> retv;
 
   for (int i = 0; i < N; i++) {
@@ -519,6 +532,7 @@ __esimd_svm_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   throw cl::sycl::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -528,6 +542,7 @@ __ESIMD_INTRIN void __esimd_slm_init(size_t size)
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   sycl::detail::getESIMDDeviceInterface()->cm_slm_init_ptr(size);
 }
 #endif // ifndef __SYCL_DEVICE_ONLY__
@@ -538,6 +553,7 @@ __ESIMD_INTRIN void __esimd_barrier()
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   sycl::detail::getESIMDDeviceInterface()->cm_barrier_ptr();
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -548,6 +564,7 @@ __ESIMD_INTRIN void __esimd_sbarrier(__SEIEE::split_barrier_action flag)
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   sycl::detail::getESIMDDeviceInterface()->cm_sbarrier_ptr((uint32_t)flag);
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -558,6 +575,7 @@ __ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   sycl::detail::getESIMDDeviceInterface()->cm_fence_ptr();
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -573,6 +591,7 @@ __esimd_gather_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   __SEIEED::vector_type_t<Ty, N> retv = 0;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
@@ -644,6 +663,7 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   static_assert(Scale == 0);
 
   __SEIEED::vector_type_t<Ty, N> retv = 0;
@@ -693,6 +713,7 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   addr <<= 4;
 
   __SEIEED::vector_type_t<Ty, N> retv;
@@ -743,6 +764,7 @@ __esimd_gather4_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> retv = 0;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
@@ -788,6 +810,7 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
   char *WriteBase;
@@ -829,6 +852,7 @@ __esimd_dword_atomic0(__SEIEED::simd_mask_storage_t<N> pred,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   __SEIEED::vector_type_t<Ty, N> retv;
 
   if (surf_ind == __SEIEE::detail::SLM_BTI) {
@@ -865,6 +889,7 @@ __esimd_dword_atomic1(__SEIEED::simd_mask_storage_t<N> pred,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   throw cl::sycl::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -878,6 +903,7 @@ __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N> __esimd_dword_atomic2(
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   throw cl::sycl::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -905,6 +931,7 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   __SEIEED::vector_type_t<Ty, M * N> vals;
   char *readBase;
   uint32_t bpp;
@@ -1033,6 +1060,7 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
@@ -1166,6 +1194,7 @@ __ESIMD_INTRIN __SEIEED::vector_type_t<Ty1, N1> __esimd_raw_sends2(
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   throw cl::sycl::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -1207,6 +1236,7 @@ __esimd_raw_send2(uint8_t modifier, uint8_t execSize,
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   throw cl::sycl::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -1245,6 +1275,7 @@ __ESIMD_INTRIN void __esimd_raw_sends2_noresult(
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   throw cl::sycl::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -1277,6 +1308,7 @@ __ESIMD_INTRIN void __esimd_raw_send2_noresult(
     ;
 #else
 {
+  __esimd_dbg_print(ESIMD_EMU_MEMORY_INTRIN);
   throw cl::sycl::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
