@@ -861,13 +861,6 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   CommandList->second.InUse = false;
   CommandList->second.NumEventlessCommands = 0;
 
-  auto &EventlessKernelsInUse = CommandList->second.EventlessKernelsInUse;
-  while (!EventlessKernelsInUse.empty()) {
-    pi_kernel &Kernel = EventlessKernelsInUse.front();
-    EventlessKernelsInUse.pop_front();
-    PI_CALL(piKernelRelease(Kernel));
-  }
-
   // Finally release/cleanup all the events in this command list.
   // Note, we don't need to synchronize the events since the fence
   // synchronized above already does that.
@@ -4932,19 +4925,17 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     // the code can do a piKernelRelease on this kernel.
     (*Event)->CommandData = (void *)Kernel;
   } else {
-    auto &CommandListInfo = CommandList->second;
-    if (TmpWaitList.Length != 0) {
-      pi_event InternalEvent;
-      pi_result Res = createEventAndAssociateQueue(
-          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-          false, false, false);
-      if (Res != PI_SUCCESS)
-        return Res;
-      InternalEvent->WaitList = TmpWaitList;
-    } else {
-      ++CommandListInfo.NumEventlessCommands;
-    }
-    CommandListInfo.EventlessKernelsInUse.emplace_back(Kernel);
+    pi_event InternalEvent;
+    pi_result Res = createEventAndAssociateQueue(
+        Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
+        false, false, false);
+    if (Res != PI_SUCCESS)
+      return Res;
+    InternalEvent->WaitList = TmpWaitList;
+
+    // Save the kernel in the event, so that when the event is signalled
+    // the code can do a piKernelRelease on this kernel.
+    InternalEvent->CommandData = (void *)Kernel;
   }
 
   // Use piKernelRetain to increment the reference count and indicate

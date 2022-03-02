@@ -431,12 +431,6 @@ struct pi_command_list_info_t {
   // events.
   int NumEventlessCommands{0};
 
-  // Since event is not necessarily created for tracking during
-  // piEnqueueKernelLaunch. We need to save the kernel in this variable for
-  // cases when event is not created to have the ability to do a piKernelRelease
-  // on the kernel in resetCommandList.
-  std::list<pi_kernel> EventlessKernelsInUse;
-
   // Keeps events created by commands submitted into this command-list.
   // TODO: use this for explicit wait/cleanup of events at command-list
   // completion.
