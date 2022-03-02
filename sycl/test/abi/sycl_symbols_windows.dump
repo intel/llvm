@@ -304,6 +304,9 @@
 ??0accelerator_selector@sycl@cl@@QEAA@$$QEAV012@@Z
 ??0accelerator_selector@sycl@cl@@QEAA@AEBV012@@Z
 ??0accelerator_selector@sycl@cl@@QEAA@XZ
+??0aspect_selector_t@sycl@cl@@QEAA@$$QEAV012@@Z
+??0aspect_selector_t@sycl@cl@@QEAA@AEBV012@@Z
+??0aspect_selector_t@sycl@cl@@QEAA@AEBV?$vector@W4aspect@sycl@cl@@V?$allocator@W4aspect@sycl@cl@@@std@@@std@@0@Z
 ??0buffer_impl@detail@sycl@cl@@QEAA@PEAU_cl_mem@@AEBVcontext@23@_KV?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@Vevent@23@@Z
 ??0buffer_impl@detail@sycl@cl@@QEAA@PEAX_K1AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
 ??0buffer_impl@detail@sycl@cl@@QEAA@PEBX_K1AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
@@ -450,6 +453,7 @@
 ??1SYCLCategory@detail@sycl@cl@@UEAA@XZ
 ??1SYCLMemObjT@detail@sycl@cl@@UEAA@XZ
 ??1accelerator_selector@sycl@cl@@UEAA@XZ
+??1aspect_selector_t@sycl@cl@@UEAA@XZ
 ??1buffer_impl@detail@sycl@cl@@UEAA@XZ
 ??1context@sycl@cl@@QEAA@XZ
 ??1cpu_selector@sycl@cl@@UEAA@XZ
@@ -568,6 +572,7 @@
 ??Ghalf@host_half_impl@detail@sycl@cl@@QEAAAEAV01234@XZ
 ??Ghalf_v2@host_half_impl@detail@sycl@cl@@QEAAAEAV01234@XZ
 ??Raccelerator_selector@sycl@cl@@UEBAHAEBVdevice@12@@Z
+??Raspect_selector_t@sycl@cl@@UEBAHAEBVdevice@12@@Z
 ??Rcpu_selector@sycl@cl@@UEBAHAEBVdevice@12@@Z
 ??Rdefault_selector@sycl@cl@@UEBAHAEBVdevice@12@@Z
 ??Rfilter_selector@ONEAPI@sycl@cl@@UEBAHAEBVdevice@23@@Z
@@ -588,6 +593,7 @@
 ??_7SYCLCategory@detail@sycl@cl@@6B@
 ??_7SYCLMemObjT@detail@sycl@cl@@6B@
 ??_7accelerator_selector@sycl@cl@@6B@
+??_7aspect_selector_t@sycl@cl@@6B@
 ??_7buffer_impl@detail@sycl@cl@@6B@
 ??_7cpu_selector@sycl@cl@@6B@
 ??_7default_selector@sycl@cl@@6B@
@@ -1208,6 +1214,7 @@
 ?assertion@pi@detail@sycl@cl@@YAX_NPEBD@Z
 ?associateWithHandler@detail@sycl@cl@@YAXAEAVhandler@23@PEAVAccessorBaseHost@123@W4target@access@23@@Z
 ?associateWithHandler@handler@sycl@cl@@AEAAXPEAVAccessorBaseHost@detail@23@W4target@access@23@@Z
+?aspect_selector@sycl@cl@@YA?AVaspect_selector_t@12@AEBV?$vector@W4aspect@sycl@cl@@V?$allocator@W4aspect@sycl@cl@@@std@@@std@@0@Z
 ?atan2@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@0@Z
 ?atan2@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@0@Z
 ?atan2@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@0@Z
