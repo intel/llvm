@@ -200,9 +200,6 @@ void test_simd_view_subscript() SYCL_ESIMD_FUNCTION {
   const auto vv = v.select<2, 1>(0);
 
   int x = vv[1];
-  // expected-warning@+2 2 {{deprecated}}
-  // expected-note@sycl/ext/intel/experimental/esimd/detail/simd_view_impl.hpp:* 2 {{has been explicitly marked deprecated here}}
-  int y = vv(1);
 }
 
 void test_simd_view_writeable_subscript() SYCL_ESIMD_FUNCTION {
@@ -212,10 +209,6 @@ void test_simd_view_writeable_subscript() SYCL_ESIMD_FUNCTION {
   auto x = vv1 == vv2; // test relational operations
   vv1[1] = 0;          // returns writeable simd_view
   int y = vv1[1];      // nested simd_view -> int
-
-  // expected-warning@+2 2 {{deprecated}}
-  // expected-note@sycl/ext/intel/experimental/esimd/detail/simd_view_impl.hpp:* 2 {{has been explicitly marked deprecated here}}
-  vv1(1) = 1;
 }
 
 // In this test `g.row(1)` return simd_view and `(g.row(1))[0]` returns

@@ -193,6 +193,14 @@ std::vector<Fix> IncludeFixer::fix(DiagnosticsEngine::Level DiagLevel,
   case diag::err_no_member_suggest:
   case diag::err_no_member_template:
   case diag::err_no_member_template_suggest:
+  case diag::warn_implicit_function_decl:
+  case diag::ext_implicit_function_decl:
+  case diag::err_opencl_implicit_function_decl:
+    dlog("Unresolved name at {0}, last typo was {1}",
+         Info.getLocation().printToString(Info.getSourceManager()),
+         LastUnresolvedName
+             ? LastUnresolvedName->Loc.printToString(Info.getSourceManager())
+             : "none");
     if (LastUnresolvedName) {
       // Try to fix unresolved name caused by missing declaration.
       // E.g.
@@ -205,8 +213,7 @@ std::vector<Fix> IncludeFixer::fix(DiagnosticsEngine::Level DiagLevel,
       //                      UnresolvedName
       // We only attempt to recover a diagnostic if it has the same location as
       // the last seen unresolved name.
-      if (DiagLevel >= DiagnosticsEngine::Error &&
-          LastUnresolvedName->Loc == Info.getLocation())
+      if (LastUnresolvedName->Loc == Info.getLocation())
         return fixUnresolvedName();
     }
     break;
@@ -217,8 +224,6 @@ std::vector<Fix> IncludeFixer::fix(DiagnosticsEngine::Level DiagLevel,
     return only(insertHeader("<initializer_list>"));
   case diag::err_need_header_before_typeid:
     return only(insertHeader("<typeid>"));
-  case diag::err_need_header_before_ms_uuidof:
-    return only(insertHeader("<guiddef.h>"));
   case diag::err_need_header_before_placement_new:
   case diag::err_implicit_coroutine_std_nothrow_type_not_found:
     return only(insertHeader("<new>"));
@@ -481,6 +486,7 @@ public:
                              CorrectionCandidateCallback &CCC,
                              DeclContext *MemberContext, bool EnteringContext,
                              const ObjCObjectPointerType *OPT) override {
+    dlog("CorrectTypo: {0}", Typo.getAsString());
     assert(SemaPtr && "Sema must have been set.");
     if (SemaPtr->isSFINAEContext())
       return TypoCorrection();

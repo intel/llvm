@@ -818,5 +818,67 @@ TEST_F(QualifierFixerTest, NoOpQualifierReplacements) {
   EXPECT_EQ(ReplacementCount, 0);
 }
 
+TEST_F(QualifierFixerTest, QualifierTemplates) {
+  FormatStyle Style = getLLVMStyle();
+  Style.QualifierAlignment = FormatStyle::QAS_Custom;
+  Style.QualifierOrder = {"static", "const", "type"};
+
+  ReplacementCount = 0;
+  EXPECT_EQ(ReplacementCount, 0);
+  verifyFormat("using A = B<>;", Style);
+  verifyFormat("using A = B /**/<>;", Style);
+  verifyFormat("template <class C> using A = B<Foo<C>, 1>;", Style);
+  verifyFormat("template <class C> using A = B /**/<Foo<C>, 1>;", Style);
+  verifyFormat("template <class C> using A = B /* */<Foo<C>, 1>;", Style);
+  verifyFormat("template <class C> using A = B /*foo*/<Foo<C>, 1>;", Style);
+  verifyFormat("template <class C> using A = B /**/ /**/<Foo<C>, 1>;", Style);
+  verifyFormat("template <class C> using A = B<Foo</**/ C>, 1>;", Style);
+  verifyFormat("template <class C> using A = /**/ B<Foo<C>, 1>;", Style);
+  EXPECT_EQ(ReplacementCount, 0);
+  verifyFormat("template <class C>\n"
+               "using A = B // foo\n"
+               "    <Foo<C>, 1>;",
+               Style);
+
+  ReplacementCount = 0;
+  Style.QualifierOrder = {"type", "static", "const"};
+  verifyFormat("using A = B<>;", Style);
+  verifyFormat("using A = B /**/<>;", Style);
+  verifyFormat("template <class C> using A = B<Foo<C>, 1>;", Style);
+  verifyFormat("template <class C> using A = B /**/<Foo<C>, 1>;", Style);
+  verifyFormat("template <class C> using A = B /* */<Foo<C>, 1>;", Style);
+  verifyFormat("template <class C> using A = B /*foo*/<Foo<C>, 1>;", Style);
+  verifyFormat("template <class C> using A = B /**/ /**/<Foo<C>, 1>;", Style);
+  verifyFormat("template <class C> using A = B<Foo</**/ C>, 1>;", Style);
+  verifyFormat("template <class C> using A = /**/ B<Foo<C>, 1>;", Style);
+  EXPECT_EQ(ReplacementCount, 0);
+  verifyFormat("template <class C>\n"
+               "using A = B // foo\n"
+               "    <Foo<C>, 1>;",
+               Style);
+}
+
+TEST_F(QualifierFixerTest, DisableRegions) {
+  FormatStyle Style = getLLVMStyle();
+  Style.QualifierAlignment = FormatStyle::QAS_Custom;
+  Style.QualifierOrder = {"inline", "static", "const", "type"};
+
+  ReplacementCount = 0;
+  verifyFormat("// clang-format off\n"
+               "int const inline static a = 0;\n"
+               "// clang-format on\n",
+               Style);
+  EXPECT_EQ(ReplacementCount, 0);
+  verifyFormat("// clang-format off\n"
+               "int const inline static a = 0;\n"
+               "// clang-format on\n"
+               "inline static const int a = 0;\n",
+               "// clang-format off\n"
+               "int const inline static a = 0;\n"
+               "// clang-format on\n"
+               "int const inline static a = 0;\n",
+               Style);
+}
+
 } // namespace format
 } // namespace clang

@@ -494,7 +494,7 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   // Default constructor for objects later initialized with __init member.
-  image_accessor() = default;
+  image_accessor() : MImageObj() {}
 #endif
 
   // Available only when: accessTarget == access::target::host_image
@@ -876,7 +876,7 @@ protected:
     return AdjustedMode;
   }
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename TagT> static constexpr bool IsValidTag() {
     return std::is_same<TagT, mode_tag_t<AccessMode>>::value ||
@@ -1187,7 +1187,7 @@ public:
   }
 #endif
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
@@ -1277,7 +1277,7 @@ public:
   }
 #endif
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
@@ -1333,7 +1333,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
@@ -1389,7 +1389,7 @@ public:
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                  CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
@@ -1486,7 +1486,7 @@ public:
   }
 #endif
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
@@ -1579,7 +1579,7 @@ public:
   }
 #endif
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
@@ -1688,64 +1688,64 @@ public:
 
   template <int Dims = Dimensions>
   operator typename detail::enable_if_t<Dims == 0 &&
+                                            AccessMode == access::mode::atomic,
 #ifdef __ENABLE_USM_ADDR_SPACE__
-                                            AccessMode == access::mode::atomic,
-                                        atomic<DataT>>() const {
+                                        atomic<DataT>
 #else
-                                            AccessMode == access::mode::atomic,
-                                        atomic<DataT, AS>>() const {
+                                        atomic<DataT, AS>
 #endif
-      const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-  return atomic<DataT, AS>(
-      multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
-}
+                                        >() const {
+    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
+    return atomic<DataT, AS>(
+        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+  }
 
-template <int Dims = Dimensions>
-typename detail::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
-                             atomic<DataT, AS>>
-operator[](id<Dimensions> Index) const {
-  const size_t LinearIndex = getLinearIndex(Index);
-  return atomic<DataT, AS>(
-      multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
-}
+  template <int Dims = Dimensions>
+  typename detail::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
+                               atomic<DataT, AS>>
+  operator[](id<Dimensions> Index) const {
+    const size_t LinearIndex = getLinearIndex(Index);
+    return atomic<DataT, AS>(
+        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+  }
 
-template <int Dims = Dimensions>
-typename detail::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
-                             atomic<DataT, AS>>
-operator[](size_t Index) const {
-  const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
-  return atomic<DataT, AS>(
-      multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
-}
-template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
-typename AccessorCommonT::template AccessorSubscript<Dims - 1>
-operator[](size_t Index) const {
-  return AccessorSubscript<Dims - 1>(*this, Index);
-}
+  template <int Dims = Dimensions>
+  typename detail::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
+                               atomic<DataT, AS>>
+  operator[](size_t Index) const {
+    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
+    return atomic<DataT, AS>(
+        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+  }
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
+  typename AccessorCommonT::template AccessorSubscript<Dims - 1>
+  operator[](size_t Index) const {
+    return AccessorSubscript<Dims - 1>(*this, Index);
+  }
 
-template <access::target AccessTarget_ = AccessTarget,
-          typename =
-              detail::enable_if_t<AccessTarget_ == access::target::host_buffer>>
-DataT *get_pointer() const {
-  return getPointerAdjusted();
-}
+  template <access::target AccessTarget_ = AccessTarget,
+            typename = detail::enable_if_t<AccessTarget_ ==
+                                           access::target::host_buffer>>
+  DataT *get_pointer() const {
+    return getPointerAdjusted();
+  }
 
-template <
-    access::target AccessTarget_ = AccessTarget,
-    typename = detail::enable_if_t<AccessTarget_ == access::target::device>>
-global_ptr<DataT> get_pointer() const {
-  return global_ptr<DataT>(getPointerAdjusted());
-}
+  template <
+      access::target AccessTarget_ = AccessTarget,
+      typename = detail::enable_if_t<AccessTarget_ == access::target::device>>
+  global_ptr<DataT> get_pointer() const {
+    return global_ptr<DataT>(getPointerAdjusted());
+  }
 
-template <access::target AccessTarget_ = AccessTarget,
-          typename = detail::enable_if_t<AccessTarget_ ==
-                                         access::target::constant_buffer>>
-constant_ptr<DataT> get_pointer() const {
-  return constant_ptr<DataT>(getPointerAdjusted());
-}
+  template <access::target AccessTarget_ = AccessTarget,
+            typename = detail::enable_if_t<AccessTarget_ ==
+                                           access::target::constant_buffer>>
+  constant_ptr<DataT> get_pointer() const {
+    return constant_ptr<DataT>(getPointerAdjusted());
+  }
 
-bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
-bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
+  bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
+  bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 
 private:
   // supporting function for get_pointer()
@@ -1768,9 +1768,9 @@ private:
           "buffer size must be greater than zero.",
           PI_INVALID_VALUE);
   }
-  }; // namespace sycl
+};
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 accessor(buffer<DataT, Dimensions, AllocatorT>)
@@ -2200,8 +2200,8 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::host_image, IsPlaceholder>
+class accessor<DataT, Dimensions, AccessMode, access::target::host_image,
+               IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::host_image, IsPlaceholder> {
 public:
@@ -2302,7 +2302,7 @@ protected:
     return std::is_same<T, DataT>::value && (Dims > 0) && (Dims == Dimensions);
   }
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename TagT> static constexpr bool IsValidTag() {
     return std::is_same<TagT, mode_tag_t<AccessMode>>::value;
@@ -2361,7 +2361,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, PropertyList, CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -2381,7 +2381,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -2402,7 +2402,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -2425,7 +2425,7 @@ public:
       : AccessorT(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                   CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -2449,7 +2449,7 @@ public:
       : AccessorT(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
   }
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -2473,7 +2473,7 @@ public:
       : AccessorT(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                   PropertyList, CodeLoc) {}
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -2489,7 +2489,7 @@ public:
 #endif
 };
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 host_accessor(buffer<DataT, Dimensions, AllocatorT>)

@@ -175,12 +175,12 @@ static cl::opt<bool>
 // Disable MIRProfileLoader before RegAlloc. This is for for debugging and
 // tuning purpose.
 static cl::opt<bool> DisableRAFSProfileLoader(
-    "disable-ra-fsprofile-loader", cl::init(true), cl::Hidden,
+    "disable-ra-fsprofile-loader", cl::init(false), cl::Hidden,
     cl::desc("Disable MIRProfileLoader before RegAlloc"));
 // Disable MIRProfileLoader before BloackPlacement. This is for for debugging
 // and tuning purpose.
 static cl::opt<bool> DisableLayoutFSProfileLoader(
-    "disable-layout-fsprofile-loader", cl::init(true), cl::Hidden,
+    "disable-layout-fsprofile-loader", cl::init(false), cl::Hidden,
     cl::desc("Disable MIRProfileLoader before BlockPlacement"));
 // Specify FSProfile file name.
 static cl::opt<std::string>
@@ -328,7 +328,7 @@ static IdentifyingPassPtr overridePass(AnalysisID StandardID,
 
 // Find the FSProfile file name. The internal option takes the precedence
 // before getting from TargetMachine.
-static const std::string getFSProfileFile(const TargetMachine *TM) {
+static std::string getFSProfileFile(const TargetMachine *TM) {
   if (!FSProfileFile.empty())
     return FSProfileFile.getValue();
   const Optional<PGOOptions> &PGOOpt = TM->getPGOOption();
@@ -339,7 +339,7 @@ static const std::string getFSProfileFile(const TargetMachine *TM) {
 
 // Find the Profile remapping file name. The internal option takes the
 // precedence before getting from TargetMachine.
-static const std::string getFSRemappingFile(const TargetMachine *TM) {
+static std::string getFSRemappingFile(const TargetMachine *TM) {
   if (!FSRemappingFile.empty())
     return FSRemappingFile.getValue();
   const Optional<PGOOptions> &PGOOpt = TM->getPGOOption();
@@ -1399,6 +1399,9 @@ bool TargetPassConfig::addRegAssignAndRewriteOptimized() {
   // Finally rewrite virtual registers.
   addPass(&VirtRegRewriterID);
 
+  // Regalloc scoring for ML-driven eviction - noop except when learning a new
+  // eviction policy.
+  addPass(createRegAllocScoringPass());
   return true;
 }
 

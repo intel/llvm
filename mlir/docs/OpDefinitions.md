@@ -564,14 +564,13 @@ Verification code will be automatically generated for
 _additional_ verification, you can use
 
 ```tablegen
-let verifier = [{
-  ...
-}];
+let hasVerifier = 1;
 ```
 
-Code placed in `verifier` will be called after the auto-generated verification
-code. The order of trait verification excluding those of `verifier` should not
-be relied upon.
+This will generate a `LogicalResult verify()` method declaration on the op class
+that can be defined with any additional verification constraints. This method
+will be invoked after the auto-generated verification code. The order of trait
+verification excluding those of `hasVerifier` should not be relied upon.
 
 ### Declarative Assembly Format
 
@@ -620,6 +619,14 @@ The available directives are as follows:
     -   The constraints on `inputs` and `results` are the same as the `input` of
         the `type` directive.
 
+*   `oilist` ( \`keyword\` elements | \`otherKeyword\` elements ...)
+
+    -   Represents an optional order-independent list of clauses. Each clause
+        has a keyword and corresponding assembly format.
+    -   Each clause can appear 0 or 1 time (in any order).
+    -   Only literals, types and variables can be used within an oilist element.
+    -   All the variables must be optional or variadic.
+
 *   `operands`
 
     -   Represents all of the operands of an operation.
@@ -650,6 +657,16 @@ The available directives are as follows:
     -   Represents the type of the given input.
     -   `input` must be either an operand or result [variable](#variables), the
         `operands` directive, or the `results` directive.
+
+*   `qualified` ( type_or_attribute )
+
+    -   Wraps a `type` directive or an attribute parameter.
+    -   Used to force printing the type or attribute prefixed with its dialect
+        and mnemonic. For example the `vector.multi_reduction` operation has a
+        `kind` attribute ; by default the declarative assembly will print:
+        `vector.multi_reduction <minf>, ...` but using `qualified($kind)` in the
+        declarative assembly format will print it instead as:
+        `vector.multi_reduction #vector.kind<minf>, ...`.
 
 #### Literals
 
@@ -964,6 +981,16 @@ Note that `extraClassDeclaration` is a mechanism intended for long-tail cases by
 power users; for not-yet-implemented widely-applicable cases, improving the
 infrastructure is preferable.
 
+### Extra definitions
+
+When defining base op classes in TableGen that are inherited many times by
+different ops, users may want to provide common definitions of utility and
+interface functions. However, many of these definitions may not be desirable or
+possible in `extraClassDeclaration`, which append them to the op's C++ class
+declaration. In these cases, users can add an `extraClassDefinition` to define
+code that is added to the generated source file inside the op's C++ namespace.
+The substitution `$cppClass` is replaced by the op's C++ class name.
+
 ### Generated C++ code
 
 [OpDefinitionsGen][OpDefinitionsGen] processes the op definition spec file and
@@ -1225,7 +1252,8 @@ several mechanisms: `StrEnumAttr`, `IntEnumAttr`, and `BitEnumAttr`.
     [`StringAttr`][StringAttr] in the op.
 *   `IntEnumAttr`: each enum case is an integer, the attribute is stored as a
     [`IntegerAttr`][IntegerAttr] in the op.
-*   `BitEnumAttr`: each enum case is a bit, the attribute is stored as a
+*   `BitEnumAttr`: each enum case is a either the empty case, a single bit,
+    or a group of single bits, and the attribute is stored as a
     [`IntegerAttr`][IntegerAttr] in the op.
 
 All these `*EnumAttr` attributes require fully specifying all of the allowed
@@ -1329,13 +1357,14 @@ llvm::Optional<MyIntEnum> symbolizeMyIntEnum(uint32_t value) {
 Similarly for the following `BitEnumAttr` definition:
 
 ```tablegen
-def None: BitEnumAttrCase<"None", 0x0000>;
-def Bit1: BitEnumAttrCase<"Bit1", 0x0001>;
-def Bit2: BitEnumAttrCase<"Bit2", 0x0002>;
-def Bit3: BitEnumAttrCase<"Bit3", 0x0004>;
+def None: BitEnumAttrCaseNone<"None">;
+def Bit0: BitEnumAttrCaseBit<"Bit0", 0>;
+def Bit1: BitEnumAttrCaseBit<"Bit1", 1>;
+def Bit2: BitEnumAttrCaseBit<"Bit2", 2>;
+def Bit3: BitEnumAttrCaseBit<"Bit3", 3>;
 
 def MyBitEnum: BitEnumAttr<"MyBitEnum", "An example bit enum",
-                           [None, Bit1, Bit2, Bit3]>;
+                           [None, Bit0, Bit1, Bit2, Bit3]>;
 ```
 
 We can have:
@@ -1344,9 +1373,10 @@ We can have:
 // An example bit enum
 enum class MyBitEnum : uint32_t {
   None = 0,
-  Bit1 = 1,
-  Bit2 = 2,
-  Bit3 = 4,
+  Bit0 = 1,
+  Bit1 = 2,
+  Bit2 = 4,
+  Bit3 = 8,
 };
 
 llvm::Optional<MyBitEnum> symbolizeMyBitEnum(uint32_t);
@@ -1387,15 +1417,15 @@ template<> struct DenseMapInfo<::MyBitEnum> {
 ```c++
 std::string stringifyMyBitEnum(MyBitEnum symbol) {
   auto val = static_cast<uint32_t>(symbol);
+  assert(15u == (15u | val) && "invalid bits set in bit enum");
   // Special case for all bits unset.
   if (val == 0) return "None";
-
   llvm::SmallVector<llvm::StringRef, 2> strs;
-  if (1u & val) { strs.push_back("Bit1"); val &= ~1u; }
-  if (2u & val) { strs.push_back("Bit2"); val &= ~2u; }
-  if (4u & val) { strs.push_back("Bit3"); val &= ~4u; }
-
-  if (val) return "";
+  if (1u == (1u & val)) { strs.push_back("Bit0"); }
+  if (2u == (2u & val)) { strs.push_back("Bit1"); }
+  if (4u == (4u & val)) { strs.push_back("Bit2"); }
+  if (8u == (8u & val)) { strs.push_back("Bit3"); }
+  
   return llvm::join(strs, "|");
 }
 
@@ -1409,9 +1439,10 @@ llvm::Optional<MyBitEnum> symbolizeMyBitEnum(llvm::StringRef str) {
   uint32_t val = 0;
   for (auto symbol : symbols) {
     auto bit = llvm::StringSwitch<llvm::Optional<uint32_t>>(symbol)
-      .Case("Bit1", 1)
-      .Case("Bit2", 2)
-      .Case("Bit3", 4)
+      .Case("Bit0", 1)
+      .Case("Bit1", 2)
+      .Case("Bit2", 4)
+      .Case("Bit3", 8)
       .Default(llvm::None);
     if (bit) { val |= *bit; } else { return llvm::None; }
   }
@@ -1422,7 +1453,7 @@ llvm::Optional<MyBitEnum> symbolizeMyBitEnum(uint32_t value) {
   // Special case for all bits unset.
   if (value == 0) return MyBitEnum::None;
 
-  if (value & ~(1u | 2u | 4u)) return llvm::None;
+  if (value & ~(1u | 2u | 4u | 8u)) return llvm::None;
   return static_cast<MyBitEnum>(value);
 }
 ```

@@ -11,6 +11,8 @@
 
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
@@ -343,3 +345,5 @@ __esimd_wrindirect(__SEIEED::vector_type_t<T, N> OldVal,
 }
 
 #endif // __SYCL_DEVICE_ONLY__
+
+/// @endcond ESIMD_DETAIL

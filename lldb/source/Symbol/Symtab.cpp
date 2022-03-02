@@ -34,7 +34,8 @@ using namespace lldb_private;
 Symtab::Symtab(ObjectFile *objfile)
     : m_objfile(objfile), m_symbols(), m_file_addr_to_index(*this),
       m_name_to_symbol_indices(), m_mutex(),
-      m_file_addr_to_index_computed(false), m_name_indexes_computed(false) {
+      m_file_addr_to_index_computed(false), m_name_indexes_computed(false),
+      m_loaded_from_cache(false), m_saved_to_cache(false) {
   m_name_to_symbol_indices.emplace(std::make_pair(
       lldb::eFunctionNameTypeNone, UniqueCStringMap<uint32_t>()));
   m_name_to_symbol_indices.emplace(std::make_pair(
@@ -327,8 +328,10 @@ void Symtab::InitNameIndexes() {
 
         const SymbolType type = symbol->GetType();
         if (type == eSymbolTypeCode || type == eSymbolTypeResolver) {
-          if (mangled.DemangleWithRichManglingInfo(rmc, lldb_skip_name))
+          if (mangled.GetRichManglingInfo(rmc, lldb_skip_name)) {
             RegisterMangledNameEntry(value, class_contexts, backlog, rmc);
+            continue;
+          }
         }
       }
 
@@ -382,16 +385,13 @@ void Symtab::RegisterMangledNameEntry(
     std::vector<std::pair<NameToIndexMap::Entry, const char *>> &backlog,
     RichManglingContext &rmc) {
   // Only register functions that have a base name.
-  rmc.ParseFunctionBaseName();
-  llvm::StringRef base_name = rmc.GetBufferRef();
+  llvm::StringRef base_name = rmc.ParseFunctionBaseName();
   if (base_name.empty())
     return;
 
   // The base name will be our entry's name.
   NameToIndexMap::Entry entry(ConstString(base_name), value);
-
-  rmc.ParseFunctionDeclContextName();
-  llvm::StringRef decl_context = rmc.GetBufferRef();
+  llvm::StringRef decl_context = rmc.ParseFunctionDeclContextName();
 
   // Register functions with no context.
   if (decl_context.empty()) {
@@ -1179,7 +1179,8 @@ void Symtab::SaveToCache() {
   // Encode will return false if the symbol table's object file doesn't have
   // anything to make a signature from.
   if (Encode(file))
-    cache->SetCachedData(GetCacheKey(), file.GetData());
+    if (cache->SetCachedData(GetCacheKey(), file.GetData()))
+      SetWasSavedToCache();
 }
 
 constexpr llvm::StringLiteral kIdentifierCStrMap("CMAP");
@@ -1343,5 +1344,7 @@ bool Symtab::LoadFromCache() {
   const bool result = Decode(data, &offset, signature_mismatch);
   if (signature_mismatch)
     cache->RemoveCacheFile(GetCacheKey());
+  if (result)
+    SetWasLoadedFromCache();
   return result;
 }

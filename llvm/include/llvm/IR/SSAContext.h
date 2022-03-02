@@ -15,19 +15,15 @@
 #ifndef LLVM_IR_SSACONTEXT_H
 #define LLVM_IR_SSACONTEXT_H
 
-#include "llvm/ADT/GenericSSAContext.h"
-#include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/Support/Printable.h"
-
-#include <memory>
 
 namespace llvm {
 class BasicBlock;
 class Function;
 class Instruction;
 class Value;
-template <typename> class SmallVectorImpl;
 template <typename, bool> class DominatorTreeBase;
+template <typename _FunctionT> class GenericSSAContext;
 
 template <> class GenericSSAContext<Function> {
   Function *F;

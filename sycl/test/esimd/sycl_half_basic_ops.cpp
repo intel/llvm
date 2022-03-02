@@ -18,9 +18,8 @@ SYCL_EXTERNAL auto test_unary_op(simd<sycl::half, 8> val) SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func void @_Z13test_unary_op{{.*}}(
 //   CHECK: {{.*}} %[[RET_VEC_ADDR:[a-zA-Z0-9_\.]+]],
 //   CHECK: {{.*}} %[[VAL_PTR:[a-zA-Z0-9_\.]+]]){{.*}} {
-// CHECK-LABEL: entry:
   return -val;
-// CHECK-NEXT: %[[VAL_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL_PTR]]
+// CHECK: %[[VAL_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL_PTR]]
 // CHECK-NEXT: %[[VAL_VEC:[a-zA-Z0-9_\.]+]] = load <8 x half>{{.*}} %[[VAL_VEC_ADDR]]
 // CHECK-NEXT: %[[RES:[a-zA-Z0-9_\.]+]] = fneg <8 x half> %[[VAL_VEC]]
 // CHECK-NEXT: store <8 x half>{{.*}}%[[RES]], {{.*}}%[[RET_VEC_ADDR]]
@@ -34,9 +33,8 @@ SYCL_EXTERNAL auto test_binary_op1(simd<sycl::half, 8> val1, simd<sycl::half, 8>
 //   CHECK: {{[^,]*}} %[[RET_VEC_ADDR:[a-zA-Z0-9_\.]+]],
 //   CHECK: {{[^,]*}} %[[VAL1_PTR:[a-zA-Z0-9_\.]+]],
 //   CHECK: {{.*}} %[[VAL2_PTR:[a-zA-Z0-9_\.]+]]){{.*}} {
-// CHECK-LABEL: entry:
   return val1 + val2;
-// CHECK-NEXT: %[[VAL1_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL1_PTR]]
+// CHECK: %[[VAL1_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL1_PTR]]
 // CHECK-NEXT: %[[VAL1_VEC:[a-zA-Z0-9_\.]+]] = load <8 x half>{{.*}} %[[VAL1_VEC_ADDR]]
 // CHECK-NEXT: %[[VAL2_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL2_PTR]]
 // CHECK-NEXT: %[[VAL2_VEC:[a-zA-Z0-9_\.]+]] = load <8 x half>{{.*}} %[[VAL2_VEC_ADDR]]
@@ -53,9 +51,8 @@ SYCL_EXTERNAL auto test_binary_op2(simd<sycl::half, 8> val1, simd<long long, 8> 
 //   CHECK: <8 x half>{{[^,]*}}* %[[RET_VEC_ADDR:[a-zA-Z0-9_\.]+]],
 //   CHECK: <8 x half>* %[[VAL1_PTR:[a-zA-Z0-9_\.]+]],
 //   CHECK: <8 x i64>* %[[VAL2_PTR:[a-zA-Z0-9_\.]+]]){{.*}} {
-// CHECK-LABEL: entry:
   return val1 + val2;
-// CHECK-NEXT: %[[VAL1_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL1_PTR]]
+// CHECK: %[[VAL1_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL1_PTR]]
 // CHECK-NEXT: %[[VAL1_VEC:[a-zA-Z0-9_\.]+]] = load <8 x half>{{.*}} %[[VAL1_VEC_ADDR]]
 // CHECK-NEXT: %[[VAL2_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL2_PTR]]
 // CHECK-NEXT: %[[VAL2_VEC:[a-zA-Z0-9_\.]+]] = load <8 x i64>{{.*}} %[[VAL2_VEC_ADDR]]
@@ -73,9 +70,8 @@ SYCL_EXTERNAL auto test_cmp_op(simd<sycl::half, 8> val1, simd<long long, 8> val2
 //   CHECK: <8 x i16>{{[^,]*}}* %[[RET_VEC_ADDR:[a-zA-Z0-9_\.]+]],
 //   CHECK: <8 x half>* %[[VAL1_PTR:[a-zA-Z0-9_\.]+]],
 //   CHECK: <8 x i64>* %[[VAL2_PTR:[a-zA-Z0-9_\.]+]]){{.*}} {
-// CHECK-LABEL: entry:
   return val1 < val2;
-// CHECK-NEXT: %[[VAL1_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL1_PTR]]
+// CHECK: %[[VAL1_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL1_PTR]]
 // CHECK-NEXT: %[[VAL1_VEC:[a-zA-Z0-9_\.]+]] = load <8 x half>{{.*}} %[[VAL1_VEC_ADDR]]
 // CHECK-NEXT: %[[VAL2_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL2_PTR]]
 // CHECK-NEXT: %[[VAL2_VEC:[a-zA-Z0-9_\.]+]] = load <8 x i64>{{.*}} %[[VAL2_VEC_ADDR]]

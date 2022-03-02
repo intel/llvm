@@ -94,6 +94,7 @@ isxdigit U
 log10 U
 lseek U
 lseek64 U
+madvise U
 malloc U
 mbrlen U
 mbrtowc U
@@ -109,6 +110,7 @@ mkdir U
 munmap U
 newlocale U
 perror U
+posix_madvise U
 posix_spawn U
 posix_spawn_file_actions_adddup2 U
 posix_spawn_file_actions_addopen U

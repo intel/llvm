@@ -1,4 +1,8 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -S -emit-llvm -x c++ %s -o %t
+// RUN: %clangxx -fsycl -fsycl-device-only -flegacy-pass-manager -S -emit-llvm -x c++ %s -o %t-lgcy
+// RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t-lgcy -o %t-lgcy.table
+// RUN: FileCheck %s -input-file=%t-lgcy_esimd_0.ll
+
+// RUN: %clangxx -fsycl -fsycl-device-only -fno-legacy-pass-manager -S -emit-llvm -x c++ %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 

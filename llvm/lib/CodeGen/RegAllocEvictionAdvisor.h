@@ -87,87 +87,9 @@ struct EvictionCost {
   }
 };
 
-/// Track allocation stage and eviction loop prevention during allocation.
-// TODO(mtrofin): Consider exposing RAGreedy in a header instead, and folding
-// this back into it.
-class ExtraRegInfo final {
-  // RegInfo - Keep additional information about each live range.
-  struct RegInfo {
-    LiveRangeStage Stage = RS_New;
-
-    // Cascade - Eviction loop prevention. See
-    // canEvictInterferenceBasedOnCost().
-    unsigned Cascade = 0;
-
-    RegInfo() = default;
-  };
-
-  IndexedMap<RegInfo, VirtReg2IndexFunctor> Info;
-  unsigned NextCascade = 1;
-
-public:
-  ExtraRegInfo() = default;
-  ExtraRegInfo(const ExtraRegInfo &) = delete;
-
-  LiveRangeStage getStage(Register Reg) const { return Info[Reg].Stage; }
-
-  LiveRangeStage getStage(const LiveInterval &VirtReg) const {
-    return getStage(VirtReg.reg());
-  }
-
-  void setStage(Register Reg, LiveRangeStage Stage) {
-    Info.grow(Reg.id());
-    Info[Reg].Stage = Stage;
-  }
-
-  void setStage(const LiveInterval &VirtReg, LiveRangeStage Stage) {
-    setStage(VirtReg.reg(), Stage);
-  }
-
-  /// Return the current stage of the register, if present, otherwise initialize
-  /// it and return that.
-  LiveRangeStage getOrInitStage(Register Reg) {
-    Info.grow(Reg.id());
-    return getStage(Reg);
-  }
-
-  unsigned getCascade(Register Reg) const { return Info[Reg].Cascade; }
-
-  void setCascade(Register Reg, unsigned Cascade) {
-    Info.grow(Reg.id());
-    Info[Reg].Cascade = Cascade;
-  }
-
-  unsigned getOrAssignNewCascade(Register Reg) {
-    unsigned Cascade = getCascade(Reg);
-    if (!Cascade) {
-      Cascade = NextCascade++;
-      setCascade(Reg, Cascade);
-    }
-    return Cascade;
-  }
-
-  unsigned getCascadeOrCurrentNext(Register Reg) const {
-    unsigned Cascade = getCascade(Reg);
-    if (!Cascade)
-      Cascade = NextCascade;
-    return Cascade;
-  }
-
-  template <typename Iterator>
-  void setStage(Iterator Begin, Iterator End, LiveRangeStage NewStage) {
-    for (; Begin != End; ++Begin) {
-      Register Reg = *Begin;
-      Info.grow(Reg.id());
-      if (Info[Reg].Stage == RS_New)
-        Info[Reg].Stage = NewStage;
-    }
-  }
-  void LRE_DidCloneVirtReg(Register New, Register Old);
-};
-
 /// Interface to the eviction advisor, which is responsible for making a
 /// decision as to which live ranges should be evicted (if any).
+class RAGreedy;
 class RegAllocEvictionAdvisor {
 public:
   RegAllocEvictionAdvisor(const RegAllocEvictionAdvisor &) = delete;
@@ -177,15 +99,14 @@ public:
   /// Find a physical register that can be freed by evicting the FixedRegisters,
   /// or return NoRegister. The eviction decision is assumed to be correct (i.e.
   /// no fixed live ranges are evicted) and profitable.
-  virtual MCRegister
-  tryFindEvictionCandidate(LiveInterval &VirtReg, const AllocationOrder &Order,
-                           uint8_t CostPerUseLimit,
-                           const SmallVirtRegSet &FixedRegisters) const = 0;
+  virtual MCRegister tryFindEvictionCandidate(
+      const LiveInterval &VirtReg, const AllocationOrder &Order,
+      uint8_t CostPerUseLimit, const SmallVirtRegSet &FixedRegisters) const = 0;
 
   /// Find out if we can evict the live ranges occupying the given PhysReg,
   /// which is a hint (preferred register) for VirtReg.
   virtual bool
-  canEvictHintInterference(LiveInterval &VirtReg, MCRegister PhysReg,
+  canEvictHintInterference(const LiveInterval &VirtReg, MCRegister PhysReg,
                            const SmallVirtRegSet &FixedRegisters) const = 0;
 
   /// Returns true if the given \p PhysReg is a callee saved register and has
@@ -193,14 +114,23 @@ public:
   bool isUnusedCalleeSavedReg(MCRegister PhysReg) const;
 
 protected:
-  RegAllocEvictionAdvisor(const MachineFunction &MF, LiveRegMatrix *Matrix,
-                          LiveIntervals *LIS, VirtRegMap *VRM,
-                          const RegisterClassInfo &RegClassInfo,
-                          ExtraRegInfo *ExtraInfo);
+  RegAllocEvictionAdvisor(const MachineFunction &MF, const RAGreedy &RA);
 
-  Register canReassign(LiveInterval &VirtReg, Register PrevReg) const;
+  Register canReassign(const LiveInterval &VirtReg, Register PrevReg) const;
+
+  // Get the upper limit of elements in the given Order we need to analize.
+  // TODO: is this heuristic,  we could consider learning it.
+  Optional<unsigned> getOrderLimit(const LiveInterval &VirtReg,
+                                   const AllocationOrder &Order,
+                                   unsigned CostPerUseLimit) const;
+
+  // Determine if it's worth trying to allocate this reg, given the
+  // CostPerUseLimit
+  // TODO: this is a heuristic component we could consider learning, too.
+  bool canAllocatePhysReg(unsigned CostPerUseLimit, MCRegister PhysReg) const;
 
   const MachineFunction &MF;
+  const RAGreedy &RA;
   LiveRegMatrix *const Matrix;
   LiveIntervals *const LIS;
   VirtRegMap *const VRM;
@@ -208,7 +138,6 @@ protected:
   const TargetRegisterInfo *const TRI;
   const RegisterClassInfo &RegClassInfo;
   const ArrayRef<uint8_t> RegCosts;
-  ExtraRegInfo *const ExtraInfo;
 
   /// Run or not the local reassignment heuristic. This information is
   /// obtained from the TargetSubtargetInfo.
@@ -243,19 +172,17 @@ public:
 
   /// Get an advisor for the given context (i.e. machine function, etc)
   virtual std::unique_ptr<RegAllocEvictionAdvisor>
-  getAdvisor(const MachineFunction &MF, LiveRegMatrix *Matrix,
-             LiveIntervals *LIS, VirtRegMap *VRM,
-             const RegisterClassInfo &RegClassInfo,
-             ExtraRegInfo *ExtraInfo) = 0;
+  getAdvisor(const MachineFunction &MF, const RAGreedy &RA) = 0;
   AdvisorMode getAdvisorMode() const { return Mode; }
 
-private:
+protected:
   // This analysis preserves everything, and subclasses may have additional
   // requirements.
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
   }
 
+private:
   StringRef getPassName() const override;
   const AdvisorMode Mode;
 };
@@ -264,36 +191,28 @@ private:
 /// an instance of the eviction advisor.
 template <> Pass *callDefaultCtor<RegAllocEvictionAdvisorAnalysis>();
 
-// TODO(mtrofin): implement these.
-#ifdef LLVM_HAVE_TF_AOT
 RegAllocEvictionAdvisorAnalysis *createReleaseModeAdvisor();
-#endif
 
-#ifdef LLVM_HAVE_TF_API
 RegAllocEvictionAdvisorAnalysis *createDevelopmentModeAdvisor();
-#endif
 
 // TODO: move to RegAllocEvictionAdvisor.cpp when we move implementation
 // out of RegAllocGreedy.cpp
 class DefaultEvictionAdvisor : public RegAllocEvictionAdvisor {
 public:
-  DefaultEvictionAdvisor(const MachineFunction &MF, LiveRegMatrix *Matrix,
-                         LiveIntervals *LIS, VirtRegMap *VRM,
-                         const RegisterClassInfo &RegClassInfo,
-                         ExtraRegInfo *ExtraInfo)
-      : RegAllocEvictionAdvisor(MF, Matrix, LIS, VRM, RegClassInfo, ExtraInfo) {
-  }
+  DefaultEvictionAdvisor(const MachineFunction &MF, const RAGreedy &RA)
+      : RegAllocEvictionAdvisor(MF, RA) {}
 
 private:
-  MCRegister tryFindEvictionCandidate(LiveInterval &, const AllocationOrder &,
-                                      uint8_t,
+  MCRegister tryFindEvictionCandidate(const LiveInterval &,
+                                      const AllocationOrder &, uint8_t,
                                       const SmallVirtRegSet &) const override;
-  bool canEvictHintInterference(LiveInterval &, MCRegister,
+  bool canEvictHintInterference(const LiveInterval &, MCRegister,
                                 const SmallVirtRegSet &) const override;
-  bool canEvictInterferenceBasedOnCost(LiveInterval &, MCRegister, bool,
+  bool canEvictInterferenceBasedOnCost(const LiveInterval &, MCRegister, bool,
                                        EvictionCost &,
                                        const SmallVirtRegSet &) const;
-  bool shouldEvict(LiveInterval &A, bool, LiveInterval &B, bool) const;
+  bool shouldEvict(const LiveInterval &A, bool, const LiveInterval &B,
+                   bool) const;
 };
 } // namespace llvm
 

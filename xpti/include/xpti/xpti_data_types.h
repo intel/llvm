@@ -105,6 +105,7 @@ enum class payload_flag_t {
 using trace_point_t = uint16_t;
 using event_type_t = uint16_t;
 using string_id_t = int32_t;
+using object_id_t = int32_t;
 
 using safe_flag_t = std::atomic<bool>;
 using safe_uint64_t = std::atomic<uint64_t>;
@@ -113,7 +114,7 @@ using safe_uint16_t = std::atomic<uint16_t>;
 using safe_int64_t = std::atomic<int64_t>;
 using safe_int32_t = std::atomic<int32_t>;
 using safe_int16_t = std::atomic<int16_t>;
-using metadata_t = std::unordered_map<string_id_t, string_id_t>;
+using metadata_t = std::unordered_map<string_id_t, object_id_t>;
 
 #define XPTI_EVENT(val) xpti::event_type_t(val)
 #define XPTI_TRACE_POINT_BEGIN(val) xpti::trace_point_t(val << 1 | 0)
@@ -122,6 +123,12 @@ using metadata_t = std::unordered_map<string_id_t, string_id_t>;
 #define XPTI_PACK08_RET16(value1, value2) ((value1 << 8) | value2)
 #define XPTI_PACK16_RET32(value1, value2) ((value1 << 16) | value2)
 #define XPTI_PACK32_RET64(value1, value2) (((uint64_t)value1 << 32) | value2)
+
+struct object_data_t {
+  size_t size;
+  const char *data;
+  uint8_t type;
+};
 
 /// @brief Payload data structure that is optional for trace point callback
 /// API
@@ -168,7 +175,7 @@ struct payload_t {
   //  valid since we can potentially reconstruct the name and the source file
   //  information during post-processing step of symbol resolution; this
   //  indicates a partial but valid payload.
-  payload_t(void *codeptr) {
+  payload_t(const void *codeptr) {
     code_ptr_va = codeptr;
     name = nullptr;         ///< Invalid name string pointer
     source_file = nullptr;  ///< Invalid source file string pointer
@@ -193,7 +200,7 @@ struct payload_t {
     }
   }
 
-  payload_t(const char *func_name, void *codeptr) {
+  payload_t(const char *func_name, const void *codeptr) {
     code_ptr_va = codeptr;
     name = func_name;      ///< Invalid name string pointer
     source_file = nullptr; ///< Invalid source file string pointer
@@ -210,7 +217,7 @@ struct payload_t {
   //  on dynamic backtrace as a possibility. In this case, we send in the
   //  caller/callee information as a string in the form "caller->callee" that
   //  will be used to generate the unique ID.
-  payload_t(const char *kname, const char *caller_callee, void *codeptr) {
+  payload_t(const char *kname, const char *caller_callee, const void *codeptr) {
     if (codeptr) {
       code_ptr_va = codeptr;
       flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
@@ -231,7 +238,7 @@ struct payload_t {
   //  also have the function name and source file name along with the line and
   //  column number of the trace point that forms the payload.
   payload_t(const char *kname, const char *sf, int line, int col,
-            void *codeptr) {
+            const void *codeptr) {
     code_ptr_va = codeptr;
     /// Capture the rest of the parameters
     name = kname;
@@ -479,6 +486,16 @@ enum class trace_activity_type_t {
   sleep_activity = 1 << 3
 };
 
+/// Provides hints to the tools on how to interpret unknown metadata values.
+enum class metadata_type_t {
+  binary = 0,
+  string = 1,
+  signed_integer = 2,
+  unsigned_integer = 3,
+  floating = 4,
+  boolean = 5
+};
+
 struct reserved_data_t {
   /// Has a reference to the associated payload field for an event
   payload_t *payload = nullptr;
@@ -520,6 +537,16 @@ struct trace_event_data_t {
 struct offload_buffer_data_t {
   /// A pointer to user level memory offload object.
   uintptr_t user_object_handle = 0;
+  /// A pointer to host memory offload object.
+  uintptr_t host_object_handle = 0;
+  /// A string representing the type of buffer element.
+  const char *element_type = nullptr;
+  /// Buffer element size in bytes
+  uint32_t element_size = 0;
+  /// Buffer dimensions number.
+  uint32_t dim = 0;
+  /// Buffer size for each dimension.
+  size_t range[3] = {0, 0, 0};
 };
 
 /// Describes offload accessor

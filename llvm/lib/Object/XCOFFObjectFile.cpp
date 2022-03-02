@@ -615,6 +615,16 @@ Expected<uint32_t> XCOFFObjectFile::getSymbolFlags(DataRefImpl Symb) const {
   if (XCOFFSym.getSectionNumber() == XCOFF::N_UNDEF)
     Result |= SymbolRef::SF_Undefined;
 
+  // There is no visibility in old 32 bit XCOFF object file interpret.
+  if (is64Bit() || (auxiliaryHeader32() && (auxiliaryHeader32()->getVersion() ==
+                                            NEW_XCOFF_INTERPRET))) {
+    uint16_t SymType = XCOFFSym.getSymbolType();
+    if ((SymType & VISIBILITY_MASK) == SYM_V_HIDDEN)
+      Result |= SymbolRef::SF_Hidden;
+
+    if ((SymType & VISIBILITY_MASK) == SYM_V_EXPORTED)
+      Result |= SymbolRef::SF_Exported;
+  }
   return Result;
 }
 
@@ -1112,8 +1122,12 @@ bool XCOFFSymbolRef::isFunction() const {
     return true;
 
   Expected<XCOFFCsectAuxRef> ExpCsectAuxEnt = getXCOFFCsectAuxRef();
-  if (!ExpCsectAuxEnt)
+  if (!ExpCsectAuxEnt) {
+    // If we could not get the CSECT auxiliary entry, then treat this symbol as
+    // if it isn't a function. Consume the error and return `false` to move on.
+    consumeError(ExpCsectAuxEnt.takeError());
     return false;
+  }
 
   const XCOFFCsectAuxRef CsectAuxRef = ExpCsectAuxEnt.get();
 

@@ -22,6 +22,7 @@
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/Inclusions/HeaderIncludes.h"
+#include "clang/Tooling/Inclusions/StandardLibrary.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringRef.h"
@@ -160,6 +161,9 @@ public:
   // Maps HeaderID to the ids of the files included from it.
   llvm::DenseMap<HeaderID, SmallVector<HeaderID>> IncludeChildren;
 
+  llvm::DenseMap<tooling::stdlib::Header, llvm::SmallVector<HeaderID>>
+      StdlibHeaders;
+
   std::vector<Inclusion> MainFileIncludes;
 
   // We reserve HeaderID(0) for the main file and will manually check for that
@@ -250,13 +254,11 @@ namespace llvm {
 // Support HeaderIDs as DenseMap keys.
 template <> struct DenseMapInfo<clang::clangd::IncludeStructure::HeaderID> {
   static inline clang::clangd::IncludeStructure::HeaderID getEmptyKey() {
-    return static_cast<clang::clangd::IncludeStructure::HeaderID>(
-        DenseMapInfo<unsigned>::getEmptyKey());
+    return static_cast<clang::clangd::IncludeStructure::HeaderID>(-1);
   }
 
   static inline clang::clangd::IncludeStructure::HeaderID getTombstoneKey() {
-    return static_cast<clang::clangd::IncludeStructure::HeaderID>(
-        DenseMapInfo<unsigned>::getTombstoneKey());
+    return static_cast<clang::clangd::IncludeStructure::HeaderID>(-2);
   }
 
   static unsigned

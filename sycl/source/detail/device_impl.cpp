@@ -53,13 +53,11 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
   Plugin.call<PiApiKind::piDeviceGetInfo>(
       MDevice, PI_DEVICE_INFO_TYPE, sizeof(RT::PiDeviceType), &MType, nullptr);
 
-  RT::PiDevice parent = nullptr;
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piDeviceGetInfo>(MDevice, PI_DEVICE_INFO_PARENT_DEVICE,
-                                          sizeof(RT::PiDevice), &parent,
+                                          sizeof(RT::PiDevice), &MRootDevice,
                                           nullptr);
 
-  MIsRootDevice = (nullptr == parent);
   if (!InteroperabilityConstructor) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     // Interoperability Constructor already calls DeviceRetain in
@@ -262,7 +260,7 @@ bool device_impl::has(aspect Aspect) const {
            (get_device_info<
                 pi_usm_capabilities,
                 info::device::usm_host_allocations>::get(MDevice, getPlugin()) &
-            PI_USM_ATOMIC_ACCESS);
+            PI_USM_CONCURRENT_ATOMIC_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
@@ -271,7 +269,7 @@ bool device_impl::has(aspect Aspect) const {
                 pi_usm_capabilities,
                 info::device::usm_shared_allocations>::get(MDevice,
                                                            getPlugin()) &
-            PI_USM_ATOMIC_ACCESS);
+            PI_USM_CONCURRENT_ATOMIC_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocations:
@@ -345,6 +343,13 @@ std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
 
 bool device_impl::isAssertFailSupported() const {
   return MIsAssertFailSupported;
+}
+
+std::string device_impl::getDeviceName() const {
+  std::call_once(MDeviceNameFlag,
+                 [this]() { MDeviceName = get_info<info::device::name>(); });
+
+  return MDeviceName;
 }
 
 } // namespace detail

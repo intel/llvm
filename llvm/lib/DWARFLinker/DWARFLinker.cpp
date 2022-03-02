@@ -124,6 +124,7 @@ static bool isTypeTag(uint16_t Tag) {
   case dwarf::DW_TAG_interface_type:
   case dwarf::DW_TAG_unspecified_type:
   case dwarf::DW_TAG_shared_type:
+  case dwarf::DW_TAG_immutable_type:
     return true;
   default:
     break;
@@ -131,9 +132,9 @@ static bool isTypeTag(uint16_t Tag) {
   return false;
 }
 
-AddressesMap::~AddressesMap() {}
+AddressesMap::~AddressesMap() = default;
 
-DwarfEmitter::~DwarfEmitter() {}
+DwarfEmitter::~DwarfEmitter() = default;
 
 static Optional<StringRef> StripTemplateParameters(StringRef Name) {
   // We are looking for template parameters to strip from Name. e.g.
@@ -1934,7 +1935,7 @@ uint32_t DWARFLinker::DIECloner::hashFullyQualifiedName(DWARFDie DIE,
   CompileUnit *CU = &U;
   Optional<DWARFFormValue> Ref;
 
-  while (1) {
+  while (true) {
     if (const char *CurrentName = DIE.getName(DINameKind::ShortName))
       Name = CurrentName;
 
@@ -2107,7 +2108,6 @@ Error DWARFLinker::loadClangModule(
       // Add this module.
       Unit = std::make_unique<CompileUnit>(*CU, UnitID++, !Options.NoODR,
                                            ModuleName);
-      Unit->setHasInterestingContent();
       analyzeContextInfo(CUDie, 0, *Unit, &ODRContexts.getRoot(), ODRContexts,
                          ModulesEndOffset, Options.ParseableSwiftInterfaces,
                          [&](const Twine &Warning, const DWARFDie &DIE) {
@@ -2362,6 +2362,10 @@ bool DWARFLinker::link() {
 
     if (!OptContext.File.Dwarf)
       continue;
+
+    if (Options.VerifyInputDWARF)
+      verify(OptContext.File);
+
     // Look for relocations that correspond to address map entries.
 
     // there was findvalidrelocations previously ... probably we need to gather
@@ -2628,6 +2632,17 @@ bool DWARFLinker::link() {
               "---------------\n\n";
   }
 
+  return true;
+}
+
+bool DWARFLinker::verify(const DWARFFile &File) {
+  assert(File.Dwarf);
+
+  DIDumpOptions DumpOpts;
+  if (!File.Dwarf->verify(llvm::outs(), DumpOpts.noImplicitRecursion())) {
+    reportWarning("input verification failed", File);
+    return false;
+  }
   return true;
 }
 

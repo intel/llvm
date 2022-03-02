@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 /// \file
-/// The AMDGPU TargetMachine interface definition for hw codgen targets.
+/// The AMDGPU TargetMachine interface definition for hw codegen targets.
 //
 //===----------------------------------------------------------------------===//
 
@@ -20,8 +20,6 @@
 #include <utility>
 
 namespace llvm {
-
-class ScheduleDAGMILive;
 
 //===----------------------------------------------------------------------===//
 // AMDGPU Target Machine (R600+)

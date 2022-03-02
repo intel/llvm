@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// XFAIL: LIBCXX-AIX-FIXME
-
 // <memory>
 
 // Test weak_ptr<T> with trivial_abi as return-type.
@@ -50,8 +48,9 @@ int main(int, char**) {
   //
   // With trivial_abi, local_addr is the address of a local variable in
   // make_val, and hence different from &ret.
-#if !defined(__i386__) && !defined(__arm__) && !defined(_WIN32)
+#if !defined(__i386__) && !defined(__arm__) && !defined(_WIN32) && !defined(_AIX)
   // On X86, structs are never returned in registers.
+  // On AIX, structs are never returned in registers.
   // On ARM32, structs larger than 4 bytes cannot be returned in registers.
   // On Windows, structs with a destructor are always returned indirectly.
   // Thus, weak_ptr will be passed indirectly even if it is trivial.

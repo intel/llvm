@@ -666,7 +666,7 @@ INTERCEPTOR(int, fstat, int fd, void *buf) {
 #define MSAN_MAYBE_INTERCEPT_FSTAT
 #endif
 
-#if !SANITIZER_FREEBSD && !SANITIZER_NETBSD
+#if SANITIZER_GLIBC
 INTERCEPTOR(int, __fxstat, int magic, int fd, void *buf) {
   ENSURE_MSAN_INITED();
   int res = REAL(__fxstat)(magic, fd, buf);
@@ -679,7 +679,7 @@ INTERCEPTOR(int, __fxstat, int magic, int fd, void *buf) {
 #define MSAN_MAYBE_INTERCEPT___FXSTAT
 #endif
 
-#if !SANITIZER_FREEBSD && !SANITIZER_NETBSD
+#if SANITIZER_GLIBC
 INTERCEPTOR(int, __fxstat64, int magic, int fd, void *buf) {
   ENSURE_MSAN_INITED();
   int res = REAL(__fxstat64)(magic, fd, buf);
@@ -704,7 +704,7 @@ INTERCEPTOR(int, fstatat, int fd, char *pathname, void *buf, int flags) {
 #  define MSAN_MAYBE_INTERCEPT_FSTATAT
 #endif
 
-#if !SANITIZER_FREEBSD && !SANITIZER_NETBSD
+#if SANITIZER_GLIBC
 INTERCEPTOR(int, __fxstatat, int magic, int fd, char *pathname, void *buf,
             int flags) {
   ENSURE_MSAN_INITED();
@@ -717,7 +717,7 @@ INTERCEPTOR(int, __fxstatat, int magic, int fd, char *pathname, void *buf,
 #  define MSAN_MAYBE_INTERCEPT___FXSTATAT
 #endif
 
-#if !SANITIZER_FREEBSD && !SANITIZER_NETBSD
+#if SANITIZER_GLIBC
 INTERCEPTOR(int, __fxstatat64, int magic, int fd, char *pathname, void *buf,
             int flags) {
   ENSURE_MSAN_INITED();
@@ -990,12 +990,13 @@ static void SignalAction(int signo, void *si, void *uc) {
   ScopedThreadLocalStateBackup stlsb;
   UnpoisonParam(3);
   __msan_unpoison(si, sizeof(__sanitizer_sigaction));
-  __msan_unpoison(uc, __sanitizer::ucontext_t_sz);
+  __msan_unpoison(uc, ucontext_t_sz(uc));
 
   typedef void (*sigaction_cb)(int, void *, void *);
   sigaction_cb cb =
       (sigaction_cb)atomic_load(&sigactions[signo], memory_order_relaxed);
   cb(signo, si, uc);
+  CHECK_UNPOISONED(uc, ucontext_t_sz(uc));
 }
 
 static void read_sigaction(const __sanitizer_sigaction *act) {
@@ -1435,6 +1436,15 @@ static uptr signal_impl(int signo, uptr cb) {
 #include "sanitizer_common/sanitizer_common_syscalls.inc"
 #include "sanitizer_common/sanitizer_syscalls_netbsd.inc"
 
+INTERCEPTOR(const char *, strsignal, int sig) {
+  void *ctx;
+  COMMON_INTERCEPTOR_ENTER(ctx, strsignal, sig);
+  const char *res = REAL(strsignal)(sig);
+  if (res)
+    __msan_unpoison(res, internal_strlen(res) + 1);
+  return res;
+}
+
 struct dlinfo {
   char *dli_fname;
   void *dli_fbase;
@@ -1698,6 +1708,7 @@ void InitializeInterceptors() {
   INTERCEPT_FUNCTION(gethostname);
   MSAN_MAYBE_INTERCEPT_EPOLL_WAIT;
   MSAN_MAYBE_INTERCEPT_EPOLL_PWAIT;
+  INTERCEPT_FUNCTION(strsignal);
   INTERCEPT_FUNCTION(dladdr);
   INTERCEPT_FUNCTION(dlerror);
   INTERCEPT_FUNCTION(dl_iterate_phdr);

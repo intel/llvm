@@ -675,6 +675,9 @@ public:
     }
   }
 
+  /// Test if this node is a vector predication operation.
+  bool isVPOpcode() const { return ISD::isVPOpcode(getOpcode()); }
+
   /// Test if this node has a post-isel opcode, directly
   /// corresponding to a MachineInstr opcode.
   bool isMachineOpcode() const { return NodeType < 0; }
@@ -738,11 +741,9 @@ public:
     using reference = value_type &;
 
     use_iterator() = default;
-    use_iterator(const use_iterator &I) : Op(I.Op) {}
+    use_iterator(const use_iterator &I) = default;
 
-    bool operator==(const use_iterator &x) const {
-      return Op == x.Op;
-    }
+    bool operator==(const use_iterator &x) const { return Op == x.Op; }
     bool operator!=(const use_iterator &x) const {
       return !operator==(x);
     }
@@ -1190,12 +1191,13 @@ inline void SDValue::dumpr(const SelectionDAG *G) const {
 inline void SDUse::set(const SDValue &V) {
   if (Val.getNode()) removeFromList();
   Val = V;
-  if (V.getNode()) V.getNode()->addUse(*this);
+  if (V.getNode())
+    V->addUse(*this);
 }
 
 inline void SDUse::setInitial(const SDValue &V) {
   Val = V;
-  V.getNode()->addUse(*this);
+  V->addUse(*this);
 }
 
 inline void SDUse::setNode(SDNode *N) {

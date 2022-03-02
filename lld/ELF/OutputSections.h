@@ -9,21 +9,23 @@
 #ifndef LLD_ELF_OUTPUT_SECTIONS_H
 #define LLD_ELF_OUTPUT_SECTIONS_H
 
-#include "Config.h"
 #include "InputSection.h"
 #include "LinkerScript.h"
-#include "Relocations.h"
 #include "lld/Common/LLVM.h"
-#include "llvm/MC/StringTableBuilder.h"
-#include "llvm/Object/ELF.h"
+
 #include <array>
 
 namespace lld {
 namespace elf {
 
 struct PhdrEntry;
-class InputSection;
-class InputSectionBase;
+
+struct CompressedData {
+  std::unique_ptr<SmallVector<uint8_t, 0>[]> shards;
+  uint32_t numShards = 0;
+  uint32_t checksum = 0;
+  uint64_t uncompressedSize;
+};
 
 // This represents a section in an output file.
 // It is composed of multiple InputSections.
@@ -82,15 +84,15 @@ public:
   Expr alignExpr;
   Expr lmaExpr;
   Expr subalignExpr;
-  std::vector<SectionCommand *> commands;
-  std::vector<StringRef> phdrs;
+  SmallVector<SectionCommand *, 0> commands;
+  SmallVector<StringRef, 0> phdrs;
   llvm::Optional<std::array<uint8_t, 4>> filler;
   ConstraintKind constraint = ConstraintKind::NoConstraint;
   std::string location;
   std::string memoryRegionName;
   std::string lmaRegionName;
   bool nonAlloc = false;
-  bool noload = false;
+  bool typeIsSet = false;
   bool expressionsUseSymbols = false;
   bool usedInExpression = false;
   bool inOverlay = false;
@@ -112,8 +114,7 @@ public:
 
 private:
   // Used for implementation of --compress-debug-sections option.
-  std::vector<uint8_t> zDebugHeader;
-  llvm::SmallVector<char, 0> compressedData;
+  CompressedData compressed;
 
   std::array<uint8_t, 4> getFiller();
 };
@@ -121,7 +122,7 @@ private:
 int getPriority(StringRef s);
 
 InputSection *getFirstInputSection(const OutputSection *os);
-std::vector<InputSection *> getInputSections(const OutputSection *os);
+SmallVector<InputSection *, 0> getInputSections(const OutputSection &os);
 
 // All output sections that are handled by the linker specially are
 // globally accessible. Writer initializes them, so don't use them

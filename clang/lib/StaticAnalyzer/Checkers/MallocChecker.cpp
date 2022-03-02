@@ -797,8 +797,16 @@ protected:
   bool doesFnIntendToHandleOwnership(const Decl *Callee, ASTContext &ACtx) {
     using namespace clang::ast_matchers;
     const FunctionDecl *FD = dyn_cast<FunctionDecl>(Callee);
-    if (!FD)
+
+    // Given that the stack frame was entered, the body should always be
+    // theoretically obtainable. In case of body farms, the synthesized body
+    // is not attached to declaration, thus triggering the '!FD->hasBody()'
+    // branch. That said, would a synthesized body ever intend to handle
+    // ownership? As of today they don't. And if they did, how would we
+    // put notes inside it, given that it doesn't match any source locations?
+    if (!FD || !FD->hasBody())
       return false;
+
     // TODO: Operator delete is hardly the only deallocator -- Can we reuse
     // isFreeingCall() or something thats already here?
     auto Deallocations = match(
@@ -1643,7 +1651,7 @@ void MallocChecker::checkPostObjCMessage(const ObjCMethodCall &Call,
   ProgramStateRef State =
       FreeMemAux(C, Call.getArgExpr(0), Call, C.getState(),
                  /*Hold=*/true, IsKnownToBeAllocatedMemory, AF_Malloc,
-                 /*RetNullOnFailure=*/true);
+                 /*ReturnsNullOnFailure=*/true);
 
   C.addTransition(State);
 }
