@@ -170,9 +170,11 @@ private:
 
 class __SYCL_EXPORT LocalAccessorImplHost {
 public:
+  // Allocate ElemSize more data to have sufficient padding to enforce
+  // alignment.
   LocalAccessorImplHost(sycl::range<3> Size, int Dims, int ElemSize)
       : MSize(Size), MDims(Dims), MElemSize(ElemSize),
-        MMem(Size[0] * Size[1] * Size[2] * ElemSize) {}
+        MMem(Size[0] * Size[1] * Size[2] * ElemSize + ElemSize) {}
 
   sycl::range<3> MSize;
   int MDims;
@@ -190,9 +192,20 @@ public:
   }
   sycl::range<3> &getSize() { return impl->MSize; }
   const sycl::range<3> &getSize() const { return impl->MSize; }
-  void *getPtr() { return impl->MMem.data(); }
+  void *getPtr() {
+    // Const cast this in order to call the const getPtr.
+    return const_cast<const LocalAccessorBaseHost *>(this)->getPtr();
+  }
   void *getPtr() const {
-    return const_cast<void *>(reinterpret_cast<void *>(impl->MMem.data()));
+    char *ptr = impl->MMem.data();
+
+    // Align the pointer to MElemSize.
+    size_t val = reinterpret_cast<size_t>(ptr);
+    if (val % impl->MElemSize != 0) {
+      ptr += impl->MElemSize - val % impl->MElemSize;
+    }
+
+    return ptr;
   }
 
   int getNumOfDims() { return impl->MDims; }
