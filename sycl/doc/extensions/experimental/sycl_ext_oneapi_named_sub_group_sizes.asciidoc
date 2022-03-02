@@ -43,7 +43,7 @@ SYCL specification refer to that revision.
 This extension also depends on the following other SYCL extensions:
 
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[
-  sycl_ext_oneapi_properties
+  sycl_ext_oneapi_properties]
 
 * link:../proposed/sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties]
