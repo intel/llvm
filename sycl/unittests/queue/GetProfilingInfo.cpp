@@ -139,7 +139,7 @@ TEST(GetProfilingInfo, command_exception_check) {
       FAIL();
     } catch (sycl::exception &e) {
       EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
-                            "'enable_profiling' queue property");
+                             "'enable_profiling' queue property");
     }
   }
   {
@@ -249,8 +249,8 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
   }
   {
     try {
-      auto submit_time =
-          event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+      auto submit_time = event.get_profiling_info<
+          sycl::info::event_profiling::command_submit>();
       (void)submit_time;
       FAIL();
     } catch (sycl::exception &e) {
@@ -261,7 +261,8 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
   {
     try {
       auto start_time =
-          event.get_profiling_info<sycl::info::event_profiling::command_start>();
+          event
+              .get_profiling_info<sycl::info::event_profiling::command_start>();
       (void)start_time;
       FAIL();
     } catch (sycl::exception &e) {
