@@ -126,6 +126,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 
     switch (Kind) {
     case alloc::device: {
+      Id = detail::getSyclObjImpl(Dev)->getHandleRef();
       // Parse out buffer location property
       // Buffer location is only supported on FPGA devices
       bool IsBufferLocSupported = true;
