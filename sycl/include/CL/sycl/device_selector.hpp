@@ -106,12 +106,12 @@ aspect_selector(const std::vector<aspect> &AspectList,
                 const std::vector<aspect> &DenyList = {});
 
 namespace detail {
-template<typename LastT>
+template <typename LastT>
 void fill_aspect_vector(std::vector<aspect> &V, LastT L) {
   V.emplace_back(L);
 }
 
-template<typename FirstT, typename... OtherTs>
+template <typename FirstT, typename... OtherTs>
 void fill_aspect_vector(std::vector<aspect> &V, FirstT F, OtherTs... O) {
   V.emplace_back(F);
   fill_aspect_vector(V, O...);
