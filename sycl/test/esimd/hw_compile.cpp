@@ -22,16 +22,20 @@ int main(void) {
       auto accB = bufB.get_access<cl::sycl::access::mode::read>(cgh);
       auto accC = bufC.get_access<cl::sycl::access::mode::write>(cgh);
 
-      cgh.parallel_for<class Test>(UnitRange * UnitRange,
-                                   [=](sycl::id<1> i) SYCL_ESIMD_KERNEL {
-                                     // those operations below would normally be
-                                     // represented as a single vector operation
-                                     // through ESIMD vector
-                                     accC[i + 0] = accA[i + 0] + accB[i + 0];
-                                     accC[i + 1] = accA[i + 1] + accB[i + 1];
-                                     accC[i + 2] = accA[i + 2] + accB[i + 2];
-                                     accC[i + 3] = accA[i + 3] + accB[i + 3];
-                                   });
+      cgh.parallel_for<class Test>(
+          UnitRange * UnitRange, [=](sycl::id<1> i) SYCL_ESIMD_KERNEL {
+            int off = i.get(0) * Size;
+            // those operations below would normally be
+            // represented as a single vector operation
+            // through ESIMD vector
+            cl::sycl::ext::intel::experimental::esimd::simd<int, Size> A(
+                accA, off * sizeof(int));
+            cl::sycl::ext::intel::experimental::esimd::simd<int, Size> B(
+                accB, off * sizeof(int));
+            cl::sycl::ext::intel::experimental::esimd::simd<int, Size> C =
+                A + B;
+            C.copy_to(accC, off * sizeof(int));
+          });
     });
   }
 
