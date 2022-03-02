@@ -215,7 +215,7 @@ private:
   void instrumentationEpilog(void *TelementryEvent, const std::string &Name,
                              int32_t StreamID, uint64_t IId) const;
 
-  mutable bool isInited = true;
+  mutable bool MIsInitialized = true;
   mutable RT::PiEvent MEvent = nullptr;
   mutable ContextImplPtr MContext;
   mutable bool MOpenCLInterop = false;
