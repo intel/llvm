@@ -3635,7 +3635,7 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
             : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), ZDim);
 
     if (CheckFirstArgument || CheckSecondArgument || CheckThirdArgument) {
-       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
+      Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << CI << DeclAttr;
       Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
       return;

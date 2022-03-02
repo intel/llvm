@@ -86,7 +86,7 @@ f9() {}
 [[sycl::reqd_work_group_size(64, 64, 64)]] void f12();
 [[intel::max_work_group_size(16, 16, 16)]] void f12(); // expected error but now OK.
 
-[[intel::max_work_group_size(16, 16, 16)]] // expected-note {{conflicting attribute is here}}
+[[intel::max_work_group_size(16, 16, 16)]]      // expected-note {{conflicting attribute is here}}
 [[sycl::reqd_work_group_size(16, 64, 16)]] void // expected-error {{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}
 f13() {}
 
@@ -103,7 +103,7 @@ f15() {} // OK
 
 [[intel::max_work_group_size(1, 2, 3)]] [[sycl::reqd_work_group_size(1, 2, 3)]] void f17(){}; // OK
 
-[[sycl::reqd_work_group_size(16)]] // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(16)]]            // expected-note {{conflicting attribute is here}}
 [[intel::max_work_group_size(1, 1, 16)]] void // expected-error {{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
 f18();
 
