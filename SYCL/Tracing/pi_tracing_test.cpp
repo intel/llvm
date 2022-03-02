@@ -40,7 +40,7 @@
 //
 // CHECK: ---> piEventsWait(
 // CHECK-NEXT:  <unknown> : 1
-// CHECK-NEXT:  const pi_event * : {{0[xX]?[0-9a-fA-F]*}}
+// CHECK-NEXT:  {{(const |\[out\])?}}pi_event * : {{0[xX]?[0-9a-fA-F]*}}
 // CHECK-SAME:  [ {{0[xX]?[0-9a-fA-F]*}} ... ]
 // CHECK-NEXT: ) ---> 	pi_result : PI_SUCCESS
 
