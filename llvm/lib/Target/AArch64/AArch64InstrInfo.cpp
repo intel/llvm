@@ -1547,27 +1547,6 @@ findCondCodeUseOperandIdxForBranchOrSelect(const MachineInstr &Instr) {
   }
 }
 
-namespace {
-
-struct UsedNZCV {
-  bool N = false;
-  bool Z = false;
-  bool C = false;
-  bool V = false;
-
-  UsedNZCV() = default;
-
-  UsedNZCV &operator|=(const UsedNZCV &UsedFlags) {
-    this->N |= UsedFlags.N;
-    this->Z |= UsedFlags.Z;
-    this->C |= UsedFlags.C;
-    this->V |= UsedFlags.V;
-    return *this;
-  }
-};
-
-} // end anonymous namespace
-
 /// Find a condition code used by the instruction.
 /// Returns AArch64CC::Invalid if either the instruction does not use condition
 /// codes or we don't optimize CmpInstr in the presence of such instructions.
@@ -1622,15 +1601,15 @@ static UsedNZCV getUsedNZCV(AArch64CC::CondCode CC) {
   return UsedFlags;
 }
 
-/// \returns Conditions flags used after \p CmpInstr in its MachineBB if they
-/// are not containing C or V flags and NZCV flags are not alive in successors
-/// of the same \p CmpInstr and \p MI parent. \returns None otherwise.
+/// \returns Conditions flags used after \p CmpInstr in its MachineBB if NZCV
+/// flags are not alive in successors of the same \p CmpInstr and \p MI parent.
+/// \returns None otherwise.
 ///
 /// Collect instructions using that flags in \p CCUseInstrs if provided.
-static Optional<UsedNZCV>
-examineCFlagsUse(MachineInstr &MI, MachineInstr &CmpInstr,
-                 const TargetRegisterInfo &TRI,
-                 SmallVectorImpl<MachineInstr *> *CCUseInstrs = nullptr) {
+Optional<UsedNZCV>
+llvm::examineCFlagsUse(MachineInstr &MI, MachineInstr &CmpInstr,
+                       const TargetRegisterInfo &TRI,
+                       SmallVectorImpl<MachineInstr *> *CCUseInstrs) {
   MachineBasicBlock *CmpParent = CmpInstr.getParent();
   if (MI.getParent() != CmpParent)
     return None;
@@ -1652,8 +1631,6 @@ examineCFlagsUse(MachineInstr &MI, MachineInstr &CmpInstr,
     if (Instr.modifiesRegister(AArch64::NZCV, &TRI))
       break;
   }
-  if (NZCVUsedAfterCmp.C || NZCVUsedAfterCmp.V)
-    return None;
   return NZCVUsedAfterCmp;
 }
 
@@ -1684,7 +1661,8 @@ static bool canInstrSubstituteCmpInstr(MachineInstr &MI, MachineInstr &CmpInstr,
   if (!isADDSRegImm(CmpOpcode) && !isSUBSRegImm(CmpOpcode))
     return false;
 
-  if (!examineCFlagsUse(MI, CmpInstr, TRI))
+  Optional<UsedNZCV> NZVCUsed = examineCFlagsUse(MI, CmpInstr, TRI);
+  if (!NZVCUsed || NZVCUsed->C || NZVCUsed->V)
     return false;
 
   AccessKind AccessToCheck = AK_Write;
@@ -1773,7 +1751,7 @@ static bool canCmpInstrBeRemoved(MachineInstr &MI, MachineInstr &CmpInstr,
       examineCFlagsUse(MI, CmpInstr, TRI, &CCUseInstrs);
   // Condition flags are not used in CmpInstr basic block successors and only
   // Z or N flags allowed to be used after CmpInstr within its basic block
-  if (!NZCVUsedAfterCmp)
+  if (!NZCVUsedAfterCmp || NZCVUsedAfterCmp->C || NZCVUsedAfterCmp->V)
     return false;
   // Z or N flag used after CmpInstr must correspond to the flag used in MI
   if ((MIUsedNZCV.Z && NZCVUsedAfterCmp->N) ||
@@ -2270,6 +2248,19 @@ unsigned AArch64InstrInfo::getLoadStoreImmIdx(unsigned Opc) {
   case AArch64::LD1SW_D_IMM:
   case AArch64::LD1D_IMM:
 
+  case AArch64::LD2B_IMM:
+  case AArch64::LD2H_IMM:
+  case AArch64::LD2W_IMM:
+  case AArch64::LD2D_IMM:
+  case AArch64::LD3B_IMM:
+  case AArch64::LD3H_IMM:
+  case AArch64::LD3W_IMM:
+  case AArch64::LD3D_IMM:
+  case AArch64::LD4B_IMM:
+  case AArch64::LD4H_IMM:
+  case AArch64::LD4W_IMM:
+  case AArch64::LD4D_IMM:
+
   case AArch64::ST1B_IMM:
   case AArch64::ST1B_H_IMM:
   case AArch64::ST1B_S_IMM:
@@ -2280,6 +2271,19 @@ unsigned AArch64InstrInfo::getLoadStoreImmIdx(unsigned Opc) {
   case AArch64::ST1W_IMM:
   case AArch64::ST1W_D_IMM:
   case AArch64::ST1D_IMM:
+
+  case AArch64::ST2B_IMM:
+  case AArch64::ST2H_IMM:
+  case AArch64::ST2W_IMM:
+  case AArch64::ST2D_IMM:
+  case AArch64::ST3B_IMM:
+  case AArch64::ST3H_IMM:
+  case AArch64::ST3W_IMM:
+  case AArch64::ST3D_IMM:
+  case AArch64::ST4B_IMM:
+  case AArch64::ST4H_IMM:
+  case AArch64::ST4W_IMM:
+  case AArch64::ST4D_IMM:
 
   case AArch64::LD1RB_IMM:
   case AArch64::LD1RB_H_IMM:
@@ -2897,6 +2901,45 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, TypeSize &Scale,
     MinOffset = -8;
     MaxOffset = 7;
     break;
+  case AArch64::LD2B_IMM:
+  case AArch64::LD2H_IMM:
+  case AArch64::LD2W_IMM:
+  case AArch64::LD2D_IMM:
+  case AArch64::ST2B_IMM:
+  case AArch64::ST2H_IMM:
+  case AArch64::ST2W_IMM:
+  case AArch64::ST2D_IMM:
+    Scale = TypeSize::Scalable(32);
+    Width = SVEMaxBytesPerVector * 2;
+    MinOffset = -8;
+    MaxOffset = 7;
+    break;
+  case AArch64::LD3B_IMM:
+  case AArch64::LD3H_IMM:
+  case AArch64::LD3W_IMM:
+  case AArch64::LD3D_IMM:
+  case AArch64::ST3B_IMM:
+  case AArch64::ST3H_IMM:
+  case AArch64::ST3W_IMM:
+  case AArch64::ST3D_IMM:
+    Scale = TypeSize::Scalable(48);
+    Width = SVEMaxBytesPerVector * 3;
+    MinOffset = -8;
+    MaxOffset = 7;
+    break;
+  case AArch64::LD4B_IMM:
+  case AArch64::LD4H_IMM:
+  case AArch64::LD4W_IMM:
+  case AArch64::LD4D_IMM:
+  case AArch64::ST4B_IMM:
+  case AArch64::ST4H_IMM:
+  case AArch64::ST4W_IMM:
+  case AArch64::ST4D_IMM:
+    Scale = TypeSize::Scalable(64);
+    Width = SVEMaxBytesPerVector * 4;
+    MinOffset = -8;
+    MaxOffset = 7;
+    break;
   case AArch64::LD1B_H_IMM:
   case AArch64::LD1SB_H_IMM:
   case AArch64::LD1H_S_IMM:
@@ -3103,6 +3146,51 @@ bool AArch64InstrInfo::isPreSt(const MachineInstr &MI) {
 
 bool AArch64InstrInfo::isPreLdSt(const MachineInstr &MI) {
   return isPreLd(MI) || isPreSt(MI);
+}
+
+static const TargetRegisterClass *getRegClass(const MachineInstr &MI,
+                                              Register Reg) {
+  if (MI.getParent() == nullptr)
+    return nullptr;
+  const MachineFunction *MF = MI.getParent()->getParent();
+  return MF ? MF->getRegInfo().getRegClassOrNull(Reg) : nullptr;
+}
+
+bool AArch64InstrInfo::isQForm(const MachineInstr &MI) {
+  auto IsQFPR = [&](const MachineOperand &Op) {
+    if (!Op.isReg())
+      return false;
+    auto Reg = Op.getReg();
+    if (Reg.isPhysical())
+      return AArch64::FPR128RegClass.contains(Reg);
+    const TargetRegisterClass *TRC = ::getRegClass(MI, Reg);
+    return TRC == &AArch64::FPR128RegClass ||
+           TRC == &AArch64::FPR128_loRegClass;
+  };
+  return llvm::any_of(MI.operands(), IsQFPR);
+}
+
+bool AArch64InstrInfo::isFpOrNEON(const MachineInstr &MI) {
+  auto IsFPR = [&](const MachineOperand &Op) {
+    if (!Op.isReg())
+      return false;
+    auto Reg = Op.getReg();
+    if (Reg.isPhysical())
+      return AArch64::FPR128RegClass.contains(Reg) ||
+             AArch64::FPR64RegClass.contains(Reg) ||
+             AArch64::FPR32RegClass.contains(Reg) ||
+             AArch64::FPR16RegClass.contains(Reg) ||
+             AArch64::FPR8RegClass.contains(Reg);
+
+    const TargetRegisterClass *TRC = ::getRegClass(MI, Reg);
+    return TRC == &AArch64::FPR128RegClass ||
+           TRC == &AArch64::FPR128_loRegClass ||
+           TRC == &AArch64::FPR64RegClass ||
+           TRC == &AArch64::FPR64_loRegClass ||
+           TRC == &AArch64::FPR32RegClass || TRC == &AArch64::FPR16RegClass ||
+           TRC == &AArch64::FPR8RegClass;
+  };
+  return llvm::any_of(MI.operands(), IsFPR);
 }
 
 // Scale the unscaled offsets.  Returns false if the unscaled offset can't be
