@@ -57,7 +57,7 @@ struct MutableAffineMap;
 /// that some floordiv combinations are converted to mod's by AffineExpr
 /// construction.
 ///
-class FlatAffineConstraints : public IntegerPolyhedron {
+class FlatAffineConstraints : public presburger::IntegerPolyhedron {
 public:
   /// Constructs a constraint system reserving memory for the specified number
   /// of constraints and identifiers.
@@ -102,8 +102,46 @@ public:
     return cst->getKind() == Kind::FlatAffineConstraints;
   }
 
+  /// Clears any existing data and reserves memory for the specified
+  /// constraints.
+  virtual void reset(unsigned numReservedInequalities,
+                     unsigned numReservedEqualities, unsigned numReservedCols,
+                     unsigned numDims, unsigned numSymbols,
+                     unsigned numLocals = 0);
+  void reset(unsigned numDims = 0, unsigned numSymbols = 0,
+             unsigned numLocals = 0);
+
   // Clones this object.
   std::unique_ptr<FlatAffineConstraints> clone() const;
+
+  /// Insert `num` identifiers of the specified kind at position `pos`.
+  /// Positions are relative to the kind of identifier. The coefficient columns
+  /// corresponding to the added identifiers are initialized to zero. Return the
+  /// absolute column position (i.e., not relative to the kind of identifier)
+  /// of the first added identifier.
+  unsigned insertDimId(unsigned pos, unsigned num = 1) {
+    return insertId(IdKind::SetDim, pos, num);
+  }
+  unsigned insertSymbolId(unsigned pos, unsigned num = 1) {
+    return insertId(IdKind::Symbol, pos, num);
+  }
+  unsigned insertLocalId(unsigned pos, unsigned num = 1) {
+    return insertId(IdKind::Local, pos, num);
+  }
+
+  /// Append `num` identifiers of the specified kind after the last identifier.
+  /// of that kind. Return the position of the first appended column relative to
+  /// the kind of identifier. The coefficient columns corresponding to the added
+  /// identifiers are initialized to zero.
+  unsigned appendDimId(unsigned num = 1) {
+    return appendId(IdKind::SetDim, num);
+  }
+  unsigned appendSymbolId(unsigned num = 1) {
+    return appendId(IdKind::Symbol, num);
+  }
+  unsigned appendLocalId(unsigned num = 1) {
+    return appendId(IdKind::Local, num);
+  }
 
   /// Adds a bound for the identifier at the specified position with constraints
   /// being drawn from the specified bound map. In case of an EQ bound, the
@@ -156,6 +194,8 @@ public:
                         MLIRContext *context) const;
 
 protected:
+  using IdKind = presburger::IdKind;
+
   /// Given an affine map that is aligned with this constraint system:
   /// * Flatten the map.
   /// * Add newly introduced local columns at the beginning of this constraint

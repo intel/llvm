@@ -1798,6 +1798,13 @@ LogicalResult GlobalOp::verify() {
              << *ret.operand_type_begin() << " does not match global type "
              << getType();
 
+    for (Operation &op : *b) {
+      auto iface = dyn_cast<MemoryEffectOpInterface>(op);
+      if (!iface || !iface.hasNoEffect())
+        return op.emitError()
+               << "ops with side effects not allowed in global initializers";
+    }
+
     if (getValueOrNull())
       return emitOpError("cannot have both initializer value and region");
   }
@@ -1881,8 +1888,9 @@ void LLVM::ShuffleVectorOp::build(OpBuilder &b, OperationState &result,
                                   Value v1, Value v2, ArrayAttr mask,
                                   ArrayRef<NamedAttribute> attrs) {
   auto containerType = v1.getType();
-  auto vType = LLVM::getFixedVectorType(
-      LLVM::getVectorElementType(containerType), mask.size());
+  auto vType = LLVM::getVectorType(
+      LLVM::getVectorElementType(containerType), mask.size(),
+      containerType.cast<VectorType>().isScalable());
   build(b, result, vType, v1, v2, mask);
   result.addAttributes(attrs);
 }
@@ -1914,8 +1922,9 @@ ParseResult ShuffleVectorOp::parse(OpAsmParser &parser,
   if (!LLVM::isCompatibleVectorType(typeV1))
     return parser.emitError(
         loc, "expected LLVM IR dialect vector type for operand #1");
-  auto vType = LLVM::getFixedVectorType(LLVM::getVectorElementType(typeV1),
-                                        maskAttr.size());
+  auto vType =
+      LLVM::getVectorType(LLVM::getVectorElementType(typeV1), maskAttr.size(),
+                          typeV1.cast<VectorType>().isScalable());
   result.addTypes(vType);
   return success();
 }
@@ -1925,6 +1934,11 @@ LogicalResult ShuffleVectorOp::verify() {
   Type type2 = getV2().getType();
   if (LLVM::getVectorElementType(type1) != LLVM::getVectorElementType(type2))
     return emitOpError("expected matching LLVM IR Dialect element types");
+  if (LLVM::isScalableVectorType(type1))
+    if (llvm::any_of(getMask(), [](Attribute attr) {
+          return attr.cast<IntegerAttr>().getInt() != 0;
+        }))
+      return emitOpError("expected a splat operation for scalable vectors");
   return success();
 }
 

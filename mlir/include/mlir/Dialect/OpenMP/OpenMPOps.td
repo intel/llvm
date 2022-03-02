@@ -286,22 +286,10 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
              OptionalAttr<OrderKindAttr>:$order_val,
              UnitAttr:$inclusive);
 
-  let skipDefaultBuilders = 1;
-
   let builders = [
     OpBuilder<(ins "ValueRange":$lowerBound, "ValueRange":$upperBound,
                "ValueRange":$step,
                CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
-    OpBuilder<(ins "TypeRange":$resultTypes, "ValueRange":$lowerBound,
-               "ValueRange":$upperBound, "ValueRange":$step,
-               "ValueRange":$linear_vars, "ValueRange":$linear_step_vars,
-               "ValueRange":$reduction_vars, "StringAttr":$schedule_val,
-               "Value":$schedule_chunk_var, "IntegerAttr":$collapse_val,
-               "UnitAttr":$nowait, "IntegerAttr":$ordered_val,
-               "StringAttr":$order_val, "UnitAttr":$inclusive,
-               CArg<"bool", "true">:$buildBody)>,
-    OpBuilder<(ins "TypeRange":$resultTypes, "ValueRange":$operands,
-               CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
   ];
 
   let regions = (region AnyRegion:$region);
@@ -619,33 +607,6 @@ def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
                        OptionalAttr<MemoryOrderKindAttr>:$memory_order);
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
-}
-
-// TODO: autogenerate from OMP.td in future if possible.
-def ATOMIC_BINOP_KIND_ADD : I64EnumAttrCase<"ADD", 0>;
-def ATOMIC_BINOP_KIND_MUL : I64EnumAttrCase<"MUL", 1>;
-def ATOMIC_BINOP_KIND_SUB : I64EnumAttrCase<"SUB", 2>;
-def ATOMIC_BINOP_KIND_DIV : I64EnumAttrCase<"DIV", 3>;
-def ATOMIC_BINOP_KIND_AND : I64EnumAttrCase<"AND", 4>;
-def ATOMIC_BINOP_KIND_OR : I64EnumAttrCase<"OR", 5>;
-def ATOMIC_BINOP_KIND_XOR : I64EnumAttrCase<"XOR", 6>;
-def ATOMIC_BINOP_KIND_SHIFT_RIGHT : I64EnumAttrCase<"SHIFTR", 7>;
-def ATOMIC_BINOP_KIND_SHIFT_LEFT : I64EnumAttrCase<"SHIFTL", 8>;
-def ATOMIC_BINOP_KIND_MAX : I64EnumAttrCase<"MAX", 9>;
-def ATOMIC_BINOP_KIND_MIN : I64EnumAttrCase<"MIN", 10>;
-def ATOMIC_BINOP_KIND_EQV : I64EnumAttrCase<"EQV", 11>;
-def ATOMIC_BINOP_KIND_NEQV : I64EnumAttrCase<"NEQV", 12>;
-
-def AtomicBinOpKindAttr : I64EnumAttr<
-    "AtomicBinOpKind", "BinOp for Atomic Updates",
-    [ATOMIC_BINOP_KIND_ADD, ATOMIC_BINOP_KIND_MUL, ATOMIC_BINOP_KIND_SUB,
-     ATOMIC_BINOP_KIND_DIV, ATOMIC_BINOP_KIND_AND, ATOMIC_BINOP_KIND_OR,
-     ATOMIC_BINOP_KIND_XOR, ATOMIC_BINOP_KIND_SHIFT_RIGHT,
-     ATOMIC_BINOP_KIND_SHIFT_LEFT, ATOMIC_BINOP_KIND_MAX,
-     ATOMIC_BINOP_KIND_MIN, ATOMIC_BINOP_KIND_EQV, ATOMIC_BINOP_KIND_NEQV]> {
-  let cppNamespace = "::mlir::omp";
-  let stringToSymbolFnName = "AtomicBinOpKindToEnum";
-  let symbolToStringFnName = "AtomicBinOpKindToString";
 }
 
 def AtomicUpdateOp : OpenMP_Op<"atomic.update",

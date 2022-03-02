@@ -25,8 +25,6 @@ define signext i32 @grev32_demandedbits(i32 signext %a, i32 signext %b, i32 sign
   ret i32 %tmp
 }
 
-declare i32 @llvm.riscv.grevi.i32(i32 %a)
-
 define signext i32 @grevi32(i32 signext %a) nounwind {
 ; RV64ZBP-LABEL: grevi32:
 ; RV64ZBP:       # %bb.0:
@@ -342,6 +340,30 @@ define i64 @grevi64(i64 %a) nounwind {
  ret i64 %tmp
 }
 
+; FIXME: This is miscompiled. We can't fold the rotate with the grev.
+define i64 @grevi64_24_rotl_16(i64 %a) nounwind {
+; RV64ZBP-LABEL: grevi64_24_rotl_16:
+; RV64ZBP:       # %bb.0:
+; RV64ZBP-NEXT:    rev8.h a0, a0
+; RV64ZBP-NEXT:    ret
+  %tmp = call i64 @llvm.riscv.grev.i64(i64 %a, i64 24)
+  %tmp1 = call i64 @llvm.fshl.i64(i64 %tmp, i64 %tmp, i64 16)
+ ret i64 %tmp1
+}
+declare i64 @llvm.fshl.i64(i64, i64, i64)
+
+; FIXME: This is miscompiled. We can't fold the rotate with the grev.
+define i64 @grevi64_24_rotr_16(i64 %a) nounwind {
+; RV64ZBP-LABEL: grevi64_24_rotr_16:
+; RV64ZBP:       # %bb.0:
+; RV64ZBP-NEXT:    rev8.h a0, a0
+; RV64ZBP-NEXT:    ret
+  %tmp = call i64 @llvm.riscv.grev.i64(i64 %a, i64 24)
+  %tmp1 = call i64 @llvm.fshr.i64(i64 %tmp, i64 %tmp, i64 16)
+ ret i64 %tmp1
+}
+declare i64 @llvm.fshr.i64(i64, i64, i64)
+
 define i64 @revhwi64(i64 %a) nounwind {
 ; RV64ZBP-LABEL: revhwi64:
 ; RV64ZBP:       # %bb.0:
@@ -470,8 +492,6 @@ define i64 @gorc64_demandedbits(i64 %a, i64 %b) nounwind {
   %tmp = call i64 @llvm.riscv.gorc.i64(i64 %a, i64 %c)
   ret i64 %tmp
 }
-
-declare i64 @llvm.riscv.gorci.i64(i64 %a)
 
 define i64 @gorci64(i64 %a) nounwind {
 ; RV64ZBP-LABEL: gorci64:
