@@ -113,7 +113,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   std::vector<Command *> ToCleanUp;
-  {
+  try {
     ReadLockT Lock = acquireReadLock();
 
     Command *NewCmd = static_cast<Command *>(NewEvent->getCommand());
@@ -121,42 +121,43 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     EnqueueResultT Res;
     bool Enqueued;
 
-    auto CleanUp = [&]() {
-      if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        NewEvent->setCommand(nullptr);
-        delete NewCmd;
-      }
-    };
-
     for (Command *Cmd : AuxiliaryCmds) {
       Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
-      try {
-        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-          throw runtime_error("Auxiliary enqueue process failed.",
-                              PI_ERROR_INVALID_OPERATION);
-      } catch (...) {
-        // enqueueCommand() func and if statement above may throw an exception,
-        // so destroy required resources to avoid memory leak
-        CleanUp();
-        std::rethrow_exception(std::current_exception());
-      }
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Auxiliary enqueue process failed.",
+                            PI_INVALID_OPERATION);
     }
 
     if (NewCmd) {
       // TODO: Check if lazy mode.
       EnqueueResultT Res;
-      try {
-        bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
-        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-          throw runtime_error("Enqueue process failed.",
-                              PI_ERROR_INVALID_OPERATION);
-      } catch (...) {
-        // enqueueCommand() func and if statement above may throw an exception,
-        // so destroy required resources to avoid memory leak
-        CleanUp();
-        std::rethrow_exception(std::current_exception());
+      bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+
+      // If there are no memory dependencies decouple and free the command.
+      // Though, dismiss ownership of native kernel command group as it's
+      // resources may be in use by backend and synchronization point here is
+      // at native kernel execution finish.
+      if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
+        if (Type == CG::RunOnHostIntel)
+          static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
+
+        NewEvent->setCommand(nullptr);
+        delete NewCmd;
       }
     }
+  } catch (...) {
+    std::vector<StreamImplPtr> StreamsToDeallocate;
+    Command *NewCmd = static_cast<Command *>(NewEvent->getCommand());
+    if (NewCmd) {
+      WriteLockT Lock(MGraphLock, std::defer_lock);
+      MGraphBuilder.cleanupFailedCommand(NewCmd, StreamsToDeallocate,
+                                         ToCleanUp);
+    }
+    deallocateStreams(StreamsToDeallocate);
+    cleanupCommands(ToCleanUp);
+    std::rethrow_exception(std::current_exception());
   }
   cleanupCommands(ToCleanUp);
 
