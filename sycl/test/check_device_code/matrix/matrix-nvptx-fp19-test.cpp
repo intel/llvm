@@ -66,7 +66,7 @@ int main() {
 
           joint_matrix<uint32_t, matrix_use::b, K, N, matrix_layout::row_major>
               sub_b;
- 
+
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.f32.p1f32(float addrspace(1)* %_arg_, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), N);
           //CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.a.row.stride.tf32.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 8) #{{.*}}
