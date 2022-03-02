@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL -fdeclare-opencl-builtins -DNO_HEADER
 // RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL -fdeclare-opencl-builtins -finclude-default-header
-// RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL1.2 -fdeclare-opencl-builtins -DNO_HEADER
-// RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL1.2 -fdeclare-opencl-builtins -finclude-default-header
+// RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL1.2 -fdeclare-opencl-builtins -DNO_HEADER -cl-ext=-cl_intel_subgroups
+// RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL1.2 -fdeclare-opencl-builtins -finclude-default-header -cl-ext=-cl_intel_subgroups
 // RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL2.0 -fdeclare-opencl-builtins -DNO_HEADER
 // RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header
 // RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL3.0 -fdeclare-opencl-builtins -finclude-default-header
@@ -79,6 +79,7 @@ typedef struct {int a;} ndrange_t;
 #define cl_khr_subgroup_non_uniform_arithmetic 1
 #define cl_khr_subgroup_clustered_reduce 1
 #define __opencl_c_read_write_images 1
+#define __opencl_subgroup_builtins 1
 #endif
 
 #if (__OPENCL_CPP_VERSION__ == 100 || __OPENCL_C_VERSION__ == 200)
@@ -162,6 +163,25 @@ void test_atomic_fetch_with_address_space(volatile __generic atomic_float *a_flo
   resd1 = atomic_fetch_add_explicit(a_double_global, d1, memory_order_seq_cst, memory_scope_work_group);
 }
 #endif // !defined(NO_HEADER) && __OPENCL_C_VERSION__ >= 200
+
+#if !defined(NO_HEADER) && __OPENCL_C_VERSION__ == 200 && defined(__opencl_c_generic_address_space)
+
+// Test that overloads that use atomic_double are not available when the fp64
+// extension is disabled.  Test this by counting the number of notes about
+// candidate functions.
+void test_atomic_double_reporting(volatile __generic atomic_int *a) {
+  atomic_init(a);
+  // expected-error@-1{{no matching function for call to 'atomic_init'}}
+#if defined(NO_FP64)
+  // Expecting 5 candidates: int, uint, long, ulong, float
+  // expected-note@-4 5 {{candidate function not viable: requires 2 arguments, but 1 was provided}}
+#else
+  // Expecting 6 candidates: int, uint, long, ulong, float, double
+  // expected-note@-7 6 {{candidate function not viable: requires 2 arguments, but 1 was provided}}
+#endif
+}
+
+#endif
 
 #if defined(NO_ATOMSCOPE) && __OPENCL_C_VERSION__ >= 300
 // Disable the feature by undefining the feature macro.

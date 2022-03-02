@@ -26,6 +26,7 @@ set(files
   __algorithm/generate.h
   __algorithm/generate_n.h
   __algorithm/half_positive.h
+  __algorithm/in_found_result.h
   __algorithm/in_fun_result.h
   __algorithm/in_in_out_result.h
   __algorithm/in_in_result.h
@@ -48,6 +49,7 @@ set(files
   __algorithm/merge.h
   __algorithm/min.h
   __algorithm/min_element.h
+  __algorithm/min_max_result.h
   __algorithm/minmax.h
   __algorithm/minmax_element.h
   __algorithm/mismatch.h
@@ -243,6 +245,7 @@ set(files
   __iterator/iter_swap.h
   __iterator/iterator.h
   __iterator/iterator_traits.h
+  __iterator/mergeable.h
   __iterator/move_iterator.h
   __iterator/next.h
   __iterator/ostream_iterator.h
@@ -254,6 +257,7 @@ set(files
   __iterator/reverse_access.h
   __iterator/reverse_iterator.h
   __iterator/size.h
+  __iterator/sortable.h
   __iterator/unreachable_sentinel.h
   __iterator/wrap_iter.h
   __libcpp_version

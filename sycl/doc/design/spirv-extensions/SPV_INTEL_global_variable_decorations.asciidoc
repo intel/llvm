@@ -207,7 +207,8 @@ Modify Section 3.31, Capability, adding a row to the Capability table:
 
 === Validation Rules
 
-None.
+* It is invalid for two *HostAccessINTEL* decorations in the same module to
+  have the same _Name_ operand.
 
 == Issues
 
