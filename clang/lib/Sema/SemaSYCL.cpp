@@ -561,8 +561,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-                 ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
-                 SYCLIntelNumSimdWorkItemsAttr,
+                 ReqdWorkGroupSizeAttr, WorkGroupSizeHintAttr,
+                 SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
                  SYCLIntelSchedulerTargetFmaxMhzAttr,
                  SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
                  SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
@@ -3925,6 +3925,22 @@ static void PropagateAndDiagnoseDeviceAttr(
     } else {
       SYCLKernel->addAttr(A);
     }
+    break;
+  }
+  case attr::Kind::WorkGroupSizeHint: {
+    auto *WGSH = cast<WorkGroupSizeHintAttr>(A);
+    if (auto *Existing = SYCLKernel->getAttr<WorkGroupSizeHintAttr>()) {
+      if (Existing->getXDimVal() != WGSH->getXDimVal() ||
+          Existing->getYDimVal() != WGSH->getYDimVal() ||
+          Existing->getZDimVal() != WGSH->getZDimVal()) {
+        S.Diag(SYCLKernel->getLocation(),
+               diag::err_conflicting_sycl_kernel_attributes);
+        S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
+        S.Diag(WGSH->getLocation(), diag::note_conflicting_attribute);
+        SYCLKernel->setInvalidDecl();
+      }
+    }
+    SYCLKernel->addAttr(A);
     break;
   }
   case attr::Kind::SYCLIntelMaxWorkGroupSize: {
