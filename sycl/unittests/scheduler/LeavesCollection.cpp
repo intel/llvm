@@ -43,6 +43,7 @@ createEmptyCommand(const std::shared_ptr<queue_impl> &Q,
   EmptyCommand *Cmd = new EmptyCommand(Q);
   Cmd->addRequirement(/* DepCmd = */ nullptr, /* AllocaCmd = */ nullptr, &Req);
   Cmd->MBlockReason = Command::BlockReason::HostAccessor;
+  Cmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
   return std::shared_ptr<Command>{Cmd};
 }
 
