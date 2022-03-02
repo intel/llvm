@@ -292,7 +292,7 @@ behavior requires exact matching. Should this be relaxed to allow alternative
 implementations (e.g. link-time optimization, multi-versioning)?
 +
 --
-RESOLVED: Exact matching is required to ensure that developers can reason about
+*RESOLVED*: Exact matching is required to ensure that developers can reason about
 the portability of their code across different implementations. Setting the
 default sub-group size to "primary" and providing an override flag to select
 "automatic" everywhere means that only advanced developers who are tuning
