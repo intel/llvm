@@ -99,7 +99,7 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
 }
 
 event_impl::event_impl(HostEventState State)
-    :isInited(false), MIsFlushed(true), MState(State) {}
+    :MIsInitialized(false), MIsFlushed(true), MState(State) {}
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
@@ -344,8 +344,8 @@ pi_native_handle event_impl::getNative() const {
     MOpenCLInterop = !MHostEvent;
   }
   auto Plugin = getPlugin();
-  if (!isInited) {
-    isInited = true;
+  if (!MIsInitialized) {
+    MIsInitialized = true;
     auto TempContext = MContext.get()->getHandleRef();
     Plugin.call<PiApiKind::piEventCreate>(TempContext, &MEvent);
   }
