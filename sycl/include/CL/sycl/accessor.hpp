@@ -1023,7 +1023,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.size());
+    preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1054,7 +1054,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.size());
+    preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1084,7 +1084,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.size());
+    preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
@@ -1115,7 +1115,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.size());
+    preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
@@ -1145,7 +1145,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.size());
+    preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1178,7 +1178,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.size());
+    preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1237,7 +1237,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.size());
+    preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
@@ -1269,7 +1269,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.size());
+    preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
@@ -1443,7 +1443,14 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.size());
+    preScreenAccessor(BufferRef.size(), PropertyList);
+    if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
+                                BufferRef.get_range()))
+      throw sycl::invalid_object_error(
+          "accessor with requested offset and range would exceed the bounds of "
+          "the buffer",
+          PI_INVALID_VALUE);
+
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1477,7 +1484,14 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.size());
+    preScreenAccessor(BufferRef.size(), PropertyList);
+    if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
+                                BufferRef.get_range()))
+      throw sycl::invalid_object_error(
+          "accessor with requested offset and range would exceed the bounds of "
+          "the buffer",
+          PI_INVALID_VALUE);
+
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1538,7 +1552,14 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.size());
+    preScreenAccessor(BufferRef.size(), PropertyList);
+    if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
+                                BufferRef.get_range()))
+      throw sycl::invalid_object_error(
+          "accessor with requested offset and range would exceed the bounds of "
+          "the buffer",
+          PI_INVALID_VALUE);
+
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
@@ -1571,7 +1592,14 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.size());
+    preScreenAccessor(BufferRef.size(), PropertyList);
+    if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
+                                BufferRef.get_range()))
+      throw sycl::invalid_object_error(
+          "accessor with requested offset and range would exceed the bounds of "
+          "the buffer",
+          PI_INVALID_VALUE);
+
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
@@ -1761,12 +1789,22 @@ private:
     return getQualifiedPtr();
   }
 
-  void checkDeviceAccessorBufferSize(const size_t elemInBuffer) {
+  void preScreenAccessor(const size_t elemInBuffer,
+                         const PropertyListT &PropertyList) {
+    // check device accessor buffer size
     if (!IsHostBuf && elemInBuffer == 0)
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "SYCL buffer size is zero. To create a device accessor, SYCL "
           "buffer size must be greater than zero.",
           PI_INVALID_VALUE);
+
+    // check that no_init property is compatible with access mode
+    if (PropertyList.template has_property<property::no_init>() &&
+        AccessMode == access::mode::read) {
+      throw sycl::invalid_object_error(
+          "accessor would cannot be both read_only and no_init",
+          PI_INVALID_VALUE);
+    }
   }
 };
 

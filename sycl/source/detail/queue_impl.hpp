@@ -110,7 +110,7 @@ public:
                             "discard_events and enable_profiling.");
     }
     if (!Context->hasDevice(Device))
-      throw cl::sycl::invalid_parameter_error(
+      throw cl::sycl::invalid_object_error(
           "Queue cannot be constructed with the given context and device "
           "as the context does not contain the given device.",
           PI_INVALID_DEVICE);

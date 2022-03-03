@@ -628,11 +628,9 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
   auto BuildF = [&Program, &KernelName, &ContextImpl] {
     PiKernelT *Result = nullptr;
 
-    // TODO need some user-friendly error/exception
-    // instead of currently obscure one
     const detail::plugin &Plugin = ContextImpl->getPlugin();
-    Plugin.call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
-                                           &Result);
+    Plugin.call<errc::kernel_not_supported, PiApiKind::piKernelCreate>(
+        Program, KernelName.c_str(), &Result);
 
     // Some PI Plugins (like OpenCL) require this call to enable USM
     // For others, PI will turn this into a NOP.
