@@ -591,7 +591,9 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *const *op_begin,
         if (isa<DbgInfoIntrinsic>(IP))
           ScanLimit++;
         if (IP->getOpcode() == Instruction::GetElementPtr &&
-            IP->getOperand(0) == V && IP->getOperand(1) == Idx)
+            IP->getOperand(0) == V && IP->getOperand(1) == Idx &&
+            cast<GEPOperator>(&*IP)->getSourceElementType() ==
+                Type::getInt8Ty(Ty->getContext()))
           return &*IP;
         if (IP == BlockBegin) break;
       }
@@ -2469,8 +2471,8 @@ Value *SCEVExpander::expandCodeForPredicate(const SCEVPredicate *Pred,
   switch (Pred->getKind()) {
   case SCEVPredicate::P_Union:
     return expandUnionPredicate(cast<SCEVUnionPredicate>(Pred), IP);
-  case SCEVPredicate::P_Equal:
-    return expandEqualPredicate(cast<SCEVEqualPredicate>(Pred), IP);
+  case SCEVPredicate::P_Compare:
+    return expandComparePredicate(cast<SCEVComparePredicate>(Pred), IP);
   case SCEVPredicate::P_Wrap: {
     auto *AddRecPred = cast<SCEVWrapPredicate>(Pred);
     return expandWrapPredicate(AddRecPred, IP);
@@ -2479,15 +2481,16 @@ Value *SCEVExpander::expandCodeForPredicate(const SCEVPredicate *Pred,
   llvm_unreachable("Unknown SCEV predicate type");
 }
 
-Value *SCEVExpander::expandEqualPredicate(const SCEVEqualPredicate *Pred,
-                                          Instruction *IP) {
+Value *SCEVExpander::expandComparePredicate(const SCEVComparePredicate *Pred,
+                                            Instruction *IP) {
   Value *Expr0 =
       expandCodeForImpl(Pred->getLHS(), Pred->getLHS()->getType(), IP, false);
   Value *Expr1 =
       expandCodeForImpl(Pred->getRHS(), Pred->getRHS()->getType(), IP, false);
 
   Builder.SetInsertPoint(IP);
-  auto *I = Builder.CreateICmpNE(Expr0, Expr1, "ident.check");
+  auto InvPred = ICmpInst::getInversePredicate(Pred->getPredicate());
+  auto *I = Builder.CreateICmp(InvPred, Expr0, Expr1, "ident.check");
   return I;
 }
 
@@ -2496,7 +2499,8 @@ Value *SCEVExpander::generateOverflowCheck(const SCEVAddRecExpr *AR,
   assert(AR->isAffine() && "Cannot generate RT check for "
                            "non-affine expression");
 
-  SCEVUnionPredicate Pred;
+  // FIXME: It is highly suspicious that we're ignoring the predicates here.
+  SmallVector<const SCEVPredicate *, 4> Pred;
   const SCEV *ExitCount =
       SE.getPredicatedBackedgeTakenCount(AR->getLoop(), Pred);
 
@@ -2710,10 +2714,10 @@ namespace {
 struct SCEVFindUnsafe {
   ScalarEvolution &SE;
   bool CanonicalMode;
-  bool IsUnsafe;
+  bool IsUnsafe = false;
 
   SCEVFindUnsafe(ScalarEvolution &SE, bool CanonicalMode)
-      : SE(SE), CanonicalMode(CanonicalMode), IsUnsafe(false) {}
+      : SE(SE), CanonicalMode(CanonicalMode) {}
 
   bool follow(const SCEV *S) {
     if (const SCEVUDivExpr *D = dyn_cast<SCEVUDivExpr>(S)) {

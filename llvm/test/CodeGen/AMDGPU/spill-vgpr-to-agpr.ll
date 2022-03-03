@@ -1,6 +1,9 @@
 ; RUN: llc -march=amdgcn -mcpu=gfx908 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX908 %s
 ; RUN: not llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s 2>&1 | FileCheck -check-prefixes=GCN,GFX900 %s
 
+; GFX900:     couldn't allocate input reg for constraint 'a'
+
+
 ; GCN-LABEL: {{^}}max_10_vgprs:
 ; GFX900-DAG: s_mov_b32 s{{[0-9]+}}, SCRATCH_RSRC_DWORD0
 ; GFX900-DAG: s_mov_b32 s{{[0-9]+}}, SCRATCH_RSRC_DWORD1
@@ -64,8 +67,6 @@ define amdgpu_kernel void @max_10_vgprs(i32 addrspace(1)* %p) #0 {
 ; GFX908:     v_mov_b32_e32 v{{[0-9]}}, [[V_REG:v[0-9]+]]
 ; GFX908:     v_accvgpr_read_b32 [[V_REG]], [[A_REG]]
 ; GFX908-NOT: buffer_
-
-; GFX900:     couldn't allocate input reg for constraint 'a'
 
 ; GFX908: NumVgprs: 10
 ; GFX908: ScratchSize: 0
@@ -193,11 +194,13 @@ define amdgpu_kernel void @max_10_vgprs_spill_v32(<32 x float> addrspace(1)* %p)
 ; GFX908-NOT: buffer_
 ; GFX908-DAG: v_accvgpr_read_b32
 
-; GCN:    NumVgprs: 256
+; GFX900: NumVgprs: 256
 ; GFX900: ScratchSize: 148
+; GFX908: NumVgprs: 255
 ; GFX908: ScratchSize: 0
 ; GCN:    VGPRBlocks: 63
-; GCN:    NumVGPRsForWavesPerEU: 256
+; GFX900:    NumVGPRsForWavesPerEU: 256
+; GFX908:    NumVGPRsForWavesPerEU: 255
 define amdgpu_kernel void @max_256_vgprs_spill_9x32(<32 x float> addrspace(1)* %p) #1 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %p1 = getelementptr inbounds <32 x float>, <32 x float> addrspace(1)* %p, i32 %tid
@@ -241,11 +244,13 @@ define amdgpu_kernel void @max_256_vgprs_spill_9x32(<32 x float> addrspace(1)* %
 ; GFX908-NOT: buffer_
 ; GFX908-DAG: v_accvgpr_read_b32
 
-; GCN:    NumVgprs: 256
+; GFX900:    NumVgprs: 256
+; GFX908:    NumVgprs: 253
 ; GFX900: ScratchSize: 2052
 ; GFX908: ScratchSize: 0
 ; GCN:    VGPRBlocks: 63
-; GCN:    NumVGPRsForWavesPerEU: 256
+; GFX900:    NumVGPRsForWavesPerEU: 256
+; GFX908:    NumVGPRsForWavesPerEU: 253
 define amdgpu_kernel void @max_256_vgprs_spill_9x32_2bb(<32 x float> addrspace(1)* %p) #1 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %p1 = getelementptr inbounds <32 x float>, <32 x float> addrspace(1)* %p, i32 %tid

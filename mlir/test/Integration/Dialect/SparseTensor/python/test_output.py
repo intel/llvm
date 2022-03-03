@@ -3,18 +3,19 @@
 
 import ctypes
 import os
+import sys
 import tempfile
-
-import mlir.all_passes_registration
 
 from mlir import execution_engine
 from mlir import ir
-from mlir import passmanager
 from mlir import runtime as rt
 
 from mlir.dialects import builtin
 from mlir.dialects import sparse_tensor as st
 
+_SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(_SCRIPT_PATH)
+from tools import sparse_compiler
 
 # TODO: move more into actual IR building.
 def boilerplate(attr: st.EncodingAttr):
@@ -68,30 +69,6 @@ def build_compile_and_run_output(attr: st.EncodingAttr, support_lib: str,
       quit('FAILURE')
 
 
-class SparseCompiler:
-  """Sparse compiler passes."""
-
-  def __init__(self):
-    pipeline = (
-        f'builtin.func(linalg-generalize-named-ops,linalg-fuse-elementwise-ops),'
-        f'sparsification,'
-        f'sparse-tensor-conversion,'
-        f'builtin.func(linalg-bufferize,convert-linalg-to-loops,convert-vector-to-scf),'
-        f'convert-scf-to-std,'
-        f'func-bufferize,'
-        f'tensor-constant-bufferize,'
-        f'builtin.func(tensor-bufferize,std-bufferize,finalizing-bufferize),'
-        f'convert-vector-to-llvm{{reassociate-fp-reductions=1 enable-index-optimizations=1}},'
-        f'lower-affine,'
-        f'convert-memref-to-llvm,'
-        f'convert-std-to-llvm,'
-        f'reconcile-unrealized-casts')
-    self.pipeline = pipeline
-
-  def __call__(self, module: ir.Module):
-    passmanager.PassManager.parse(self.pipeline).run(module)
-
-
 def main():
   support_lib = os.getenv('SUPPORT_LIB')
   assert support_lib is not None, 'SUPPORT_LIB is undefined'
@@ -115,7 +92,7 @@ def main():
       for ordering in orderings:
         for bwidth in bitwidths:
           attr = st.EncodingAttr.get(level, ordering, bwidth, bwidth)
-          compiler = SparseCompiler()
+          compiler = sparse_compiler.SparseCompiler(options='')
           build_compile_and_run_output(attr, support_lib, compiler)
           count = count + 1
 

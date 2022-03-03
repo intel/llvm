@@ -130,17 +130,16 @@ struct no_alias {
 };
 } // namespace property
 
-// device_global type decorated with attributes
 template <typename T>
-class [[__sycl_detail__::device_global]]
-[[__sycl_detail__::global_variable_allowed]] device_global {
-public :
-  const T & get() const noexcept { return *Data; }
+class [[__sycl_detail__::device_global]] device_global {
+public:
+  const T &get() const noexcept { return *Data; }
   device_global() {}
-  operator T&() noexcept { return *Data; }
+
 private:
   T *Data;
 };
+
 } // namespace oneapi
 } // namespace ext
 

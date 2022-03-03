@@ -1,0 +1,1160 @@
+= sycl_ext_oneapi_device_global
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+:dpcpp: DPC++
+
+== Introduction
+In OpenCL 2.0 and later, a user is able to allocate program
+scope memory which can be accessed like a {cpp} global variable by any kernel in
+an OpenCL program (`cl_program`). When a program is shared between multiple devices,
+each device receives its own unique instance of the program scope memory allocation.
+
+This extension introduces device scoped memory allocations into SYCL that can be accessed
+within a kernel using syntax similar to {cpp} global variables, but that have unique
+instances per `sycl::device`. Mechanisms are provided for the host program to enqueue
+copies to or from the allocations on a specific device.  Restrictions are
+placed on the types of data that can be stored within `device_global` allocations, particularly
+around copyability and constructors/destructors.
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+== Version
+
+Built On: 2021-09-30 +
+Revision: 3
+
+== Contact
+
+Artem Radzikhovskyy, Intel (artem 'dot' radzikhovskyy 'at' intel 'dot' com)
+
+== Contributors
+
+Artem Radzikhovskyy, Intel +
+Michael Kinsner, Intel +
+Jessica Davies, Intel +
+Joe Garvey, Intel +
+Mohammad Fawaz, Intel +
+Tommy Hoffner, Intel +
+John Pennycook, Intel +
+Greg Lueck, Intel +
+Roland Schulz, Intel
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, revision 3.
+
+It also depends on the `SYCL_EXT_ONEAPI_PROPERTY_LIST` extension.
+
+== Overview
+
+[NOTE]
+====
+In this document, we use `device_global` to indicate the proposed `sycl::ext::oneapi::experimental::device_global`.
+====
+
+The purpose of this document is to clearly describe and specify `device_global` and related
+concepts, types, and mechanisms, and to give examples and context for their usage.
+
+=== Motivation
+
+Device scope memory allocations can provide an efficient mechanism for communication
+between multiple invocations of a kernel, or between kernels executing on a device.
+There are additional benefits and optimization opportunities when a device compiler
+has visibility into the allocation size (static sizing) and uses of the allocation.
+
+Syntax allowing direct use of an allocation (without passing pointers or parameters
+through function call boundaries) can also lead to syntax simplification in some
+important use cases.
+
+=== Examples
+
+Two example `device_global` variables can be declared at namespace scope, as follows:
+
+[source,c++]
+----
+struct MyClass {
+  bool flag;
+};
+
+using namespace sycl::ext::oneapi::experimental;
+
+device_global<MyClass> dm1;
+static device_global<int[4]> dm2;
+----
+
+`dm1` creates an allocation on each `sycl::device` that contains an object of type `MyClass`.
+`dm2` has internal linkage (due to `static`), and creates allocations containing an array
+of four `int` per device.
+
+Uses of `dm1` and `dm2` in device functions are syntactically similar to uses of global variables
+in {cpp} (access directly through the namespace scope identifier), and `device_global` has
+reference wrapper-like semantics on a device.  Of note, because {cpp} doesn't allow for
+overloading of the "dot operator", a `get()` member of `device_global` allows a reference
+to be extracted, to which the usual dot operator may be applied as in:
+
+[source,c++]
+----
+sycl::queue Q;
+Q.submit([&](sycl::handler& h) {
+  h.single_task([=] {
+    int x = 5;
+    if (dm1.get().flag)
+      x = dm2[0];
+  });
+});
+----
+
+For both `dm1` and `dm2`, the `MyClass` and `int[4]` allocations on each device are zero-initialized before any non-initialization accesses occur.
+
+== Proposal
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification, Section 6.3.3 "Feature test macros". Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_DEVICE_GLOBAL` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features
+that the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version
+|===
+
+=== Representation of device globals
+
+`device_global` provides a mechanism to allocate device scope memory - memory which has unique underlying storage (of type _T_) for each `sycl::device` object. If multiple device objects are present then each device object receives its own unique underlying allocation. All kernels that reference the same `device_global` entity (either directly or via a pointer to its underlying object of type _T_) share the same allocation of that object when those kernels run on the same device.
+
+`device_global` allocations are in the global address space, as are any underlying allocations of type `T` which are implicitly allocated on each device as a result of a `device_global` object. It is undefined behavior if the host program directly accesses a `device_global` or any address obtained from a `device_global` member function, and similarly it is undefined behavior if a `device_global` or address obtained on one device from a `device_global` member function is accessed on a different device.  There is no mechanism to obtain addresses of or directly access a device's `device_global` allocation within the host program.
+
+A `device_global` on a given device maintains its state (address of the allocation and data within the allocation) even after the application changes the value of a specialization constant via `handler::set_specialization_constant()`.  Additionally, a `device_global` maintains its state even when it is referenced from a kernel in a different `kernel_bundle`.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+template <typename T, typename PropertyListT = property_list<>>
+class device_global {
+  ...
+----
+
+`device_global` is a class template, parameterized by the type of the underlying allocation _T_, and a list of properties _PropertyListT_. The type of the allocation _T_ also encodes the size of the allocation for potentially multidimensional array types.
+
+_T_ is restricted to types that have a trivial destructor and a trivial default constructor in this revision of the specification (the constructor restriction may be partially relaxed in a future revision). _PropertyListT_ enables properties to be associated with a `device_global`.
+
+Since _T_ is restricted to types with trivial default constructors in this version of the specification, there are no non-default `device_global` constructors, and therefore no initialization values may be specified for the content of a `device_global` allocation on a device.
+
+The allocation of type _T_ for a given `device_global` is zero-initialized on a given device prior to the first access to that `device_global` on that device. For the purposes of this definition an access can be a direct access of the `device_global` in kernel code or a copy to or from that `device_global` enqueued to the given device.
+
+Properties may be specified for a `device_global` to provide semantic
+modification or optimization hint information to the compiler.  See the section
+below for a list of the properties that are allowed.
+
+[NOTE]
+====
+
+On a device, `device_global` has similar semantics to a reference wrapper.  The dot operator (`operator.`) cannot be overloaded, so a `get()` member is provided to allow a reference to be extracted directly when needed.  Some operators are declared in `device_global` that must be members (e.g. `operator[]` and `+operator->+`).  Note that other operators can be overloaded by specific `T` as free functions, which will be selected through implicit conversion to `T` in device functions.
+
+====
+
+
+The section below and the table following describe the constructors, member functions and factory methods for `device_global`.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T, typename PropertyListT = property_list<>>
+class device_global {
+  using subscript_return_t =
+    std::remove_reference_t<decltype(std::declval<T>()[std::ptrdiff_t{}])>;
+
+public:
+  using element_type = std::remove_extent_t<T>; 
+  
+  static_assert(std::is_trivially_default_constructible_v<T>,
+                "Type T must be trivially default constructable (until C++20 "
+                "consteval is supported and enabled)");
+
+  static_assert(std::is_trivially_destructible_v<T>,
+      "Type T must be trivially destructible.");
+
+  // Only default construction is allowed.  The underlying memory allocations
+  // of type T on devices will be zero-initialized before any non-initialization
+  // accesses occur.
+  device_global();
+
+  device_global(const device_global &) = delete;
+  device_global(const device_global &&) = delete;
+  device_global &operator=(const device_global &) = delete;
+  device_global &operator=(const device_global &&) = delete;
+
+  template <access::decorated IsDecorated>
+  multi_ptr<T, access::address_space::global_space, IsDecorated>
+    get_multi_ptr() noexcept;
+
+  template <access::decorated IsDecorated>
+  multi_ptr<const T, access::address_space::global_space, IsDecorated>
+    get_multi_ptr() const noexcept;
+
+  // Access the underlying data
+  operator T&() noexcept;
+  operator const T&() const noexcept;
+ 
+  T& get() noexcept;
+  const T& get() const noexcept;
+
+  // Enable assignments from underlying type
+  device_global& operator=(const T&) noexcept;
+
+  // Available if the operator[] is valid for objects of type T
+  subscript_return_t& operator[]( std::ptrdiff_t idx ) noexcept;
+  const subscript_return_t& operator[]( std::ptrdiff_t idx ) const noexcept;
+
+  // Available if the operator-> is valid for objects of type T
+  T& operator->() noexcept;
+  const T& operator->() const noexcept;
+
+  // Note that there is no need for "device_global" to define member functions for
+  // operators like "++", comparison, etc.  Instead, the type "T" need only define
+  // these operators as non-member functions.  Because there is an implicit conversion
+  // from "device_global" to "T&", the operations can be applied to objects of type
+  // "device_global<T>".
+
+  template<typename propertyT>
+  static constexpr bool has_property();
+
+  // The return type is an unspecified internal class used to represent 
+  // instances of propertyT
+  template<typename propertyT>
+  static constexpr /*unspecified*/ get_property();
+};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+[frame="topbot",options="header"]
+|===
+|Functions |Description
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+device_global();
+----
+|
+Constructs a `device_global` object, and implicit storage for `T` in the global address space on each device that may access it.
+
+The storage on each device for `T` is zero-initialized.
+
+`T` must be trivially default constructable and trivially destructible.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <access::decorated IsDecorated>
+multi_ptr<T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() noexcept;
+
+template <access::decorated IsDecorated>
+multi_ptr<T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() const noexcept;
+
+----
+|
+Available only in device functions.
+
+Returns a `multi_ptr` to the underlying `T` on the device. It is undefined behavior to dereference the returned pointer or any address derived from the pointer on a different device or on the host.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+operator T&() noexcept;
+operator const T&() const noexcept;
+----
+|
+Available only in device functions.
+
+Implicit conversion to a reference to the underlying `T` on the device. It is undefined behavior to access the reference or any address derived from it on a different device or on the host.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T& get() noexcept;
+const T& get() const noexcept;
+----
+|
+Available only in device functions.
+
+Returns a reference to the underlying `T` on the device. It is undefined behavior to access the reference or any address derived from it on a different device or on the host.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+device_global& operator=(const T&) noexcept;
+----
+|
+Available only in device functions.
+
+Enables assignment of type `T` to the underlying allocation on the device.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+element_type& operator[]( std::ptrdiff_t idx ) noexcept;
+const element_type& operator[]( std::ptrdiff_t idx ) const noexcept;
+----
+|
+Available only in device functions.
+
+Available only when the underlying `T` defines an `operator[]`.
+
+Indexes into the underlying `T`. It is undefined behavior if _idx_ is negative.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T& operator->() noexcept;
+const T& operator->() const noexcept;
+----
+|
+Available only in device functions.
+
+Available only when `+operator->+` is valid for objects of type `T`.
+
+Provides member access through `T` that is a pointer or a class which defines `+operator->+`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template<typename propertyT>
+static constexpr bool has_property();
+----
+| Returns true if the `PropertyListT` contains the property specified by `propertyT`. Returns false if it does not.
+Available only if `sycl::is_property_of_v<propertyT, sycl::ext::oneapi::experimental::device_global>` is true.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template<typename propertyT>
+static constexpr auto get_property();
+----
+| Returns an object of the class used to represent the value of property `propertyT`.
+Must produce a compiler diagnostic if `PropertyListT` does not contain a `propertyT` property.
+Available only if `sycl::is_property_of_v<propertyT, sycl::ext::oneapi::experimental::device_global>` is true.
+
+|===
+
+=== Restrictions on creating device global objects
+
+There are restrictions on how the application can create objects of type
+`device_global`.  Applications that violate these restrictions are ill-formed.
+
+* The application may declare a variable of type `device_global` in the
+  following ways:
++
+--
+** As a variable at namespace scope, or
+** As a static member variable, but only if the member variable is publicly
+    accessible from namespace scope.
+--
++
+The application must not create an object of type `device_global` in any other
+way.  (E.g. variables with automatic storage duration or objects created via
+`new` are not allowed.)
+
+* The `device_global` variable must not itself be an array.  The underlying
+  type _T_ may be an array type, but the `device_global` variable itself must
+  not be an array.
+
+* The `device_global` variable must not be shadowed by another identifier _X_
+  which has the same name and is declared in an inline namespace, such that the
+  `device_global` variable is no longer accessible after the declaration of
+  _X_.
+
+* If the `device_global` variable is declared in a namespace, none of the
+  enclosing namespace names _N_ may be shadowed by another identifier _X_ which
+  has the same name as _N_ and is declared in an inline namespace, such that
+  _N_ is no longer accessible after the declaration of _X_.
+
+[NOTE]
+====
+The expectation is that some implementations may conceptually insert code at
+the end of a translation unit which references each `device_global` variable
+that is declared in that translation unit.  The restrictions listed above make
+this possible by ensuring that these variables are accessible at the end of the
+translation unit.
+====
+
+The following example illustrates some of these restrictions:
+
+[source, c++]
+----
+#include <sycl/sycl.hpp>
+using namespace sycl::ext::oneapi::experimental;
+
+device_global<int> a;           // OK
+static device_global<int> b;    // OK
+inline device_global<int> c;    // OK
+
+struct Foo {
+  static device_global<int> d;  // OK
+};
+device_global<int> Foo::d;
+
+struct Bar {
+  device_global<int> e;         // ILLEGAL: non-static member variable not
+};                              // allowed
+
+struct Baz {
+ private:
+  static device_global<int> f;  // ILLEGAL: not publicly accessible from
+};                              // namespace scope
+device_global<int> Baz::f;
+
+device_global<int[4]> g;        // OK
+device_global<int> h[4];        // ILLEGAL: array of "device_global" not
+                                // allowed
+
+device_global<int> same_name;   // OK
+namespace foo {
+  device_global<int> same_name; // OK
+}
+namespace {
+  device_global<int> same_name; // OK
+}
+inline namespace other {
+  device_global<int> same_name; // ILLEGAL: shadows "device_global" variable
+}                               // with same name in enclosing namespace scope
+inline namespace {
+  namespace foo {               // ILLEGAL: namespace name shadows "::foo"
+  }                             // namespace which contains "device_global"
+                                // variable.
+}
+----
+
+=== Properties for device global variables
+
+The `device_global` class supports several compile-time-constant properties.
+If specified, these properties are included in the `PropertyListT` template
+parameter as shown in this example:
+
+[source,c++]
+----
+using namespace sycl::ext::oneapi::experimental;
+
+device_global<MyClass, property_list_t<device_image_scope::value_t>> dm1;
+device_global<int[4], property_list_t<host_access::value_t<host_access::access::read>> dm2;
+----
+
+The following code synopsis shows the set of supported properties, and the
+following table describes their effect.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct device_image_scope {
+  using value_t = property_value<device_image_scope>;
+};
+
+struct host_access {
+  enum class access: /*unspecified*/ {
+    read,
+    write,
+    read_write,
+    none
+  };
+  template<access A>
+  using value_t = property_value<host_access, std::integral_constant<access, A>>;
+
+struct init_mode {
+  enum class trigger: /*unspecified*/ {
+    reprogram,
+    reset
+  };
+  template<trigger T>
+  using value_t = property_value<init_mode, std::integral_constant<trigger, T>>;
+};
+
+struct implement_in_csr {
+  template <bool Enable>
+  using value_t = property_value<implement_in_csr, std::bool_constant<Enable>>;
+};
+
+
+inline constexpr device_image_scope::value_t device_image_scope_v;
+
+template<host_access::access A>
+inline constexpr host_access::value_t<A> host_access_v;
+
+template<init_mode::trigger T>
+inline constexpr init_mode::value_t<T> init_mode_v;
+
+template<bool Enable>
+inline constexpr implement_in_csr::value_t<Enable> implement_in_csr_v;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+[frame="topbot",options="header"]
+|===
+|Property |Description
+
+a|
+[source,c++]
+----
+device_image_scope
+----
+a|
+This property is most useful for kernels that are submitted to an FPGA device,
+but it may be used with any kernel.  Normally, a single instance of a device
+global variable is allocated for each device, and that instance is shared by
+all kernels that are submitted to the device, regardless of which _device
+image_ contains the kernel.  When this property is specified, it is an
+assertion by the user that the device global is referenced only from kernels
+that are contained by the same _device image_.  An implementation may be able
+to optimize accesses to the device global when this property is specified
+(especially on an FPGA device), but the user must be aware of which _device
+image_ contains the kernels that use the variable.
+
+A device global that is decorated with this property may not be accessed from
+kernels that reside in different _device images_, either by direct reference
+to the variable or indirectly by passing the variable's address to another
+kernel.  The implementation is required to diagnose an error if the kernels
+that directly access a variable do not all reside in the same _device image_,
+however no diagnostic is required for an indirect access from another _device
+image_.
+
+When a device global is decorated with this property, the implementation
+re-initializes it whenever the _device image_ is loaded onto the device.  As a
+result, the application can only be guaranteed that a device global retains its
+value between kernel invocations if it understands when the _device image_ is
+loaded onto the device.  For an FPGA, this happens whenever the device is
+reprogrammed.  Other devices typically load the _device image_ once before the
+first invocation of any kernel in that _device image_, and then it remains
+loaded onto the device until the program terminates.
+
+The application may copy to or from a device global even before any kernel in
+the _device image_ is submitted to the device.  Doing so causes the device
+global to be initialized immediately before the copy happens.  (Typically, the
+copy operation causes the _device image_ to be loaded onto the device also.)
+As a result, copying from a device global returns the initial value if the
+_device image_ that contains the variable is not currently loaded onto the
+device.
+
+a|
+[source,c++]
+----
+host_access
+----
+a|
+This property provides an assertion by the user telling the implementation
+whether the host code copies to or from the device global.  As a result, the
+implementation may be able to perform certain optimizations.  Although this
+property may be used with any device, it is generally only beneficial when used
+on FPGA devices.
+
+The following values are supported:
+
+* `read`: The user asserts that the host code may copy from (read) the
+  variable, but it will never copy to (write) it.  For an FPGA device, only a
+  read port is exposed.
+* `write`: The user asserts that the host code may copy to (write) the
+  variable, but it never copy from (read) it.  For an FPGA device, only a write
+  port is exposed.
+* `none`: The user asserts that the host code will never copy to or copy
+  from the variable.  For an FPGA device, no external ports are exposed.
+* `read_write`: The user provides no assertions, and the host code may either
+  copy to or copy from the variable.  This is the default.  For an FPGA device,
+  a read/write port is exposed.
+
+a|
+[source,c++]
+----
+init_mode
+----
+a|
+This property is only meaningful when used with an FPGA device.  It is ignored
+for other devices.  The following values are supported:
+
+* `reprogram`: Initialization is performed by reprogramming the device.  This
+  may require more frequent reprogramming but may reduce area.
+* `reset`: Initialization is performed by sending a reset signal to the device.
+  This may increase area but may reduce reprogramming frequency.
+
+If the `init_mode` property is not specified, the default behavior is
+equivalent to one of the values listed above, but the choice is implementation
+defined.
+
+a|
+[source,c++]
+----
+implement_in_csr
+----
+a|
+This property is only meaningful when used with an FPGA device.  It is ignored
+for other devices.  The following values are supported:
+
+* `true`: Access to this memory is done through a CSR interface shared with
+  kernel arguments.
+* `false`: Access to this memory is done through a dedicated interface.
+
+If the `implement_in_csr` property is not specified, the default behavior is
+equivalent to one of the values listed above, but the choice is implementation
+defined.
+
+|===
+
+[NOTE]
+====
+As stated above, the user must understand which _device image_ contains a
+kernel in order to use the `device_image_scope` property.  Each implementation
+may have its own rules that determine when two kernels are bundled together
+into the same _device image_.  For {dpcpp} two kernels _K1_ and _K2_ will be
+bundled into the same _device image_ when both of the following conditions are
+satisfied:
+
+* The translation unit containing _K1_ and the translation unit containing _K2_
+  must both be compiled with `-fsycl-targets=X
+  -fsycl-assume-all-kernels-run-on-targets` where the target `X` is the same in
+  both compilations.  (A list of targets may also be specified such as
+  `-fsycl-targets=X,Y`.  In this case the list must be the same in both
+  compilations.)
+
+* The application must be linked with `-fsycl-device-code-split` such that the
+  kernels _K1_ and _K2_ are not split into different _device images_.  For
+  example, if _K1_ and _K2_ reside in the same translation unit,
+  `-fsycl-device-code-split=per_source` will guarantee that they are bundled
+  together in the same _device image_.  If they reside in different translation
+  units, `-fsycl-device-code-split=none` will guarantee that they reside in the
+  same _device image_.
+
+In addition, the following factors also affect how kernels are bundled into
+_device images_:
+
+* Kernels that are online-compiled using `sycl::kernel_bundle` may reside in
+  different _device images_ if they are compiled from different `kernel_bundle`
+  objects.
+
+* A kernel that uses specialization constants may have a new instance in a new
+  _device image_ each time the application sets a new value for the
+  specialization constant.  However, this happens only if the device supports
+  native specialization constants, which is not the case for FPGA devices.
+====
+
+=== Relax language restrictions for SYCL device functions
+
+SYCL 2020 restrictions must be relaxed to allow `device_global` to be used within
+device functions without being `const` or `constexpr` and without being zero-initialized
+or constant-initialized.  This is achieved by adding `device_global` exceptions to the
+following point in Section 5.4 "Language restrictions for device functions".  The modified restriction is:
+
+* Variables with static storage duration that are odr-used inside a device function, must be
+`const` or `constexpr` and zero-initialized or constant-initialized, except if the variable is
+of type `device_global` in which case it can be odr-used inside a device function without being
+`const`/`constexpr` or zero-/constant-initialized.
+** Amongst other things, this restriction makes it illegal for a device function to access a
+global variable that isn't `const` or `constexpr` unless the variable is of type `device_global`.
+
+
+=== Referencing a device global defined in another translation unit
+
+This extension broadens the use of the `SYCL_EXTERNAL` macro to apply also to
+device global variables.  If the implementation defines the `SYCL_EXTERNAL`
+macro, device code in one translation unit may reference a device global
+variable that is defined in a different translation unit so long as the
+declaration of the variable in both translation units uses `SYCL_EXTERNAL`.
+For example:
+
+```c++
+// In one translation unit
+#include <sycl/sycl.hpp>
+using namespace sycl::ext::oneapi::experimental;
+
+SYCL_EXTERNAL device_global<int> Foo;  // definition (also a declaration)
+
+// In another translation unit
+#include <sycl/sycl.hpp>
+using namespace sycl::ext::oneapi::experimental;
+using namespace sycl;
+
+SYCL_EXTERNAL extern device_global<int> Foo;  // declaration
+
+void bar(queue q) {
+  q.single_task([=] {
+    Foo = 42;
+  });
+}
+```
+
+=== Add new copy and memcpy members to the queue class
+
+Add the following functions to the `sycl::queue` interface described in Section 4.6.5.1 of
+the SYCL 2020 specification.
+
+[NOTE]
+====
+A pointer to the allocation within a `device_global` may not be obtained by the host program (can only be extracted in device functions because allocations are per device), so pointer arithmetic can therefore not be used in the host program to define `copy`/`memcpy` offsets into data.  `startIndex` and `offset` arguments are provided in these interfaces to allow offsetting without pointer arithmetic.
+====
+
+```c++
+namespace sycl {
+class queue {
+public:
+  // Copy to device_global
+  template <typename T, typename PropertyListT>
+  event copy(const std::remove_all_extents_t<T> *src,
+    device_global<T, PropertyListT>& dest,
+    size_t count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
+    size_t startIndex = 0);
+  
+  template <typename T, typename PropertyListT>
+  event copy(const std::remove_all_extents_t<T> *src,
+    device_global<T, PropertyListT>& dest,
+    size_t count, size_t startIndex, event depEvent);
+  
+  template <typename T, typename PropertyListT>
+  event copy(const std::remove_all_extents_t<T> *src,
+    device_global<T, PropertyListT>& dest,
+    size_t count, size_t startIndex,
+    const std::vector<event> &depEvents);
+
+  // Copy from device_global
+  template <typename T, typename PropertyListT>
+  event copy(const device_global<T, PropertyListT>& src,
+    std::remove_all_extents_t<T> *dest,
+    size_t count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
+    size_t startIndex = 0);
+
+  template <typename T, typename PropertyListT>
+  event copy(const device_global<T, PropertyListT>& src,
+    std::remove_all_extents_t<T> *dest,
+    size_t count, size_t startIndex, event depEvent);
+  
+  template <typename T, typename PropertyListT>
+  event copy(const device_global<T, PropertyListT>& src,
+    std::remove_all_extents_t<T> *dest,
+    size_t count,size_t startIndex, const std::vector<event> &depEvents);
+
+  // memcpy to device_global
+  template <typename T, typename PropertyListT>
+  event memcpy(device_global<T, PropertyListT>& dest, 
+    const void *src, size_t numBytes = sizeof(T), size_t offset = 0);
+  
+  template <typename T, typename PropertyListT>
+  event memcpy(device_global<T, PropertyListT>& dest,
+    const void *src, size_t numBytes,
+    size_t offset, event depEvent);
+  
+  template <typename T, typename PropertyListT>
+  event memcpy(device_global<T, PropertyListT>& dest,
+    const void *src, size_t numBytes,
+    size_t offset, const std::vector<event> &depEvents);
+
+  // memcpy from device_global
+  template <typename T, typename PropertyListT>
+  event memcpy(void *dest,
+    const device_global<T, PropertyListT>& src,
+    size_t numBytes = sizeof(T), size_t offset = 0);
+
+  template <typename T, typename PropertyListT>
+  event memcpy(void *dest, 
+    const device_global<T, PropertyListT>& src, size_t numBytes,
+    size_t offset, event depEvent);
+  
+  template <typename T, typename PropertyListT>
+  event memcpy(void *dest,
+    const device_global<T, PropertyListT>& src, size_t numBytes,
+    size_t offset, const std::vector<event> &depEvents);
+};
+} // namespace sycl
+```
+
+
+Add the following function descriptions to the `sycl::queue` interface description table
+in Section 4.6.5.1 of the SYCL 2020 specification.
+
+--
+[options="header"]
+|====
+| Function Definition | Function type
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+event copy(const std::remove_all_extents_t<T> *src,
+  device_global<T, PropertyListT>& dest,
+  size_t count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
+  size_t startIndex = 0);
+----
+| Explicit copy
+  
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+event copy(const std::remove_all_extents_t<T> *src,
+  device_global<T, PropertyListT>& dest,
+  size_t count, size_t startIndex, event depEvent);
+----
+| Explicit copy
+  
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+event copy(const std::remove_all_extents_t<T> *src,
+  device_global<T, PropertyListT>& dest,
+  size_t count, size_t startIndex, const std::vector<event> &depEvents);
+----
+| Explicit copy
+
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+event copy(const device_global<T, PropertyListT>& src,
+  std::remove_all_extents_t<T> *dest,
+  size_t count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
+  size_t startIndex = 0);
+----
+| Explicit copy
+
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+event copy(const device_global<T, PropertyListT>& src,
+  std::remove_all_extents_t<T> *dest,
+  size_t count, size_t startIndex, event depEvent);
+----
+| Explicit copy
+  
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+event copy(const device_global<T, PropertyListT>& src,
+  std::remove_all_extents_t<T> *dest,
+  size_t count, size_t startIndex, const std::vector<event> &depEvents);
+----
+| Explicit copy
+
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+event memcpy(device_global<T, PropertyListT>& dest,
+  const void *src, size_t numBytes = sizeof(T), size_t offset = 0);
+----
+| Explicit copy
+  
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+event memcpy(device_global<T, PropertyListT>& dest,
+  const void *src, size_t numBytes,
+  size_t offset, event depEvent);
+----
+| Explicit copy
+  
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+event memcpy(device_global<T, PropertyListT>& dest,
+  const void *src, size_t numBytes,
+  size_t offset, const std::vector<event> &depEvents);
+----
+| Explicit copy
+
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+event memcpy(void *dest,
+  const device_global<T, PropertyListT>& src,
+  size_t numBytes = sizeof(T), size_t offset = 0);
+----
+| Explicit copy
+
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+event memcpy(void *dest,
+  const device_global<T, PropertyListT>& src, size_t numBytes,
+  size_t offset, event depEvent);
+----
+| Explicit copy
+  
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+event memcpy(void *dest,
+  const device_global<T, PropertyListT>& src, size_t numBytes,
+  size_t offset, const std::vector<event> &depEvents);
+----
+| Explicit copy
+|====
+--
+
+
+=== Add new copy and memcpy members to the handler class
+
+Add the following functions to the `sycl::handler` interface described in Section 4.9.4.3 of
+the SYCL 2020 specification.
+
+Add to Table 130, "Member functions of the handler class".
+
+--
+[options="header"]
+|====
+| Member Function | Description
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+void copy(const std::remove_all_extents_t<T> *src,
+  device_global<T, PropertyListT>& dest,
+  size_t count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
+  size_t startIndex = 0);
+----
+| `T` must be device copyable.
+
+Not available if `PropertyListT` contains the `host_access` property with
+`read` or `none` assertions.
+
+Copies _count_ elements of type `std::remove_all_extents_t<T>` from the pointer _src_ to the `device_global` _dest_, starting at _startIndex_ elements of _dest_. _src_ may be either a host or USM pointer.
+
+If _count_ and _startIndex_ would cause data to be written beyond the end of
+the variable _dest_, the implementation throws an `exception` with the
+`errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property and the _dest_
+variable exists in more than one _device image_ for this queue's device, the
+implementation throws an `exception` with the `errc::invalid` error code.
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+void copy(const device_global<T, PropertyListT>& src,
+  std::remove_all_extents_t<T> *dest,
+  size_t count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
+  size_t startIndex = 0);
+----
+| `T` must be device copyable.
+
+Not available if `PropertyListT` contains the `host_access` property with
+`write` or `none` assertions.
+
+Copies _count_ elements of type `std::remove_all_extents_t<T>` from the `device_global` _src_ to the pointer _dest_, starting at _startIndex_ elements of _src_. _dest_ may be either a host or USM pointer.
+
+If _count_ and _startIndex_ would cause data to be read beyond the end of
+the variable _src_, the implementation throws an `exception` with the
+`errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property and the _src_
+variable exists in more than one _device image_ for this queue's device, the
+implementation throws an `exception` with the `errc::invalid` error code.
+
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+void memcpy(device_global<T, PropertyListT>& dest,
+  const void *src, size_t numBytes = sizeof(T), size_t offset = 0);
+----
+|`T` must be device copyable.
+
+Not available if `PropertyListT` contains the `host_access` property with
+`read` or `none` assertions.
+
+Copies _count_ bytes from the pointer _src_ to the `device_global` _dest_, starting at _offset_ bytes. _src_ may be either a host or USM pointer.
+
+If _numBytes_ and _offset_ would cause data to be written beyond the end of
+the variable _dest_, the implementation throws an `exception` with the
+`errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property and the _dest_
+variable exists in more than one _device image_ for this queue's device, the
+implementation throws an `exception` with the `errc::invalid` error code.
+
+a| 
+[source, c++]
+----
+template <typename T, typename PropertyListT>
+void memcpy(void *dest,
+  const device_global<T, PropertyListT>& src,
+  size_t numBytes = sizeof(T), size_t offset = 0);
+----
+|`T` must be device copyable.
+
+Not available if `PropertyListT` contains the `host_access` property with
+`write` or `none` assertions.
+
+Copies _count_ bytes from the `device_global` _src_ to the pointer _dest_, starting at _offset_ bytes. _dest_ may be either a host or USM pointer.
+
+If _numBytes_ and _offset_ would cause data to be read beyond the end of
+the variable _src_, the implementation throws an `exception` with the
+`errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property and the _src_
+variable exists in more than one _device image_ for this queue's device, the
+implementation throws an `exception` with the `errc::invalid` error code.
+|====
+--
+
+[NOTE]
+====
+As specified above, the `copy` and `memcpy` functions throw an exception if the
+global variable has the `device_image_scope` property and exists in more than
+one _device image_ for the queue's device.  This condition could occur if the
+application submits a kernel referencing the variable to the same device with
+different values for a specialization constant (when the device supports
+specialization constants natively).  This condition could also occur if the
+application submits the same kernel from more than one kernel bundle.
+====
+
+
+== Non-normative: Future anticipated changes, not enabled within this version of the specification
+
+In a future version of this extension, it is expected that when {cpp}20 support is available and enabled, the `consteval` keyword will be used to enable compile-time constant initialization of the device allocations backing `device_global`.  This will simplify some coding patterns, compared with the current zero-initialization requirement.
+
+A sketch of the anticipated constructor interface is:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T, typename PropertyListT = property_list<>>
+class device_global {
+public:
+  using element_type = std::remove_extent_t<T>; 
+  
+  static_assert(std::is_trivially_destructible_v<T>,
+      "Type T must be trivially destructible.");
+
+  #ifdef __cpp_consteval
+    device_global();
+
+    // device_global initializes underlying T with the args argument
+    template <typename... Args>
+    consteval explicit device_global(Args&&... args);
+  #else
+    static_assert(std::is_trivially_default_constructible_v<T>,
+                  "Type T must be trivially default constructable (until C++20 "
+                  "consteval is supported and enabled)");
+
+    device_global();
+  #endif // __cpp_consteval
+
+----
+
+The example below creates two global namespace scope `device_global` objects named `dm1` and `dm2`. `dm1` is default constructed with external linkage, while `dm2` is initialized and has internal linkage.
+
+[source,c++]
+----
+using namespace sycl;
+using namespace sycl::ext::oneapi::experimental;
+
+device_global<MyClass> dm1;
+static device_global<int[4]> dm2{1, 3, 5, 7};  // Requires C++20 to be enabled
+
+int main () {
+  sycl::queue Q;
+  Q.submit([&](sycl::handler& h) {
+    h.single_task([=] {
+      int x = 5;
+      if (dm1.get().flag)
+        x = dm2[0];
+    });
+  });
+}
+----
+
+== Non-normative: Implementation hints
+
+`device_global` prioritizes usability over simplicity of implementation, and therefore adds requirements such as (1) that contents and addresses of the allocation on each device remain stable across changes to specialization constant values, and (2) that the allocation be accessible across `device_image` on the same device.  These requirements mean that the semantics of `device_global` do not match the semantics of SPIR-V module scope variables, and therefore may not be implementable exclusively using the SPIR-V feature in existing SPIR-V consuming implementations.
+
+Also note that there are no restrictions on passing (and subsequent dereferencing) of pointers obtained on a device from a `device_global`, between kernels on the same device, including through storage to memory.
+
+== Issues
+
+1) Can `sycl::atomic_ref` be used with `device_global`? +
+*Resolved*: Yes, but only on the device side.  There is no visibility/communication across devices because each device receives a unique allocation of type _T_ underlying the `device_global`.  There is no way for an `atomic_ref` associated with the allocation to be created in host code because there is no way to extract a pointer or reference in host code (only copy/memcpy).
+
+2) Should we restrict `device_global` to static storage duration, and if so how? +
+*Resolved*: Yes, through similar language as `specialization_id`. Moreover restricted to namespace scope, because it is expensive to implement function scope statics. This could change if a compelling use case arises that needs function scope static support. 
+
+3) Should the returned `multi_ptr` default to decorated or an undecorated? +
+*Resolved*: No default - follow convention on this set by multi_ptr
+
+4) Is a mechanism needed that can mark device accesses as read only, while allowing for host write access? +
+*Resolved*: No known compelling use cases at this point.
+
+5) Are there important use cases that require arbitrary destructors to be supported by `device_global`? +
+*Resolved*: No important cases known at this time. May loosen restriction in the future.
+
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-06-11|Artem Radzikhovskyy|*Initial review version*
+|2|2021-08-01|Mike Kinsner|Restrict to trivial default constructors for first release, change from pointer to reference semantics, swap order of arguments in `copy` functions, update and clarify wording, remove factory functions.
+|========================================

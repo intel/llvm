@@ -124,6 +124,10 @@ public:
   static bool isSyclSpecIdType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
+  /// device_global class.
+  static bool isSyclDeviceGlobalType(QualType Ty);
+
+  /// Checks whether given clang type is a full specialization of the SYCL
   /// kernel_handler class.
   static bool isSyclKernelHandlerType(QualType Ty);
 
@@ -561,8 +565,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-                 ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
-                 SYCLIntelNumSimdWorkItemsAttr,
+                 ReqdWorkGroupSizeAttr, WorkGroupSizeHintAttr,
+                 SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
                  SYCLIntelSchedulerTargetFmaxMhzAttr,
                  SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
                  SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
@@ -575,7 +579,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
       return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
                  SYCLIntelFPGADisableLoopPipeliningAttr,
                  SYCLIntelFPGAInitiationIntervalAttr,
-                 SYCLIntelUseStallEnableClustersAttr>(A);
+                 SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr>(A);
     });
   }
 }
@@ -823,7 +827,8 @@ class SingleDeviceFunctionTracker {
     // false-positives.
     if (isSYCLKernelBodyFunction(CurrentDecl)) {
       // This is a direct callee of the kernel.
-      if (CallStack.size() == 1) {
+      if (CallStack.size() == 1 &&
+          CallStack.back()->hasAttr<SYCLKernelAttr>()) {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
                               "function can be called");
         KernelBody = CurrentDecl;
@@ -3910,9 +3915,9 @@ static void PropagateAndDiagnoseDeviceAttr(
     } else if (auto *Existing =
                    SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
       ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) < RWGSA->getXDimVal(Ctx) ||
-          Existing->getYDimVal(Ctx) < RWGSA->getYDimVal(Ctx) ||
-          Existing->getZDimVal(Ctx) < RWGSA->getZDimVal(Ctx)) {
+      if (*Existing->getXDimVal() < RWGSA->getXDimVal(Ctx) ||
+          *Existing->getYDimVal() < RWGSA->getYDimVal(Ctx) ||
+          *Existing->getZDimVal() < RWGSA->getZDimVal(Ctx)) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3926,13 +3931,29 @@ static void PropagateAndDiagnoseDeviceAttr(
     }
     break;
   }
+  case attr::Kind::WorkGroupSizeHint: {
+    auto *WGSH = cast<WorkGroupSizeHintAttr>(A);
+    if (auto *Existing = SYCLKernel->getAttr<WorkGroupSizeHintAttr>()) {
+      if (Existing->getXDimVal() != WGSH->getXDimVal() ||
+          Existing->getYDimVal() != WGSH->getYDimVal() ||
+          Existing->getZDimVal() != WGSH->getZDimVal()) {
+        S.Diag(SYCLKernel->getLocation(),
+               diag::err_conflicting_sycl_kernel_attributes);
+        S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
+        S.Diag(WGSH->getLocation(), diag::note_conflicting_attribute);
+        SYCLKernel->setInvalidDecl();
+      }
+    }
+    SYCLKernel->addAttr(A);
+    break;
+  }
   case attr::Kind::SYCLIntelMaxWorkGroupSize: {
     auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
       ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) > SIMWGSA->getXDimVal(Ctx) ||
-          Existing->getYDimVal(Ctx) > SIMWGSA->getYDimVal(Ctx) ||
-          Existing->getZDimVal(Ctx) > SIMWGSA->getZDimVal(Ctx)) {
+      if (Existing->getXDimVal(Ctx) > *SIMWGSA->getXDimVal() ||
+          Existing->getYDimVal(Ctx) > *SIMWGSA->getYDimVal() ||
+          Existing->getZDimVal(Ctx) > *SIMWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3967,6 +3988,7 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
   case attr::Kind::SYCLIntelFPGAInitiationInterval:
   case attr::Kind::SYCLIntelUseStallEnableClusters:
+  case attr::Kind::SYCLDeviceHas:
     SYCLKernel->addAttr(A);
     break;
   case attr::Kind::IntelNamedSubGroupSize:
@@ -4674,7 +4696,23 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "namespace sycl {\n";
   O << "namespace detail {\n";
 
-  O << "\n";
+  // Generate declaration of variable of type __sycl_device_global_registration
+  // whose sole purpose is to run its constructor before the application's
+  // main() function.
+
+  if (S.getSyclIntegrationFooter().isDeviceGlobalsEmitted()) {
+    O << "namespace {\n";
+
+    O << "class __sycl_device_global_registration {\n";
+    O << "public:\n";
+    O << "  __sycl_device_global_registration() noexcept;\n";
+    O << "};\n";
+    O << "__sycl_device_global_registration __sycl_device_global_registrar;\n";
+
+    O << "} // namespace\n";
+
+    O << "\n";
+  }
 
   O << "// names of all kernels defined in the corresponding source\n";
   O << "static constexpr\n";
@@ -4856,9 +4894,9 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   // template instantiations as a VarDecl.
   if (isa<VarTemplatePartialSpecializationDecl>(VD))
     return;
-  // Step 1: ensure that this is of the correct type-spec-constant template
-  // specialization).
-  if (!Util::isSyclSpecIdType(VD->getType())) {
+  // Step 1: ensure that this is of the correct type template specialization.
+  if (!Util::isSyclSpecIdType(VD->getType()) &&
+      !Util::isSyclDeviceGlobalType(VD->getType())) {
     // Handle the case where this could be a deduced type, such as a deduction
     // guide. We have to do this here since this function, unlike most of the
     // rest of this file, is called during Sema instead of after it. We will
@@ -4874,8 +4912,8 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   // let an error happen during host compilation.
   if (!VD->hasGlobalStorage() || VD->isLocalVarDeclOrParm())
     return;
-  // Step 3: Add to SpecConstants collection.
-  SpecConstants.push_back(VD);
+  // Step 3: Add to collection.
+  GlobalVars.push_back(VD);
 }
 
 // Post-compile integration header support.
@@ -4949,19 +4987,19 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
       [](raw_ostream &OS, const NamespaceDecl *NS) {}, OS, DC);
 }
 
-static std::string EmitSpecIdShim(raw_ostream &OS, unsigned &ShimCounter,
-                                  const std::string &LastShim,
-                                  const NamespaceDecl *AnonNS) {
+static std::string EmitShim(raw_ostream &OS, unsigned &ShimCounter,
+                            const std::string &LastShim,
+                            const NamespaceDecl *AnonNS) {
   std::string NewShimName =
-      "__sycl_detail::__spec_id_shim_" + std::to_string(ShimCounter) + "()";
+      "__sycl_detail::__shim_" + std::to_string(ShimCounter) + "()";
   // Print opening-namespace
   PrintNamespaces(OS, Decl::castToDeclContext(AnonNS));
   OS << "namespace __sycl_detail {\n";
-  OS << "static constexpr decltype(" << LastShim << ") &__spec_id_shim_"
-     << ShimCounter << "() {\n";
+  OS << "static constexpr decltype(" << LastShim << ") &__shim_" << ShimCounter
+     << "() {\n";
   OS << "  return " << LastShim << ";\n";
   OS << "}\n";
-  OS << "} // namespace __sycl_detail \n";
+  OS << "} // namespace __sycl_detail\n";
   PrintNSClosingBraces(OS, Decl::castToDeclContext(AnonNS));
 
   ++ShimCounter;
@@ -4969,9 +5007,8 @@ static std::string EmitSpecIdShim(raw_ostream &OS, unsigned &ShimCounter,
 }
 
 // Emit the list of shims required for a DeclContext, calls itself recursively.
-static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
-                            const DeclContext *DC,
-                            std::string &NameForLastShim) {
+static void EmitShims(raw_ostream &OS, unsigned &ShimCounter,
+                      const DeclContext *DC, std::string &NameForLastShim) {
   if (DC->isTranslationUnit()) {
     NameForLastShim = "::" + NameForLastShim;
     return;
@@ -4985,7 +5022,7 @@ static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
   } else if (const auto *ND = dyn_cast<NamespaceDecl>(CurDecl)) {
     if (ND->isAnonymousNamespace()) {
       // Print current shim, reset 'name for last shim'.
-      NameForLastShim = EmitSpecIdShim(OS, ShimCounter, NameForLastShim, ND);
+      NameForLastShim = EmitShim(OS, ShimCounter, NameForLastShim, ND);
     } else {
       NameForLastShim = ND->getNameAsString() + "::" + NameForLastShim;
     }
@@ -4999,14 +5036,14 @@ static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
            "Unhandled decl type");
   }
 
-  EmitSpecIdShims(OS, ShimCounter, CurDecl->getDeclContext(), NameForLastShim);
+  EmitShims(OS, ShimCounter, CurDecl->getDeclContext(), NameForLastShim);
 }
 
 // Emit the list of shims required for a variable declaration.
 // Returns a string containing the FQN of the 'top most' shim, including its
 // function call parameters.
-static std::string EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
-                                   PrintingPolicy &Policy, const VarDecl *VD) {
+static std::string EmitShims(raw_ostream &OS, unsigned &ShimCounter,
+                             PrintingPolicy &Policy, const VarDecl *VD) {
   if (!VD->isInAnonymousNamespace())
     return "";
   std::string RelativeName;
@@ -5014,7 +5051,7 @@ static std::string EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
   VD->getNameForDiagnostic(stream, Policy, false);
   stream.flush();
 
-  EmitSpecIdShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
+  EmitShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
   return RelativeName;
 }
 
@@ -5024,58 +5061,90 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
 
-  llvm::SmallSet<const VarDecl *, 8> VisitedSpecConstants;
+  llvm::SmallSet<const VarDecl *, 8> Visited;
   bool EmittedFirstSpecConstant = false;
 
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
   unsigned ShimCounter = 0;
-  for (const VarDecl *VD : SpecConstants) {
+
+  std::string DeviceGlobalsBuf;
+  llvm::raw_string_ostream DeviceGlobOS(DeviceGlobalsBuf);
+  for (const VarDecl *VD : GlobalVars) {
     VD = VD->getCanonicalDecl();
 
-    // Skip if this isn't a SpecIdType.  This can happen if it was a deduced
-    // type.
-    if (!Util::isSyclSpecIdType(VD->getType()))
+    // Skip if this isn't a SpecIdType or DeviceGlobal.  This can happen if it
+    // was a deduced type.
+    if (!Util::isSyclSpecIdType(VD->getType()) &&
+        !Util::isSyclDeviceGlobalType(VD->getType()))
       continue;
 
     // Skip if we've already visited this.
-    if (llvm::find(VisitedSpecConstants, VD) != VisitedSpecConstants.end())
+    if (llvm::find(Visited, VD) != Visited.end())
       continue;
 
-    // We only want to emit the #includes if we have a spec-constant that needs
+    // We only want to emit the #includes if we have a variable that needs
     // them, so emit this one on the first time through the loop.
-    if (!EmittedFirstSpecConstant)
+    if (!EmittedFirstSpecConstant && !DeviceGlobalsEmitted)
       OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
-    EmittedFirstSpecConstant = true;
 
-    VisitedSpecConstants.insert(VD);
-    std::string TopShim = EmitSpecIdShims(OS, ShimCounter, Policy, VD);
-    OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
-    OS << "namespace sycl {\n";
-    OS << "namespace detail {\n";
-    OS << "template<>\n";
-    OS << "inline const char *get_spec_constant_symbolic_ID_impl<";
-
-    if (VD->isInAnonymousNamespace()) {
-      OS << TopShim;
+    Visited.insert(VD);
+    std::string TopShim = EmitShims(OS, ShimCounter, Policy, VD);
+    if (Util::isSyclDeviceGlobalType(VD->getType())) {
+      DeviceGlobalsEmitted = true;
+      DeviceGlobOS << "device_global_map::add(";
+      DeviceGlobOS << "(void *)&";
+      if (VD->isInAnonymousNamespace()) {
+        DeviceGlobOS << TopShim;
+      } else {
+        DeviceGlobOS << "::";
+        VD->getNameForDiagnostic(DeviceGlobOS, Policy, true);
+      }
+      DeviceGlobOS << ", \"";
+      DeviceGlobOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(),
+                                                          VD);
+      DeviceGlobOS << "\");\n";
     } else {
-      OS << "::";
-      VD->getNameForDiagnostic(OS, Policy, true);
-    }
+      EmittedFirstSpecConstant = true;
+      OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
+      OS << "namespace sycl {\n";
+      OS << "namespace detail {\n";
+      OS << "template<>\n";
+      OS << "inline const char *get_spec_constant_symbolic_ID_impl<";
 
-    OS << ">() {\n";
-    OS << "  return \"";
-    OS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(), VD);
-    OS << "\";\n";
-    OS << "}\n";
-    OS << "} // namespace detail\n";
-    OS << "} // namespace sycl\n";
-    OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
+      if (VD->isInAnonymousNamespace()) {
+        OS << TopShim;
+      } else {
+        OS << "::";
+        VD->getNameForDiagnostic(OS, Policy, true);
+      }
+
+      OS << ">() {\n";
+      OS << "  return \"";
+      OS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(), VD);
+      OS << "\";\n";
+      OS << "}\n";
+      OS << "} // namespace detail\n";
+      OS << "} // namespace sycl\n";
+      OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
+    }
   }
 
   if (EmittedFirstSpecConstant)
     OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
 
+  if (DeviceGlobalsEmitted) {
+    OS << "#include <CL/sycl/detail/device_global_map.hpp>\n";
+    DeviceGlobOS.flush();
+    OS << "namespace sycl::detail {\n";
+    OS << "namespace {\n";
+    OS << "__sycl_device_global_registration::__sycl_device_global_"
+          "registration() noexcept {\n";
+    OS << DeviceGlobalsBuf;
+    OS << "}\n";
+    OS << "} // namespace (unnamed)\n";
+    OS << "} // namespace sycl::detail\n";
+  }
   return true;
 }
 
@@ -5120,6 +5189,18 @@ bool Util::isSyclSpecIdType(QualType Ty) {
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
+bool Util::isSyclDeviceGlobalType(QualType Ty) {
+  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+  if (!RecTy)
+    return false;
+  if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
+    ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
+    if (CXXRecordDecl *RD = Template->getTemplatedDecl())
+      return RD->hasAttr<SYCLDeviceGlobalAttr>();
+  }
+  return RecTy->hasAttr<SYCLDeviceGlobalAttr>();
+}
+
 bool Util::isSyclKernelHandlerType(QualType Ty) {
   std::array<DeclContextDesc, 3> Scopes = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
@@ -5130,14 +5211,14 @@ bool Util::isSyclKernelHandlerType(QualType Ty) {
 
 bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
   std::array<DeclContextDesc, 7> Scopes = {
-      Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "ext"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "oneapi"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
-      Util::DeclContextDesc{Decl::Kind::CXXRecord, "no_alias"},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
-                            "instance"}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
+      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "no_alias"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "instance")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 

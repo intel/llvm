@@ -44,8 +44,6 @@ add_object_library(
     libc.include.errno
     libc.include.math
     libc.src.errno.__errno_location
-  COMPILE_OPTIONS
-    -Wno-c++17-extensions
 )
 
 add_object_library(
@@ -56,8 +54,6 @@ add_object_library(
     sincosf_data.cpp
   DEPENDS
     .math_utils
-  COMPILE_OPTIONS
-    -Wno-c++17-extensions
 )
 
 add_entrypoint_object(
@@ -72,7 +68,6 @@ add_entrypoint_object(
     libc.src.errno.__errno_location
   COMPILE_OPTIONS
     -O3
-    -Wno-c++17-extensions
 )
 
 add_entrypoint_object(
@@ -88,7 +83,6 @@ add_entrypoint_object(
     libc.src.__support.FPUtil.fputil
   COMPILE_OPTIONS
     -O3
-    -Wno-c++17-extensions
 )
 
 add_entrypoint_object(
@@ -103,7 +97,6 @@ add_entrypoint_object(
     libc.src.errno.__errno_location
   COMPILE_OPTIONS
     -O3
-    -Wno-c++17-extensions
 )
 
 add_entrypoint_object(
@@ -662,8 +655,6 @@ add_object_library(
     common_constants.h
   SRCS
     common_constants.cpp
-  COMPILE_OPTIONS
-    -Wno-c++17-extensions
 )
 
 add_entrypoint_object(
@@ -677,7 +668,19 @@ add_entrypoint_object(
     libc.src.__support.FPUtil.fputil
   COMPILE_OPTIONS
     -O3
-    -Wno-c++17-extensions
+)
+
+add_entrypoint_object(
+  log1pf
+  SRCS
+    log1pf.cpp
+  HDRS
+    ../log1pf.h
+  DEPENDS
+    .common_constants
+    libc.src.__support.FPUtil.fputil
+  COMPILE_OPTIONS
+    -O3
 )
 
 add_entrypoint_object(
@@ -689,9 +692,8 @@ add_entrypoint_object(
   DEPENDS
     .common_constants
     libc.src.__support.FPUtil.fputil
-  COMPILE_OPTIONS
+    COMPILE_OPTIONS
     -O3
-    -Wno-c++17-extensions
 )
 
 add_entrypoint_object(
@@ -859,8 +861,9 @@ add_entrypoint_object(
     ../sqrt.h
   DEPENDS
     libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.sqrt
   COMPILE_OPTIONS
-    -O2
+    -O3
 )
 
 add_entrypoint_object(
@@ -871,8 +874,9 @@ add_entrypoint_object(
     ../sqrtf.h
   DEPENDS
     libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.sqrt
   COMPILE_OPTIONS
-    -O2
+    -O3
 )
 
 add_entrypoint_object(
@@ -883,8 +887,9 @@ add_entrypoint_object(
     ../sqrtl.h
   DEPENDS
     libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.sqrt
   COMPILE_OPTIONS
-    -O2
+    -O3
 )
 
 add_entrypoint_object(
@@ -967,6 +972,7 @@ add_entrypoint_object(
     ../hypotf.h
   DEPENDS
     libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.sqrt
   COMPILE_OPTIONS
     -O3
 )

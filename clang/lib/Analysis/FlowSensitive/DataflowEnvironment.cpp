@@ -22,6 +22,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Support/ErrorHandling.h"
+#include <cassert>
 #include <memory>
 #include <utility>
 
@@ -41,10 +42,69 @@ llvm::DenseMap<K, V> intersectDenseMaps(const llvm::DenseMap<K, V> &Map1,
   return Result;
 }
 
+/// Returns true if and only if `Val1` is equivalent to `Val2`.
+static bool equivalentValues(QualType Type, Value *Val1, Value *Val2,
+                             Environment::ValueModel &Model) {
+  if (Val1 == Val2)
+    return true;
+
+  if (auto *IndVal1 = dyn_cast<IndirectionValue>(Val1)) {
+    auto *IndVal2 = cast<IndirectionValue>(Val2);
+    assert(IndVal1->getKind() == IndVal2->getKind());
+    return &IndVal1->getPointeeLoc() == &IndVal2->getPointeeLoc();
+  }
+
+  return Model.compareEquivalent(Type, *Val1, *Val2);
+}
+
+/// Initializes a global storage value.
+static void initGlobalVar(const VarDecl &D, Environment &Env) {
+  if (!D.hasGlobalStorage() ||
+      Env.getStorageLocation(D, SkipPast::None) != nullptr)
+    return;
+
+  auto &Loc = Env.createStorageLocation(D);
+  Env.setStorageLocation(D, Loc);
+  if (auto *Val = Env.createValue(D.getType()))
+    Env.setValue(Loc, *Val);
+}
+
+/// Initializes a global storage value.
+static void initGlobalVar(const Decl &D, Environment &Env) {
+  if (auto *V = dyn_cast<VarDecl>(&D))
+    initGlobalVar(*V, Env);
+}
+
+/// Initializes global storage values that are declared or referenced from
+/// sub-statements of `S`.
+// FIXME: Add support for resetting globals after function calls to enable
+// the implementation of sound analyses.
+static void initGlobalVars(const Stmt &S, Environment &Env) {
+  for (auto *Child : S.children()) {
+    if (Child != nullptr)
+      initGlobalVars(*Child, Env);
+  }
+
+  if (auto *DS = dyn_cast<DeclStmt>(&S)) {
+    if (DS->isSingleDecl()) {
+      initGlobalVar(*DS->getSingleDecl(), Env);
+    } else {
+      for (auto *D : DS->getDeclGroup())
+        initGlobalVar(*D, Env);
+    }
+  } else if (auto *E = dyn_cast<DeclRefExpr>(&S)) {
+    initGlobalVar(*E->getDecl(), Env);
+  } else if (auto *E = dyn_cast<MemberExpr>(&S)) {
+    initGlobalVar(*E->getMemberDecl(), Env);
+  }
+}
+
 Environment::Environment(DataflowAnalysisContext &DACtx,
                          const DeclContext &DeclCtx)
     : Environment(DACtx) {
   if (const auto *FuncDecl = dyn_cast<FunctionDecl>(&DeclCtx)) {
+    assert(FuncDecl->getBody() != nullptr);
+    initGlobalVars(*FuncDecl->getBody(), *this);
     for (const auto *ParamDecl : FuncDecl->parameters()) {
       assert(ParamDecl != nullptr);
       auto &ParamLoc = createStorageLocation(*ParamDecl);
@@ -68,13 +128,40 @@ Environment::Environment(DataflowAnalysisContext &DACtx,
   }
 }
 
-bool Environment::operator==(const Environment &Other) const {
+bool Environment::equivalentTo(const Environment &Other,
+                               Environment::ValueModel &Model) const {
   assert(DACtx == Other.DACtx);
-  return DeclToLoc == Other.DeclToLoc && LocToVal == Other.LocToVal;
+
+  if (DeclToLoc != Other.DeclToLoc)
+    return false;
+
+  if (ExprToLoc != Other.ExprToLoc)
+    return false;
+
+  if (LocToVal.size() != Other.LocToVal.size())
+    return false;
+
+  for (auto &Entry : LocToVal) {
+    const StorageLocation *Loc = Entry.first;
+    assert(Loc != nullptr);
+
+    Value *Val = Entry.second;
+    assert(Val != nullptr);
+
+    auto It = Other.LocToVal.find(Loc);
+    if (It == Other.LocToVal.end())
+      return false;
+    assert(It->second != nullptr);
+
+    if (!equivalentValues(Loc->getType(), Val, It->second, Model))
+      return false;
+  }
+
+  return true;
 }
 
 LatticeJoinEffect Environment::join(const Environment &Other,
-                                    Environment::Merger &Merger) {
+                                    Environment::ValueModel &Model) {
   assert(DACtx == Other.DACtx);
 
   auto Effect = LatticeJoinEffect::Unchanged;
@@ -89,8 +176,12 @@ LatticeJoinEffect Environment::join(const Environment &Other,
   if (ExprToLocSizeBefore != ExprToLoc.size())
     Effect = LatticeJoinEffect::Changed;
 
-  llvm::DenseMap<const StorageLocation *, Value *> MergedLocToVal;
-  for (auto &Entry : LocToVal) {
+  // Move `LocToVal` so that `Environment::ValueModel::merge` can safely assign
+  // values to storage locations while this code iterates over the current
+  // assignments.
+  llvm::DenseMap<const StorageLocation *, Value *> OldLocToVal =
+      std::move(LocToVal);
+  for (auto &Entry : OldLocToVal) {
     const StorageLocation *Loc = Entry.first;
     assert(Loc != nullptr);
 
@@ -102,20 +193,19 @@ LatticeJoinEffect Environment::join(const Environment &Other,
       continue;
     assert(It->second != nullptr);
 
-    if (It->second == Val) {
-      MergedLocToVal.insert({Loc, Val});
+    if (equivalentValues(Loc->getType(), Val, It->second, Model)) {
+      LocToVal.insert({Loc, Val});
       continue;
     }
 
-    // FIXME: Consider destroying `MergedValue` immediately if `Merger::merge`
-    // returns false to avoid storing unneeded values in `DACtx`.
+    // FIXME: Consider destroying `MergedValue` immediately if
+    // `ValueModel::merge` returns false to avoid storing unneeded values in
+    // `DACtx`.
     if (Value *MergedVal = createValue(Loc->getType()))
-      if (Merger.merge(Loc->getType(), *Val, *It->second, *MergedVal, *this))
-        MergedLocToVal.insert({Loc, MergedVal});
+      if (Model.merge(Loc->getType(), *Val, *It->second, *MergedVal, *this))
+        LocToVal.insert({Loc, MergedVal});
   }
-  const unsigned LocToValSizeBefore = LocToVal.size();
-  LocToVal = std::move(MergedLocToVal);
-  if (LocToValSizeBefore != LocToVal.size())
+  if (OldLocToVal.size() != LocToVal.size())
     Effect = LatticeJoinEffect::Changed;
 
   return Effect;

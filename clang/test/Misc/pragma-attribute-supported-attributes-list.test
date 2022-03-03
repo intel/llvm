@@ -157,6 +157,7 @@
 // CHECK-NEXT: ReturnsNonNull (SubjectMatchRule_objc_method, SubjectMatchRule_function)
 // CHECK-NEXT: ReturnsTwice (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLDevice (SubjectMatchRule_function)
+// CHECK-NEXT: SYCLDeviceGlobal (SubjectMatchRule_record)
 // CHECK-NEXT: SYCLDeviceHas (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLDeviceIndirectlyCallable (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelFPGADisableLoopPipelining (SubjectMatchRule_function)
@@ -211,4 +212,5 @@
 // CHECK-NEXT: WorkGroupSizeHint (SubjectMatchRule_function)
 // CHECK-NEXT: XRayInstrument (SubjectMatchRule_function, SubjectMatchRule_objc_method)
 // CHECK-NEXT: XRayLogArgs (SubjectMatchRule_function, SubjectMatchRule_objc_method)
+// CHECK-NEXT: ZeroCallUsedRegs (SubjectMatchRule_function)
 // CHECK-NEXT: End of supported attributes.

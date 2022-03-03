@@ -23,7 +23,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/Twine.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
@@ -31,11 +30,9 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
-#include <climits>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -208,6 +205,11 @@ Attribute Attribute::getWithInAllocaType(LLVMContext &Context, Type *Ty) {
   return get(Context, InAlloca, Ty);
 }
 
+Attribute Attribute::getWithUWTableKind(LLVMContext &Context,
+                                        UWTableKind Kind) {
+  return get(Context, UWTable, uint64_t(Kind));
+}
+
 Attribute
 Attribute::getWithAllocSizeArgs(LLVMContext &Context, unsigned ElemSizeArg,
                                 const Optional<unsigned> &NumElemsArg) {
@@ -369,6 +371,12 @@ Optional<unsigned> Attribute::getVScaleRangeMax() const {
   return unpackVScaleRangeArgs(pImpl->getValueAsInt()).second;
 }
 
+UWTableKind Attribute::getUWTableKind() const {
+  assert(hasAttribute(Attribute::UWTable) &&
+         "Trying to get unwind table kind from non-uwtable attribute");
+  return UWTableKind(pImpl->getValueAsInt());
+}
+
 std::string Attribute::getAsString(bool InAttrGrp) const {
   if (!pImpl) return {};
 
@@ -390,26 +398,15 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
   //   align=4
   //   alignstack=8
   //
-  if (hasAttribute(Attribute::Alignment)) {
-    std::string Result;
-    Result += "align";
-    Result += (InAttrGrp) ? "=" : " ";
-    Result += utostr(getValueAsInt());
-    return Result;
-  }
+  if (hasAttribute(Attribute::Alignment))
+    return (InAttrGrp ? "align=" + Twine(getValueAsInt())
+                      : "align " + Twine(getValueAsInt()))
+        .str();
 
   auto AttrWithBytesToString = [&](const char *Name) {
-    std::string Result;
-    Result += Name;
-    if (InAttrGrp) {
-      Result += "=";
-      Result += utostr(getValueAsInt());
-    } else {
-      Result += "(";
-      Result += utostr(getValueAsInt());
-      Result += ")";
-    }
-    return Result;
+    return (InAttrGrp ? Name + ("=" + Twine(getValueAsInt()))
+                      : Name + ("(" + Twine(getValueAsInt())) + ")")
+        .str();
   };
 
   if (hasAttribute(Attribute::StackAlignment))
@@ -426,26 +423,29 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     Optional<unsigned> NumElems;
     std::tie(ElemSize, NumElems) = getAllocSizeArgs();
 
-    std::string Result = "allocsize(";
-    Result += utostr(ElemSize);
-    if (NumElems.hasValue()) {
-      Result += ',';
-      Result += utostr(*NumElems);
-    }
-    Result += ')';
-    return Result;
+    return (NumElems
+                ? "allocsize(" + Twine(ElemSize) + "," + Twine(*NumElems) + ")"
+                : "allocsize(" + Twine(ElemSize) + ")")
+        .str();
   }
 
   if (hasAttribute(Attribute::VScaleRange)) {
     unsigned MinValue = getVScaleRangeMin();
     Optional<unsigned> MaxValue = getVScaleRangeMax();
+    return ("vscale_range(" + Twine(MinValue) + "," +
+            Twine(MaxValue.getValueOr(0)) + ")")
+        .str();
+  }
 
-    std::string Result = "vscale_range(";
-    Result += utostr(MinValue);
-    Result += ',';
-    Result += utostr(MaxValue.getValueOr(0));
-    Result += ')';
-    return Result;
+  if (hasAttribute(Attribute::UWTable)) {
+    UWTableKind Kind = getUWTableKind();
+    if (Kind != UWTableKind::None) {
+      return Kind == UWTableKind::Default
+                 ? "uwtable"
+                 : ("uwtable(" +
+                    Twine(Kind == UWTableKind::Sync ? "sync" : "async") + ")")
+                       .str();
+    }
   }
 
   // Convert target-dependent attributes to strings of the form:
@@ -732,6 +732,10 @@ Optional<unsigned> AttributeSet::getVScaleRangeMax() const {
   return SetNode ? SetNode->getVScaleRangeMax() : None;
 }
 
+UWTableKind AttributeSet::getUWTableKind() const {
+  return SetNode ? SetNode->getUWTableKind() : UWTableKind::None;
+}
+
 std::string AttributeSet::getAsString(bool InAttrGrp) const {
   return SetNode ? SetNode->getAsString(InAttrGrp) : "";
 }
@@ -896,6 +900,12 @@ Optional<unsigned> AttributeSetNode::getVScaleRangeMax() const {
   if (auto A = findEnumAttribute(Attribute::VScaleRange))
     return A->getVScaleRangeMax();
   return None;
+}
+
+UWTableKind AttributeSetNode::getUWTableKind() const {
+  if (auto A = findEnumAttribute(Attribute::UWTable))
+    return A->getUWTableKind();
+  return UWTableKind::None;
 }
 
 std::string AttributeSetNode::getAsString(bool InAttrGrp) const {
@@ -1450,6 +1460,10 @@ AttributeList::getParamDereferenceableOrNullBytes(unsigned Index) const {
   return getParamAttrs(Index).getDereferenceableOrNullBytes();
 }
 
+UWTableKind AttributeList::getUWTableKind() const {
+  return getFnAttrs().getUWTableKind();
+}
+
 std::string AttributeList::getAsString(unsigned Index, bool InAttrGrp) const {
   return getAttributes(Index).getAsString(InAttrGrp);
 }
@@ -1669,6 +1683,12 @@ AttrBuilder &AttrBuilder::addVScaleRangeAttrFromRawRepr(uint64_t RawArgs) {
     return *this;
 
   return addRawIntAttr(Attribute::VScaleRange, RawArgs);
+}
+
+AttrBuilder &AttrBuilder::addUWTableAttr(UWTableKind Kind) {
+  if (Kind == UWTableKind::None)
+    return *this;
+  return addRawIntAttr(Attribute::UWTable, uint64_t(Kind));
 }
 
 Type *AttrBuilder::getTypeAttr(Attribute::AttrKind Kind) const {

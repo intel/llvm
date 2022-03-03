@@ -650,7 +650,7 @@ serializeValueProfDataFrom(ValueProfRecordClosure *Closure,
 /* Raw profile format version (start from 1). */
 #define INSTR_PROF_RAW_VERSION 8
 /* Indexed profile format version (start from 1). */
-#define INSTR_PROF_INDEX_VERSION 7
+#define INSTR_PROF_INDEX_VERSION 8
 /* Coverage mapping format version (start from 0). */
 #define INSTR_PROF_COVMAP_VERSION 5
 
@@ -660,6 +660,9 @@ serializeValueProfDataFrom(ValueProfRecordClosure *Closure,
  * generated profile, and 0 if this is a Clang FE generated profile.
  * 1 in bit 57 indicates there are context-sensitive records in the profile.
  * The 59th bit indicates whether to use debug info to correlate profiles.
+ * The 60th bit indicates single byte coverage instrumentation.
+ * The 61st bit indicates function entry instrumentation only.
+ * The 62nd bit indicates whether memory profile information is present.
  */
 #define VARIANT_MASKS_ALL 0xff00000000000000ULL
 #define GET_VERSION(V) ((V) & ~VARIANT_MASKS_ALL)
@@ -667,6 +670,9 @@ serializeValueProfDataFrom(ValueProfRecordClosure *Closure,
 #define VARIANT_MASK_CSIR_PROF (0x1ULL << 57)
 #define VARIANT_MASK_INSTR_ENTRY (0x1ULL << 58)
 #define VARIANT_MASK_DBG_CORRELATE (0x1ULL << 59)
+#define VARIANT_MASK_BYTE_COVERAGE (0x1ULL << 60)
+#define VARIANT_MASK_FUNCTION_ENTRY_ONLY (0x1ULL << 61)
+#define VARIANT_MASK_MEMPROF (0x1ULL << 62)
 #define INSTR_PROF_RAW_VERSION_VAR __llvm_profile_raw_version
 #define INSTR_PROF_PROFILE_RUNTIME_VAR __llvm_profile_runtime
 #define INSTR_PROF_PROFILE_COUNTER_BIAS_VAR __llvm_profile_counter_bias

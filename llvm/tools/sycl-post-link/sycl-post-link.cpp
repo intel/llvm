@@ -13,6 +13,7 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
+#include "CompileTimePropertiesPass.h"
 #include "DeviceGlobals.h"
 #include "SYCLDeviceLibReqMask.h"
 #include "SYCLKernelParamOptInfo.h"
@@ -327,8 +328,9 @@ bool isEntryPoint(const Function &F) {
 // EntryPointsGroups which maps some key to a group of entry points. Each such
 // group along with IR it depends on (globals, functions from its call graph,
 // ...) will constitute a separate module.
-void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
-                      EntryPointsGroupScope EntryScope) {
+EntryPointGroupMap groupEntryPoints(const Module &M,
+                                    EntryPointsGroupScope EntryScope) {
+  EntryPointGroupMap EntryPointsGroups{};
   // Only process module entry points:
   for (const auto &F : M.functions()) {
     if (!isEntryPoint(F))
@@ -362,19 +364,86 @@ void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
   // No entry points met, record this.
   if (EntryPointsGroups.empty())
     EntryPointsGroups[GLOBAL_SCOPE_NAME] = {};
+
+  return EntryPointsGroups;
+}
+
+// For device global variables with the 'device_image_scope' property,
+// the function checks that there are no usages of a single device global
+// variable from kernels grouped to different modules.
+void checkImageScopedDeviceGlobals(const Module &M,
+                                   const EntryPointGroupMap &GMap) {
+  // Early exit if there is only one group
+  if (GMap.size() < 2)
+    return;
+
+  // Reverse the EntryPointGroupMap to get a map of entry point -> module's name
+  unsigned EntryPointNumber = 0;
+  for (const auto &Group : GMap)
+    EntryPointNumber += static_cast<unsigned>(Group.second.size());
+  DenseMap<const Function *, StringRef> EntryPointModules(EntryPointNumber);
+  for (const auto &Group : GMap) {
+    auto ModuleName = Group.first;
+    for (const auto *F : Group.second) {
+      EntryPointModules.insert({F, ModuleName});
+    }
+  }
+
+  // Processing device global variables with the "device_image_scope" property
+  for (auto &GV : M.globals()) {
+    if (!isDeviceGlobalVariable(GV) || !hasDeviceImageScopeProperty(GV))
+      continue;
+
+    Optional<StringRef> VarEntryPointModule{};
+    auto CheckEntryPointModule = [&VarEntryPointModule, &EntryPointModules,
+                                  &GV](const auto *F) {
+      auto EntryPointModulesIt = EntryPointModules.find(F);
+      assert(EntryPointModulesIt != EntryPointModules.end() &&
+             "There is no group for an entry point");
+      if (!VarEntryPointModule.hasValue()) {
+        VarEntryPointModule = EntryPointModulesIt->second;
+        return;
+      }
+      if (EntryPointModulesIt->second != *VarEntryPointModule) {
+        error("device_global variable '" + Twine(GV.getName()) +
+              "' with property \"device_image_scope\" is used in more "
+              "than one device image.");
+      }
+    };
+
+    SmallSetVector<const User *, 32> Workqueue;
+    for (auto *U : GV.users())
+      Workqueue.insert(U);
+
+    while (!Workqueue.empty()) {
+      const User *U = Workqueue.back();
+      Workqueue.pop_back();
+      if (auto *I = dyn_cast<const Instruction>(U)) {
+        auto *F = I->getFunction();
+        Workqueue.insert(F);
+        continue;
+      }
+      if (auto *F = dyn_cast<const Function>(U)) {
+        if (isEntryPoint(*F))
+          CheckEntryPointModule(F);
+      }
+      for (auto *UU : U->users())
+        Workqueue.insert(UU);
+    }
+  }
 }
 
 // This function traverses over reversed call graph by BFS algorithm.
 // It means that an edge links some function @func with functions
 // which contain call of function @func. It starts from
-// @StartingFunction and lifts up until it reach all reachable functions
+// @StartingFunction and lifts up until it reach all reachable functions,
 // or it reaches some function containing "referenced-indirectly" attribute.
 // If it reaches "referenced-indirectly" attribute than it returns an empty
 // Optional.
 // Otherwise, it returns an Optional containing a list of reached
 // SPIR kernel function's names.
 Optional<std::vector<StringRef>>
-TraverseCGToFindSPIRKernels(const Function *StartingFunction) {
+traverseCGToFindSPIRKernels(const Function *StartingFunction) {
   std::queue<const Function *> FunctionsToVisit;
   std::unordered_set<const Function *> VisitedFunctions;
   FunctionsToVisit.push(StartingFunction);
@@ -410,16 +479,16 @@ TraverseCGToFindSPIRKernels(const Function *StartingFunction) {
     }
   }
 
-  return std::move(KernelNames);
+  return {std::move(KernelNames)};
 }
 
 std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
-  auto DevicelibAssertFailFunction = M.getFunction("__devicelib_assert_fail");
+  auto *DevicelibAssertFailFunction = M.getFunction("__devicelib_assert_fail");
   if (!DevicelibAssertFailFunction)
     return {};
 
   auto TraverseResult =
-      TraverseCGToFindSPIRKernels(DevicelibAssertFailFunction);
+      traverseCGToFindSPIRKernels(DevicelibAssertFailFunction);
 
   if (TraverseResult.hasValue())
     return std::move(*TraverseResult);
@@ -437,7 +506,7 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 
 // Gets reqd_work_group_size information for function Func.
 std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
-  auto ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
+  auto *ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
   if (!ReqdWorkGroupSizeMD)
     return {};
   // TODO: Remove 3-operand assumption when it is relaxed.
@@ -477,18 +546,25 @@ extractCallGraph(const Module &M, const EntryPointGroup &ModuleEntryPoints) {
     const Function *F = &*Workqueue.back();
     Workqueue.pop_back();
     for (const auto &I : instructions(F)) {
-      if (const CallBase *CB = dyn_cast<CallBase>(&I))
-        if (const Function *CF = CB->getCalledFunction())
+      if (const CallBase *CB = dyn_cast<CallBase>(&I)) {
+        if (const Function *CF = CB->getCalledFunction()) {
           if (!CF->isDeclaration() && !GVs.count(CF)) {
             GVs.insert(CF);
             Workqueue.push_back(CF);
           }
+        }
+      }
     }
   }
 
   // It's not easy to trace global variable's uses inside needed functions
   // because global variable can be used inside a combination of operators, so
   // mark all global variables as needed and remove dead ones after cloning.
+  // Notice. For device global variables with the 'device_image_scope' property,
+  // removing dead ones is a must, the 'checkImageScopedDeviceGlobals' function
+  // checks that there are no usages of a single device global variable with the
+  // 'device_image_scope' property from multiple modules and the splitter must
+  // not add such usages after the check.
   for (const auto &G : M.globals()) {
     GVs.insert(&G);
   }
@@ -632,8 +708,7 @@ void saveModuleProperties(Module &M, const EntryPointGroup &ModuleEntryPoints,
 
   if (ImgPSInfo.EmitDeviceGlobalPropSet) {
     // Extract device global maps per module
-    auto DevGlobalPropertyMap =
-        DeviceGlobalsPass::collectDeviceGlobalProperties(M);
+    auto DevGlobalPropertyMap = collectDeviceGlobalProperties(M);
     if (!DevGlobalPropertyMap.empty())
       PropSet.add(PropSetRegTy::SYCL_DEVICE_GLOBALS, DevGlobalPropertyMap);
   }
@@ -693,8 +768,25 @@ bool processSpecConstants(Module &M) {
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   RunSpecConst.addPass(std::move(SCP));
 
-  // perform the spec constant intrinsics transformation on resulting module
+  // Perform the spec constant intrinsics transformation on resulting module
   PreservedAnalyses Res = RunSpecConst.run(M, MAM);
+  return !Res.areAllPreserved();
+}
+
+bool processCompileTimeProperties(Module &M) {
+  // TODO: the early exit can be removed as soon as we have compile-time
+  // properties not attached to device globals.
+  if (DeviceGlobals.getNumOccurrences() == 0)
+    return false;
+
+  ModulePassManager RunCompileTimeProperties;
+  ModuleAnalysisManager MAM;
+  // Register required analysis
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  RunCompileTimeProperties.addPass(CompileTimePropertiesPass());
+
+  // Enrich the module with compile-time properties metadata
+  PreservedAnalyses Res = RunCompileTimeProperties.run(M, MAM);
   return !Res.areAllPreserved();
 }
 
@@ -705,15 +797,14 @@ bool processSpecConstants(Module &M) {
 //    module as a split condition.
 class ModuleSplitter {
   std::unique_ptr<Module> InputModule{nullptr};
+  bool IsSplit;
   EntryPointGroupMap GMap;
   EntryPointGroupMap::const_iterator GMapIt;
-  bool IsSplit;
 
 public:
   ModuleSplitter(std::unique_ptr<Module> M, bool Split,
-                 EntryPointsGroupScope Scope)
-      : InputModule(std::move(M)), IsSplit(Split) {
-    groupEntryPoints(*InputModule, GMap, Scope);
+                 EntryPointGroupMap GroupMap)
+      : InputModule(std::move(M)), IsSplit(Split), GMap(std::move(GroupMap)) {
     assert(!GMap.empty() && "Entry points group map is empty!");
     GMapIt = GMap.cbegin();
   }
@@ -728,9 +819,9 @@ public:
     ++GMapIt;
 
     std::unique_ptr<Module> SplitModule{nullptr};
-    if (IsSplit && !SplitModuleEntryPoints.empty())
+    if (IsSplit && !SplitModuleEntryPoints.empty()) {
       SplitModule = extractCallGraph(*InputModule, SplitModuleEntryPoints);
-    else {
+    } else {
       assert(GMap.size() == 1 && "Too many entry points groups in map!");
       SplitModule = std::move(InputModule);
     }
@@ -766,9 +857,12 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   if (IsEsimd && LowerEsimd)
     lowerEsimdConstructs(*M);
 
-  EntryPointsGroupScope Scope = selectDeviceCodeGroupScope(*M);
+  EntryPointGroupMap GMap =
+      groupEntryPoints(*M, selectDeviceCodeGroupScope(*M));
+  if (DeviceGlobals)
+    checkImageScopedDeviceGlobals(*M, GMap);
   bool DoSplit = (SplitMode.getNumOccurrences() > 0);
-  ModuleSplitter MSplit(std::move(M), DoSplit, Scope);
+  ModuleSplitter MSplit(std::move(M), DoSplit, std::move(GMap));
 
   StringRef FileSuffix = IsEsimd ? "esimd_" : "";
 
@@ -778,6 +872,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     std::tie(ResM, SplitModuleEntryPoints) = MSplit.nextSplit();
 
     bool SpecConstsMet = processSpecConstants(*ResM);
+    bool CompileTimePropertiesMet = processCompileTimeProperties(*ResM);
 
     if (IROutputOnly) {
       // the result is the transformed input LLVM IR file rather than a file
@@ -793,6 +888,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
       std::string ResModuleFile{};
       bool CanReuseInputModule = !SyclAndEsimdCode && !IsEsimd &&
                                  !IsLLVMUsedRemoved && !SpecConstsMet &&
+                                 !CompileTimePropertiesMet &&
                                  (MSplit.totalSplits() == 1);
       if (CanReuseInputModule)
         ResModuleFile = InputFilename;
@@ -978,11 +1074,6 @@ int main(int argc, char **argv) {
   }
   if (IROutputOnly && DoExportedSyms) {
     errs() << "error: -" << EmitExportedSymbols.ArgStr << " can't be used with"
-           << " -" << IROutputOnly.ArgStr << "\n";
-    return 1;
-  }
-  if (IROutputOnly && DoDeviceGlobals) {
-    errs() << "error: -" << DeviceGlobals.ArgStr << " can't be used with"
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }

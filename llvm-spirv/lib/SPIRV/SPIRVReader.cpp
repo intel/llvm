@@ -3496,18 +3496,16 @@ void SPIRVToLLVM::transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V) {
   Instruction *Inst = dyn_cast<Instruction>(V);
   if (!Inst)
     return;
-  if (BV->hasDecorateId(internal::DecorationAliasScopeINTEL)) {
+  if (BV->hasDecorateId(DecorationAliasScopeINTEL)) {
     std::vector<SPIRVId> AliasListIds;
-    AliasListIds =
-        BV->getDecorationIdLiterals(internal::DecorationAliasScopeINTEL);
+    AliasListIds = BV->getDecorationIdLiterals(DecorationAliasScopeINTEL);
     assert(AliasListIds.size() == 1 &&
            "Memory aliasing decorations must have one argument");
     addMemAliasMetadata(Inst, AliasListIds[0], LLVMContext::MD_alias_scope);
   }
-  if (BV->hasDecorateId(internal::DecorationNoAliasINTEL)) {
+  if (BV->hasDecorateId(DecorationNoAliasINTEL)) {
     std::vector<SPIRVId> AliasListIds;
-    AliasListIds =
-        BV->getDecorationIdLiterals(internal::DecorationNoAliasINTEL);
+    AliasListIds = BV->getDecorationIdLiterals(DecorationNoAliasINTEL);
     assert(AliasListIds.size() == 1 &&
            "Memory aliasing decorations must have one argument");
     addMemAliasMetadata(Inst, AliasListIds[0], LLVMContext::MD_noalias);
@@ -3580,6 +3578,16 @@ transDecorationsToMetadataList(llvm::LLVMContext *Context,
           Type::getInt32Ty(*Context), LinkAttrDeco->getLinkageType()));
       OPs.push_back(LinkNameMD);
       OPs.push_back(LinkTypeMD);
+      break;
+    }
+    case spv::internal::DecorationHostAccessINTEL: {
+      const auto *const HostAccDeco =
+          static_cast<const SPIRVDecorateHostAccessINTEL *>(Deco);
+      auto *const AccModeMD = ConstantAsMetadata::get(ConstantInt::get(
+          Type::getInt32Ty(*Context), HostAccDeco->getAccessMode()));
+      auto *const NameMD = MDString::get(*Context, HostAccDeco->getVarName());
+      OPs.push_back(AccModeMD);
+      OPs.push_back(NameMD);
       break;
     }
     case DecorationMergeINTEL: {

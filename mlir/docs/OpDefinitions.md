@@ -564,14 +564,13 @@ Verification code will be automatically generated for
 _additional_ verification, you can use
 
 ```tablegen
-let verifier = [{
-  ...
-}];
+let hasVerifier = 1;
 ```
 
-Code placed in `verifier` will be called after the auto-generated verification
-code. The order of trait verification excluding those of `verifier` should not
-be relied upon.
+This will generate a `LogicalResult verify()` method declaration on the op class
+that can be defined with any additional verification constraints. This method
+will be invoked after the auto-generated verification code. The order of trait
+verification excluding those of `hasVerifier` should not be relied upon.
 
 ### Declarative Assembly Format
 
@@ -619,6 +618,14 @@ The available directives are as follows:
         [function type](Dialects/Builtin.md/#functiontype).
     -   The constraints on `inputs` and `results` are the same as the `input` of
         the `type` directive.
+
+*   `oilist` ( \`keyword\` elements | \`otherKeyword\` elements ...)
+
+    -   Represents an optional order-independent list of clauses. Each clause
+        has a keyword and corresponding assembly format.
+    -   Each clause can appear 0 or 1 time (in any order).
+    -   Only literals, types and variables can be used within an oilist element.
+    -   All the variables must be optional or variadic.
 
 *   `operands`
 

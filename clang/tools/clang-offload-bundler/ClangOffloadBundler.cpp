@@ -25,6 +25,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Object/Archive.h"
@@ -1806,7 +1807,7 @@ static Error UnbundleArchive() {
     } // End of processing of all bundle entries of this child of input archive.
   }   // End of while over children of input archive.
 
-  assert(!ArchiveErr && "Error occured while reading archive!");
+  assert(!ArchiveErr && "Error occurred while reading archive!");
 
   /// Write out an archive for each target
   for (auto &Target : TargetNames) {

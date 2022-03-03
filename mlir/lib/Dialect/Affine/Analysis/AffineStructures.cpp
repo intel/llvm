@@ -188,7 +188,7 @@ FlatAffineConstraints::FlatAffineConstraints(IntegerSet set)
 // Construct from an IntegerSet.
 FlatAffineValueConstraints::FlatAffineValueConstraints(IntegerSet set)
     : FlatAffineConstraints(set) {
-  values.resize(numIds, None);
+  values.resize(getNumIds(), None);
 }
 
 // Construct a hyperrectangular constraint set from ValueRanges that represent
@@ -268,7 +268,7 @@ void FlatAffineValueConstraints::reset(unsigned newNumDims,
 
 unsigned FlatAffineValueConstraints::appendDimId(ValueRange vals) {
   unsigned pos = getNumDimIds();
-  insertId(IdKind::Dimension, pos, vals);
+  insertId(IdKind::SetDim, pos, vals);
   return pos;
 }
 
@@ -280,7 +280,7 @@ unsigned FlatAffineValueConstraints::appendSymbolId(ValueRange vals) {
 
 unsigned FlatAffineValueConstraints::insertDimId(unsigned pos,
                                                  ValueRange vals) {
-  return insertId(IdKind::Dimension, pos, vals);
+  return insertId(IdKind::SetDim, pos, vals);
 }
 
 unsigned FlatAffineValueConstraints::insertSymbolId(unsigned pos,
@@ -365,7 +365,7 @@ areIdsUnique(const FlatAffineConstraints &cst) {
 static bool LLVM_ATTRIBUTE_UNUSED areIdsUnique(
     const FlatAffineValueConstraints &cst, FlatAffineConstraints::IdKind kind) {
 
-  if (kind == FlatAffineConstraints::IdKind::Dimension)
+  if (kind == FlatAffineConstraints::IdKind::SetDim)
     return areIdsUnique(cst, 0, cst.getNumDimIds());
   if (kind == FlatAffineConstraints::IdKind::Symbol)
     return areIdsUnique(cst, cst.getNumDimIds(), cst.getNumDimAndSymbolIds());
@@ -1212,11 +1212,15 @@ FlatAffineValueConstraints::computeAlignedMap(AffineMap map,
   SmallVector<Value> *newSymsPtr = nullptr;
 #endif // NDEBUG
 
-  dims.reserve(numDims);
-  syms.reserve(numSymbols);
-  for (unsigned i = 0; i < numDims; ++i)
+  dims.reserve(getNumDimIds());
+  syms.reserve(getNumSymbolIds());
+  for (unsigned i = getIdKindOffset(IdKind::SetDim),
+                e = getIdKindEnd(IdKind::SetDim);
+       i < e; ++i)
     dims.push_back(values[i] ? *values[i] : Value());
-  for (unsigned i = numDims, e = numDims + numSymbols; i < e; ++i)
+  for (unsigned i = getIdKindOffset(IdKind::Symbol),
+                e = getIdKindEnd(IdKind::Symbol);
+       i < e; ++i)
     syms.push_back(values[i] ? *values[i] : Value());
 
   AffineMap alignedMap =
@@ -1371,13 +1375,13 @@ void FlatAffineValueConstraints::clearAndCopyFrom(
     *static_cast<IntegerPolyhedron *>(this) = other;
 
   values.clear();
-  values.resize(numIds, None);
+  values.resize(getNumIds(), None);
 }
 
 void FlatAffineValueConstraints::fourierMotzkinEliminate(
     unsigned pos, bool darkShadow, bool *isResultIntegerExact) {
   SmallVector<Optional<Value>, 8> newVals;
-  newVals.reserve(numIds - 1);
+  newVals.reserve(getNumIds() - 1);
   newVals.append(values.begin(), values.begin() + pos);
   newVals.append(values.begin() + pos + 1, values.end());
   // Note: Base implementation discards all associated Values.
@@ -1397,7 +1401,7 @@ void FlatAffineValueConstraints::projectOut(Value val) {
 
 LogicalResult FlatAffineValueConstraints::unionBoundingBox(
     const FlatAffineValueConstraints &otherCst) {
-  assert(otherCst.getNumDimIds() == numDims && "dims mismatch");
+  assert(otherCst.getNumDimIds() == getNumDimIds() && "dims mismatch");
   assert(otherCst.getMaybeValues()
              .slice(0, getNumDimIds())
              .equals(getMaybeValues().slice(0, getNumDimIds())) &&
@@ -1408,7 +1412,7 @@ LogicalResult FlatAffineValueConstraints::unionBoundingBox(
   // Align `other` to this.
   if (!areIdsAligned(*this, otherCst)) {
     FlatAffineValueConstraints otherCopy(otherCst);
-    mergeAndAlignIds(/*offset=*/numDims, this, &otherCopy);
+    mergeAndAlignIds(/*offset=*/getNumDimIds(), this, &otherCopy);
     return FlatAffineConstraints::unionBoundingBox(otherCopy);
   }
 

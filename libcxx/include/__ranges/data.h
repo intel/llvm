@@ -19,12 +19,12 @@
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_RANGES)
+#if !defined(_LIBCPP_HAS_NO_CONCEPTS) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
 
 // [range.prim.data]
 
@@ -60,11 +60,11 @@ namespace __data {
     template<__ranges_begin_invocable _Tp>
     _LIBCPP_HIDE_FROM_ABI
     constexpr auto operator()(_Tp&& __t) const
-        noexcept(noexcept(_VSTD::to_address(ranges::begin(__t)))) {
-      return _VSTD::to_address(ranges::begin(__t));
+        noexcept(noexcept(std::to_address(ranges::begin(__t)))) {
+      return std::to_address(ranges::begin(__t));
     }
   };
-}
+} // namespace __data
 
 inline namespace __cpo {
   inline constexpr auto data = __data::__fn{};
@@ -92,14 +92,14 @@ namespace __cdata {
       -> decltype(      ranges::data(static_cast<const _Tp&&>(__t)))
       { return          ranges::data(static_cast<const _Tp&&>(__t)); }
   };
-}
+} // namespace __cdata
 
 inline namespace __cpo {
   inline constexpr auto cdata = __cdata::__fn{};
 } // namespace __cpo
 } // namespace ranges
 
-#endif // !defined(_LIBCPP_HAS_NO_RANGES)
+#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
 

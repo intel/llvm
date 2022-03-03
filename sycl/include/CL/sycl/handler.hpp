@@ -917,11 +917,14 @@ private:
   }
 
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-    using type = typename std::conditional<
-        std::is_convertible<nd_item<Dims>, LambdaArgType>::value, nd_item<Dims>,
-        typename std::conditional<
-            std::is_convertible<item<Dims>, LambdaArgType>::value, item<Dims>,
-            LambdaArgType>::type>::type;
+    using type = typename std::conditional_t<
+        detail::is_same_v<id<Dims>, LambdaArgType>, LambdaArgType,
+        typename std::conditional_t<
+            detail::is_convertible_v<nd_item<Dims>, LambdaArgType>,
+            nd_item<Dims>,
+            typename std::conditional_t<
+                detail::is_convertible_v<item<Dims>, LambdaArgType>, item<Dims>,
+                LambdaArgType>>>;
   };
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -2411,8 +2414,11 @@ public:
                   "Invalid source accessor mode for the copy method.");
     static_assert(isValidModeForDestinationAccessor(AccessMode_Dst),
                   "Invalid destination accessor mode for the copy method.");
-    assert(Dst.get_size() >= Src.get_size() &&
-           "The destination accessor does not fit the copied memory.");
+    if (Dst.get_size() < Src.get_size())
+      throw sycl::invalid_object_error(
+          "The destination accessor size is too small to copy the memory into.",
+          CL_INVALID_OPERATION);
+
     if (copyAccToAccHelper(Src, Dst))
       return;
     setType(detail::CG::CopyAccToAcc);

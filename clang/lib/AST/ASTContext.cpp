@@ -973,7 +973,8 @@ static bool isAddrSpaceMapManglingEnabled(const TargetInfo &TI,
 ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
                        IdentifierTable &idents, SelectorTable &sels,
                        Builtin::Context &builtins, TranslationUnitKind TUKind)
-    : ConstantArrayTypes(this_()), FunctionProtoTypes(this_()),
+    : ConstantArrayTypes(this_(), ConstantArrayTypesLog2InitSize),
+      FunctionProtoTypes(this_(), FunctionProtoTypesLog2InitSize),
       TemplateSpecializationTypes(this_()),
       DependentTemplateSpecializationTypes(this_()), AutoTypes(this_()),
       SubstTemplateTemplateParmPacks(this_()),
@@ -3382,8 +3383,9 @@ QualType ASTContext::getBlockPointerType(QualType T) const {
 /// lvalue reference to the specified type.
 QualType
 ASTContext::getLValueReferenceType(QualType T, bool SpelledAsLValue) const {
-  assert(getCanonicalType(T) != OverloadTy &&
-         "Unresolved overloaded function type");
+  assert((!T->isPlaceholderType() ||
+          T->isSpecificPlaceholderType(BuiltinType::UnknownAny)) &&
+         "Unresolved placeholder type");
 
   // Unique pointers, to guarantee there is only one pointer of a particular
   // structure.
@@ -3421,6 +3423,10 @@ ASTContext::getLValueReferenceType(QualType T, bool SpelledAsLValue) const {
 /// getRValueReferenceType - Return the uniqued reference to the type for an
 /// rvalue reference to the specified type.
 QualType ASTContext::getRValueReferenceType(QualType T) const {
+  assert((!T->isPlaceholderType() ||
+          T->isSpecificPlaceholderType(BuiltinType::UnknownAny)) &&
+         "Unresolved placeholder type");
+
   // Unique pointers, to guarantee there is only one pointer of a particular
   // structure.
   llvm::FoldingSetNodeID ID;
@@ -6111,7 +6117,8 @@ ASTContext::getNameForTemplate(TemplateName Name,
   llvm_unreachable("bad template name kind!");
 }
 
-TemplateName ASTContext::getCanonicalTemplateName(TemplateName Name) const {
+TemplateName
+ASTContext::getCanonicalTemplateName(const TemplateName &Name) const {
   switch (Name.getKind()) {
   case TemplateName::QualifiedTemplate:
   case TemplateName::Template: {
@@ -6153,13 +6160,14 @@ TemplateName ASTContext::getCanonicalTemplateName(TemplateName Name) const {
   llvm_unreachable("bad template name!");
 }
 
-bool ASTContext::hasSameTemplateName(TemplateName X, TemplateName Y) {
-  X = getCanonicalTemplateName(X);
-  Y = getCanonicalTemplateName(Y);
-  return X.getAsVoidPointer() == Y.getAsVoidPointer();
+bool ASTContext::hasSameTemplateName(const TemplateName &X,
+                                     const TemplateName &Y) const {
+  return getCanonicalTemplateName(X).getAsVoidPointer() ==
+         getCanonicalTemplateName(Y).getAsVoidPointer();
 }
 
-bool ASTContext::isSameTemplateParameter(NamedDecl *X, NamedDecl *Y) {
+bool ASTContext::isSameTemplateParameter(const NamedDecl *X,
+                                         const NamedDecl *Y) {
   if (X->getKind() != Y->getKind())
     return false;
 
@@ -6210,8 +6218,8 @@ bool ASTContext::isSameTemplateParameter(NamedDecl *X, NamedDecl *Y) {
                                      TY->getTemplateParameters());
 }
 
-bool ASTContext::isSameTemplateParameterList(TemplateParameterList *X,
-                                             TemplateParameterList *Y) {
+bool ASTContext::isSameTemplateParameterList(const TemplateParameterList *X,
+                                             const TemplateParameterList *Y) {
   if (X->size() != Y->size())
     return false;
 
@@ -6314,7 +6322,7 @@ static bool hasSameOverloadableAttrs(const FunctionDecl *A,
   return true;
 }
 
-bool ASTContext::isSameEntity(NamedDecl *X, NamedDecl *Y) {
+bool ASTContext::isSameEntity(const NamedDecl *X, const NamedDecl *Y) {
   if (X == Y)
     return true;
 
@@ -6421,6 +6429,8 @@ bool ASTContext::isSameEntity(NamedDecl *X, NamedDecl *Y) {
       if (getLangOpts().CPlusPlus17 && XFPT && YFPT &&
           (isUnresolvedExceptionSpec(XFPT->getExceptionSpecType()) ||
            isUnresolvedExceptionSpec(YFPT->getExceptionSpecType())) &&
+          // FIXME: We could make isSameEntity const after we make
+          // hasSameFunctionTypeIgnoringExceptionSpec const.
           hasSameFunctionTypeIgnoringExceptionSpec(XT, YT))
         return true;
       return false;
@@ -6798,41 +6808,6 @@ static FloatingRank getFloatingRank(QualType T) {
   case BuiltinType::BFloat16:   return BFloat16Rank;
   case BuiltinType::Ibm128:     return Ibm128Rank;
   }
-}
-
-/// getFloatingTypeOfSizeWithinDomain - Returns a real floating
-/// point or a complex type (based on typeDomain/typeSize).
-/// 'typeDomain' is a real floating point or complex type.
-/// 'typeSize' is a real floating point or complex type.
-QualType ASTContext::getFloatingTypeOfSizeWithinDomain(QualType Size,
-                                                       QualType Domain) const {
-  FloatingRank EltRank = getFloatingRank(Size);
-  if (Domain->isComplexType()) {
-    switch (EltRank) {
-    case BFloat16Rank: llvm_unreachable("Complex bfloat16 is not supported");
-    case Float16Rank:
-    case HalfRank: llvm_unreachable("Complex half is not supported");
-    case Ibm128Rank:     return getComplexType(Ibm128Ty);
-    case FloatRank:      return getComplexType(FloatTy);
-    case DoubleRank:     return getComplexType(DoubleTy);
-    case LongDoubleRank: return getComplexType(LongDoubleTy);
-    case Float128Rank:   return getComplexType(Float128Ty);
-    }
-  }
-
-  assert(Domain->isRealFloatingType() && "Unknown domain!");
-  switch (EltRank) {
-  case Float16Rank:    return HalfTy;
-  case BFloat16Rank:   return BFloat16Ty;
-  case HalfRank:       return HalfTy;
-  case FloatRank:      return FloatTy;
-  case DoubleRank:     return DoubleTy;
-  case LongDoubleRank: return LongDoubleTy;
-  case Float128Rank:   return Float128Ty;
-  case Ibm128Rank:
-    return Ibm128Ty;
-  }
-  llvm_unreachable("getFloatingRank(): illegal value for rank");
 }
 
 /// getFloatingTypeOrder - Compare the rank of the two specified floating
@@ -8309,6 +8284,11 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string &S,
       *NotEncodedT = T;
     return;
 
+  case Type::BitInt:
+    if (NotEncodedT)
+      *NotEncodedT = T;
+    return;
+
   // We could see an undeduced auto type here during error recovery.
   // Just ignore it.
   case Type::Auto:
@@ -8316,7 +8296,6 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string &S,
     return;
 
   case Type::Pipe:
-  case Type::BitInt:
 #define ABSTRACT_TYPE(KIND, BASE)
 #define TYPE(KIND, BASE)
 #define DEPENDENT_TYPE(KIND, BASE) \
@@ -8557,21 +8536,18 @@ static TypedefDecl *CreateVoidPtrBuiltinVaListDecl(const ASTContext *Context) {
 
 static TypedefDecl *
 CreateAArch64ABIBuiltinVaListDecl(const ASTContext *Context) {
+  // struct __va_list
   RecordDecl *VaListTagDecl = Context->buildImplicitRecord("__va_list");
-  // namespace std { struct __va_list {
-  // Note that we create the namespace even in C. This is intentional so that
-  // the type is consistent between C and C++, which is important in cases where
-  // the types need to match between translation units (e.g. with
-  // -fsanitize=cfi-icall). Ideally we wouldn't have created this namespace at
-  // all, but it's now part of the ABI (e.g. in mangled names), so we can't
-  // change it.
-  auto *NS = NamespaceDecl::Create(
-      const_cast<ASTContext &>(*Context), Context->getTranslationUnitDecl(),
-      /*Inline*/ false, SourceLocation(), SourceLocation(),
-      &Context->Idents.get("std"),
-      /*PrevDecl*/ nullptr);
-  NS->setImplicit();
-  VaListTagDecl->setDeclContext(NS);
+  if (Context->getLangOpts().CPlusPlus) {
+    // namespace std { struct __va_list {
+    auto *NS = NamespaceDecl::Create(
+        const_cast<ASTContext &>(*Context), Context->getTranslationUnitDecl(),
+        /*Inline*/ false, SourceLocation(), SourceLocation(),
+        &Context->Idents.get("std"),
+        /*PrevDecl*/ nullptr);
+    NS->setImplicit();
+    VaListTagDecl->setDeclContext(NS);
+  }
 
   VaListTagDecl->startDefinition();
 
@@ -11987,8 +11963,13 @@ uint64_t ASTContext::getTargetNullPointerValue(QualType QT) const {
 }
 
 unsigned ASTContext::getTargetAddressSpace(QualType T) const {
-  return T->isFunctionType() ? getTargetInfo().getProgramAddressSpace()
-                             : getTargetAddressSpace(T.getQualifiers());
+  // Return the address space for the type. If the type is a
+  // function type without an address space qualifier, the
+  // program address space is used. Otherwise, the target picks
+  // the best address space based on the type information
+  return T->isFunctionType() && !T.hasAddressSpace()
+             ? getTargetInfo().getProgramAddressSpace()
+             : getTargetAddressSpace(T.getQualifiers());
 }
 
 unsigned ASTContext::getTargetAddressSpace(Qualifiers Q) const {

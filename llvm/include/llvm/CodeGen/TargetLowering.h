@@ -1071,6 +1071,11 @@ public:
     return false;
   }
 
+  /// How to legalize this custom operation?
+  virtual LegalizeAction getCustomOperationAction(SDNode &Op) const {
+    return Legal;
+  }
+
   /// Return how this operation should be treated: either it is legal, needs to
   /// be promoted to a larger size, needs to be expanded to some other code
   /// sequence, or the target has a custom expander for it.
@@ -2123,8 +2128,8 @@ public:
   /// about some cases, a default true can be returned to let the DAGCombiner
   /// decide.
   /// AddNode is (add x, c1), and ConstNode is c2.
-  virtual bool isMulAddWithConstProfitable(const SDValue &AddNode,
-                                           const SDValue &ConstNode) const {
+  virtual bool isMulAddWithConstProfitable(SDValue AddNode,
+                                           SDValue ConstNode) const {
     return true;
   }
 
@@ -2510,6 +2515,10 @@ public:
     case ISD::FMAXNUM_IEEE:
     case ISD::FMINIMUM:
     case ISD::FMAXIMUM:
+    case ISD::AVGFLOORS:
+    case ISD::AVGFLOORU:
+    case ISD::AVGCEILS:
+    case ISD::AVGCEILU:
       return true;
     default: return false;
     }
@@ -2848,6 +2857,14 @@ public:
   /// VT2. e.g. on x86, it's profitable to narrow from i32 to i8 but not from
   /// i32 to i16.
   virtual bool isNarrowingProfitable(EVT /*VT1*/, EVT /*VT2*/) const {
+    return false;
+  }
+
+  /// Return true if pulling a binary operation into a select with an identity
+  /// constant is profitable. This is the inverse of an IR transform.
+  /// Example: X + (Cond ? Y : 0) --> Cond ? (X + Y) : X
+  virtual bool shouldFoldSelectWithIdentityConstant(unsigned BinOpcode,
+                                                    EVT VT) const {
     return false;
   }
 
@@ -3485,13 +3502,19 @@ public:
   bool SimplifyDemandedBits(SDValue Op, const APInt &DemandedBits,
                             DAGCombinerInfo &DCI) const;
 
+  /// Helper wrapper around SimplifyDemandedBits.
+  /// Adds Op back to the worklist upon success.
+  bool SimplifyDemandedBits(SDValue Op, const APInt &DemandedBits,
+                            const APInt &DemandedElts,
+                            DAGCombinerInfo &DCI) const;
+
   /// More limited version of SimplifyDemandedBits that can be used to "look
   /// through" ops that don't contribute to the DemandedBits/DemandedElts -
   /// bitwise ops etc.
   SDValue SimplifyMultipleUseDemandedBits(SDValue Op, const APInt &DemandedBits,
                                           const APInt &DemandedElts,
                                           SelectionDAG &DAG,
-                                          unsigned Depth) const;
+                                          unsigned Depth = 0) const;
 
   /// Helper wrapper around SimplifyMultipleUseDemandedBits, demanding all
   /// elements.
@@ -3528,7 +3551,6 @@ public:
   /// Helper wrapper around SimplifyDemandedVectorElts.
   /// Adds Op back to the worklist upon success.
   bool SimplifyDemandedVectorElts(SDValue Op, const APInt &DemandedElts,
-                                  APInt &KnownUndef, APInt &KnownZero,
                                   DAGCombinerInfo &DCI) const;
 
   /// Determine which of the bits specified in Mask are known to be either zero
@@ -3676,11 +3698,11 @@ public:
 
   /// Return if the N is a constant or constant vector equal to the true value
   /// from getBooleanContents().
-  bool isConstTrueVal(const SDNode *N) const;
+  bool isConstTrueVal(SDValue N) const;
 
   /// Return if the N is a constant or constant vector equal to the false value
   /// from getBooleanContents().
-  bool isConstFalseVal(const SDNode *N) const;
+  bool isConstFalseVal(SDValue N) const;
 
   /// Return if \p N is a True value when extended to \p VT.
   bool isExtendedTrueVal(const ConstantSDNode *N, EVT VT, bool SExt) const;
@@ -3799,7 +3821,7 @@ public:
     if (Neg && Cost == NegatibleCost::Cheaper)
       return Neg;
     // Remove the new created node to avoid the side effect to the DAG.
-    if (Neg && Neg.getNode()->use_empty())
+    if (Neg && Neg->use_empty())
       DAG.RemoveDeadNode(Neg.getNode());
     return SDValue();
   }

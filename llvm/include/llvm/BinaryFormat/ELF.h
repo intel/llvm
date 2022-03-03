@@ -319,6 +319,7 @@ enum {
   EM_BPF = 247,           // Linux kernel bpf virtual machine
   EM_VE = 251,            // NEC SX-Aurora VE
   EM_CSKY = 252,          // C-SKY 32-bit processor
+  EM_LOONGARCH = 258,     // LoongArch
 };
 
 // Object file classes.
@@ -372,7 +373,8 @@ enum {
   // was never defined for V1.
   ELFABIVERSION_AMDGPU_HSA_V2 = 0,
   ELFABIVERSION_AMDGPU_HSA_V3 = 1,
-  ELFABIVERSION_AMDGPU_HSA_V4 = 2
+  ELFABIVERSION_AMDGPU_HSA_V4 = 2,
+  ELFABIVERSION_AMDGPU_HSA_V5 = 3
 };
 
 #define ELF_RELOC(name, value) name = value,
@@ -870,6 +872,11 @@ enum {
 #include "ELFRelocs/CSKY.def"
 };
 
+// ELF Relocation types for LoongArch
+enum {
+#include "ELFRelocs/LoongArch.def"
+};
+
 #undef ELF_RELOC
 
 // Section header.
@@ -1034,6 +1041,9 @@ enum : unsigned {
   // Start of target-specific flags.
 
   SHF_MASKOS = 0x0ff00000,
+
+  // Solaris equivalent of SHF_GNU_RETAIN.
+  SHF_SUNW_NODISCARD = 0x00100000,
 
   // Bits indicating processor-specific flags.
   SHF_MASKPROC = 0xf0000000,

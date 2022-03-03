@@ -171,11 +171,12 @@ public:
     } else {
       assert(m.size() == 2);
       // COMPLEX is split into 2 separate arguments
+      auto iTy = rewriter->getIntegerType(32);
       for (auto e : llvm::enumerate(m)) {
         auto &tup = e.value();
         auto ty = std::get<mlir::Type>(tup);
         auto index = e.index();
-        auto idx = rewriter->getIntegerAttr(rewriter->getIndexType(), index);
+        auto idx = rewriter->getIntegerAttr(iTy, index);
         auto val = rewriter->create<ExtractValueOp>(
             loc, ty, oper, rewriter->getArrayAttr(idx));
         newInTys.push_back(ty);
@@ -198,7 +199,7 @@ public:
     // to call.
     int dropFront = 0;
     if constexpr (std::is_same_v<std::decay_t<A>, fir::CallOp>) {
-      if (!callOp.callee().hasValue()) {
+      if (!callOp.getCallee().hasValue()) {
         newInTys.push_back(fnTy.getInput(0));
         newOpers.push_back(callOp.getOperand(0));
         dropFront = 1;
@@ -235,10 +236,10 @@ public:
           .template Case<BoxCharType>([&](BoxCharType boxTy) {
             bool sret;
             if constexpr (std::is_same_v<std::decay_t<A>, fir::CallOp>) {
-              sret = callOp.callee() &&
+              sret = callOp.getCallee() &&
                      functionArgIsSRet(index,
                                        getModule().lookupSymbol<mlir::FuncOp>(
-                                           *callOp.callee()));
+                                           *callOp.getCallee()));
             } else {
               // TODO: dispatch case; how do we put arguments on a call?
               // We cannot put both an sret and the dispatch object first.
@@ -273,7 +274,7 @@ public:
             if (factory::isCharacterProcedureTuple(tuple)) {
               mlir::ModuleOp module = getModule();
               if constexpr (std::is_same_v<std::decay_t<A>, fir::CallOp>) {
-                if (callOp.callee()) {
+                if (callOp.getCallee()) {
                   llvm::StringRef charProcAttr =
                       fir::getCharacterProcedureDummyAttrName();
                   // The charProcAttr attribute is only used as a safety to
@@ -281,7 +282,7 @@ public:
                   // It cannot be used to match because attributes are not
                   // available in case of indirect calls.
                   auto funcOp =
-                      module.lookupSymbol<mlir::FuncOp>(*callOp.callee());
+                      module.lookupSymbol<mlir::FuncOp>(*callOp.getCallee());
                   if (funcOp &&
                       !funcOp.template getArgAttrOfType<mlir::UnitAttr>(
                           index, charProcAttr))
@@ -313,8 +314,8 @@ public:
     newOpers.insert(newOpers.end(), trailingOpers.begin(), trailingOpers.end());
     if constexpr (std::is_same_v<std::decay_t<A>, fir::CallOp>) {
       fir::CallOp newCall;
-      if (callOp.callee().hasValue()) {
-        newCall = rewriter->create<A>(loc, callOp.callee().getValue(),
+      if (callOp.getCallee().hasValue()) {
+        newCall = rewriter->create<A>(loc, callOp.getCallee().getValue(),
                                       newResTys, newOpers);
       } else {
         // Force new type on the input operand.
@@ -413,7 +414,7 @@ public:
     // replace this op with a new one with the updated signature
     auto newTy = rewriter->getFunctionType(newInTys, newResTys);
     auto newOp =
-        rewriter->create<AddrOfOp>(addrOp.getLoc(), newTy, addrOp.symbol());
+        rewriter->create<AddrOfOp>(addrOp.getLoc(), newTy, addrOp.getSymbol());
     replaceOp(addrOp, newOp.getResult());
   }
 
@@ -633,8 +634,9 @@ public:
             rewriter->setInsertionPointToStart(&func.front());
             auto cplxTy = oldArgTys[fixup.index - offset - fixup.second];
             auto undef = rewriter->create<UndefOp>(loc, cplxTy);
-            auto zero = rewriter->getIntegerAttr(rewriter->getIndexType(), 0);
-            auto one = rewriter->getIntegerAttr(rewriter->getIndexType(), 1);
+            auto iTy = rewriter->getIntegerType(32);
+            auto zero = rewriter->getIntegerAttr(iTy, 0);
+            auto one = rewriter->getIntegerAttr(iTy, 1);
             auto cplx1 = rewriter->create<InsertValueOp>(
                 loc, cplxTy, undef, func.front().getArgument(fixup.index - 1),
                 rewriter->getArrayAttr(zero));

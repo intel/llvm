@@ -1224,7 +1224,6 @@ TEST(Hover, NoHover) {
           )cpp",
       // literals
       "auto x = t^rue;",
-      "auto x = '^A';",
       "auto x = ^(int){42};",
       "auto x = ^42.;",
       "auto x = ^42.0i;",
@@ -1250,6 +1249,12 @@ TEST(Hover, All) {
     const char *const Code;
     const std::function<void(HoverInfo &)> ExpectedBuilder;
   } Cases[] = {
+      {"auto x = [['^A']]; // character literal",
+       [](HoverInfo &HI) {
+         HI.Name = "expression";
+         HI.Type = "char";
+         HI.Value = "65 (0x41)";
+       }},
       {
           R"cpp(// Local variable
             int main() {
@@ -2516,6 +2521,22 @@ TEST(Hover, All) {
             HI.NamespaceScope = "";
             HI.Definition = "@property(nonatomic, assign, unsafe_unretained, "
                             "readwrite) int prop1;";
+          }},
+      {
+          R"cpp(
+          @protocol MYProtocol
+          @end
+          @interface MYObject
+          @end
+
+          @interface MYObject (Ext) <[[MYProt^ocol]]>
+          @end
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "MYProtocol";
+            HI.Kind = index::SymbolKind::Protocol;
+            HI.NamespaceScope = "";
+            HI.Definition = "@protocol MYProtocol\n@end";
           }},
       {R"objc(
         @interface Foo

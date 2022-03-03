@@ -35,9 +35,10 @@ struct CastOpInterface
     return false;
   }
 
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
-                               const BufferizationState &state) const {
-    return op->getResult(0);
+  SmallVector<OpResult>
+  getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                      const BufferizationState &state) const {
+    return {op->getResult(0)};
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
@@ -79,6 +80,46 @@ struct CastOpInterface
   }
 };
 
+/// Bufferization of tensor.collapse_shape. Replace with memref.collapse_shape.
+struct CollapseShapeOpInterface
+    : public BufferizableOpInterface::ExternalModel<CollapseShapeOpInterface,
+                                                    tensor::CollapseShapeOp> {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              const BufferizationState &state) const {
+    return false;
+  }
+
+  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
+                               const BufferizationState &state) const {
+    return false;
+  }
+
+  SmallVector<OpResult>
+  getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                      const BufferizationState &state) const {
+    if (&opOperand == &op->getOpOperand(0) /*src*/)
+      return {op->getOpResult(0)};
+    return {};
+  }
+
+  BufferRelation bufferRelation(Operation *op, OpResult opResult,
+                                const BufferizationState &state) const {
+    return BufferRelation::Equivalent;
+  }
+
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
+                          const BufferizationState &state) const {
+    auto collapseShapeOp = cast<tensor::CollapseShapeOp>(op);
+    Value buffer =
+        *state.getBuffer(rewriter, collapseShapeOp->getOpOperand(0) /*src*/);
+    Type resultType =
+        getMemRefType(collapseShapeOp.getResultType(), state.getOptions());
+    replaceOpWithNewBufferizedOp<memref::CollapseShapeOp>(
+        rewriter, op, resultType, buffer, collapseShapeOp.reassociation());
+    return success();
+  }
+};
+
 /// Bufferization of tensor.dim. Replace with memref.dim.
 struct DimOpInterface
     : public BufferizableOpInterface::ExternalModel<DimOpInterface,
@@ -93,9 +134,10 @@ struct DimOpInterface
     return false;
   }
 
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
-                               const BufferizationState &state) const {
-    return OpResult();
+  SmallVector<OpResult>
+  getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                      const BufferizationState &state) const {
+    return {};
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
@@ -103,6 +145,46 @@ struct DimOpInterface
     auto dimOp = cast<tensor::DimOp>(op);
     Value v = *state.getBuffer(rewriter, dimOp->getOpOperand(0) /*source*/);
     replaceOpWithNewBufferizedOp<memref::DimOp>(rewriter, op, v, dimOp.index());
+    return success();
+  }
+};
+
+/// Bufferization of tensor.expand_shape. Replace with memref.expand_shape.
+struct ExpandShapeOpInterface
+    : public BufferizableOpInterface::ExternalModel<ExpandShapeOpInterface,
+                                                    tensor::ExpandShapeOp> {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              const BufferizationState &state) const {
+    return false;
+  }
+
+  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
+                               const BufferizationState &state) const {
+    return false;
+  }
+
+  SmallVector<OpResult>
+  getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                      const BufferizationState &state) const {
+    if (&opOperand == &op->getOpOperand(0) /*src*/)
+      return {op->getOpResult(0)};
+    return {};
+  }
+
+  BufferRelation bufferRelation(Operation *op, OpResult opResult,
+                                const BufferizationState &state) const {
+    return BufferRelation::Equivalent;
+  }
+
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
+                          const BufferizationState &state) const {
+    auto expandShapeOp = cast<tensor::ExpandShapeOp>(op);
+    Value buffer =
+        *state.getBuffer(rewriter, expandShapeOp->getOpOperand(0) /*src*/);
+    Type resultType =
+        getMemRefType(expandShapeOp.getResultType(), state.getOptions());
+    replaceOpWithNewBufferizedOp<memref::ExpandShapeOp>(
+        rewriter, op, resultType, buffer, expandShapeOp.reassociation());
     return success();
   }
 };
@@ -121,11 +203,12 @@ struct ExtractSliceOpInterface
     return false;
   }
 
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
-                               const BufferizationState &state) const {
-    return &opOperand == &op->getOpOperand(0) /*source*/
-               ? op->getResult(0)
-               : OpResult();
+  SmallVector<OpResult>
+  getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                      const BufferizationState &state) const {
+    if (&opOperand == &op->getOpOperand(0) /*source*/)
+      return {op->getOpResult(0)};
+    return {};
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
@@ -207,9 +290,10 @@ struct ExtractOpInterface
     return false;
   }
 
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
-                               const BufferizationState &state) const {
-    return OpResult();
+  SmallVector<OpResult>
+  getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                      const BufferizationState &state) const {
+    return {};
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
@@ -371,11 +455,12 @@ struct InsertOpInterface
     return true;
   }
 
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
-                               const BufferizationState &state) const {
+  SmallVector<OpResult>
+  getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                      const BufferizationState &state) const {
     assert(&opOperand == &op->getOpOperand(1) /*dest*/ &&
            "expected dest OpOperand");
-    return op->getOpResult(0);
+    return {op->getOpResult(0)};
   }
 
   SmallVector<OpOperand *>
@@ -451,11 +536,12 @@ struct InsertSliceOpInterface
     return &opOperand == &op->getOpOperand(1) /*dest*/;
   }
 
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
-                               const BufferizationState &state) const {
-    return &opOperand == &op->getOpOperand(1) /*dest*/
-               ? op->getResult(0)
-               : OpResult();
+  SmallVector<OpResult>
+  getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                      const BufferizationState &state) const {
+    if (&opOperand == &op->getOpOperand(1) /*dest*/)
+      return {op->getResult(0)};
+    return {};
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
@@ -606,9 +692,10 @@ struct RankOpInterface
     return false;
   }
 
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
-                               const BufferizationState &state) const {
-    return OpResult();
+  SmallVector<OpResult>
+  getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                      const BufferizationState &state) const {
+    return {};
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
@@ -628,7 +715,9 @@ struct RankOpInterface
 void mlir::tensor::registerBufferizableOpInterfaceExternalModels(
     DialectRegistry &registry) {
   registry.addOpInterface<CastOp, CastOpInterface>();
+  registry.addOpInterface<CollapseShapeOp, CollapseShapeOpInterface>();
   registry.addOpInterface<DimOp, DimOpInterface>();
+  registry.addOpInterface<ExpandShapeOp, ExpandShapeOpInterface>();
   registry.addOpInterface<ExtractSliceOp, ExtractSliceOpInterface>();
   registry.addOpInterface<ExtractOp, ExtractOpInterface>();
   registry.addOpInterface<FromElementsOp, FromElementsOpInterface>();

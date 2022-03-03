@@ -17,12 +17,16 @@
 #include "Utils/AMDKernelCodeTUtils.h"
 #include "llvm/BinaryFormat/AMDGPUMetadataVerifier.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFStreamer.h"
 #include "llvm/MC/MCSectionELF.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/AMDGPUMetadata.h"
 #include "llvm/Support/AMDHSAKernelDescriptor.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/FormattedStream.h"
+#include "llvm/Support/TargetParser.h"
 
 using namespace llvm;
 using namespace llvm::AMDGPU;
@@ -396,6 +400,7 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
       break;
     case ELF::ELFABIVERSION_AMDGPU_HSA_V3:
     case ELF::ELFABIVERSION_AMDGPU_HSA_V4:
+    case ELF::ELFABIVERSION_AMDGPU_HSA_V5:
       if (getTargetID()->isXnackSupported())
         OS << "\t\t.amdhsa_reserve_xnack_mask " << getTargetID()->isXnackOnOrAny() << '\n';
       break;
@@ -578,6 +583,7 @@ unsigned AMDGPUTargetELFStreamer::getEFlagsAMDHSA() {
     case ELF::ELFABIVERSION_AMDGPU_HSA_V3:
       return getEFlagsV3();
     case ELF::ELFABIVERSION_AMDGPU_HSA_V4:
+    case ELF::ELFABIVERSION_AMDGPU_HSA_V5:
       return getEFlagsV4();
     }
   }
@@ -689,7 +695,7 @@ AMDGPUTargetELFStreamer::EmitDirectiveHSACodeObjectISAV2(uint32_t Major,
              OS.emitBytes(VendorName);
              OS.emitInt8(0); // NULL terminate VendorName
              OS.emitBytes(ArchName);
-             OS.emitInt8(0); // NULL terminte ArchName
+             OS.emitInt8(0); // NULL terminate ArchName
            });
 }
 

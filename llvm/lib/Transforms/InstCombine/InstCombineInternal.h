@@ -71,7 +71,7 @@ public:
       : InstCombiner(Worklist, Builder, MinimizeSize, AA, AC, TLI, TTI, DT, ORE,
                      BFI, PSI, DL, LI) {}
 
-  virtual ~InstCombinerImpl() {}
+  virtual ~InstCombinerImpl() = default;
 
   /// Run the combiner over the entire worklist until it is empty.
   ///
@@ -650,9 +650,9 @@ public:
 
   Instruction *foldGEPICmp(GEPOperator *GEPLHS, Value *RHS,
                            ICmpInst::Predicate Cond, Instruction &I);
-  Instruction *foldAllocaCmp(ICmpInst &ICI, const AllocaInst *Alloca,
-                             const Value *Other);
-  Instruction *foldCmpLoadFromIndexedGlobal(GetElementPtrInst *GEP,
+  Instruction *foldAllocaCmp(ICmpInst &ICI, const AllocaInst *Alloca);
+  Instruction *foldCmpLoadFromIndexedGlobal(LoadInst *LI,
+                                            GetElementPtrInst *GEP,
                                             GlobalVariable *GV, CmpInst &ICI,
                                             ConstantInt *AndCst = nullptr);
   Instruction *foldFCmpIntToFPConst(FCmpInst &I, Instruction *LHSI,

@@ -1,6 +1,5 @@
 # Exclude tests from libMLIR.so
 add_mlir_library(MLIRLinalgTestPasses
-  TestComprehensiveBufferize.cpp
   TestLinalgCodegenStrategy.cpp
   TestLinalgDistribution.cpp
   TestLinalgElementwiseFusion.cpp
@@ -20,19 +19,18 @@ add_mlir_library(MLIRLinalgTestPasses
   MLIRBufferizationTransforms
   MLIRGPUTransforms
   MLIRLinalg
-  MLIRLinalgBufferizableOpInterfaceImpl
   MLIRLinalgTransforms
   MLIRLLVMToLLVMIRTranslation
   MLIRMemRef
   MLIRPass
   MLIRSCF
-  MLIRSCFBufferizableOpInterfaceImpl
-  MLIRStdBufferizableOpInterfaceImpl
+  MLIRSCFTransforms
   MLIRStandard
+  MLIRStandardOpsTransforms
   MLIRTensor
   MLIRTensorTransforms
   MLIRTransformUtils
   MLIRVector
-  MLIRVectorBufferizableOpInterfaceImpl
   MLIRVectorToSCF
+  MLIRVectorTransforms
   )

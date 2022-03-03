@@ -11,9 +11,13 @@
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
+#include "mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "mlir/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::bufferization;
@@ -45,9 +49,28 @@ BufferizeTypeConverter::BufferizeTypeConverter() {
   addSourceMaterialization(materializeToTensor);
   addTargetMaterialization([](OpBuilder &builder, BaseMemRefType type,
                               ValueRange inputs, Location loc) -> Value {
-    assert(inputs.size() == 1);
-    assert(inputs[0].getType().isa<TensorType>());
-    return builder.create<bufferization::ToMemrefOp>(loc, type, inputs[0]);
+    assert(inputs.size() == 1 && "expected exactly one input");
+
+    if (auto inputType = inputs[0].getType().dyn_cast<MemRefType>()) {
+      // MemRef to MemRef cast.
+      assert(inputType != type && "expected different types");
+      // Unranked to ranked and ranked to unranked casts must be explicit.
+      auto rankedDestType = type.dyn_cast<MemRefType>();
+      if (!rankedDestType)
+        return nullptr;
+      FailureOr<Value> replacement =
+          castOrReallocMemRefValue(builder, inputs[0], rankedDestType);
+      if (failed(replacement))
+        return nullptr;
+      return *replacement;
+    }
+
+    if (inputs[0].getType().isa<TensorType>()) {
+      // Tensor to MemRef cast.
+      return builder.create<bufferization::ToMemrefOp>(loc, type, inputs[0]);
+    }
+
+    llvm_unreachable("only tensor/memref input types supported");
   });
 }
 
@@ -125,7 +148,80 @@ struct FinalizingBufferizePass
       signalPassFailure();
   }
 };
+
+struct OneShotBufferizePass
+    : public OneShotBufferizeBase<OneShotBufferizePass> {
+  OneShotBufferizePass() : OneShotBufferizeBase<OneShotBufferizePass>() {}
+
+  explicit OneShotBufferizePass(const AnalysisBufferizationOptions &options)
+      : options(options) {}
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<bufferization::BufferizationDialect>();
+  }
+
+  void runOnOperation() override {
+    AnalysisBufferizationOptions opt;
+    if (!options) {
+      // Make new bufferization options if none were provided when creating the
+      // pass.
+      opt.allowReturnMemref = allowReturnMemref;
+      opt.allowUnknownOps = allowUnknownOps;
+      opt.analysisFuzzerSeed = analysisFuzzerSeed;
+      opt.createDeallocs = createDeallocs;
+      opt.fullyDynamicLayoutMaps = fullyDynamicLayoutMaps;
+      opt.printConflicts = printConflicts;
+      opt.testAnalysisOnly = testAnalysisOnly;
+
+      BufferizationOptions::OpFilterEntry::FilterFn filterFn =
+          [&](Operation *op) {
+            // Disallow non-std dialect ops. I.e., no ops related to function
+            // calls.
+            if (op->getDialect()->getNamespace() ==
+                StandardOpsDialect::getDialectNamespace())
+              return false;
+            // Filter may be specified via options.
+            if (this->dialectFilter.hasValue())
+              return llvm::find(this->dialectFilter,
+                                op->getDialect()->getNamespace()) !=
+                     this->dialectFilter.end();
+            // No filter specified: All other ops are allowed.
+            return true;
+          };
+      opt.allowOperationInFilter(filterFn);
+    } else {
+      opt = *options;
+    }
+
+    ModuleOp moduleOp = getOperation();
+    if (failed(runOneShotBufferize(moduleOp, opt))) {
+      signalPassFailure();
+      return;
+    }
+
+    if (opt.testAnalysisOnly)
+      return;
+
+    OpPassManager cleanupPipeline("builtin.module");
+    cleanupPipeline.addPass(createCanonicalizerPass());
+    cleanupPipeline.addPass(createCSEPass());
+    cleanupPipeline.addPass(createLoopInvariantCodeMotionPass());
+    (void)runPipeline(cleanupPipeline, moduleOp);
+  }
+
+private:
+  llvm::Optional<AnalysisBufferizationOptions> options;
+};
 } // namespace
+
+std::unique_ptr<Pass> mlir::bufferization::createOneShotBufferizePass() {
+  return std::make_unique<OneShotBufferizePass>();
+}
+
+std::unique_ptr<Pass> mlir::bufferization::createOneShotBufferizePass(
+    const AnalysisBufferizationOptions &options) {
+  return std::make_unique<OneShotBufferizePass>(options);
+}
 
 std::unique_ptr<OperationPass<FuncOp>>
 mlir::bufferization::createFinalizingBufferizePass() {
@@ -253,12 +349,11 @@ void bufferization::populateBufferizationPattern(
   patterns.add<BufferizationPattern>(patterns.getContext(), state);
 }
 
-std::unique_ptr<BufferizationOptions>
-bufferization::getPartialBufferizationOptions() {
-  auto options = std::make_unique<BufferizationOptions>();
-  options->allowReturnMemref = true;
-  options->allowUnknownOps = true;
-  options->createDeallocs = false;
-  options->fullyDynamicLayoutMaps = false;
+BufferizationOptions bufferization::getPartialBufferizationOptions() {
+  BufferizationOptions options;
+  options.allowReturnMemref = true;
+  options.allowUnknownOps = true;
+  options.createDeallocs = false;
+  options.fullyDynamicLayoutMaps = false;
   return options;
 }

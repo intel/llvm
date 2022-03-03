@@ -8,21 +8,18 @@
 
 #include "OutputSections.h"
 #include "Config.h"
+#include "InputFiles.h"
 #include "LinkerScript.h"
-#include "SymbolTable.h"
+#include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Target.h"
+#include "lld/Common/Arrays.h"
 #include "lld/Common/Memory.h"
-#include "lld/Common/Strings.h"
 #include "llvm/BinaryFormat/Dwarf.h"
-#include "llvm/Config/config.h" // LLVM_ENABLE_ZLIB
-#include "llvm/Support/MD5.h"
-#include "llvm/Support/MathExtras.h"
+#include "llvm/Config/llvm-config.h" // LLVM_ENABLE_ZLIB
 #include "llvm/Support/Parallel.h"
-#include "llvm/Support/SHA1.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/TimeProfiler.h"
-#include <regex>
-#include <unordered_set>
 #if LLVM_ENABLE_ZLIB
 #include <zlib.h>
 #endif
@@ -112,32 +109,39 @@ void OutputSection::recordSection(InputSectionBase *isec) {
 // isec. Also check whether the InputSection flags and type are consistent with
 // other InputSections.
 void OutputSection::commitSection(InputSection *isec) {
+  if (LLVM_UNLIKELY(type != isec->type)) {
+    if (hasInputSections || typeIsSet) {
+      if (typeIsSet || !canMergeToProgbits(type) ||
+          !canMergeToProgbits(isec->type)) {
+        // Changing the type of a (NOLOAD) section is fishy, but some projects
+        // (e.g. https://github.com/ClangBuiltLinux/linux/issues/1597)
+        // traditionally rely on the behavior. Issue a warning to not break
+        // them. Other types get an error.
+        auto diagnose = type == SHT_NOBITS ? warn : errorOrWarn;
+        diagnose("section type mismatch for " + isec->name + "\n>>> " +
+                 toString(isec) + ": " +
+                 getELFSectionTypeName(config->emachine, isec->type) +
+                 "\n>>> output section " + name + ": " +
+                 getELFSectionTypeName(config->emachine, type));
+      }
+      type = SHT_PROGBITS;
+    } else {
+      type = isec->type;
+    }
+  }
   if (!hasInputSections) {
     // If IS is the first section to be added to this section,
     // initialize type, entsize and flags from isec.
     hasInputSections = true;
-    type = isec->type;
     entsize = isec->entsize;
     flags = isec->flags;
   } else {
     // Otherwise, check if new type or flags are compatible with existing ones.
     if ((flags ^ isec->flags) & SHF_TLS)
-      error("incompatible section flags for " + name + "\n>>> " + toString(isec) +
-            ": 0x" + utohexstr(isec->flags) + "\n>>> output section " + name +
-            ": 0x" + utohexstr(flags));
-
-    if (type != isec->type) {
-      if (!canMergeToProgbits(type) || !canMergeToProgbits(isec->type))
-        error("section type mismatch for " + isec->name + "\n>>> " +
-              toString(isec) + ": " +
-              getELFSectionTypeName(config->emachine, isec->type) +
-              "\n>>> output section " + name + ": " +
-              getELFSectionTypeName(config->emachine, type));
-      type = SHT_PROGBITS;
-    }
+      error("incompatible section flags for " + name + "\n>>> " +
+            toString(isec) + ": 0x" + utohexstr(isec->flags) +
+            "\n>>> output section " + name + ": 0x" + utohexstr(flags));
   }
-  if (noload)
-    type = SHT_NOBITS;
 
   isec->parent = this;
   uint64_t andMask =
@@ -342,12 +346,8 @@ template <class ELFT> void OutputSection::maybeCompress() {
 
   // Split input into 1-MiB shards.
   constexpr size_t shardSize = 1 << 20;
-  const size_t numShards = (size + shardSize - 1) / shardSize;
-  auto shardsIn = std::make_unique<ArrayRef<uint8_t>[]>(numShards);
-  for (size_t i = 0, start = 0, end; start != size; ++i, start = end) {
-    end = std::min(start + shardSize, (size_t)size);
-    shardsIn[i] = makeArrayRef<uint8_t>(buf.get() + start, end - start);
-  }
+  auto shardsIn = split(makeArrayRef<uint8_t>(buf.get(), size), shardSize);
+  const size_t numShards = shardsIn.size();
 
   // Compress shards and compute Alder-32 checksums. Use Z_SYNC_FLUSH for all
   // shards but the last to flush the output to a byte boundary to be
@@ -456,13 +456,13 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *buf) {
       writeInt(buf + data->offset, data->expression().getValue(), data->size);
 }
 
-static void finalizeShtGroup(OutputSection *os,
-                             InputSection *section) {
-  assert(config->relocatable);
-
+static void finalizeShtGroup(OutputSection *os, InputSection *section) {
   // sh_link field for SHT_GROUP sections should contain the section index of
   // the symbol table.
   os->link = in.symTab->getParent()->sectionIndex;
+
+  if (!section)
+    return;
 
   // sh_info then contain index of an entry in symbol table section which
   // provides signature of the section group.
@@ -471,7 +471,7 @@ static void finalizeShtGroup(OutputSection *os,
 
   // Some group members may be combined or discarded, so we need to compute the
   // new size. The content will be rewritten in InputSection::copyShtGroup.
-  std::unordered_set<uint32_t> seen;
+  DenseSet<uint32_t> seen;
   ArrayRef<InputSectionBase *> sections = section->file->getSections();
   for (const uint32_t &idx : section->getDataAs<uint32_t>().slice(1))
     if (OutputSection *osec = sections[read32(&idx)]->getOutputSection())
@@ -521,18 +521,15 @@ void OutputSection::finalize() {
 // crtbegin files.
 //
 // Gcc uses any of crtbegin[<empty>|S|T].o.
-// Clang uses Gcc's plus clang_rt.crtbegin[<empty>|S|T][-<arch>|<empty>].o.
+// Clang uses Gcc's plus clang_rt.crtbegin[-<arch>|<empty>].o.
 
-static bool isCrtbegin(StringRef s) {
-  static std::regex re(R"((clang_rt\.)?crtbegin[ST]?(-.*)?\.o)");
+static bool isCrt(StringRef s, StringRef beginEnd) {
   s = sys::path::filename(s);
-  return std::regex_match(s.begin(), s.end(), re);
-}
-
-static bool isCrtend(StringRef s) {
-  static std::regex re(R"((clang_rt\.)?crtend[ST]?(-.*)?\.o)");
-  s = sys::path::filename(s);
-  return std::regex_match(s.begin(), s.end(), re);
+  if (!s.consume_back(".o"))
+    return false;
+  if (s.consume_front("clang_rt."))
+    return s.consume_front(beginEnd);
+  return s.consume_front(beginEnd) && s.size() <= 1;
 }
 
 // .ctors and .dtors are sorted by this order:
@@ -554,12 +551,12 @@ static bool isCrtend(StringRef s) {
 // are too many real-world use cases of .ctors, so we had no choice to
 // support that with this rather ad-hoc semantics.
 static bool compCtors(const InputSection *a, const InputSection *b) {
-  bool beginA = isCrtbegin(a->file->getName());
-  bool beginB = isCrtbegin(b->file->getName());
+  bool beginA = isCrt(a->file->getName(), "crtbegin");
+  bool beginB = isCrt(b->file->getName(), "crtbegin");
   if (beginA != beginB)
     return beginA;
-  bool endA = isCrtend(a->file->getName());
-  bool endB = isCrtend(b->file->getName());
+  bool endA = isCrt(a->file->getName(), "crtend");
+  bool endB = isCrt(b->file->getName(), "crtend");
   if (endA != endB)
     return endB;
   return getPriority(a->name) > getPriority(b->name);

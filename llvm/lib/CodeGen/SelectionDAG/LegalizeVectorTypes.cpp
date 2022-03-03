@@ -231,9 +231,16 @@ SDValue DAGTypeLegalizer::ScalarizeVecRes_StrictFPOp(SDNode *N) {
   // Now process the remaining operands.
   for (unsigned i = 1; i < NumOpers; ++i) {
     SDValue Oper = N->getOperand(i);
+    EVT OperVT = Oper.getValueType();
 
-    if (Oper.getValueType().isVector())
-      Oper = GetScalarizedVector(Oper);
+    if (OperVT.isVector()) {
+      if (getTypeAction(OperVT) == TargetLowering::TypeScalarizeVector)
+        Oper = GetScalarizedVector(Oper);
+      else
+        Oper = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, dl,
+                           OperVT.getVectorElementType(), Oper,
+                           DAG.getVectorIdxConstant(0, dl));
+    }
 
     Opers[i] = Oper;
   }
@@ -3280,6 +3287,10 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::USHLSAT:
   case ISD::ROTL:
   case ISD::ROTR:
+  case ISD::AVGFLOORS:
+  case ISD::AVGFLOORU:
+  case ISD::AVGCEILS:
+  case ISD::AVGCEILU:
   // Vector-predicated binary op widening. Note that -- unlike the
   // unpredicated versions -- we don't have to worry about trapping on
   // operations like UDIV, FADD, etc., as we pass on the original vector

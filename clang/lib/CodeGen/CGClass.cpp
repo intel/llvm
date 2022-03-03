@@ -162,7 +162,8 @@ CodeGenFunction::EmitCXXMemberDataPointerAddress(const Expr *E, Address base,
     CGM.getDynamicOffsetAlignment(base.getAlignment(),
                             memberPtrType->getClass()->getAsCXXRecordDecl(),
                                   memberAlign);
-  return Address(ptr, memberAlign);
+  return Address(ptr, ConvertTypeForMem(memberPtrType->getPointeeType()),
+                 memberAlign);
 }
 
 CharUnits CodeGenModule::computeNonVirtualBaseClassOffset(
@@ -1648,22 +1649,22 @@ namespace {
     }
   };
 
- static void EmitSanitizerDtorCallback(CodeGenFunction &CGF, llvm::Value *Ptr,
-             CharUnits::QuantityType PoisonSize) {
-   CodeGenFunction::SanitizerScope SanScope(&CGF);
-   // Pass in void pointer and size of region as arguments to runtime
-   // function
-   llvm::Value *Args[] = {CGF.Builder.CreateBitCast(Ptr, CGF.VoidPtrTy),
-                          llvm::ConstantInt::get(CGF.SizeTy, PoisonSize)};
+  static void EmitSanitizerDtorCallback(CodeGenFunction &CGF, llvm::Value *Ptr,
+                                        CharUnits::QuantityType PoisonSize) {
+    CodeGenFunction::SanitizerScope SanScope(&CGF);
+    // Pass in void pointer and size of region as arguments to runtime
+    // function
+    llvm::Value *Args[] = {CGF.Builder.CreateBitCast(Ptr, CGF.VoidPtrTy),
+                           llvm::ConstantInt::get(CGF.SizeTy, PoisonSize)};
 
-   llvm::Type *ArgTypes[] = {CGF.VoidPtrTy, CGF.SizeTy};
+    llvm::Type *ArgTypes[] = {CGF.VoidPtrTy, CGF.SizeTy};
 
-   llvm::FunctionType *FnType =
-       llvm::FunctionType::get(CGF.VoidTy, ArgTypes, false);
-   llvm::FunctionCallee Fn =
-       CGF.CGM.CreateRuntimeFunction(FnType, "__sanitizer_dtor_callback");
-   CGF.EmitNounwindRuntimeCall(Fn, Args);
- }
+    llvm::FunctionType *FnType =
+        llvm::FunctionType::get(CGF.VoidTy, ArgTypes, false);
+    llvm::FunctionCallee Fn =
+        CGF.CGM.CreateRuntimeFunction(FnType, "__sanitizer_dtor_callback");
+    CGF.EmitNounwindRuntimeCall(Fn, Args);
+  }
 
   class SanitizeDtorMembers final : public EHScopeStack::Cleanup {
     const CXXDestructorDecl *Dtor;
@@ -2147,8 +2148,8 @@ void CodeGenFunction::EmitCXXConstructorCall(const CXXConstructorDecl *D,
     assert(Args.size() == 2 && "unexpected argcount for trivial ctor");
 
     QualType SrcTy = D->getParamDecl(0)->getType().getNonReferenceType();
-    Address Src(Args[1].getRValue(*this).getScalarVal(),
-                CGM.getNaturalTypeAlignment(SrcTy));
+    Address Src = Address(Args[1].getRValue(*this).getScalarVal(), ConvertTypeForMem(SrcTy),
+                                      CGM.getNaturalTypeAlignment(SrcTy));
     LValue SrcLVal = MakeAddrLValue(Src, SrcTy);
     QualType DestTy = getContext().getTypeDeclType(ClassDecl);
     LValue DestLVal = MakeAddrLValue(This, DestTy);
@@ -2331,8 +2332,8 @@ CodeGenFunction::EmitSynthesizedCXXCopyCtorCall(const CXXConstructorDecl *D,
   // Push the src ptr.
   QualType QT = *(FPT->param_type_begin());
   llvm::Type *t = CGM.getTypes().ConvertType(QT);
-  Src = Builder.CreateBitCast(Src, t);
-  Args.add(RValue::get(Src.getPointer()), QT);
+  llvm::Value *SrcVal = Builder.CreateBitCast(Src.getPointer(), t);
+  Args.add(RValue::get(SrcVal), QT);
 
   // Skip over first argument (Src).
   EmitCallArgs(Args, FPT, drop_begin(E->arguments(), 1), E->getConstructor(),
@@ -2690,8 +2691,7 @@ void CodeGenFunction::EmitVTablePtrCheckForCall(const CXXRecordDecl *RD,
   EmitVTablePtrCheck(RD, VTable, TCK, Loc);
 }
 
-void CodeGenFunction::EmitVTablePtrCheckForCast(QualType T,
-                                                llvm::Value *Derived,
+void CodeGenFunction::EmitVTablePtrCheckForCast(QualType T, Address Derived,
                                                 bool MayBeNull,
                                                 CFITypeCheckKind TCK,
                                                 SourceLocation Loc) {
@@ -2714,7 +2714,7 @@ void CodeGenFunction::EmitVTablePtrCheckForCast(QualType T,
 
   if (MayBeNull) {
     llvm::Value *DerivedNotNull =
-        Builder.CreateIsNotNull(Derived, "cast.nonnull");
+        Builder.CreateIsNotNull(Derived.getPointer(), "cast.nonnull");
 
     llvm::BasicBlock *CheckBlock = createBasicBlock("cast.check");
     ContBlock = createBasicBlock("cast.cont");
@@ -2725,8 +2725,8 @@ void CodeGenFunction::EmitVTablePtrCheckForCast(QualType T,
   }
 
   llvm::Value *VTable;
-  std::tie(VTable, ClassDecl) = CGM.getCXXABI().LoadVTablePtr(
-      *this, Address(Derived, getPointerAlign()), ClassDecl);
+  std::tie(VTable, ClassDecl) =
+      CGM.getCXXABI().LoadVTablePtr(*this, Derived, ClassDecl);
 
   EmitVTablePtrCheck(ClassDecl, VTable, TCK, Loc);
 
@@ -2828,7 +2828,8 @@ bool CodeGenFunction::ShouldEmitVTableTypeCheckedLoad(const CXXRecordDecl *RD) {
 }
 
 llvm::Value *CodeGenFunction::EmitVTableTypeCheckedLoad(
-    const CXXRecordDecl *RD, llvm::Value *VTable, uint64_t VTableByteOffset) {
+    const CXXRecordDecl *RD, llvm::Value *VTable, llvm::Type *VTableTy,
+    uint64_t VTableByteOffset) {
   SanitizerScope SanScope(this);
 
   EmitSanitizerStatReport(llvm::SanStat_CFI_VCall);
@@ -2853,7 +2854,7 @@ llvm::Value *CodeGenFunction::EmitVTableTypeCheckedLoad(
   }
 
   return Builder.CreateBitCast(Builder.CreateExtractValue(CheckedLoad, 0),
-                               VTable->getType()->getPointerElementType());
+                               VTableTy);
 }
 
 void CodeGenFunction::EmitForwardingCallToLambda(

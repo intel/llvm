@@ -38,6 +38,11 @@ mlir::FuncOp fir::FirOpBuilder::getNamedFunction(mlir::ModuleOp modOp,
   return modOp.lookupSymbol<mlir::FuncOp>(name);
 }
 
+mlir::FuncOp fir::FirOpBuilder::getNamedFunction(mlir::ModuleOp modOp,
+                                                 mlir::SymbolRefAttr symbol) {
+  return modOp.lookupSymbol<mlir::FuncOp>(symbol);
+}
+
 fir::GlobalOp fir::FirOpBuilder::getNamedGlobal(mlir::ModuleOp modOp,
                                                 llvm::StringRef name) {
   return modOp.lookupSymbol<fir::GlobalOp>(name);
@@ -80,7 +85,7 @@ mlir::Value fir::FirOpBuilder::createNullConstant(mlir::Location loc,
 mlir::Value fir::FirOpBuilder::createIntegerConstant(mlir::Location loc,
                                                      mlir::Type ty,
                                                      std::int64_t cst) {
-  return create<mlir::ConstantOp>(loc, ty, getIntegerAttr(ty, cst));
+  return create<mlir::arith::ConstantOp>(loc, ty, getIntegerAttr(ty, cst));
 }
 
 mlir::Value
@@ -258,9 +263,10 @@ fir::GlobalOp fir::FirOpBuilder::createGlobal(
   return glob;
 }
 
-mlir::Value fir::FirOpBuilder::convertWithSemantics(mlir::Location loc,
-                                                    mlir::Type toTy,
-                                                    mlir::Value val) {
+mlir::Value
+fir::FirOpBuilder::convertWithSemantics(mlir::Location loc, mlir::Type toTy,
+                                        mlir::Value val,
+                                        bool allowCharacterConversion) {
   assert(toTy && "store location must be typed");
   auto fromTy = val.getType();
   if (fromTy == toTy)
@@ -282,6 +288,35 @@ mlir::Value fir::FirOpBuilder::convertWithSemantics(mlir::Location loc,
     auto rp = helper.extractComplexPart(val, /*isImagPart=*/false);
     return createConvert(loc, toTy, rp);
   }
+  if (allowCharacterConversion) {
+    if (fromTy.isa<fir::BoxCharType>()) {
+      // Extract the address of the character string and pass it
+      fir::factory::CharacterExprHelper charHelper{*this, loc};
+      std::pair<mlir::Value, mlir::Value> unboxchar =
+          charHelper.createUnboxChar(val);
+      return createConvert(loc, toTy, unboxchar.first);
+    }
+    if (auto boxType = toTy.dyn_cast<fir::BoxCharType>()) {
+      // Extract the address of the actual argument and create a boxed
+      // character value with an undefined length
+      // TODO: We should really calculate the total size of the actual
+      // argument in characters and use it as the length of the string
+      auto refType = getRefType(boxType.getEleTy());
+      mlir::Value charBase = createConvert(loc, refType, val);
+      mlir::Value unknownLen = create<fir::UndefOp>(loc, getIndexType());
+      fir::factory::CharacterExprHelper charHelper{*this, loc};
+      return charHelper.createEmboxChar(charBase, unknownLen);
+    }
+  }
+  if (fir::isa_ref_type(toTy) && fir::isa_box_type(fromTy)) {
+    // Call is expecting a raw data pointer, not a box. Get the data pointer out
+    // of the box and pass that.
+    assert((fir::unwrapRefType(toTy) ==
+                fir::unwrapRefType(fir::unwrapPassByRefType(fromTy)) &&
+            "element types expected to match"));
+    return create<fir::BoxAddrOp>(loc, toTy, val);
+  }
+
   return createConvert(loc, toTy, val);
 }
 
@@ -523,6 +558,29 @@ fir::factory::getExtents(fir::FirOpBuilder &builder, mlir::Location loc,
       [&](const auto &) -> llvm::SmallVector<mlir::Value> { return {}; });
 }
 
+fir::ExtendedValue fir::factory::readBoxValue(fir::FirOpBuilder &builder,
+                                              mlir::Location loc,
+                                              const fir::BoxValue &box) {
+  assert(!box.isUnlimitedPolymorphic() && !box.hasAssumedRank() &&
+         "cannot read unlimited polymorphic or assumed rank fir.box");
+  auto addr =
+      builder.create<fir::BoxAddrOp>(loc, box.getMemTy(), box.getAddr());
+  if (box.isCharacter()) {
+    auto len = fir::factory::readCharLen(builder, loc, box);
+    if (box.rank() == 0)
+      return fir::CharBoxValue(addr, len);
+    return fir::CharArrayBoxValue(addr, len,
+                                  fir::factory::readExtents(builder, loc, box),
+                                  box.getLBounds());
+  }
+  if (box.isDerivedWithLengthParameters())
+    TODO(loc, "read fir.box with length parameters");
+  if (box.rank() == 0)
+    return addr;
+  return fir::ArrayBoxValue(addr, fir::factory::readExtents(builder, loc, box),
+                            box.getLBounds());
+}
+
 std::string fir::factory::uniqueCGIdent(llvm::StringRef prefix,
                                         llvm::StringRef name) {
   // For "long" identifiers use a hash value
@@ -603,4 +661,23 @@ fir::factory::getRaggedArrayHeaderType(fir::FirOpBuilder &builder) {
   auto extTy = fir::SequenceType::get(i64Ty, 1);
   auto shTy = fir::HeapType::get(extTy);
   return mlir::TupleType::get(builder.getContext(), {i64Ty, buffTy, shTy});
+}
+
+mlir::Value fir::factory::createZeroValue(fir::FirOpBuilder &builder,
+                                          mlir::Location loc, mlir::Type type) {
+  mlir::Type i1 = builder.getIntegerType(1);
+  if (type.isa<fir::LogicalType>() || type == i1)
+    return builder.createConvert(loc, type, builder.createBool(loc, false));
+  if (fir::isa_integer(type))
+    return builder.createIntegerConstant(loc, type, 0);
+  if (fir::isa_real(type))
+    return builder.createRealZeroConstant(loc, type);
+  if (fir::isa_complex(type)) {
+    fir::factory::Complex complexHelper(builder, loc);
+    mlir::Type partType = complexHelper.getComplexPartType(type);
+    mlir::Value zeroPart = builder.createRealZeroConstant(loc, partType);
+    return complexHelper.createComplex(type, zeroPart, zeroPart);
+  }
+  fir::emitFatalError(loc, "internal: trying to generate zero value of non "
+                           "numeric or logical type");
 }

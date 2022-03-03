@@ -84,7 +84,6 @@ write_lit_config("lit_site_cfg") {
     "LLVM_INCLUDE_GO_TESTS=0",
 
     "HAVE_OCAMLOPT=0",
-    "HAVE_OCAML_OUNIT=0",
     "OCAMLFIND=OCAMLFIND-NOTFOUND",
     "OCAMLFLAGS=",
     "LLVM_BUILD_EXAMPLES=0",
@@ -281,6 +280,7 @@ group("test") {
     "//llvm/tools/llvm-rc:symlinks",
     "//llvm/tools/llvm-readobj:symlinks",
     "//llvm/tools/llvm-reduce",
+    "//llvm/tools/llvm-remark-size-diff",
     "//llvm/tools/llvm-rtdyld",
     "//llvm/tools/llvm-sim",
     "//llvm/tools/llvm-size",

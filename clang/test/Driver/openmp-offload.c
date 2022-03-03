@@ -672,3 +672,9 @@
 
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc
+
+/// Check arguments to the linker wrapper
+// RUN:   %clang -### -no-canonical-prefixes -target powerpc64le-linux -fopenmp=libomp -fopenmp-targets=powerpc64le-ibm-linux-gnu -fopenmp-new-driver %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NEW-DRIVER %s
+
+// CHK-NEW-DRIVER: clang-linker-wrapper{{.*}}"-host-triple" "powerpc64le-unknown-linux"{{.*}}--{{.*}}"-lomp"{{.*}}"-lomptarget"

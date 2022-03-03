@@ -110,8 +110,8 @@ struct CompileAndExecuteConfig {
 
 } // namespace
 
-static OwningModuleRef parseMLIRInput(StringRef inputFilename,
-                                      MLIRContext *context) {
+static OwningOpRef<ModuleOp> parseMLIRInput(StringRef inputFilename,
+                                            MLIRContext *context) {
   // Set up the input file.
   std::string errorMessage;
   auto file = openInputFile(inputFilename, &errorMessage);
@@ -122,7 +122,7 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
 
   llvm::SourceMgr sourceMgr;
   sourceMgr.AddNewSourceBuffer(std::move(file), SMLoc());
-  return OwningModuleRef(parseSourceFile(sourceMgr, context));
+  return OwningOpRef<ModuleOp>(parseSourceFile(sourceMgr, context));
 }
 
 static inline Error makeStringError(const Twine &message) {
@@ -207,9 +207,12 @@ static Error compileAndExecute(Options &options, ModuleOp module,
     return symbolMap;
   };
 
-  auto expectedEngine = mlir::ExecutionEngine::create(
-      module, config.llvmModuleBuilder, config.transformer, jitCodeGenOptLevel,
-      executionEngineLibs);
+  mlir::ExecutionEngineOptions engineOptions;
+  engineOptions.llvmModuleBuilder = config.llvmModuleBuilder;
+  engineOptions.transformer = config.transformer;
+  engineOptions.jitCodeGenOptLevel = jitCodeGenOptLevel;
+  engineOptions.sharedLibPaths = executionEngineLibs;
+  auto expectedEngine = mlir::ExecutionEngine::create(module, engineOptions);
   if (!expectedEngine)
     return expectedEngine.takeError();
 

@@ -540,10 +540,14 @@ pointer type.
 
 def CXX11NoReturnDocs : Documentation {
   let Category = DocCatFunction;
+  let Heading = "noreturn, _Noreturn";
   let Content = [{
 A function declared as ``[[noreturn]]`` shall not return to its caller. The
 compiler will generate a diagnostic for a function declared as ``[[noreturn]]``
 that appears to be capable of returning to its caller.
+
+The ``[[_Noreturn]]`` spelling is deprecated and only exists to ease code
+migration for code using ``[[noreturn]]`` after including ``<stdnoreturn.h>``.
   }];
 }
 
@@ -2844,77 +2848,23 @@ The GNU spelling is deprecated in SYCL mode.
     [[sycl::work_group_size_hint(2, 2, 2)]] void operator()() const {}
   };
 
-The arguments to ``reqd_work_group_size`` are ordered based on which index
+The arguments to ``work_group_size_hint`` are ordered based on which index
 increments the fastest. In OpenCL, the first argument is the index that
 increments the fastest, and in SYCL, the last argument is the index that
 increments the fastest.
 
-In OpenCL, all three arguments are required.
+In OpenCL C, this attribute is available with the GNU spelling
+(``__attribute__((work_group_size_hint(X, Y, Z)))``) and all 
+three arguments are required.
 
 In SYCL, the attribute accepts either one, two, or three arguments; in each
 form, the last (or only) argument is the index that increments fastest. The
 number of arguments passed to the attribute must match the dimensionality of
 the kernel the attribute is applied to.
 
-If the ``reqd_work_group_size attribute`` is specified on a declaration along
-with ``num_simd_work_items``, the required work group size specified by
-``num_simd_work_items`` must evenly divide the index that increments fastest
-in the ``reqd_work_group_size`` attribute.
-
-.. code-block:: c++
-
-  // Note, '64' is evenly divisible by '4'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  struct func {
-    [[intel::num_simd_work_items(4)]]
-    [[sycl::reqd_work_group_size(7, 4, 64)]]
-    void operator()() const {}
-  };
-
-  // Note, '8' is evenly divisible by '8'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  struct bar {
-    [[sycl::reqd_work_group_size(1, 1, 8)]]
-    [[intel::num_simd_work_items(8)]]
-    void operator()() const {}
-  };
-
-  // Note, '10' is evenly divisible by '5'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  [[cl::reqd_work_group_size(7, 5, 10)]]
-  [[intel::num_simd_work_items(5)]] void fun2() {}
-
-  // Note, '8' is evenly divisible by '4'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  [[intel::num_simd_work_items(4)]]
-  [[cl::reqd_work_group_size(5, 4, 8)]] void fun3() {}
-
-  // Note, '8' is evenly divisible by '8'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  struct func1 {
-    [[intel::num_simd_work_items(8)]]
-    [[cl::reqd_work_group_size(1, 1, 8)]]
-    void operator()() const {}
-  };
-  
-  // Note, '8' is evenly divisible by '4'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  struct bar1 {
-    [[cl::reqd_work_group_size(7, 4, 8)]]
-    [[intel::num_simd_work_items(4)]]
-    void operator()() const {}
-  };
-
-  // Note, '4' is evenly divisible by '2'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  [[intel::num_simd_work_items(2)]]
-  __attribute__((reqd_work_group_size(3, 2, 4))) void test();
- 
-  // Note, '8' is evenly divisible by '2'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  __attribute__((reqd_work_group_size(3, 2, 8)))
-  [intel::num_simd_work_items(2)]] void test();
-
+In SYCL 1.2.1 mode, the ``sycl::work_group_size_hint`` attribute is propagated 
+from the function it is applied to onto the kernel which calls the function. 
+In SYCL 2020 mode, the attribute is not propagated to the kernel.
   }];
 }
 
@@ -3313,7 +3263,7 @@ or ``ivdep``.
 
 def SYCLIntelFPGALoopCountAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg";
+  let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg, intel::loop_count";
   let Content = [{
 The loop count attributes specify the minimum, maximum, or average number of
 iterations for a ``for`` loop. These are hints that the user specify that can be
@@ -3331,10 +3281,15 @@ using PGO.
     [[intel::loop_count_max(10)]] for (int i = 0; i < n; ++i) array[i] = 0;
   }
 
+  void count(int *array, size_t n) {
+    [[intel::loop_count(20)]] for (int i = 0; i < n; ++i) array[i] = 0;
+  }
+
   void goo(int *array, size_t n) {
     [[intel::loop_count_min(3)]]
     [[intel::loop_count_max(10)]]
     [[intel::loop_count_avg(5)]]
+    [[intel::loop_count(20)]]
     for (int i = 0; i < n; ++i) array[i] = 0;
   }
 
@@ -3343,6 +3298,10 @@ using PGO.
     [[intel::loop_count_avg(N)]] for(;;) { }
   }
 
+  template<int A>
+  void func() {
+    [[intel::loop_count(A)]] for(;;) { }
+  }
   }];
 }
 
@@ -4578,6 +4537,9 @@ If a type is trivial for the purposes of calls, has a non-trivial destructor,
 and is passed as an argument by value, the convention is that the callee will
 destroy the object before returning.
 
+If a type is trivial for the purpose of calls, it is assumed to be trivially
+relocatable for the purpose of ``__is_trivially_relocatable``.
+
 Attribute ``trivial_abi`` has no effect in the following cases:
 
 - The class directly declares a virtual base or virtual methods.
@@ -5188,10 +5150,10 @@ completion handler in a Swift async method. For instance, here:
 This method asynchronously calls ``completionHandler`` when the data is
 available, or calls it with an error. ``_Nullable_result`` indicates to the
 Swift importer that this is the uncommon case where ``result`` can get ``nil``
-even if no error has occured, and will therefore import it as a Swift optional
+even if no error has occurred, and will therefore import it as a Swift optional
 type. Otherwise, if ``result`` was annotated with ``_Nullable``, the Swift
 importer will assume that ``result`` will always be non-nil unless an error
-occured.
+occurred.
 }];
 }
 
@@ -7577,6 +7539,10 @@ optimization level.
 
 Does not guarantee that inline substitution actually occurs.
 
+<ins>Note: applying this attribute to a coroutine at the `-O0` optimization level
+has no effect; other optimization levels may only partially inline and result in a
+diagnostic.</ins>
+
 See also `the Microsoft Docs on Inline Functions`_, `the GCC Common Function
 Attribute docs`_, and `the GCC Inline docs`_.
 
@@ -7636,5 +7602,43 @@ pointing to precise locations of the call site in the source.
       dontcall(); // No Warning
     sizeof(dontcall()); // No Warning
   }
+  }];
+}
+
+def ZeroCallUsedRegsDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This attribute, when attached to a function, causes the compiler to zero a
+subset of all call-used registers before the function returns. It's used to
+increase program security by either mitigating `Return-Oriented Programming`_
+(ROP) attacks or preventing information leakage through registers.
+
+The term "call-used" means registers which are not guaranteed to be preserved
+unchanged for the caller by the current calling convention. This could also be
+described as "caller-saved" or "not callee-saved".
+
+The `choice` parameters gives the programmer flexibility to choose the subset
+of the call-used registers to be zeroed:
+
+- ``skip`` doesn't zero any call-used registers. This choice overrides any
+  command-line arguments.
+- ``used`` only zeros call-used registers used in the function. By ``used``, we
+  mean a register whose contents have been set or referenced in the function.
+- ``used-gpr`` only zeros call-used GPR registers used in the funciton.
+- ``used-arg`` only zeros call-used registers used to pass arguments to the
+  function.
+- ``used-gpr-arg`` only zeros call-used GPR registers used to pass arguments to
+  the function.
+- ``all`` zeros all call-used registers.
+- ``all-gpr`` zeros all call-used GPR registers.
+- ``all-arg`` zeros all call-used registers used to pass arguments to the
+  function.
+- ``all-gpr-arg`` zeros all call-used GPR registers used to pass arguments to
+  the function.
+
+The default for the attribute is contolled by the ``-fzero-call-used-regs``
+flag.
+
+.. _Return-Oriented Programming: https://en.wikipedia.org/wiki/Return-oriented_programming
   }];
 }

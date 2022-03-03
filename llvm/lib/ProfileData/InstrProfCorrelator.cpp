@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ProfileData/InstrProfCorrelator.h"
+#include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/Object/MachO.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
@@ -86,6 +87,15 @@ InstrProfCorrelator::get(std::unique_ptr<MemoryBuffer> Buffer) {
   }
   return make_error<InstrProfError>(
       instrprof_error::unable_to_correlate_profile, "not an object file");
+}
+
+Optional<size_t> InstrProfCorrelator::getDataSize() const {
+  if (auto *C = dyn_cast<InstrProfCorrelatorImpl<uint32_t>>(this)) {
+    return C->getDataSize();
+  } else if (auto *C = dyn_cast<InstrProfCorrelatorImpl<uint64_t>>(this)) {
+    return C->getDataSize();
+  }
+  return {};
 }
 
 namespace llvm {
