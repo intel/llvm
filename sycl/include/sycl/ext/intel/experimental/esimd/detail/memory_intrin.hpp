@@ -47,12 +47,16 @@ namespace detail {
 // Provides access to sycl accessor class' private members.
 class AccessorPrivateProxy {
 public:
-#ifdef __SYCL_DEVICE_ONLY__
   template <typename AccessorTy>
   static auto getNativeImageObj(const AccessorTy &Acc) {
+#ifdef __SYCL_DEVICE_ONLY__
     return Acc.getNativeImageObj();
-  }
 #else  // __SYCL_DEVICE_ONLY__
+    return Acc;
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+#ifndef __SYCL_DEVICE_ONLY__
   static void *getPtr(const sycl::detail::AccessorBaseHost &Acc) {
     return Acc.getPtr();
   }
