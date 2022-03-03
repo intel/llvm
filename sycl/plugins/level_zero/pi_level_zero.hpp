@@ -427,9 +427,10 @@ struct pi_command_list_info_t {
   // Helper functions to tell if this is a copy command-list.
   bool isCopy(pi_queue Queue) const;
 
-  // Keeps a number of commands submitted into this command-list that don't have
-  // events.
-  int NumEventlessCommands{0};
+  // Keeps a number of switches from this command-list to another, since the
+  // switches resulted in the creation of a special service barrier with an
+  // event that should not be taken into account in batching.
+  size_t NumSpecialBarriersWithEvent{0};
 
   // Keeps events created by commands submitted into this command-list.
   // TODO: use this for explicit wait/cleanup of events at command-list
@@ -437,7 +438,7 @@ struct pi_command_list_info_t {
   // TODO: use this for optimizing events in the same command-list, e.g.
   // only have last one visible to the host.
   std::vector<pi_event> EventList{};
-  size_t size() const { return EventList.size() + NumEventlessCommands; }
+  size_t size() const { return EventList.size() - NumSpecialBarriersWithEvent; }
   void append(pi_event Event) { EventList.push_back(Event); }
 };
 
@@ -743,21 +744,15 @@ struct _pi_queue : _pi_object {
   // guarantee the semantics between command-lists.
   bool EventlessMode = false;
 
+  // It helps to skip creating the event and the last barrier for the
+  // command-list in eventless mode if we do QueueFinish or piQueueRelease
+  bool SkipLastEventInEventlessMode = false;
+
   // Indicates if the previous command was submitted into the copy engine. it is
   // used in eventless mode to identify that we changed compute queue to copy
   // queue or vice versa. if the change happened then we create an event to
   // maintain the order between the two queues.
   bool IsPrevCopyEngine = false;
-
-  // It helps to skip creating the event and the last barrier for the
-  // command-list in eventless mode if we do QueueFinish or piQueueRelease
-  bool SkipLastEventInEventlessMode = false;
-
-  // Keeps a number of commands submitted into last command-list that don't have
-  // events. It can be negative which means that we are in eventless mode and
-  // the last command has changed copy engine to compute or vice versa and this
-  // command produces event.
-  int NumEventlessCmdsInLastCmdList{0};
 
   // Keeps last special event created for internal purpose to ensure in-order
   // semantics between command-lists. The plugin is a holder of this event and

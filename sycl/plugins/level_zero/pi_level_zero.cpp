@@ -857,7 +857,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   ZE_CALL(zeFenceReset, (CommandList->second.ZeFence));
   ZE_CALL(zeCommandListReset, (CommandList->first));
   CommandList->second.InUse = false;
-  CommandList->second.NumEventlessCommands = 0;
+  CommandList->second.NumSpecialBarriersWithEvent = 0;
 
   // Finally release/cleanup all the events in this command list.
   // Note, we don't need to synchronize the events since the fence
@@ -1268,13 +1268,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // traces incurs much different timings than real execution
   // ansyway, and many regression tests use it.
   //
-  // To have the batching for cases where no events are created, we check
-  // NumEventlessCmdsInLastCmdList
-  bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr &&
-                        this->NumEventlessCmdsInLastCmdList == 0;
-
-  this->NumEventlessCmdsInLastCmdList =
-      CommandList->second.NumEventlessCommands;
+  bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
   // events.
@@ -1321,7 +1315,6 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // resetCommandList.
     PI_CALL(piEventRelease(LastEventInPrevCmdList));
 
-    this->LastCommandEvent = LastEventInPrevCmdList;
     // Add barrier with the event into command-list to ensure in-order semantics
     // between command-lists
     auto &ZeEvent = LastEventInPrevCmdList->ZeEvent;
@@ -1330,6 +1323,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
     zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
             pi_cast<std::uintptr_t>(ZeEvent));
+    this->LastCommandEvent = LastEventInPrevCmdList;
   }
 
   auto &ZeCommandQueue = CommandList->second.ZeQueue;
@@ -1530,14 +1524,17 @@ static const bool FilterEventWaitList = [] {
 pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     pi_uint32 EventListLength, const pi_event *EventList, pi_queue CurQueue,
     bool UseCopyEngine) {
+  auto &LastCommandEvent = CurQueue->LastCommandEvent;
+  auto &LastEventInPrevCmdList = CurQueue->LastEventInPrevCmdList;
+
   if (CurQueue->EventlessMode) {
     // In eventless mode, to support in-order semantics, it adds a barrier or
     // barrier with an event to the previous command-list if the list is open.
     const auto &IsPrevCopyEngine = CurQueue->IsPrevCopyEngine;
-    auto &PrevCommandBatch = IsPrevCopyEngine ? CurQueue->CopyCommandBatch
-                                              : CurQueue->ComputeCommandBatch;
+    const auto &PrevCommandBatch = IsPrevCopyEngine
+                                       ? CurQueue->CopyCommandBatch
+                                       : CurQueue->ComputeCommandBatch;
     if (PrevCommandBatch.OpenCommandList != CurQueue->CommandListMap.end()) {
-      auto &LastEventInPrevCmdList = CurQueue->LastEventInPrevCmdList;
       auto &LastCommandList = CurQueue->LastCommandList;
       if (IsPrevCopyEngine != UseCopyEngine) {
         pi_result Res = createEventAndAssociateQueue(
@@ -1549,13 +1546,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         // waited/released by SYCL RT, so it must be destroyed by EventRelease
         // in resetCommandList.
         PI_CALL(piEventRelease(LastEventInPrevCmdList));
-
-        // Since we have added a new event to the list, it will affect the
-        // batching, but this is a special event and we do not want it to affect
-        // batching, to have the batching for this command-list work correctly
-        // we do a decrement here.
-        --LastCommandList->second.NumEventlessCommands;
-        CurQueue->LastCommandEvent = LastEventInPrevCmdList;
+        ++LastCommandList->second.NumSpecialBarriersWithEvent;
         // Add barrier with the event into command-list to ensure in-order
         // semantics between command-lists
         auto &ZeEvent = LastEventInPrevCmdList->ZeEvent;
@@ -1564,6 +1555,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
 
         zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
                 pi_cast<std::uintptr_t>(ZeEvent));
+        LastCommandEvent = LastEventInPrevCmdList;
       } else {
         LastEventInPrevCmdList = nullptr;
         // Add barrier into command-list to ensure in-order semantics inside one
@@ -1580,9 +1572,9 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
 
   try {
     const bool NeedToAddLastEvent =
-        CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr &&
+        CurQueue->isInOrderQueue() && LastCommandEvent != nullptr &&
         (!CurQueue->EventlessMode ||
-         (CurQueue->LastEventInPrevCmdList == CurQueue->LastCommandEvent));
+         (LastEventInPrevCmdList == LastCommandEvent));
 
     if (NeedToAddLastEvent) {
       this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
@@ -1636,8 +1628,8 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     // previous command has finished. The event associated with the last
     // enqueued command is added into the waitlist to ensure in-order semantics.
     if (NeedToAddLastEvent) {
-      this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
-      this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
+      this->ZeEventList[TmpListLength] = LastCommandEvent->ZeEvent;
+      this->PiEventList[TmpListLength] = LastCommandEvent;
       TmpListLength += 1;
     }
 
@@ -3336,7 +3328,6 @@ static pi_result QueueFinish(pi_queue Queue, pi_queue LockedQueue) {
   // Prevent unneeded already finished events to show up in the wait list.
   Queue->LastCommandEvent = nullptr;
   Queue->LastEventInPrevCmdList = nullptr;
-  Queue->NumEventlessCmdsInLastCmdList = 0;
   return PI_SUCCESS;
 }
 
@@ -5736,22 +5727,17 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
       ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
     } else {
-      if (TmpWaitList.Length != 0) {
-        pi_event InternalEvent;
-        pi_result Res = createEventAndAssociateQueue(
-            Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-            false, false);
-        if (Res != PI_SUCCESS)
-          return Res;
-        // Decrement the reference count of the event as this event will not be
-        // waited/released by SYCL RT, so it must be destroyed by EventRelease
-        // in resetCommandList.
-        PI_CALL(piEventRelease(InternalEvent));
-        InternalEvent->WaitList = TmpWaitList;
-      } else {
-        auto &CommandListInfo = CommandList->second;
-        ++CommandListInfo.NumEventlessCommands;
-      }
+      pi_event InternalEvent;
+      pi_result Res = createEventAndAssociateQueue(
+          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
+          false, false);
+      if (Res != PI_SUCCESS)
+        return Res;
+      // Decrement the reference count of the event as this event will not be
+      // waited/released by SYCL RT, so it must be destroyed by EventRelease
+      // in resetCommandList.
+      PI_CALL(piEventRelease(InternalEvent));
+      InternalEvent->WaitList = TmpWaitList;
       ZE_CALL(
           zeCommandListAppendWaitOnEvents,
           (CommandList->first, TmpWaitList.Length, TmpWaitList.ZeEventList));
@@ -5844,22 +5830,17 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   } else {
-    if (TmpWaitList.Length != 0) {
-      pi_event InternalEvent;
-      pi_result Res = createEventAndAssociateQueue(
-          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-          false, false);
-      if (Res != PI_SUCCESS)
-        return Res;
-      // Decrement the reference count of the event as this event will not be
-      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
-      // resetCommandList.
-      PI_CALL(piEventRelease(InternalEvent));
-      InternalEvent->WaitList = TmpWaitList;
-    } else {
-      auto &CommandListInfo = CommandList->second;
-      ++CommandListInfo.NumEventlessCommands;
-    }
+    pi_event InternalEvent;
+    pi_result Res = createEventAndAssociateQueue(Queue, &InternalEvent,
+                                                 PI_COMMAND_TYPE_NDRANGE_KERNEL,
+                                                 CommandList, false, false);
+    if (Res != PI_SUCCESS)
+      return Res;
+    // Decrement the reference count of the event as this event will not be
+    // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+    // resetCommandList.
+    PI_CALL(piEventRelease(InternalEvent));
+    InternalEvent->WaitList = TmpWaitList;
   }
 
   ZE_CALL(zeCommandListAppendBarrier,
@@ -5950,22 +5931,17 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   } else {
-    if (TmpWaitList.Length != 0) {
-      pi_event InternalEvent;
-      pi_result Res = createEventAndAssociateQueue(
-          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-          false, false);
-      if (Res != PI_SUCCESS)
-        return Res;
-      // Decrement the reference count of the event as this event will not be
-      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
-      // resetCommandList.
-      PI_CALL(piEventRelease(InternalEvent));
-      InternalEvent->WaitList = TmpWaitList;
-    } else {
-      auto &CommandListInfo = CommandList->second;
-      ++CommandListInfo.NumEventlessCommands;
-    }
+    pi_event InternalEvent;
+    pi_result Res = createEventAndAssociateQueue(Queue, &InternalEvent,
+                                                 PI_COMMAND_TYPE_NDRANGE_KERNEL,
+                                                 CommandList, false, false);
+    if (Res != PI_SUCCESS)
+      return Res;
+    // Decrement the reference count of the event as this event will not be
+    // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+    // resetCommandList.
+    PI_CALL(piEventRelease(InternalEvent));
+    InternalEvent->WaitList = TmpWaitList;
   }
 
   const auto &ZeCommandList = CommandList->first;
@@ -6245,22 +6221,17 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   } else {
-    if (TmpWaitList.Length != 0) {
-      pi_event InternalEvent;
-      pi_result Res = createEventAndAssociateQueue(
-          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-          false, false);
-      if (Res != PI_SUCCESS)
-        return Res;
-      // Decrement the reference count of the event as this event will not be
-      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
-      // resetCommandList.
-      PI_CALL(piEventRelease(InternalEvent));
-      InternalEvent->WaitList = TmpWaitList;
-    } else {
-      auto &CommandListInfo = CommandList->second;
-      ++CommandListInfo.NumEventlessCommands;
-    }
+    pi_event InternalEvent;
+    pi_result Res = createEventAndAssociateQueue(Queue, &InternalEvent,
+                                                 PI_COMMAND_TYPE_NDRANGE_KERNEL,
+                                                 CommandList, false, false);
+    if (Res != PI_SUCCESS)
+      return Res;
+    // Decrement the reference count of the event as this event will not be
+    // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+    // resetCommandList.
+    PI_CALL(piEventRelease(InternalEvent));
+    InternalEvent->WaitList = TmpWaitList;
   }
 
   const auto &ZeCommandList = CommandList->first;
@@ -7581,22 +7552,17 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   } else {
-    if (TmpWaitList.Length != 0) {
-      pi_event InternalEvent;
-      pi_result Res = createEventAndAssociateQueue(
-          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-          false, false);
-      if (Res != PI_SUCCESS)
-        return Res;
-      // Decrement the reference count of the event as this event will not be
-      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
-      // resetCommandList.
-      PI_CALL(piEventRelease(InternalEvent));
-      InternalEvent->WaitList = TmpWaitList;
-    } else {
-      auto &CommandListInfo = CommandList->second;
-      ++CommandListInfo.NumEventlessCommands;
-    }
+    pi_event InternalEvent;
+    pi_result Res = createEventAndAssociateQueue(Queue, &InternalEvent,
+                                                 PI_COMMAND_TYPE_NDRANGE_KERNEL,
+                                                 CommandList, false, false);
+    if (Res != PI_SUCCESS)
+      return Res;
+    // Decrement the reference count of the event as this event will not be
+    // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+    // resetCommandList.
+    PI_CALL(piEventRelease(InternalEvent));
+    InternalEvent->WaitList = TmpWaitList;
   }
 
   const auto &ZeCommandList = CommandList->first;
@@ -7663,22 +7629,17 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   } else {
-    if (TmpWaitList.Length != 0) {
-      pi_event InternalEvent;
-      pi_result Res = createEventAndAssociateQueue(
-          Queue, &InternalEvent, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList,
-          false, false);
-      if (Res != PI_SUCCESS)
-        return Res;
-      // Decrement the reference count of the event as this event will not be
-      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
-      // resetCommandList.
-      PI_CALL(piEventRelease(InternalEvent));
-      InternalEvent->WaitList = TmpWaitList;
-    } else {
-      auto &CommandListInfo = CommandList->second;
-      ++CommandListInfo.NumEventlessCommands;
-    }
+    pi_event InternalEvent;
+    pi_result Res = createEventAndAssociateQueue(Queue, &InternalEvent,
+                                                 PI_COMMAND_TYPE_NDRANGE_KERNEL,
+                                                 CommandList, false, false);
+    if (Res != PI_SUCCESS)
+      return Res;
+    // Decrement the reference count of the event as this event will not be
+    // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+    // resetCommandList.
+    PI_CALL(piEventRelease(InternalEvent));
+    InternalEvent->WaitList = TmpWaitList;
   }
 
   const auto &ZeCommandList = CommandList->first;
