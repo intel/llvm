@@ -67,7 +67,7 @@ struct S2 {
   static constexpr sycl::specialization_id a{18};
   // CHECK-NEXT: namespace {
   // CHECK-NEXT: namespace __sycl_detail {
-  // CHECK-NEXT: static constexpr decltype(S2::a) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+  // CHECK-NEXT: static constexpr decltype(S2::a) &__shim_[[SHIM_ID:[0-9]+]]() {
   // CHECK-NEXT: return S2::a;
   // CHECK-NEXT: }
   // CHECK-NEXT: } // namespace __sycl_detail
@@ -76,7 +76,7 @@ struct S2 {
   // CHECK-NEXT: namespace sycl {
   // CHECK-NEXT: namespace detail {
   // CHECK-NEXT: template<>
-  // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
+  // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM_ID]]()>() {
   // CHECK-NEXT: return "____ZN12_GLOBAL__N_12S21aE";
   // CHECK-NEXT: }
   // CHECK-NEXT: } // namespace detail
@@ -140,7 +140,7 @@ namespace {
 constexpr sycl::specialization_id same_name{7};
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(same_name) &__shim_[[SHIM_ID:[0-9]+]]() {
 // CHECK-NEXT: return same_name;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -149,7 +149,7 @@ constexpr sycl::specialization_id same_name{7};
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM_ID]]()>() {
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_19same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -161,7 +161,7 @@ namespace inner {
 constexpr sycl::specialization_id same_name{8};
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(inner::same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(inner::same_name) &__shim_[[SHIM_ID:[0-9]+]]() {
 // CHECK-NEXT: return inner::same_name;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -170,7 +170,7 @@ constexpr sycl::specialization_id same_name{8};
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM_ID]]()>() {
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_15inner9same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -184,7 +184,7 @@ constexpr sycl::specialization_id same_name{9};
 // CHECK-NEXT: namespace inner {
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(same_name) &__shim_[[SHIM_ID:[0-9]+]]() {
 // CHECK-NEXT: return same_name;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -194,7 +194,7 @@ constexpr sycl::specialization_id same_name{9};
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::inner::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::inner::__sycl_detail::__shim_[[SHIM_ID]]()>() {
 // CHECK-NEXT: return "____ZN5inner12_GLOBAL__N_19same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -220,7 +220,7 @@ constexpr sycl::specialization_id same_name{11};
 // CHECK-NEXT: namespace outer {
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(same_name) &__shim_[[SHIM_ID:[0-9]+]]() {
 // CHECK-NEXT: return same_name;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -230,7 +230,7 @@ constexpr sycl::specialization_id same_name{11};
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::outer::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::outer::__sycl_detail::__shim_[[SHIM_ID]]()>() {
 // CHECK-NEXT: return "____ZN5outer12_GLOBAL__N_19same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -242,7 +242,7 @@ constexpr sycl::specialization_id same_name{12};
 // CHECK-NEXT: namespace outer {
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(inner::same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(inner::same_name) &__shim_[[SHIM_ID:[0-9]+]]() {
 // CHECK-NEXT: return inner::same_name;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -252,7 +252,7 @@ constexpr sycl::specialization_id same_name{12};
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::outer::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::outer::__sycl_detail::__shim_[[SHIM_ID]]()>() {
 // CHECK-NEXT: return "____ZN5outer12_GLOBAL__N_15inner9same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -268,7 +268,7 @@ constexpr sycl::specialization_id same_name{13};
 // CHECK-NEXT: namespace inner {
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(same_name) &__shim_[[SHIM_ID:[0-9]+]]() {
 // CHECK-NEXT: return same_name;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -280,8 +280,8 @@ constexpr sycl::specialization_id same_name{13};
 // CHECK-NEXT: namespace outer {
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(inner::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()) &__spec_id_shim_[[SHIM_ID_2:[0-9]+]]() {
-// CHECK-NEXT: return inner::__sycl_detail::__spec_id_shim_[[SHIM_ID]]();
+// CHECK-NEXT: static constexpr decltype(inner::__sycl_detail::__shim_[[SHIM_ID]]()) &__shim_[[SHIM_ID_2:[0-9]+]]() {
+// CHECK-NEXT: return inner::__sycl_detail::__shim_[[SHIM_ID]]();
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
 // CHECK-NEXT: } // namespace
@@ -290,7 +290,7 @@ constexpr sycl::specialization_id same_name{13};
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::outer::__sycl_detail::__spec_id_shim_[[SHIM_ID_2]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::outer::__sycl_detail::__shim_[[SHIM_ID_2]]()>() {
 // CHECK-NEXT: return "____ZN5outer12_GLOBAL__N_15inner12_GLOBAL__N_19same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -306,7 +306,7 @@ namespace outer {
 constexpr sycl::specialization_id same_name{14};
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(outer::same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(outer::same_name) &__shim_[[SHIM_ID:[0-9]+]]() {
 // CHECK-NEXT: return outer::same_name;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -315,7 +315,7 @@ constexpr sycl::specialization_id same_name{14};
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM_ID]]()>() {
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_15outer9same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -327,7 +327,7 @@ constexpr sycl::specialization_id same_name{15};
 // CHECK-NEXT: namespace outer {
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(same_name) &__shim_[[SHIM_ID:[0-9]+]]() {
 // CHECK-NEXT: return same_name;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -336,8 +336,8 @@ constexpr sycl::specialization_id same_name{15};
 // CHECK-NEXT: } // namespace
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(outer::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()) &__spec_id_shim_[[SHIM_ID2:[0-9]+]]() {
-// CHECK-NEXT: return outer::__sycl_detail::__spec_id_shim_[[SHIM_ID]]();
+// CHECK-NEXT: static constexpr decltype(outer::__sycl_detail::__shim_[[SHIM_ID]]()) &__shim_[[SHIM_ID2:[0-9]+]]() {
+// CHECK-NEXT: return outer::__sycl_detail::__shim_[[SHIM_ID]]();
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
 // CHECK-NEXT: } // namespace
@@ -345,7 +345,7 @@ constexpr sycl::specialization_id same_name{15};
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__spec_id_shim_[[SHIM_ID2]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM_ID2]]()>() {
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_15outer12_GLOBAL__N_19same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -357,7 +357,7 @@ constexpr sycl::specialization_id same_name{16};
 // CHECK-NEXT: namespace outer {
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(inner::same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(inner::same_name) &__shim_[[SHIM_ID:[0-9]+]]() {
 // CHECK-NEXT: return inner::same_name;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -366,8 +366,8 @@ constexpr sycl::specialization_id same_name{16};
 // CHECK-NEXT: } // namespace
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(outer::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()) &__spec_id_shim_[[SHIM_ID2:[0-9]+]]() {
-// CHECK-NEXT: return outer::__sycl_detail::__spec_id_shim_[[SHIM_ID]]();
+// CHECK-NEXT: static constexpr decltype(outer::__sycl_detail::__shim_[[SHIM_ID]]()) &__shim_[[SHIM_ID2:[0-9]+]]() {
+// CHECK-NEXT: return outer::__sycl_detail::__shim_[[SHIM_ID]]();
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
 // CHECK-NEXT: } // namespace
@@ -375,7 +375,7 @@ constexpr sycl::specialization_id same_name{16};
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__spec_id_shim_[[SHIM_ID2]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM_ID2]]()>() {
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_15outer12_GLOBAL__N_15inner9same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail

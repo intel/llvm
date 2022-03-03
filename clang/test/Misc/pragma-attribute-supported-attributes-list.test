@@ -157,6 +157,7 @@
 // CHECK-NEXT: ReturnsNonNull (SubjectMatchRule_objc_method, SubjectMatchRule_function)
 // CHECK-NEXT: ReturnsTwice (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLDevice (SubjectMatchRule_function)
+// CHECK-NEXT: SYCLDeviceGlobal (SubjectMatchRule_record)
 // CHECK-NEXT: SYCLDeviceHas (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLDeviceIndirectlyCallable (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelFPGADisableLoopPipelining (SubjectMatchRule_function)
