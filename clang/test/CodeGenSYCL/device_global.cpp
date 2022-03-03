@@ -1,6 +1,10 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -fsycl-unique-prefix=THE_PREFIX -std=c++17 -emit-llvm %s -o - | FileCheck %s
 #include "sycl.hpp"
 
+// Test cases below show that 'sycl-unique-id' LLVM IR attribute is attached to the
+// global variable whose type is decorated with device_global attribute, and that a
+// unique string is generated.
+//
 namespace cl {
 namespace sycl {
 namespace ext {

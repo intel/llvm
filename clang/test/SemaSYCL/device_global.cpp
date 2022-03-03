@@ -1,6 +1,9 @@
 // RUN: %clang_cc1 -fsycl-is-device -std=c++17 -sycl-std=2020 -ast-dump -verify %s | FileCheck %s
 #include "Inputs/sycl.hpp"
 
+// Test cases below check for valid usage of device_global and
+// global_variable_allowed attributes, and that they are being correctly
+// generated in the AST
 using namespace sycl::ext::oneapi;
 
 device_global<int> glob;           // OK
@@ -13,10 +16,6 @@ struct Foo {
 };
 device_global<char> Foo::d;
 
-struct Bar {
-  device_global<int> e;         // ILLEGAL: non-static member variable not
-};                              // allowed
-
 struct Baz {
  private:
   // expected-error@+1{{'device_global' member variable 'f' is not publicly accessible from namespace scope}}
@@ -25,8 +24,6 @@ struct Baz {
 device_global<int> Baz::f;
 
 device_global<int[4]> not_array;        // OK
-device_global<int> h[4];        // ILLEGAL: array of "device_global" not
-                                // allowed
 
 device_global<int> same_name;   // OK
 namespace foo {

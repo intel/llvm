@@ -7404,9 +7404,9 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   // constexpr
   if (getLangOpts().SYCLIsDevice) {
     if (SCSpec != DeclSpec::SCS_static && !NewVD->hasGlobalStorage() &&
-        isDecoratedWithSyclAttribute<SYCLDeviceGlobalAttr>(NewVD->getType()) {
+        isDecoratedWithSyclAttribute<SYCLDeviceGlobalAttr>(NewVD->getType()))
       Diag(D.getIdentifierLoc(), diag::err_sycl_device_global_incorrect_scope);
-    }
+
     if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context) &&
         !isDecoratedWithSyclAttribute<SYCLGlobalVariableAllowedAttr>(
             NewVD->getType()))
