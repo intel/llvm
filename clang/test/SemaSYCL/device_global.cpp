@@ -6,31 +6,31 @@
 // generated in the AST
 using namespace sycl::ext::oneapi;
 
-device_global<int> glob;           // OK
-static device_global<float> static_glob;    // OK
-inline device_global<double> inline_glob;    // OK
+device_global<int> glob;                  // OK
+static device_global<float> static_glob;  // OK
+inline device_global<double> inline_glob; // OK
 static const device_global<int> static_const_glob;
 
 struct Foo {
-  static device_global<char> d;  // OK
+  static device_global<char> d; // OK
 };
 device_global<char> Foo::d;
 
 struct Baz {
- private:
+private:
   // expected-error@+1{{'device_global' member variable 'f' is not publicly accessible from namespace scope}}
-  static device_global<int> f;  // ILLEGAL: not publicly accessible from
-};                              // namespace scope
+  static device_global<int> f;
+};
 device_global<int> Baz::f;
 
-device_global<int[4]> not_array;        // OK
+device_global<int[4]> not_array; // OK
 
-device_global<int> same_name;   // OK
+device_global<int> same_name; // OK
 namespace foo {
-  device_global<int> same_name; // OK
+device_global<int> same_name; // OK
 }
 namespace {
-  device_global<int> same_name; // OK
+device_global<int> same_name; // OK
 }
 
 int main() {
@@ -59,4 +59,3 @@ int main() {
 // CHECK: ClassTemplateSpecializationDecl {{.*}} struct device_global definition
 // CHECK: SYCLDeviceGlobalAttr {{.*}}
 // CHECK: SYCLGlobalVariableAllowedAttr {{.*}}
-

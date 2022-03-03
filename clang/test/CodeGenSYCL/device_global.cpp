@@ -13,9 +13,10 @@ namespace oneapi {
 template <typename T>
 class [[__sycl_detail__::global_variable_allowed]] only_global_var_allowed {
 public :
-  const T & get() const noexcept { return *Data; }
+  const T &get() const noexcept { return *Data; }
   only_global_var_allowed() {}
-  operator T&() noexcept { return *Data; }
+  operator T &() noexcept { return *Data; }
+
 private:
   T *Data;
 };
@@ -41,7 +42,7 @@ device_global<int> Foo::C;
 
 device_global<int> same_name;
 namespace NS {
-  device_global<int> same_name;
+device_global<int> same_name;
 }
 // CHECK: @same_name = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ATTRS:[0-9]+]]
 // CHECK: @_ZN2NS9same_nameE = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_NS_ATTRS:[0-9]+]]
@@ -60,12 +61,12 @@ void foo() {
       (void)same_name;
       (void)NS::same_name;
       (void)no_device_global;
-      });
+    });
   });
 }
 
 namespace {
-  device_global<int> same_name;
+device_global<int> same_name;
 }
 // CHECK: @_ZN12_GLOBAL__N_19same_nameE = internal addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ANON_NS_ATTRS:[0-9]+]]
 
@@ -75,8 +76,7 @@ void bar() {
     h.single_task<class kernel_name>([=]() { int A = same_name; });
   });
 }
-
-}
+} // namespace
 
 
 // CHECK: attributes #[[A_ATTRS]] = { "sycl-unique-id"="_Z1A" }
