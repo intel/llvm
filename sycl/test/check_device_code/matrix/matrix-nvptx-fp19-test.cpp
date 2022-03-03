@@ -32,6 +32,7 @@ constexpr int N = 16; // number of cols of accumulator,
                       // number of rows of a.
 constexpr int K = 8;  // number of cols of a/number of rows of b.
 
+// uint32_t is used in this test as the storage type for fp19
 uint32_t A[M * K];
 uint32_t B[K * N];
 float C[M * N];
