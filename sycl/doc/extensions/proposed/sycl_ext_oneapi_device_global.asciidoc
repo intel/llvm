@@ -85,7 +85,7 @@ It also depends on the `SYCL_EXT_ONEAPI_PROPERTY_LIST` extension.
 
 [NOTE]
 ====
-In this document, we use `device_global` to indicate the proposed `sycl::ext::oneapi::device_global`.
+In this document, we use `device_global` to indicate the proposed `sycl::ext::oneapi::experimental::device_global`.
 ====
 
 The purpose of this document is to clearly describe and specify `device_global` and related
@@ -112,7 +112,7 @@ struct MyClass {
   bool flag;
 };
 
-using namespace sycl::ext::oneapi;
+using namespace sycl::ext::oneapi::experimental;
 
 device_global<MyClass> dm1;
 static device_global<int[4]> dm2;
@@ -171,7 +171,7 @@ A `device_global` on a given device maintains its state (address of the allocati
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 template <typename T, typename PropertyListT = properties<>>
 class device_global {
   ...
@@ -201,7 +201,7 @@ The section below and the table following describe the constructors, member func
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
 template <typename T, typename PropertyListT = properties<>>
 class device_global {
@@ -269,7 +269,7 @@ public:
   static constexpr /*unspecified*/ get_property();
 };
 
-} // namespace sycl::ext::oneapi
+} // namespace sycl::ext::oneapi::experimental
 ----
 
 [frame="topbot",options="header"]
@@ -378,7 +378,7 @@ template<typename propertyT>
 static constexpr bool has_property();
 ----
 | Returns true if the `PropertyListT` contains the property specified by `propertyT`. Returns false if it does not.
-Available only if `sycl::is_property_key_of_v<propertyT, sycl::ext::oneapi::device_global>` is true.
+Available only if `sycl::is_property_key_of_v<propertyT, sycl::ext::oneapi::experimental::device_global>` is true.
 
 // --- ROW BREAK ---
 a|
@@ -389,7 +389,7 @@ static constexpr auto get_property();
 ----
 | Returns an object of the class used to represent the value of property `propertyT`.
 Must produce a compiler diagnostic if `PropertyListT` does not contain a `propertyT` property.
-Available only if `sycl::is_property_key_of_v<propertyT, sycl::ext::oneapi::device_global>` is true.
+Available only if `sycl::is_property_key_of_v<propertyT, sycl::ext::oneapi::experimental::device_global>` is true.
 
 |===
 
@@ -439,7 +439,7 @@ The following example illustrates some of these restrictions:
 [source, c++]
 ----
 #include <sycl/sycl.hpp>
-using namespace sycl::ext::oneapi;
+using namespace sycl::ext::oneapi::experimental;
 
 device_global<int> a;           // OK
 static device_global<int> b;    // OK
@@ -489,7 +489,7 @@ parameter as shown in this example:
 
 [source,c++]
 ----
-using namespace sycl::ext::oneapi;
+using namespace sycl::ext::oneapi::experimental;
 
 device_global<MyClass, decltype(properties(device_image_scope))> dm1;
 device_global<int[4], decltype(properties(host_access_read))> dm2;
@@ -500,7 +500,7 @@ following table describes their effect.
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
 struct device_image_scope_key {
   using value_t = property_value<device_image_scope_key>;
@@ -580,7 +580,7 @@ template <typename T, typename PropertyListT>
 struct is_property_key_of<implement_in_csr_key, device_global<T, PropertyListT>>
   : std::true_type {};
 
-} // namespace sycl::ext::oneapi
+} // namespace sycl::ext::oneapi::experimental
 ----
 
 [frame="topbot",options="header"]
@@ -756,13 +756,13 @@ For example:
 ```c++
 // In one translation unit
 #include <sycl/sycl.hpp>
-using namespace sycl::ext::oneapi;
+using namespace sycl::ext::oneapi::experimental;
 
 SYCL_EXTERNAL device_global<int> Foo;  // definition (also a declaration)
 
 // In another translation unit
 #include <sycl/sycl.hpp>
-using namespace sycl::ext::oneapi;
+using namespace sycl::ext::oneapi::experimental;
 using namespace sycl;
 
 SYCL_EXTERNAL extern device_global<int> Foo;  // declaration
@@ -1114,7 +1114,7 @@ A sketch of the anticipated constructor interface is:
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
 template <typename T, typename PropertyListT = properties<>>
 class device_global {
@@ -1145,7 +1145,7 @@ The example below creates two global namespace scope `device_global` objects nam
 [source,c++]
 ----
 using namespace sycl;
-using namespace sycl::ext::oneapi;
+using namespace sycl::ext::oneapi::experimental;
 
 device_global<MyClass> dm1;
 static device_global<int[4]> dm2{1, 3, 5, 7};  // Requires C++20 to be enabled

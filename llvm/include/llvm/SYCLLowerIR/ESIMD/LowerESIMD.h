@@ -19,6 +19,7 @@
 #ifndef LLVM_SYCLLOWERIR_LOWERESIMD_H
 #define LLVM_SYCLLOWERIR_LOWERESIMD_H
 
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
 

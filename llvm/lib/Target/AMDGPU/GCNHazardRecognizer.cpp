@@ -20,7 +20,7 @@
 using namespace llvm;
 
 //===----------------------------------------------------------------------===//
-// Hazard Recoginizer Implementation
+// Hazard Recognizer Implementation
 //===----------------------------------------------------------------------===//
 
 static bool shouldRunLdsBranchVmemWARHazardFixup(const MachineFunction &MF,
@@ -534,7 +534,7 @@ int GCNHazardRecognizer::checkSoftClauseHazards(MachineInstr *MEM) {
   // In order to handle these situations correctly we need to make sure that
   // when a clause has more than one instruction, no instruction in the clause
   // writes to a register that is read by another instruction in the clause
-  // (including itself). If we encounter this situaion, we need to break the
+  // (including itself). If we encounter this situation, we need to break the
   // clause by inserting a non SMEM instruction.
 
   for (MachineInstr *MI : EmittedInstrs) {
@@ -893,7 +893,7 @@ bool GCNHazardRecognizer::fixVcmpxPermlaneHazards(MachineInstr *MI) {
     return false;
 
   // V_NOP will be discarded by SQ.
-  // Use V_MOB_B32 v?, v?. Register must be alive so use src0 of V_PERMLANE*
+  // Use V_MOV_B32 v?, v?. Register must be alive so use src0 of V_PERMLANE*
   // which is always a VGPR and available.
   auto *Src0 = TII->getNamedOperand(*MI, AMDGPU::OpName::src0);
   Register Reg = Src0->getReg();
