@@ -36,16 +36,6 @@ namespace {
   device_global<int> same_name; // OK
 }
 
-//inline namespace other {
-//  device_global<int> same_name; // ILLEGAL: shadows "device_global" variable
-//}                               // with same name in enclosing namespace scope
-
-//inline namespace {
-//  namespace foo {               // ILLEGAL: namespace name shadows "::foo"
-//  }                             // namespace which contains "device_global"
-                                // variable.
-//}
-
 int main() {
   cl::sycl::kernel_single_task<class KernelName1>([=]() {
     (void)glob;

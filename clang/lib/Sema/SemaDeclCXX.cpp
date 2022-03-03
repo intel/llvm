@@ -3531,7 +3531,8 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
 
   if (getLangOpts().SYCLIsDevice) {
     if (auto Value = dyn_cast<ValueDecl>(Member)) {
-      if (isSyclGlobalType<SYCLDeviceGlobalAttr>(Value->getType()) &&
+      if (isDecoratedWithSyclAttribute<SYCLDeviceGlobalAttr>(
+              Value->getType()) &&
           Value->getAccess() != AS_public) {
         Diag(Loc, diag::err_sycl_device_global_not_publicly_accessible)
             << Value;

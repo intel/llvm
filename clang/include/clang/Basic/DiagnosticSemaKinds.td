@@ -7105,10 +7105,6 @@ def err_sycl_device_global_not_publicly_accessible: Error<
   "'device_global' member variable %0 is not publicly accessible from namespace scope">;
 def err_array_of_device_global_not_allowed : Error<
   "array of device_global %0 is not allowed">;
-def err_shadow_variable_within_same_namespace: Error<
-  "shadow variable %0 not allowed within the same enclosing namespace scope">;
-def err_namespace_name_shadows_namespace_containing_device_global : Error<
-  "not allowed: namespace name shadows %0 namespace which contains device_global">;
 
 def err_unexpected_interface : Error<
   "unexpected interface name %0: expected expression">;

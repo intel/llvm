@@ -13126,7 +13126,7 @@ public:
                                    SourceLocation RParenLoc);
 
   template <typename AttrTy>
-  bool isSyclGlobalType(QualType Ty) {
+  bool isDecoratedWithSyclAttribute(QualType Ty) {
     const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
     if (!RecTy)
       return false;
