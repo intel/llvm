@@ -428,6 +428,14 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
   static_assert(TySizeLog2 <= 2);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
 
+  // ActualTy - Reverse of 'PromoT' in memory.hpp
+  using ActualTy = std::conditional_t<
+      __SEIEED::ElemsPerAddrEncoding<sizeof(Ty)>() == TySizeLog2, Ty,
+      std::conditional_t<
+          TySizeLog2 == 1,
+          std::conditional_t<std::is_signed<Ty>::value, short, unsigned short>,
+          std::conditional_t<std::is_signed<Ty>::value, char, unsigned char>>>;
+
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
@@ -438,8 +446,9 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     char *SlmBase = I->__cm_emu_get_slm_ptr();
     for (int i = 0; i < N; ++i) {
       if (pred[i]) {
-        Ty *addr = reinterpret_cast<Ty *>(elem_offsets[i] + SlmBase);
-        *addr = vals[i];
+        ActualTy *addr =
+            reinterpret_cast<ActualTy *>(elem_offsets[i] + SlmBase);
+        *addr = static_cast<ActualTy>(vals[i]);
       }
     }
   } else {
@@ -456,8 +465,9 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
 
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(elem_offsets[idx] + writeBase);
-        *addr = vals[idx];
+        ActualTy *addr =
+            reinterpret_cast<ActualTy *>(elem_offsets[idx] + writeBase);
+        *addr = static_cast<ActualTy>(vals[idx]);
       }
     }
 
@@ -646,6 +656,14 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 {
   static_assert(Scale == 0);
 
+  // ActualTy - Reverse of 'PromoT' in memory.hpp
+  using ActualTy = std::conditional_t<
+      __SEIEED::ElemsPerAddrEncoding<sizeof(Ty)>() == TySizeLog2, Ty,
+      std::conditional_t<
+          TySizeLog2 == 1,
+          std::conditional_t<std::is_signed<Ty>::value, short, unsigned short>,
+          std::conditional_t<std::is_signed<Ty>::value, char, unsigned char>>>;
+
   __SEIEED::vector_type_t<Ty, N> retv = 0;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
@@ -656,8 +674,8 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     char *SlmBase = I->__cm_emu_get_slm_ptr();
     for (int idx = 0; idx < N; ++idx) {
       if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[idx] + SlmBase);
-        retv[idx] = *addr;
+        ActualTy *addr = reinterpret_cast<ActualTy *>(offsets[idx] + SlmBase);
+        retv[idx] = static_cast<Ty>(*addr);
       }
     }
   } else {
@@ -672,8 +690,8 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     std::unique_lock<std::mutex> lock(*mutexLock);
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[idx] + readBase);
-        retv[idx] = *addr;
+        ActualTy *addr = reinterpret_cast<ActualTy *>(offsets[idx] + readBase);
+        retv[idx] = static_cast<Ty>(*addr);
       }
     }
 
