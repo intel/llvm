@@ -56,9 +56,6 @@ or may be in a preliminary state.  The specification itself may also change in
 incompatible ways before it is finalized.  *Shipping software products should
 not rely on APIs defined in this specification.*
 
-== Version
-
-Revision: 1
 
 == Contributors
 
@@ -82,50 +79,52 @@ This extension also depends on the following other SYCL extensions:
 - link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
 - link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
 
-=== Examples
-
-The new USM malloc API can be used as follows:
-
-[source,c++]
-----
-
-using namespace sycl::ext::oneapi;
-
-// A property list containing compile-time property (buffer_location) and runtime property (use_host_ptr)
-sycl::ext::oneapi::experimental::properties properties{sycl::ext::intel::buffer_location<1>, sycl::property::buffer::use_host_ptr};
-
-// The compile time property is passed to template arguments of annotated_ptr, and runtime properties are passed to 
-auto data = malloc_device(N, q, properties);
-
-auto data2 = malloc_device<int>(N, q, properties);
-// data2 is of type annotated_ptr<int*, property_list_t<sycl::ext::intel::buffer_location<1>>>
-
-sycl::queue q;
-q.parallel_for(range<1>(N), [=] (id<1> i){
-  data2[i] *= 2;
-}).wait();
-----
-
-`buffer_location` property is defined as a part of `SYCL_INTEL_buffer_location` extension. Once passed in, buffer_location property is passed onto runtime libraries, and is available as template arguments for annotated_ptr.
 
 == Proposal
 
 === Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
-specification, Section 6.3.3 "Feature test macros". Therefore, an
-implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_USM_PROPERTIES` to one of the values defined in the table below.
-Applications can test for the existence of this macro to determine if the
-implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's features
-that the implementation supports.
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_USM_PROPERTIES` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
 
 [%header,cols="1,5"]
 |===
-|Value |Description
-|1     |Initial extension version
+|Value
+|Description
+
+|1
+|Initial version of this extension.
 |===
+
+
+=== Examples
+
+The following is a synopsis of the new USM malloc API.
+
+[source,c++]
+----
+
+// A property list containing a compile-time property and a runtime property
+sycl::ext::oneapi::experimental::properties properties{some_compile_time_prop<1>, some_runtime_prop(1)};
+
+// The compile time property is passed to template arguments of annotated_ptr
+auto data = sycl::ext::oneapi::experimental::malloc_device(N, q, properties);
+// data is of type annotated_ptr<void*, property_list_t<some_compile_time_prop<1>>>
+
+auto data2 = sycl::ext::oneapi::experimental::malloc_device<int>(N, q, properties);
+// data2 is of type annotated_ptr<int*, property_list_t<some_compile_time_prop<1>>>
+
+sycl::queue q;
+q.parallel_for(range<1>(N), [=] (id<1> i){
+  data2[i] *= 2;
+}).wait();
+----
 
 
 === New USM allocation APIs
@@ -162,22 +161,8 @@ The same setup is applied to other overloads of malloc APIs.
 
 Compile time properties can be pass into runtime properties within the allocation function.
 
-The table below describes the effects of associating each properties with each malloc function.
+The returned `annotated_ptr` contains the USM pointers and the passed in compile-time properties to enable additional compiler optimizations.
 
-|===
-|Property|Description
-
-|`buffer_location`
-|The `buffer_location` property adds the requirement that the memory must be
- allocated to the specified memory location as defined in `SYCL_INTEL_buffer_location` extension. 
- With `malloc_device` the returned device memory pointer must belong to the specified memory location.
- with `malloc_shared`, memory must implicitly migrate to the specified memory location.
-
-|===
-
-SYCL implementations may introduce additional properties. If any
-combinations of properties are invalid, this must be clearly documented
-as part of this spec.
 
 == Revision History
 
