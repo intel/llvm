@@ -38,9 +38,9 @@ bool test(queue q, std::string str, F funcUnderTest) {
   // The expected result gets the first half of values from B,
   int gold[VL];
   for (int i = 0; i < VL; ++i) {
-    A[i] = -i;
-    B[i] = i;
-    gold[i] = (i < HalfVL) ? B[i] : A[i];
+    A[i] = -i - 1;
+    B[i] = i + 1;
+    gold[i] = ((VL > 1) && (i < HalfVL)) ? B[i] : A[i];
   }
 
   try {
@@ -57,8 +57,8 @@ bool test(queue q, std::string str, F funcUnderTest) {
          simd<T, VL> va;
          simd<T, VL> vb;
          if constexpr (VL == 1) {
-           va[0] = PA[0];
-           vb[0] = PB[0];
+           va[0] = scalar_load<T>(PA, 0);
+           vb[0] = scalar_load<T>(PB, 0);
          } else {
            va.copy_from(PA, offset);
            vb.copy_from(PB, offset);
@@ -69,7 +69,7 @@ bool test(queue q, std::string str, F funcUnderTest) {
          funcUnderTest(va_view, vb_view);
 
          if constexpr (VL == 1) {
-           PA[0] = va[0];
+           scalar_store(PB, 0, (T)va[0]);
          } else {
            va.copy_to(PA, offset);
          }
