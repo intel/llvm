@@ -67,6 +67,17 @@ redefinedPiEventGetProfilingInfo(pi_event event, pi_profiling_info param_name,
 TEST(GetProfilingInfo, normal_pass_without_exception) {
   cl::sycl::platform Plt{cl::sycl::default_selector{}};
   if (Plt.is_host()) {
+    std::cout << "Test is not supported on host, skipping\n";
+    GTEST_SKIP(); // test is not supported on host.
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
+    std::cout << "Test is not supported on CUDA platform, skipping\n";
+    GTEST_SKIP();
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     GTEST_SKIP();
   }
   sycl::unittest::PiMock Mock{Plt};
@@ -109,6 +120,17 @@ TEST(GetProfilingInfo, normal_pass_without_exception) {
 TEST(GetProfilingInfo, command_exception_check) {
   cl::sycl::platform Plt{cl::sycl::default_selector{}};
   if (Plt.is_host()) {
+    std::cout << "Test is not supported on host, skipping\n";
+    GTEST_SKIP(); // test is not supported on host.
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
+    std::cout << "Test is not supported on CUDA platform, skipping\n";
+    GTEST_SKIP();
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     GTEST_SKIP();
   }
   sycl::unittest::PiMock Mock{Plt};
@@ -179,6 +201,17 @@ TEST(GetProfilingInfo, command_exception_check) {
 TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
   cl::sycl::platform Plt{cl::sycl::default_selector{}};
   if (Plt.is_host()) {
+    std::cout << "Test is not supported on host, skipping\n";
+    GTEST_SKIP(); // test is not supported on host.
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
+    std::cout << "Test is not supported on CUDA platform, skipping\n";
+    GTEST_SKIP();
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     GTEST_SKIP();
   }
   sycl::unittest::PiMock Mock{Plt};
@@ -223,6 +256,17 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
 TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
   cl::sycl::platform Plt{cl::sycl::default_selector{}};
   if (Plt.is_host()) {
+    std::cout << "Test is not supported on host, skipping\n";
+    GTEST_SKIP(); // test is not supported on host.
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
+    std::cout << "Test is not supported on CUDA platform, skipping\n";
+    GTEST_SKIP();
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     GTEST_SKIP();
   }
   sycl::unittest::PiMock Mock{Plt};
