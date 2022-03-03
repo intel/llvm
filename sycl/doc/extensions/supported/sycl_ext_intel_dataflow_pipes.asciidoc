@@ -183,6 +183,10 @@ class pipe {
   // Non-blocking
   static dataT read( bool &success_code );
   static void write( const dataT &data, bool &success_code );
+
+  // Static members
+  using value_type = dataT;
+  size_t min_capacity = min_capacity;
 }
 ----
 
@@ -191,8 +195,8 @@ The read and write member functions may be invoked within device code, or within
 The template parameters of the device type are defined as:
 
 * `name`: Type that is the basis of pipe identification.  Typically a user-defined class, in a user namespace.  Forward declaration of the type is sufficient, and the type does not need to be defined.
-* `dataT`: The type of data word/packet contained within a pipe.  This is the data type that is read during a successful `pipe::read` operation, or written during a successful `pipe::write` operation.  The type must be standard layout and trivially copyable.
-* `min_capacity`: User defined minimum number of words in units of `dataT` that the pipe must be able to store without any being read out.  A minimum capacity is required in some algorithms to avoid deadlock, or for performance tuning.  An implementation can include more capacity than this parameter, but not less.
+* `dataT`: The type of data word/packet contained within a pipe.  This is the data type that is read during a successful `pipe::read` operation, or written during a successful `pipe::write` operation.  The type must be standard layout and trivially copyable. This template parameter can be queried by using the `value_type` type alias.
+* `min_capacity`: User defined minimum number of words in units of `dataT` that the pipe must be able to store without any being read out.  A minimum capacity is required in some algorithms to avoid deadlock, or for performance tuning.  An implementation can include more capacity than this parameter, but not less. This template parameter can be queried by using the `min_capacity` static member.
 
 == Pipe types and {cpp} scope
 
