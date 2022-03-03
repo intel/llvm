@@ -1621,19 +1621,6 @@ static void emitCallStackNotes(Sema &S, FunctionDecl *FD) {
   }
 }
 
-template <typename AttrTy>
-bool Sema::isSyclGlobalType(QualType Ty) {
-  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
-  if (!RecTy)
-    return false;
-  if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
-    ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
-    if (CXXRecordDecl *RD = Template->getTemplatedDecl())
-      return RD->hasAttr<AttrTy>();
-  }
-  return RecTy->hasAttr<AttrTy>();
-}
-
 namespace {
 
 /// Helper class that emits deferred diagnostic messages if an entity directly

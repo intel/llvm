@@ -13125,8 +13125,18 @@ public:
                                    SourceLocation BuiltinLoc,
                                    SourceLocation RParenLoc);
 
-  template <typename T>
-  bool isSyclGlobalType(QualType Ty);
+  template <typename AttrTy>
+  bool isSyclGlobalType(QualType Ty) {
+    const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+    if (!RecTy)
+      return false;
+    if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
+      ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
+      if (CXXRecordDecl *RD = Template->getTemplatedDecl())
+        return RD->hasAttr<AttrTy>();
+    }
+    return RecTy->hasAttr<AttrTy>();
+  }
 
 private:
   bool SemaBuiltinPrefetch(CallExpr *TheCall);
