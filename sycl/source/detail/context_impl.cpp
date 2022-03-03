@@ -212,20 +212,14 @@ bool context_impl::isBufferLocationSupported() const {
   if (SupportBufferLocationByDevices != NotChecked)
     return SupportBufferLocationByDevices == Supported ? true : false;
   // Check that devices within context have support of buffer location
-  size_t return_size = 0;
-  pi_device_info device_info;
   SupportBufferLocationByDevices = Supported;
-  auto Plugin = getPlugin();
   for (auto &Device : MDevices) {
-    const RT::PiDevice PiDevice = getSyclObjImpl(Device)->getHandleRef();
-    if (Plugin.call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            PiDevice, (pi_device_info)PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
-            sizeof(pi_device_info), &device_info, &return_size) != PI_SUCCESS) {
+    if (!Device.has_extension("cl_intel_mem_alloc_buffer_location")) {
       SupportBufferLocationByDevices = NotSupported;
       break;
     }
   }
-  return SupportBufferLocationByDevices == 0 ? false : true;
+  return SupportBufferLocationByDevices == Supported ? true : false;
 }
 
 } // namespace detail

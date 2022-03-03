@@ -55,6 +55,15 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
     auto *Result = reinterpret_cast<pi_bool *>(param_value);
     *Result = true;
   }
+  if (param_name == PI_DEVICE_INFO_EXTENSIONS) {
+    const std::string name = "cl_intel_mem_alloc_buffer_location";
+    if (!param_value) { 
+      *param_value_size_ret = name.size();
+    } else {
+      char *dst = static_cast<char *>(param_value);
+      strcpy(dst, name.data());
+    }
+  }
   return PI_SUCCESS;
 }
 
