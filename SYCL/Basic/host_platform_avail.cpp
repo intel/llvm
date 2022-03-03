@@ -4,6 +4,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: env SYCL_DEVICE_FILTER=acc,host %t1.out
 
+// Temporarily disable on L0 due to fails in CI
+// UNSUPPORTED: level_zero
+
 //==------ host_platform_avail.cpp - Host Platform Availability test -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

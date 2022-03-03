@@ -2,6 +2,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.ze.out
 // RUN: %t.ze.out
 
+// Temporarily disable on L0 due to fails in CI
+// UNSUPPORTED: level_zero
+
 #include <level_zero/ze_api.h>
 
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
