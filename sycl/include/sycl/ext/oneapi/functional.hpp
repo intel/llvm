@@ -82,16 +82,16 @@ __SYCL_CALC_OVERLOAD(GroupOpISigned, IAdd, sycl::plus<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, sycl::plus<T>)
 __SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, sycl::plus<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, IMulINTEL, sycl::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IMulINTEL, sycl::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FMulINTEL, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, IMulKHR, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IMulKHR, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMulKHR, sycl::multiplies<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseOrINTEL, sycl::bit_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseOrINTEL, sycl::bit_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseXorINTEL, sycl::bit_xor<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseXorINTEL, sycl::bit_xor<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseAndINTEL, sycl::bit_and<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseAndINTEL, sycl::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseOrKHR, sycl::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseOrKHR, sycl::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseXorKHR, sycl::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseXorKHR, sycl::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseAndKHR, sycl::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseAndKHR, sycl::bit_and<T>)
 
 #undef __SYCL_CALC_OVERLOAD
 
