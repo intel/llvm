@@ -152,13 +152,16 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
 
   template <typename Group>
   using joint_matrix_a =
-      joint_matrix<Ta, defaultM, defaultK, matrix_use::unnecessary, matrix_layout::row_major, Group>;
+      joint_matrix<Ta, defaultM, defaultK, matrix_layout::row_major,
+                   matrix_use::unnecessary, Group>;
   template <typename Group>
   using joint_matrix_b =
-      joint_matrix<Tb, defaultK, defaultN, matrix_use::unnecessary, matrix_layout::packed_b, Group>;
+      joint_matrix<Tb, defaultK, defaultN, matrix_layout::packed_b,
+                   matrix_use::unnecessary, Group>;
   template <typename Group>
   using joint_matrix_c =
-      joint_matrix<Tc, defaultM, defaultN, matrix_use::unnecessary, matrix_layout::row_major, Group>;
+      joint_matrix<Tc, defaultM, defaultN, matrix_layout::row_major,
+                   matrix_use::unnecessary, Group>;
 
   bool dynamic_p = false; // should be true in future implementations because
                           // AMX hardware supports dynamic sizes
@@ -206,13 +209,16 @@ struct tpu_params<
 
   template <typename Group>
   using joint_matrix_a =
-      joint_matrix<Ta, defaultM, defaultK, matrix_use::unnecessary, matrix_layout::row_major, Group>;
+      joint_matrix<Ta, defaultM, defaultK, matrix_layout::row_major,
+                   matrix_use::unnecessary, Group>;
   template <typename Group>
   using joint_matrix_b =
-      joint_matrix<Tb, defaultK, defaultN, matrix_use::unnecessary, matrix_layout::packed_b, Group>;
+      joint_matrix<Tb, defaultK, defaultN, matrix_layout::packed_b,
+                   matrix_use::unnecessary, Group>;
   template <typename Group>
   using joint_matrix_c =
-      joint_matrix<Tc, defaultM, defaultN, matrix_use::unnecessary, matrix_layout::row_major, Group>;
+      joint_matrix<Tc, defaultM, defaultN, matrix_layout::row_major,
+                   matrix_use::unnecessary, Group>;
 
   bool dynamic_p = false; // should be true in future implementations
                           // because AMX hardware supports dynamic sizes
@@ -346,13 +352,16 @@ struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
 
   template <typename Group>
   using joint_matrix_a =
-      joint_matrix<Ta, defaultM, defaultK, matrix_use::unnecessary, matrix_layout::row_major, Group>;
+      joint_matrix<Ta, defaultM, defaultK, matrix_layout::row_major,
+                   matrix_use::unnecessary, Group>;
   template <typename Group>
   using joint_matrix_b =
-      joint_matrix<Tb, defaultK, defaultN, matrix_use::unnecessary, matrix_layout::packed_b, Group>;
+      joint_matrix<Tb, defaultK, defaultN, matrix_layout::packed_b,
+                   matrix_use::unnecessary, Group>;
   template <typename Group>
   using joint_matrix_c =
-      joint_matrix<Tc, defaultM, defaultN, matrix_use::unnecessary, matrix_layout::row_major, Group>;
+      joint_matrix<Tc, defaultM, defaultN, matrix_layout::row_major,
+                   matrix_use::unnecessary, Group>;
 
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS
@@ -403,13 +412,16 @@ struct tpu_params<
 
   template <typename Group>
   using joint_matrix_a =
-      joint_matrix<Ta, defaultM, defaultK, matrix_use::unnecessary, matrix_layout::row_major, Group>;
+      joint_matrix<Ta, defaultM, defaultK, matrix_layout::row_major,
+                   matrix_use::unnecessary, Group>;
   template <typename Group>
   using joint_matrix_b =
-      joint_matrix<Tb, defaultK, defaultN, matrix_use::unnecessary, matrix_layout::packed_b, Group>;
+      joint_matrix<Tb, defaultK, defaultN, matrix_layout::packed_b,
+                   matrix_use::unnecessary, Group>;
   template <typename Group>
   using joint_matrix_c =
-      joint_matrix<Tc, defaultM, defaultN, matrix_use::unnecessary, matrix_layout::row_major, Group>;
+      joint_matrix<Tc, defaultM, defaultN, matrix_layout::row_major,
+                   matrix_use::unnecessary, Group>;
 
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS
