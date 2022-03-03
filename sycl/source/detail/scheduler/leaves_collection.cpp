@@ -32,7 +32,6 @@ static inline bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
 
 static inline bool isHostAccessorCmd(Command *Cmd) {
   return Cmd->getType() == Command::EMPTY_TASK &&
-         Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked &&
          Cmd->MBlockReason == Command::BlockReason::HostAccessor;
 }
 
