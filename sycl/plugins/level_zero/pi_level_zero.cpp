@@ -1521,46 +1521,6 @@ pi_result _pi_queue::executeOpenCommandList(bool IsCopy) {
   return PI_SUCCESS;
 }
 
-pi_result _pi_queue::AddBarrierInPreviousCmdListIfNeeded(bool UseCopyEngine) {
-  auto &PrevCommandBatch =
-      IsPrevCopyEngine ? CopyCommandBatch : ComputeCommandBatch;
-  if (PrevCommandBatch.OpenCommandList != CommandListMap.end()) {
-    if (IsPrevCopyEngine != UseCopyEngine) {
-      pi_result Res = createEventAndAssociateQueue(
-          this, &LastEventInPrevCmdList, PI_COMMAND_TYPE_USER, LastCommandList,
-          false);
-      if (Res != PI_SUCCESS)
-        return Res;
-      // Decrement the reference count of the event as this event will not be
-      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
-      // resetCommandList.
-      PI_CALL(piEventRelease(LastEventInPrevCmdList));
-
-      // Since we have added a new event to the list, it will affect the
-      // batching, but this is a special event and we do not want it to affect
-      // batching, to have the batching for this command-list work correctly we
-      // do a decrement here.
-      --LastCommandList->second.NumEventlessCommands;
-      this->LastCommandEvent = LastEventInPrevCmdList;
-      // Add barrier with the event into command-list to ensure in-order
-      // semantics between command-lists
-      auto &ZeEvent = LastEventInPrevCmdList->ZeEvent;
-      ZE_CALL(zeCommandListAppendBarrier,
-              (LastCommandList->first, ZeEvent, 0, nullptr));
-
-      zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
-              pi_cast<std::uintptr_t>(ZeEvent));
-    } else {
-      LastEventInPrevCmdList = nullptr;
-      // Add barrier into command-list to ensure in-order semantics inside one
-      // command-list
-      ZE_CALL(zeCommandListAppendBarrier,
-              (LastCommandList->first, nullptr, 0, nullptr));
-    }
-  }
-  return PI_SUCCESS;
-}
-
 static const bool FilterEventWaitList = [] {
   const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST");
   const bool RetVal = Ret ? std::stoi(Ret) : 1;
@@ -1571,8 +1531,47 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     pi_uint32 EventListLength, const pi_event *EventList, pi_queue CurQueue,
     bool UseCopyEngine) {
   if (CurQueue->EventlessMode) {
-    if (auto Res = CurQueue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
-      return Res;
+    // In eventless mode, to support in-order semantics, it adds a barrier or
+    // barrier with an event to the previous command-list if the list is open.
+    const auto &IsPrevCopyEngine = CurQueue->IsPrevCopyEngine;
+    auto &PrevCommandBatch = IsPrevCopyEngine ? CurQueue->CopyCommandBatch
+                                              : CurQueue->ComputeCommandBatch;
+    if (PrevCommandBatch.OpenCommandList != CurQueue->CommandListMap.end()) {
+      auto &LastEventInPrevCmdList = CurQueue->LastEventInPrevCmdList;
+      auto &LastCommandList = CurQueue->LastCommandList;
+      if (IsPrevCopyEngine != UseCopyEngine) {
+        pi_result Res = createEventAndAssociateQueue(
+            CurQueue, &LastEventInPrevCmdList, PI_COMMAND_TYPE_USER,
+            LastCommandList, false);
+        if (Res != PI_SUCCESS)
+          return Res;
+        // Decrement the reference count of the event as this event will not be
+        // waited/released by SYCL RT, so it must be destroyed by EventRelease
+        // in resetCommandList.
+        PI_CALL(piEventRelease(LastEventInPrevCmdList));
+
+        // Since we have added a new event to the list, it will affect the
+        // batching, but this is a special event and we do not want it to affect
+        // batching, to have the batching for this command-list work correctly
+        // we do a decrement here.
+        --LastCommandList->second.NumEventlessCommands;
+        CurQueue->LastCommandEvent = LastEventInPrevCmdList;
+        // Add barrier with the event into command-list to ensure in-order
+        // semantics between command-lists
+        auto &ZeEvent = LastEventInPrevCmdList->ZeEvent;
+        ZE_CALL(zeCommandListAppendBarrier,
+                (LastCommandList->first, ZeEvent, 0, nullptr));
+
+        zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
+                pi_cast<std::uintptr_t>(ZeEvent));
+      } else {
+        LastEventInPrevCmdList = nullptr;
+        // Add barrier into command-list to ensure in-order semantics inside one
+        // command-list
+        ZE_CALL(zeCommandListAppendBarrier,
+                (LastCommandList->first, nullptr, 0, nullptr));
+      }
+    }
   }
 
   this->Length = 0;

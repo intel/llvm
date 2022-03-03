@@ -871,10 +871,6 @@ struct _pi_queue : _pi_object {
     return PI_SUCCESS;
   }
 
-  // In eventless mode, to support in-order semantics, it adds a barrier or
-  // barrier with an event to the previous command-list if the list is open.
-  pi_result AddBarrierInPreviousCmdListIfNeeded(bool IsCopy);
-
   // Besides each PI object keeping a total reference count in
   // _pi_object::RefCount we keep special track of the queue *external*
   // references. This way we are able to tell when the queue is being finished
