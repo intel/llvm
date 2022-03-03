@@ -394,7 +394,7 @@ int main() {
       myQueue.submit([&](handler &cgh) {
         accessor<int, 2, access::mode::write, access::target::device,
                  access::placeholder::false_t>
-            B(Buffer, cgh, range<2>(20, 20), id<2>(10, 10));
+            B(Buffer, cgh, range<2>(10, 10), id<2>(10, 10));
         cgh.parallel_for<class bufferByRangeOffset>(
             range<2>{10, 5}, [=](id<2> index) { B[index] = 1; });
       });

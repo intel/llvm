@@ -75,6 +75,24 @@ int main() {
         return -1;
       }
     }
+    auto maxUnits = dev.get_info<sycl::info::device::max_compute_units>();
+    try {
+      std::vector<sycl::device> v = dev.create_sub_devices<
+          sycl::info::partition_property::partition_equally>(maxUnits + 1);
+      std::cerr << "create_sub_devices with more than max_compute_units should "
+                   "have thrown an error"
+                << std::endl;
+      return -1;
+    } catch (sycl::exception &ex) {
+      if (ex.code() != sycl::errc::invalid) {
+        std::cerr << "while an exception was correctly thrown, it has the "
+                     "wrong error code"
+                     "we should have received"
+                  << sycl::errc::invalid << "but instead got"
+                  << ex.code().value() << std::endl;
+        return -1;
+      }
+    }
   } else {
     try {
       auto subDevices = dev.create_sub_devices<
@@ -85,6 +103,12 @@ int main() {
                 << std::endl;
       return -1;
     } catch (const cl::sycl::feature_not_supported &e) {
+      if (e.code() != sycl::errc::feature_not_supported) {
+        std::cerr
+            << "error code should be errc::feature_not_supported instead of "
+            << e.code().value() << std::endl;
+        return -1;
+      }
     } catch (...) {
       std::cerr << "device::create_sub_device(info::partition_affinity_domain) "
                    "should have thrown cl::sycl::feature_not_supported"

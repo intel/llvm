@@ -3,6 +3,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+
+// UNSUPPORTED: (opencl && gpu)
+
 //
 //==---------- subbuffer.cpp --- sub-buffer basic test ---------------------==//
 //
@@ -71,26 +74,34 @@ void check1DSubBuffer(cl::sycl::queue &q) {
   size *= 2;
 
   std::size_t offset = size / 2, subbuf_size = 10, offset_inside_subbuf = 3,
-              subbuffer_access_range = 10;
+              subbuffer_access_range = subbuf_size - offset_inside_subbuf; // 7.
   std::vector<int> vec(size);
   std::vector<int> vec2(subbuf_size, 0);
   std::iota(vec.begin(), vec.end(), 0);
 
+  std::cout << "buffer size: " << size << ", subbuffer start: " << offset
+            << std::endl;
+
   try {
     cl::sycl::buffer<int, 1> buf(vec.data(), size);
     cl::sycl::buffer<int, 1> buf2(vec2.data(), subbuf_size);
+    // subbuffer is 10 elements, starting at midpoint. (typically 32)
     cl::sycl::buffer<int, 1> subbuf(buf, cl::sycl::id<1>(offset),
                                     cl::sycl::range<1>(subbuf_size));
 
+    // test offset accessor against a subbuffer
     q.submit([&](cl::sycl::handler &cgh) {
+      // accessor starts at the third element of the subbuffer
+      // and can read for 7 more (ie to the end of the subbuffer)
       auto acc = subbuf.get_access<cl::sycl::access::mode::read_write>(
           cgh, cl::sycl::range<1>(subbuffer_access_range),
           cl::sycl::id<1>(offset_inside_subbuf));
-      cgh.parallel_for<class foobar>(
-          cl::sycl::range<1>(subbuffer_access_range - offset_inside_subbuf),
-          [=](cl::sycl::id<1> i) { acc[i] *= -1; });
+      // subrange is made negative. ( 32 33 34 -35 -36 -37 -38 -39 -40 -41)
+      cgh.parallel_for<class foobar>(cl::sycl::range<1>(subbuffer_access_range),
+                                     [=](cl::sycl::id<1> i) { acc[i] *= -1; });
     });
 
+    // copy results of last operation back to buf2/vec2
     q.submit([&](cl::sycl::handler &cgh) {
       auto acc_sub = subbuf.get_access<cl::sycl::access::mode::read>(cgh);
       auto acc_buf = buf2.get_access<cl::sycl::access::mode::write>(cgh);
@@ -99,27 +110,48 @@ void check1DSubBuffer(cl::sycl::queue &q) {
           [=](cl::sycl::id<1> i) { acc_buf[i] = acc_sub[i]; });
     });
 
+    // multiple entire subbuffer by 10.
+    // now original buffer will be
+    // (..29 30 31 | 320 330 340 -350 -360 -370 -380 -390 -400 -410 | 42 43 44
+    // ...)
     q.submit([&](cl::sycl::handler &cgh) {
       auto acc_sub = subbuf.get_access<cl::sycl::access::mode::read_write>(
-          cgh, cl::sycl::range<1>(subbuffer_access_range));
+          cgh, cl::sycl::range<1>(subbuf_size));
       cgh.parallel_for<class foobar_1>(
-          cl::sycl::range<1>(subbuffer_access_range),
+          cl::sycl::range<1>(subbuf_size),
           [=](cl::sycl::id<1> i) { acc_sub[i] *= 10; });
     });
     q.wait_and_throw();
 
+    // buffers go out of scope. data must be copied back to vector no later than
+    // this.
   } catch (const cl::sycl::exception &e) {
     std::cerr << e.what() << std::endl;
     assert(false && "Exception was caught");
   }
 
+  // check buffer data in the area of the subbuffer
+  // OCL:GPU confused   =>  320 330 340 -350 -360 -370 -380 39   40   41
+  // every other device =>  320 330 340 -350 -360 -370 -380 -390 -400 -410
   for (int i = offset; i < offset + subbuf_size; ++i)
     assert(vec[i] == (i < offset + offset_inside_subbuf ? i * 10 : i * -10) &&
-           "Invalid result in 1d sub buffer");
+           "Invalid result in buffer overlapped by 1d sub buffer");
 
+  // check buffer data in the area OUTSIDE the subbuffer
+  for (int i = 0; i < size; i++) {
+    if (i < offset)
+      assert(vec[i] == i && "data preceding subbuffer incorrectly altered");
+
+    if (i > offset + subbuf_size)
+      assert(vec[i] == i && "data following subbuffer incorrectly altered");
+  }
+
+  // check the copy of the subbuffer data after the first operation
+  // OCL:GPU        => 32 33 34 -35 -36 -37 -38 0   0   0
+  // everyone else  => 32 33 34 -35 -36 -37 -38 -39 -40 -41
   for (int i = 0; i < subbuf_size; ++i)
     assert(vec2[i] == (i < 3 ? (offset + i) : (offset + i) * -1) &&
-           "Invalid result in 1d sub buffer");
+           "Invalid result in captured 1d sub buffer, vec2");
 }
 
 void checkExceptions() {

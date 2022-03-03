@@ -657,5 +657,53 @@ int main() {
       return 1;
     }
   }
+
+  // exceptions with illegal ranges or no_init
+  {
+    const size_t bufSize = 10;
+    std::vector<int> res(bufSize);
+    sycl::range<1> r(bufSize);
+    sycl::buffer<int, 1> b(res.data(), r);
+    sycl::range<1> illegalR(bufSize + 1);
+    sycl::id<1> offset(bufSize);
+
+    // illegal ranges
+    try {
+      auto acc = b.get_access<sycl::access::mode::read_write>(illegalR, offset);
+      assert(false && "operation should not have succeeded");
+    } catch (sycl::exception &e) {
+      assert(e.code() == sycl::errc::invalid && "errc should be errc::invalid");
+    }
+    try {
+      sycl::queue q;
+      q.submit([&](sycl::handler &cgh) {
+        auto acc = b.get_access<sycl::access::mode::read_write>(cgh, illegalR);
+      });
+      q.wait_and_throw();
+      assert(false &&
+             "we should not be here. operation should not have succeeded");
+    } catch (sycl::exception &e) {
+      assert(e.code() == sycl::errc::invalid && "errc should be errc::invalid");
+    }
+
+    // no_init incompatible with read_only
+    try {
+      sycl::host_accessor out{b, sycl::read_only, sycl::no_init};
+      assert(false && "operation should have failed");
+    } catch (sycl::exception &e) {
+      assert(e.code() == sycl::errc::invalid && "errc should be errc::invalid");
+    }
+    try {
+      sycl::queue q;
+      q.submit([&](sycl::handler &cgh) {
+        sycl::accessor out{b, cgh, sycl::read_only, sycl::no_init};
+      });
+      q.wait_and_throw();
+      assert(false && "we should not be here. operation should have failed");
+    } catch (sycl::exception &e) {
+      assert(e.code() == sycl::errc::invalid && "errc should be errc::invalid");
+    }
+  }
+
   std::cout << "Test passed" << std::endl;
 }

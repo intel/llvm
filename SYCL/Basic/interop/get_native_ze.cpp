@@ -32,5 +32,14 @@ int main() {
   ze_result_t Err = zeKernelGetProperties(Handle, &KernelProperties);
   assert(Err == ZE_RESULT_SUCCESS);
 
+  // SYCL2020 4.5.1.2 - verify exception errc
+  try {
+    // this test is L0 only, so we ask for an unavailable backend.
+    auto BE2 = sycl::get_native<sycl::backend::opencl>(Q);
+    assert(false && "we should not be here.");
+  } catch (sycl::exception e) {
+    assert(e.code() == sycl::errc::backend_mismatch && "wrong error code");
+  }
+
   return 0;
 }

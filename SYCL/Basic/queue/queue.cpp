@@ -124,9 +124,11 @@ int main() {
       context Context(deviceA);
       queue Queue(Context, deviceB);
       assert(Context == Queue.get_context());
-    } catch (std::exception &e) {
-      std::cout << "Exception check passed: " << e.what() << std::endl;
-      GotException = true;
+    } catch (sycl::exception &e) {
+      if (e.code() == sycl::errc::invalid) {
+        std::cout << "Exception check passed: " << e.what() << std::endl;
+        GotException = true;
+      }
     }
     assert(GotException);
   }

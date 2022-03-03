@@ -220,12 +220,39 @@ void check_copy_host_to_device(cl::sycl::queue &Queue) {
   }
 }
 
+void check_exception_code() {
+  sycl::queue q;
+
+  const size_t bufSize = 10;
+  std::vector<int> res(bufSize);
+  // std::iota(res.begin(), res.end(), 1);
+  sycl::range<1> r(bufSize);
+  sycl::buffer<int, 1> b(res.data(), r);
+  sycl::range<1> smallRange(bufSize / 2);
+  sycl::id<1> offset(bufSize);
+
+  try {
+    q.submit([&](sycl::handler &cgh) {
+      sycl::accessor src(b, cgh);
+      sycl::accessor destToSmall(b, cgh, smallRange);
+      cgh.copy(src, destToSmall);
+    });
+    q.wait_and_throw();
+
+    assert(false &&
+           "copy with too small Dest arg should have thrown an exception");
+  } catch (sycl::exception e) {
+    assert(e.code() == sycl::errc::invalid);
+  }
+}
+
 int main() {
   try {
     cl::sycl::queue Queue;
     check_copy_host_to_device(Queue);
     check_copy_device_to_host(Queue);
     check_fill(Queue);
+    check_exception_code();
   } catch (cl::sycl::exception &ex) {
     std::cerr << ex.what() << std::endl;
     return 1;
