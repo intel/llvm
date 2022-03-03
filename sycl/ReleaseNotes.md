@@ -382,15 +382,12 @@ Release notes for commit range 23ca0c2..27f59d8
  - [new] `cuMemPrefetchAsync` has issues on Windows. Hence, using
    `sycl::queue::prefetch` API on Windows might lead to failure [0c33048e4926]
  - SYCL 2020 barriers show worse performance than SYCL 1.2.1 do [18c80fa]
- - [new] When using fallback assert in separate compilation flow it requires
-   explicit linking against `lib/libsycl-fallback-cassert.o` or
+ - When using fallback assert in separate compilation flow it requires explicit
+   linking against `lib/libsycl-fallback-cassert.o` or
    `lib/libsycl-fallback-cassert.spv`
- - [new] Performance may be impacted by JIT-ing an extra 'copier' kernel and due
+ - Performance may be impacted by JIT-ing an extra 'copier' kernel and due
    running the 'copier' kernel and host-task after each kernel which uses
    assert
- - [new] When a two-step AOT build is used and there's at least a single call
-   to devicelib function from within kernel, the device binary image gets
-   corrupted
  - Limit alignment of allocation requests at 64KB which is the only alignment
    supported by Level Zero[7dfaf3bd]
  - On the following scenario on Level Zero backend:
