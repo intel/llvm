@@ -48,6 +48,28 @@ On targets that provide more than one type of global memory, knowing that a part
 This extension adds an accessor property to indicate to the runtime in which of these memories the buffer corresponding to this accessor should be allocated and to inform the compiler that all accesses made through that accessor can only ever interact with the given memory or it can be used to inform the usm alocation (`malloc_device`, `malloc_shared`, `malloc_host`) to allocate on a given memory.
 This information is not a hint; it is a functional requirement of the program that must be respected.
 
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_INTEL_BUFFER_LOCATION` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+
 == Modifications to the SYCL 2020 Pre-Provisional Specification
 
 === Section 4.7.6.9.2 Device buffer accessor properties
@@ -86,6 +108,37 @@ It also notifies the SYCL runtime to store the given accessor in that memory. | 
 |===
 --
 
+
+== Buffer location as properties of USM allocation APIs
+
+The buffer location property can also be passed to USM allocation APIs. The following is a synopsis.
+
+[source,c++]
+----
+// A property list containing a compile-time property and a runtime property
+sycl::ext::oneapi::experimental::properties properties{sycl::ext::intel::property::buffer_location<1>, some_runtime_prop(1)};
+// The compile time property is passed to template arguments of annotated_ptr
+auto data = sycl::ext::oneapi::experimental::malloc_device<int>(N, q, properties);
+// data is of type annotated_ptr<int*, property_list_t<sycl::ext::intel::property::buffer_location<1>>>
+sycl::queue q;
+q.parallel_for(range<1>(N), [=] (id<1> i){
+  data[i] *= 2;
+}).wait();
+----
+
+The table below describes the effects of associating the property with each malloc APIs.
+
+|===
+|USM API|Description
+
+|`malloc_device`
+|The returned device pointer should point to the target memory location.
+|`malloc_shared`
+|The returned pointer should be implicitly migrated to the target memory location.
+
+|===
+
+
 == Issues
 
 == Revision History
@@ -96,4 +149,5 @@ It also notifies the SYCL runtime to store the given accessor in that memory. | 
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-09-08|Joe Garvey|*Initial public draft*
+|2|2022-03-03|Sherry Yuan|*USM API acceptance of buffer location*
 |========================================
