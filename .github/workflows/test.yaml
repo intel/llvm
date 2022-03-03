@@ -1,0 +1,17 @@
+name: SYCL
+
+on:
+  pull_request:
+    branches:
+    - sycl
+
+jobs:
+  test:
+    runs-on: X64
+    container:
+      image: ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers
+    steps:
+    - run: apt update && apt install -yqq gdb
+    - run: |
+        source /runtimes/oneapi-tbb/env/vars.sh
+        sycl-ls --verbose
