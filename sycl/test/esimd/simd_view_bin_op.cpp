@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -S -emit-llvm -x c++ -Xclang -disable-noundef-analysis %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-device-only -S -emit-llvm -x c++ -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s
 
 // This test checks that arithmetic or compare operation on simd_view and
 // scalar does not truncate scalar to the view's element type.

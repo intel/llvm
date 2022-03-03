@@ -576,7 +576,7 @@ pi_result _pi_program::build_program(const char *build_options) {
 ///       query to PI and use cuModuleGetFunction to check for a kernel.
 /// Note: Another alternative is to add kernel names as metadata, like with
 ///       reqd_work_group_size.
-std::string getKernelNames(pi_program program) {
+std::string getKernelNames(pi_program) {
   cl::sycl::detail::pi::die("getKernelNames not implemented");
   return {};
 }
