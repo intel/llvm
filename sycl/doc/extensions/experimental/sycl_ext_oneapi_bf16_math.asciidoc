@@ -1,4 +1,4 @@
-# Bfloat16 math functions extension for DPC++: = SYCL_ONEAPI_bf16_math
+# Bfloat16 math functions extension for DPC++: SYCL_ONEAPI_bf16_math
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 :dpcpp: pass:[DPC++]
@@ -38,11 +38,16 @@ SYCL specification refer to that revision.
 
 * Jack Kirk
 
+## Motivation
+
+In order to take full advantage of the new matrix extension, https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc, for many applications it is necessary to introduce dedicated functions that support the new `bfloat16` data type, which can then be used as element wise operations on matrices.
+
 ## Introduction
 
-This document proposes extending the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions to support the `bfloat16` type introduced in the `SYCL_EXT_INTEL_BF16_CONVERSION` extension. This proposal assumes that devices which support the `SYCL_EXT_INTEL_BF16_CONVERSION` extension have the `bfloat16` scalar data type: `bfloat16`, and the `bfloat16` vector data types: `bfloat16_1`, `bfloat16_2`, `bfloat16_3`, `bfloat16_4`, `bfloat16_8` and `bfloat16_16` available at compile-time, in line with corresponding `half` types that are available at compile time on devices that
-have `aspect::fp16` as described in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:opencl:extension-fp16. Therefore the `fma`, `fmin`, `fmax` and `fabs` functions should support all of these vector and scalar types which we refer to as `genbfloat16`. Initially this experimental extension may also support the corresponding storage types for each of these `genbfloat16` types, namely `short`, `short3`, `short4`, `short8`, and `short16`.
+This document proposes extending the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions to support the `bfloat16` type introduced in the `SYCL_EXT_INTEL_BF16_CONVERSION` extension. This proposal assumes that devices which support the aspect introduced in the `SYCL_EXT_INTEL_BF16_CONVERSION` extension have the `bfloat16` scalar (`bfloat16`) and vector data types (See the issues section for an action item regarding suitable vector data types) available at compile-time, in line with corresponding `half` types that are available at compile time on devices that
+have `aspect::fp16` as described in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:opencl:extension-fp16. Therefore the `fma`, `fmin`, `fmax` and `fabs` functions should support all of the `bfloat16` vector and scalar types which we refer to as `genbfloat16` in this document. Initially an implementation of this experimental extension may support the corresponding storage types for each of these `genbfloat16` types, e.g. `bfloat16` has storage type `uint16_t`.
 The descriptions of the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions can be found in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions. This proposal does not propose any changes to the expected behavior of these math functions beyond the new support for the `genbfloat16` types. A discussion issue has been raised at the bottom of this document on whether the specified maximum precision error should change for these functions when they use the `genbfloat16` data types.
+This extension is intended to be backend agnostic, such that any backend may implement `bfloat16` versions of these math functions when available. This means that a pre-requisite for this extension is the existence of a backend agnostic `bfloat16` class and aspect. Ideally the existing `SYCL_EXT_INTEL_BF16_CONVERSION` extension can be generalized to other backends for this purpose.
 
 ## Feature test macro
 
@@ -60,41 +65,39 @@ to determine which of the extension’s APIs the implementation supports.
 |1     |Initial extension implementation.
 |===
 
-## Motivation
-
-In order to take full advantage of the new matrix extension, https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc, we need to introduce dedicated functions that support the new `bfloat16` data type, which can then be used as element wise operations on matrices.
-
 ## New function declarations
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
-// genbfloat16 fma (genbfloat16 a, genbfloat16 b, genbfloat16 c)
+// Available only when "T" is one of the genbfloat16 types.
 template <typename T>
-detail::enable_if_t<detail::is_genbfloat16<T>::value, T> fma(T a, T b,
-                                                          T c);
+T fma(T a, T b, T c);
 
-// genbfloat16 fmax (genbfloat16 x, genbfloat16 y)
+// Available only when "T" is one of the genbfloat16 types.
 template <typename T>
-detail::enable_if_t<detail::is_genbfloat16<T>::value, T> fmax(T x, T y);
+T fmax(T x, T y);
 
-// genbfloat16 fmin (genbfloat16 x, genbfloat16 y)
+// Available only when "T" is one of the genbfloat16 types.
 template <typename T>
-detail::enable_if_t<detail::is_genbfloat16<T>::value, T> fmin(T x, T y);
+T fmin(T x, T y);
 
-// genbfloat16 fabs (genbfloat16 x)
+// Available only when "T" is one of the genbfloat16 types.
 template <typename T>
-detail::enable_if_t<detail::is_genbfloat16<T>::value, T> fabs(T x);
+T fabs(T x);
 
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-## Issues for future discussion
+## Issues for future discussion/resolution
 
-1. We shold decide if there should be a different specified maximum precision error for these math functions when using the `genbfloat16` types.
+1. Decide if there should be a different specified maximum precision error for these math functions when using the `genbfloat16` types.
 
 2. In the future we will wish to add an additional Fused Multiply Add function which performs RELU saturation. However such a function should also allow operands to be `half` types, and as such may fall outside of the scope of the current extension.
 
+3. Decide the appropriate `bfloat16` vector types to support. Should the range of vector types match the range used for other data types such as half, float, and double: e.g. `bfloat16_1`, `bfloat16_2`, `bfloat16_3`, `bfloat16_4`, `bfloat16_8` and `bfloat16_16`. Natural storage types for `bfloat16` and `bfloat16_2` would probably be `uint16_t` and `uint32_t` respectively. What about the other vector types? The choice of `bfloat16` storage types should reflect the intended use of `bfloat16` for all compatible backends.
+
+4. Should we join together all `bfloat16` related extensions such as this one and a generalized `SYCL_EXT_INTEL_BF16_CONVERSION` into a single extension. In this case should the `bfloat16` vector types be defined in such a unified extension?
 
 ## Revision History
 
