@@ -1314,8 +1314,8 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // resetCommandList.
     PI_CALL(piEventRelease(LastEventInPrevCmdList));
 
-    // Add barrier with the event into command-list to ensure in-order semantics
-    // between command-lists
+    // Add a special barrier with an event into command-list to ensure in-order
+    // semantics between command-lists
     auto &ZeEvent = LastEventInPrevCmdList->ZeEvent;
     ZE_CALL(zeCommandListAppendBarrier,
             (CommandList->first, ZeEvent, 0, nullptr));
@@ -1546,8 +1546,8 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         // in resetCommandList.
         PI_CALL(piEventRelease(LastEventInPrevCmdList));
         ++LastCommandList->second.NumSpecialBarriersWithEvent;
-        // Add barrier with the event into command-list to ensure in-order
-        // semantics between command-lists
+        // Add a special barrier with an event into command-list to ensure
+        // in-order semantics between command-lists
         auto &ZeEvent = LastEventInPrevCmdList->ZeEvent;
         ZE_CALL(zeCommandListAppendBarrier,
                 (LastCommandList->first, ZeEvent, 0, nullptr));
@@ -1557,8 +1557,8 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         LastCommandEvent = LastEventInPrevCmdList;
       } else {
         LastEventInPrevCmdList = nullptr;
-        // Add barrier into command-list to ensure in-order semantics inside one
-        // command-list
+        // Add a special barrier into command-list to ensure in-order semantics
+        // inside one command-list
         ZE_CALL(zeCommandListAppendBarrier,
                 (LastCommandList->first, nullptr, 0, nullptr));
       }
@@ -4934,16 +4934,13 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // that the Kernel is in use. Once the event has been signalled, the
   // code in Event.cleanup() will do a piReleaseKernel to update
   // the reference count on the kernel, using the kernel saved
-  // in CommandData. If no event is created then the code in
-  // resetCommandList will do a piReleaseKernel.
+  // in CommandData.
   PI_CALL(piKernelRetain(Kernel));
-
-  const auto &ZeCommandList = CommandList->first;
 
   // Add the command to the command list
   ZE_CALL(zeCommandListAppendLaunchKernel,
-          (ZeCommandList, Kernel->ZeKernel, &ZeThreadGroupDimensions, ZeEvent,
-           TmpWaitList.Length, TmpWaitList.ZeEventList));
+          (CommandList->first, Kernel->ZeKernel, &ZeThreadGroupDimensions,
+           ZeEvent, TmpWaitList.Length, TmpWaitList.ZeEventList));
 
   zePrint("calling zeCommandListAppendLaunchKernel() with"
           "  ZeEvent %#lx\n",

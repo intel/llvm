@@ -738,23 +738,25 @@ struct _pi_queue : _pi_object {
 
   // Indicates if we create an event for each command or use eventless mode for
   // the queue. The eventless mode is used for SYCL in-order queue with
-  // discard_events property. Since we don't create events for some commands we
-  // guarantee in-order semantics inside command-list by using barriers and
+  // discard_events property. Since we don't create L0 events for some commands
+  // we guarantee in-order semantics inside command-list by using barriers and
   // create a special event for the last barrier of the command-list to
   // guarantee the semantics between command-lists.
   bool EventlessMode = false;
 
-  // It helps to skip creating the event and the last barrier for the
+  // It helps to skip creating a special service barrier with an event in
   // command-list in eventless mode if we do QueueFinish or piQueueRelease
   bool SkipLastEventInEventlessMode = false;
 
-  // Indicates if the previous command was submitted into the copy engine. it is
-  // used in eventless mode to identify that we changed compute queue to copy
-  // queue or vice versa. if the change happened then we create an event to
-  // maintain the order between the two queues.
+  // Indicates if the previous command was submitted into command-list of the
+  // copy engine. it is used in eventless mode to identify that we switch
+  // command-list of copy queue to command-list of compute queue or vice versa.
+  // if the switch happened then we add a special service barrier with an event
+  // into the last command-list to maintain the order between the two
+  // command-lists.
   bool IsPrevCopyEngine = false;
 
-  // Keeps last special event created for internal purpose to ensure in-order
+  // Keeps an event of last special service barrier created to ensure in-order
   // semantics between command-lists. The plugin is a holder of this event and
   // SYCL RT knows nothing about it. This special event will be destroyed and
   // returned back in pool by EventRelease in resetCommandList. this is used to
