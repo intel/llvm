@@ -2,11 +2,11 @@
 // expected-no-diagnostics
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <limits>
+#include <sycl/ext/intel/esimd.hpp>
 #include <utility>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 using namespace cl::sycl;
 
 void kernel() __attribute__((sycl_device)) {

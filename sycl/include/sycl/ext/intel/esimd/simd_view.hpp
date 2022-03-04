@@ -10,14 +10,13 @@
 
 #pragma once
 
-#include <sycl/ext/intel/experimental/esimd/detail/simd_view_impl.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
+#include <sycl/ext/intel/esimd/detail/simd_view_impl.hpp>
+#include <sycl/ext/intel/esimd/detail/types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace intel {
-namespace experimental {
 namespace esimd {
 
 /// @addtogroup sycl_esimd_core_vectors
@@ -229,7 +228,6 @@ public:
 /// @} sycl_esimd_core_vectors
 
 } // namespace esimd
-} // namespace experimental
 } // namespace intel
 } // namespace ext
 } // namespace sycl

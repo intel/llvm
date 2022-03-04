@@ -10,19 +10,18 @@
 
 #pragma once
 
-#include <sycl/ext/intel/experimental/esimd/detail/elem_type_traits.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/sycl_util.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/test_proxy.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/type_format.hpp>
-#include <sycl/ext/intel/experimental/esimd/simd_view.hpp>
+#include <sycl/ext/intel/esimd/detail/elem_type_traits.hpp>
+#include <sycl/ext/intel/esimd/detail/intrin.hpp>
+#include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
+#include <sycl/ext/intel/esimd/detail/sycl_util.hpp>
+#include <sycl/ext/intel/esimd/detail/test_proxy.hpp>
+#include <sycl/ext/intel/esimd/detail/type_format.hpp>
+#include <sycl/ext/intel/esimd/simd_view.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace intel {
-namespace experimental {
 namespace esimd {
 
 /// @addtogroup sycl_esimd_core
@@ -778,11 +777,11 @@ public:
             class = std::enable_if_t<(is_simd_type_v<Derived> ==               \
                                       is_simd_type_v<SimdT>)&&COND>>           \
   Derived &operator OPASSIGN(                                                  \
-      const __SEIEED::simd_obj_impl<T1, N, SimdT> &RHS) {                      \
+      const __ESIMD_DNS::simd_obj_impl<T1, N, SimdT> &RHS) {                   \
     auto Res = *this BINOP RHS;                                                \
     using ResT = decltype(Res);                                                \
-    set(__SEIEED::convert_vector<element_type, typename ResT::element_type,    \
-                                 length>(Res.data()));                         \
+    set(__ESIMD_DNS::convert_vector<element_type, typename ResT::element_type, \
+                                    length>(Res.data()));                      \
     return cast_this_to_derived();                                             \
   }                                                                            \
                                                                                \
@@ -798,11 +797,11 @@ public:
                  is_simd_type_v<SimdT1>)&&(RegionT1::length == length) &&      \
                 COND>>                                                         \
   Derived &operator OPASSIGN(                                                  \
-      const __SEIEE::simd_view<SimdT1, RegionT1> &RHS) {                       \
+      const __ESIMD_NS::simd_view<SimdT1, RegionT1> &RHS) {                    \
     auto Res = *this BINOP RHS.read();                                         \
     using ResT = decltype(Res);                                                \
-    set(__SEIEED::convert_vector<element_type, typename ResT::element_type,    \
-                                 length>(Res.data()));                         \
+    set(__ESIMD_DNS::convert_vector<element_type, typename ResT::element_type, \
+                                    length>(Res.data()));                      \
     return cast_this_to_derived();                                             \
   }                                                                            \
                                                                                \
@@ -812,7 +811,7 @@ public:
   template <class T1, class = std::enable_if_t<COND>>                          \
   Derived &operator OPASSIGN(T1 RHS) {                                         \
     if constexpr (is_simd_type_v<Derived>) {                                   \
-      using RHSVecT = __SEIEED::construct_a_simd_type_t<Derived, T1, N>;       \
+      using RHSVecT = __ESIMD_DNS::construct_a_simd_type_t<Derived, T1, N>;    \
       return *this OPASSIGN RHSVecT(RHS);                                      \
     } else {                                                                   \
       return *this OPASSIGN Derived((RawTy)RHS);                               \
@@ -841,7 +840,7 @@ public:
 // both operands must be integral
 #define __ESIMD_SHIFT_OP_FILTER                                                \
   std::is_integral_v<element_type> &&std::is_integral_v<T1>                    \
-      &&__SEIEED::is_simd_type_v<Derived>
+      &&__ESIMD_DNS::is_simd_type_v<Derived>
 
   /// Shift left compound assignment. Available only when elements of both
   /// this object and the source are integral. Not available for \c simd_mask.
@@ -856,7 +855,7 @@ public:
 // operand's element type must be vectorizable. This requirement for 'this'
 // is fulfilled, because otherwise 'this' couldn't have been constructed.
 #define __ESIMD_ARITH_OP_FILTER                                                \
-  __SEIEED::is_simd_type_v<Derived> &&__SEIEED::is_vectorizable_v<T1>
+  __ESIMD_DNS::is_simd_type_v<Derived> &&__ESIMD_DNS::is_vectorizable_v<T1>
 
   /// Addition operation compound assignment.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(+, +=, __ESIMD_ARITH_OP_FILTER)
@@ -893,7 +892,6 @@ protected:
 } // namespace detail
 
 } // namespace esimd
-} // namespace experimental
 } // namespace intel
 } // namespace ext
 } // namespace sycl

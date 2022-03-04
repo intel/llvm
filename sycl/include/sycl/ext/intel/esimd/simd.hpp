@@ -10,14 +10,14 @@
 
 #pragma once
 
-#include <sycl/ext/intel/experimental/esimd/detail/simd_mask_impl.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/simd_obj_impl.hpp>
+#include <sycl/ext/intel/esimd/detail/simd_mask_impl.hpp>
+#include <sycl/ext/intel/esimd/detail/simd_obj_impl.hpp>
 
-#include <sycl/ext/intel/experimental/esimd/detail/intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/sycl_util.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
-#include <sycl/ext/intel/experimental/esimd/simd_view.hpp>
+#include <sycl/ext/intel/esimd/detail/intrin.hpp>
+#include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
+#include <sycl/ext/intel/esimd/detail/sycl_util.hpp>
+#include <sycl/ext/intel/esimd/detail/types.hpp>
+#include <sycl/ext/intel/esimd/simd_view.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <iostream>
@@ -27,7 +27,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace intel {
-namespace experimental {
 namespace esimd {
 
 /// @addtogroup sycl_esimd_core
@@ -73,7 +72,7 @@ public:
   /// @tparam SimdT type of the object to convert from
   /// @param RHS object to convert from
   template <typename SimdT,
-            class = std::enable_if_t<__SEIEED::is_simd_type_v<SimdT> &&
+            class = std::enable_if_t<__ESIMD_DNS::is_simd_type_v<SimdT> &&
                                      (length == SimdT::length)>>
   simd(const SimdT &RHS)
       : base_type(detail::convert_vector<Ty, detail::element_type_t<SimdT>, N>(
@@ -178,7 +177,6 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 /// @} sycl_esimd_core_vectors
 
 } // namespace esimd
-} // namespace experimental
 } // namespace intel
 } // namespace ext
 } // namespace sycl
@@ -188,7 +186,7 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 /// Prints a \c simd object to an output stream.
 /// TODO: implemented for host code only.
 template <typename Ty, int N>
-std::ostream &operator<<(std::ostream &OS, const __SEIEE::simd<Ty, N> &V)
+std::ostream &operator<<(std::ostream &OS, const __ESIMD_NS::simd<Ty, N> &V)
 #ifdef __SYCL_DEVICE_ONLY__
     {}
 #else

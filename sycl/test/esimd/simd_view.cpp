@@ -1,10 +1,10 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <limits>
+#include <sycl/ext/intel/esimd.hpp>
 #include <utility>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 SYCL_ESIMD_FUNCTION auto test_simd_view_bin_ops() {
   simd<int, 16> v0 = 1;
@@ -112,10 +112,10 @@ SYCL_ESIMD_FUNCTION void test_simd_view_from_vector() {
   simd_view sv16a = v16;
   simd_view sv16b(v16);
   // expected-error@+5 {{no matching constructor for initialization of 'simd_view}}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd_view.hpp:* 3 {{candidate }}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{candidate }}
-  // expected-note@sycl/ext/intel/experimental/esimd/detail/simd_obj_impl.hpp:* {{candidate }}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd_view.hpp:* 2 {{candidate }}
+  // expected-note@sycl/ext/intel/esimd/simd_view.hpp:* 3 {{candidate }}
+  // expected-note@sycl/ext/intel/esimd/simd.hpp:* {{candidate }}
+  // expected-note@sycl/ext/intel/esimd/detail/simd_obj_impl.hpp:* {{candidate }}
+  // expected-note@sycl/ext/intel/esimd/simd_view.hpp:* 2 {{candidate }}
   simd_view<simd<int, 16>, region_base<false, int, 1, 1, 16, 1>> sv16c(
       (simd<int, 16>()));
 

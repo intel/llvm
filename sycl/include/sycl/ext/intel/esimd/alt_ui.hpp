@@ -8,14 +8,13 @@
 // "Alternative" convenience Explicit SIMD APIs.
 //===----------------------------------------------------------------------===//
 
-#include <sycl/ext/intel/experimental/esimd/simd.hpp>
-#include <sycl/ext/intel/experimental/esimd/simd_view.hpp>
+#include <sycl/ext/intel/esimd/simd.hpp>
+#include <sycl/ext/intel/esimd/simd_view.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace intel {
-namespace experimental {
 namespace esimd {
 
 /// @addtogroup sycl_esimd_misc
@@ -70,7 +69,6 @@ __ESIMD_API auto merge(simd_view<BaseT1, RegionT1> v1,
 /// @} sycl_esimd_misc
 
 } // namespace esimd
-} // namespace experimental
 } // namespace intel
 } // namespace ext
 } // namespace sycl

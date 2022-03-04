@@ -10,15 +10,14 @@
 
 #pragma once
 
-#include <sycl/ext/intel/experimental/esimd/detail/intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/test_proxy.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/type_format.hpp>
+#include <sycl/ext/intel/esimd/detail/intrin.hpp>
+#include <sycl/ext/intel/esimd/detail/test_proxy.hpp>
+#include <sycl/ext/intel/esimd/detail/type_format.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace intel {
-namespace experimental {
 namespace esimd {
 namespace detail {
 
@@ -311,11 +310,12 @@ public:
                                                                                \
   /* OPASSIGN simd_view_impl */                                                \
   template <class SimdT1, class RegionT1,                                      \
-            class T1 = typename __SEIEE::shape_type<RegionT1>::element_type,   \
+            class T1 =                                                         \
+                typename __ESIMD_NS::shape_type<RegionT1>::element_type,       \
             class T = element_type, class SimdT = BaseTy,                      \
             class = std::enable_if_t<                                          \
                 (is_simd_type_v<SimdT> == is_simd_type_v<SimdT1>)&&(           \
-                    length == __SEIEE::shape_type<RegionT1>::length) &&        \
+                    length == __ESIMD_NS::shape_type<RegionT1>::length) &&     \
                 COND>>                                                         \
   Derived &operator OPASSIGN(const simd_view_impl<SimdT1, RegionT1> &RHS) {    \
     *this OPASSIGN RHS.read();                                                 \
@@ -612,7 +612,6 @@ protected:
 
 } // namespace detail
 } // namespace esimd
-} // namespace experimental
 } // namespace intel
 } // namespace ext
 } // namespace sycl
