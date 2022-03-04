@@ -284,19 +284,13 @@ public:
       Scheduler::ReadLockT Lock(Sched.MGraphLock);
 
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
-      std::unordered_set<Command *> ExtraCommandsToEnqueue =
-          MThisCmd->MExplicitUsers;
-      // EmptyCmd enqueue is redundant when we have "users" and other deps but
-      // is essential when we have no sych dependencies and should do enqueue to
-      // trigger cleanup and prevent leak.
-      ExtraCommandsToEnqueue.insert(EmptyCmd);
 
       // update self-event status
       MThisCmd->MEvent->setComplete();
 
       EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-      Scheduler::enqueueUnlockedCommands(ExtraCommandsToEnqueue, ToCleanUp);
+      Scheduler::enqueueUnlockedCommands(EmptyCmd->getEvent(), EmptyCmd->getBlockedUsers(), ToCleanUp);
       for (const DepDesc &Dep : Deps)
         Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
     }
@@ -561,20 +555,32 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
       !DepEvent->is_host() || getType() == CommandType::HOST_TASK;
   auto *DepCmd = static_cast<Command *>(DepEvent->getCommand());
   if (DepCmd)
+  {
     PiEventExpected &= DepCmd->producesPiEvent();
+
+    for (auto& BlockingCmdEvent : DepCmd->MBlockingExplicitDeps)
+    {
+      MBlockingExplicitDeps.insert(BlockingCmdEvent);
+
+      EmptyCommand* BlockingCmd = static_cast<EmptyCommand*>(BlockingCmdEvent->getCommand());
+      assert(BlockingCmd && "Blocking cmd after cleanup must be removed from deps");
+      BlockingCmd->removeBlockedUser(DepCmd->getEvent());
+      BlockingCmd->addBlockedUser(this->MEvent);
+    }
+  }
 
   if (!PiEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
-    MPreparedHostDepsEvents.push_back(DepEvent);
-    // Explicit use is a notification approach of host task completion only
-    if (DepCmd && DepCmd->getType() == CommandType::HOST_TASK) {
-      DepCmd->addExplicitUser(this);
-      EmptyCommand *EmptyCmd = static_cast<ExecCGCommand *>(DepCmd)->MEmptyCmd;
-      assert(EmptyCmd &&
-             "EmptyCmd must be not nullptr for a valid host command");
-      MPreparedHostDepsEvents.push_back(EmptyCmd->getEvent());
+
+    // Explicit user is a notification approach of host task completion only
+    if (DepCmd && DepCmd->getType() == CommandType::EMPTY_TASK) {
+      MBlockingExplicitDeps.insert(DepCmd->getEvent());
+      EmptyCommand *EmptyCmd = static_cast<EmptyCommand *>(DepCmd);
+      EmptyCmd->addBlockedUser(this->MEvent);
     }
+
+    MPreparedHostDepsEvents.push_back(DepEvent);
     return nullptr;
   }
 

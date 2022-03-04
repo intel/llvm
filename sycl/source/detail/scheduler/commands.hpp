@@ -122,7 +122,6 @@ public:
                                 std::vector<Command *> &ToCleanUp);
 
   void addUser(Command *NewUser) { MUsers.insert(NewUser); }
-  void addExplicitUser(Command *NewUser) { MExplicitUsers.insert(NewUser); }
 
   /// \return type of the command, e.g. Allocate, MemoryCopy.
   CommandType getType() const { return MType; }
@@ -257,10 +256,8 @@ public:
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
   std::unordered_set<Command *> MUsers;
-  /// Contains list of commands that depend on the host command explicitly (by
-  /// depends_on). Not involved into cleanup process since it is one-way link
-  /// and not holds resources.
-  std::unordered_set<Command *> MExplicitUsers;
+  /// Contains list of commands that blocks this command from being enqueued (not edges). Commands from set is moved to the top level command during dependency building process and erased when blocking host task is completed.
+  std::unordered_set<EventImplPtr> MBlockingExplicitDeps;
   /// Indicates whether the command can be blocked from enqueueing.
   bool MIsBlockable = false;
   /// Counts the number of memory objects this command is a leaf for.
@@ -338,10 +335,16 @@ public:
 
   bool producesPiEvent() const final;
   bool supportsPostEnqueueCleanup() const final;
-
+  void addBlockedUser(const EventImplPtr& NewUser) {MBlockedUsers.insert(NewUser);}
+  void removeBlockedUser(const EventImplPtr& User) {MBlockedUsers.erase(User);}
+  const std::unordered_set<EventImplPtr>& getBlockedUsers() const { return MBlockedUsers; }
 private:
   cl_int enqueueImp() final;
 
+  /// Contains list of commands that depend on the host command explicitly (by
+  /// depends_on). Not involved into cleanup process since it is one-way link
+  /// and not holds resources.
+  std::unordered_set<EventImplPtr> MBlockedUsers;
   // Employing deque here as it allows to push_back/emplace_back without
   // invalidation of pointer or reference to stored data item regardless of
   // iterator invalidation.
