@@ -2847,7 +2847,7 @@ void CodeGenModule::AddGlobalAnnotations(const ValueDecl *D,
 }
 
 // Add "sycl-unique-id" llvm IR attribute for global variables marked with
-// SYCL device_global attribute, and return a unique string using 
+// SYCL device_global attribute, and return a unique string using
 // __builtin_sycl_unique_stable_id.
 static void addSYCLUniqueID(llvm::GlobalVariable *GV, const VarDecl *VD) {
   auto builtinString = SYCLUniqueStableIdExpr::ComputeName(Context, VD);
