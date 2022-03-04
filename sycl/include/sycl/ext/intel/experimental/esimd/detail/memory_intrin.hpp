@@ -447,7 +447,7 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     char *SlmBase = I->__cm_emu_get_slm_ptr();
     for (int i = 0; i < N; ++i) {
       if (pred[i]) {
-        ActualTy *addr =
+        OrigTyAsInt *addr =
             reinterpret_cast<ActualTy *>(elem_offsets[i] + SlmBase);
         *addr = static_cast<ActualTy>(vals[i]);
       }
