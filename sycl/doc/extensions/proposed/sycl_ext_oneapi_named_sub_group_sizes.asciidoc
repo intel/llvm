@@ -86,7 +86,7 @@ sub-group size that meets certain requirements at host compile-time and
 deferring the selection of a specific sub-group size until the kernel is
 compiled for a specific device.
 
-This extension also changes the default behavior of sub-groups in SYCL code to
+This extension also defines the default behavior of sub-groups in SYCL code to
 improve the out-of-the-box experience for new developers, without preventing
 experts and existing developers from requesting the existing compiler behavior.
 
