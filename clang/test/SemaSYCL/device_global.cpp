@@ -3,7 +3,7 @@
 
 // Test cases below check for valid usage of device_global and
 // global_variable_allowed attributes, and that they are being correctly
-// generated in the AST
+// generated in the AST.
 using namespace sycl::ext::oneapi;
 
 device_global<int> glob;                  // OK

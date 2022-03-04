@@ -1257,7 +1257,7 @@ def SYCLUsesAspects : InheritableAttr {
   let Subjects = SubjectList<[CXXRecord, Function], ErrorDiag>;
   let Args = [VariadicExprArgument<"Aspects">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  // Only used internally by the SYCL implementation
+  // Only used internally by SYCL implementation
   let Documentation = [Undocumented];
 }
 
@@ -1443,7 +1443,7 @@ def SYCLDeviceGlobal: InheritableAttr {
   let Spellings = [CXX11<"__sycl_detail__", "device_global">];
   let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-// Only used internally
+// Only used internally by SYCL implementation
   let Documentation = [SYCLDeviceGlobalAttrDocs];
   let SimpleHandler = 1;
 }
@@ -1452,7 +1452,7 @@ def SYCLGlobalVariableAllowed : InheritableAttr {
   let Spellings = [CXX11<"__sycl_detail__", "global_variable_allowed">];
   let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-// Only used internally
+// Only used internally by SYCL implementation
   let Documentation = [SYCLGlobalVariableAllowedAttrDocs];
   let SimpleHandler = 1;
 }

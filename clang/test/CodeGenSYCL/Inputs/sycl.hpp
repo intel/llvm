@@ -136,6 +136,7 @@ class [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allo
 public:
   const T &get() const noexcept { return *Data; }
   device_global() {}
+  operator T &() noexcept { return *Data; }
 
 private:
   T *Data;

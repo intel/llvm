@@ -2846,7 +2846,10 @@ void CodeGenModule::AddGlobalAnnotations(const ValueDecl *D,
     Annotations.push_back(EmitAnnotateAttr(GV, I, D->getLocation()));
 }
 
-void CodeGenModule::addSYCLUniqueID(llvm::GlobalVariable *GV,
+  // Add "sycl-unique-id" llvm IR attribute for global variables marked with
+  // SYCL device_global attribute, and return a unique string using 
+  // __builtin_sycl_unique_stable_id.
+static void addSYCLUniqueID(llvm::GlobalVariable *GV,
                                     const VarDecl *VD) {
   auto builtinString = SYCLUniqueStableIdExpr::ComputeName(Context, VD);
   GV->addAttribute("sycl-unique-id", builtinString);
@@ -4948,6 +4951,8 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
   if (getLangOpts().SYCLIsDevice)
     addGlobalIntelFPGAAnnotation(D, GV);
 
+  // If VarDecl has a type decorated with SYCL device_global attribute, emit IR
+  // attribute 'sycl-unique-id'.
   if (getLangOpts().SYCLIsDevice) {
     const RecordDecl *RD = D->getType()->getAsRecordDecl();
     if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>())

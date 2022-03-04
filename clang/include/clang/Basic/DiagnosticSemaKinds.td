@@ -7098,8 +7098,6 @@ def err_sycl_device_global_incorrect_scope : Error<
   "'device_global' variables must be static or declared at namespace scope">;
 def err_sycl_device_global_not_publicly_accessible: Error<
   "'device_global' member variable %0 is not publicly accessible from namespace scope">;
-def err_array_of_device_global_not_allowed : Error<
-  "array of device_global %0 is not allowed">;
 
 def err_unexpected_interface : Error<
   "unexpected interface name %0: expected expression">;

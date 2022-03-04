@@ -160,6 +160,7 @@
 // CHECK-NEXT: SYCLDeviceGlobal (SubjectMatchRule_record)
 // CHECK-NEXT: SYCLDeviceHas (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLDeviceIndirectlyCallable (SubjectMatchRule_function)
+// CHECK-NEXT: SYCLGlobalVariableAllowed (SubjectMatchRule_record)
 // CHECK-NEXT: SYCLIntelFPGADisableLoopPipelining (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelFPGAInitiationInterval (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelFPGAMaxConcurrency (SubjectMatchRule_function)
