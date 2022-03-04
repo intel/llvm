@@ -12,7 +12,7 @@ namespace oneapi {
 // decorated with only global_variable_allowed attribute
 template <typename T>
 class [[__sycl_detail__::global_variable_allowed]] only_global_var_allowed {
-public :
+public:
   const T &get() const noexcept { return *Data; }
   only_global_var_allowed() {}
   operator T &() noexcept { return *Data; }
@@ -77,7 +77,6 @@ void bar() {
   });
 }
 } // namespace
-
 
 // CHECK: attributes #[[A_ATTRS]] = { "sycl-unique-id"="_Z1A" }
 // CHECK: attributes #[[B_ATTRS]] = { "sycl-unique-id"="THE_PREFIX____ZL1B" }
