@@ -47,6 +47,7 @@
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/GlobalStatus.h"
 
 #include <algorithm>
 #include <map>
@@ -851,7 +852,29 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   bool IsLLVMUsedRemoved = false;
   if (GlobalVariable *GV = M->getGlobalVariable("llvm.used")) {
     assert(GV->user_empty() && "unexpected llvm.used users");
+    Constant *Initializer = GV->getInitializer();
+    GV->setInitializer(nullptr);
     GV->eraseFromParent();
+
+    // Destroy the initializer and all operands of it.
+    SmallVector<Constant *, 8> IOperands;
+    for (auto It = Initializer->op_begin(); It != Initializer->op_end(); It++) {
+      assert(isa<Constant>(*It) && "Unexpected initializer of llvm.used");
+      IOperands.push_back(dyn_cast<Constant>(*It));
+    }
+    assert(llvm::isSafeToDestroyConstant(Initializer) &&
+           "Cannot remove initializer of llvm.used global");
+    Initializer->destroyConstant();
+    for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
+      assert(llvm::isSafeToDestroyConstant(*It) &&
+             "Cannot remove an element of initializer of llvm.used global");
+      auto F = dyn_cast<Function>((*It)->getOperand(0));
+      (*It)->destroyConstant();
+      // Remove unused kernel declarations to avoid LLVM IR check fails.
+      if (F->isDeclaration())
+        F->eraseFromParent();
+    }
+
     IsLLVMUsedRemoved = true;
   }
 
