@@ -1261,6 +1261,15 @@ def SYCLUsesAspects : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def SYCLDeviceGlobal : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "device_global">];
+  let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  // Only used internally by the SYCL implementation
+  let Documentation = [Undocumented];
+  let SimpleHandler = 1;
+}
+
 // Marks functions which must not be vectorized via horizontal SIMT widening,
 // e.g. because the function is already vectorized. Used to mark SYCL
 // explicit SIMD kernels and functions.
@@ -3039,9 +3048,12 @@ def WorkGroupSizeHint :  InheritableAttr {
   let Spellings = [GNU<"work_group_size_hint">,
                    CXX11<"sycl", "work_group_size_hint">];
   let Args = [ExprArgument<"XDim">,
-              ExprArgument<"YDim">,
-              ExprArgument<"ZDim">];
+              ExprArgument<"YDim", /*optional*/1>,
+              ExprArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
+  // In OpenCL C this attribute takes no default values whereas in SYCL it does. 
+  // To avoid confusing diagnostics, the checks are deferred to "handleWorkGroupSizeHint". 
+  let HasCustomParsing = 1;
   let AdditionalMembers = [{
     Optional<llvm::APSInt> getXDimVal() const {
       if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))
