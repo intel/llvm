@@ -1,113 +1,86 @@
 # Intel Project for LLVM\* technology
 
-Intel staging area for llvm.org contribution. Home for Intel LLVM-based projects:
+This is the Intel staging area for llvm.org contributions and the home for
+Intel LLVM-based projects:
+
+- [oneAPI Data Parallel C++ compiler](#oneapi-data-parallel-c-compiler)
+- [Late-outline OpenMP and OpenMP Offload](#late-outline-openmp-and-openmp-offload)
 
 ## oneAPI Data Parallel C++ compiler
 
 [![](https://spec.oneapi.io/oneapi-logo-white-scaled.jpg)](https://www.oneapi.io/)
 
-See [sycl](https://github.com/intel/llvm/tree/sycl) branch and
-[DPC++ Documentation](https://intel.github.io/llvm-docs/).
-
 [![Linux Post Commit Checks](https://github.com/intel/llvm/workflows/Linux%20Post%20Commit%20Checks/badge.svg)](https://github.com/intel/llvm/actions?query=workflow%3A%22Linux+Post+Commit+Checks%22)
 [![Generate Doxygen documentation](https://github.com/intel/llvm/workflows/Generate%20Doxygen%20documentation/badge.svg)](https://github.com/intel/llvm/actions?query=workflow%3A%22Generate+Doxygen+documentation%22)
 
-DPC++ is an open, cross-architecture language built upon the ISO C++ and Khronos
-SYCL\* standards. DPC++ extends these standards with a number of extensions,
-which can be found in [sycl/doc/extensions](sycl/doc/extensions) directory.
+The Data Parallel C++ or DPC++ is a LLVM-based compiler project that implements
+compiler and runtime support for the SYCL\* language. The project is hosted in
+the [sycl](/../../tree/sycl) branch and is synced with the tip of the LLVM
+upstream main branch on a regular basis (revisions delay is usually not more
+than 1-2 weeks). DPC++ compiler takes everything from LLVM upstream as is,
+however some modules of LLVM might be not included in the default project build
+configuration. Additional modules can be enabled by modifying build framework
+settings.
+
+The DPC++ goal is to support the latest SYCL\* standard and work on that is in
+progress. DPC++ also implements a number of extensions to the SYCL\* standard,
+which can be found in the [sycl/doc/extensions](/../sycl/sycl/doc/extensions)
+directory.
+
+The main purpose of this project is open source collaboration on the DPC++
+compiler implementation in LLVM across a variety of architectures, prototyping
+compiler and runtime library solutions, designing future extensions, and
+conducting experiments. As the implementation becomes more mature, we try to
+upstream as much DPC++ support to LLVM main branch as possible. See
+[SYCL upstreaming working group notes](/../../wiki/SYCL-upstreaming-working-group-meeting-notes)
+for more details.
+
+Note that this project can be used as a technical foundation for some
+proprietary compiler products, which may leverage implementations from this open
+source project. One of the examples is
+[Intel(R) oneAPI DPC++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html)
+Features parity between this project and downstream projects is not guaranteed.
+
+Project documentation is available at:
+[DPC++ Documentation](https://intel.github.io/llvm-docs/).
+
+### How to use DPC++
+
+#### Docker containers
+
+See available containers with pre-built/pre-installed DPC++ compiler at:
+[Containers](/../sycl/sycl/doc/developer/DockerBKMs.md#sycl-containers-overview)
+
+#### Releases
+
+Daily builds of the sycl branch on Linux are available at
+[releases](/../../releases).
+A few times a year, we publish [Release Notes](/../sycl/sycl/ReleaseNotes.md) to
+highlight all important changes made in the project: features implemented and
+issues addressed. The corresponding builds can be found using
+[search](https://github.com/intel/llvm/releases?q=oneAPI+DPC%2B%2B+Compiler&expanded=true)
+in daily releases. None of the branches in the project are stable or rigorously
+tested for production quality control, so the quality of these releases is
+expected to be similar to the daily releases.
+
+#### Build from sources
+
+See [Get Started Guide](/../sycl/sycl/doc/GetStartedGuide.md).
+
+### Report a problem
+
+Submit an [issue](/../../issues) or initiate a [discussion](/../../discussions).
+
+### How to contribute to DPC++
+
+See [ContributeToDPCPP](/../sycl/sycl/doc/developer/ContributeToDPCPP.md).
 
 ## Late-outline OpenMP\* and OpenMP\* Offload
-See [openmp](https://github.com/intel/llvm/tree/openmp) branch.
+
+See [openmp](/../../tree/openmp) branch.
 
 # License
 
-See [LICENSE.txt](sycl/LICENSE.TXT) for details.
+See [LICENSE](/../sycl/sycl/LICENSE.TXT) for details.
 
-# Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
-*\*Other names and brands may be claimed as the property of others.*
-
-This is an example work-flow and configuration to get and build the LLVM source:
-
-1. Checkout LLVM (including related sub-projects like Clang):
-
-     * ``git clone https://github.com/llvm/llvm-project.git``
-
-     * Or, on windows, ``git clone --config core.autocrlf=false
-    https://github.com/llvm/llvm-project.git``
-
-2. Configure and build LLVM and Clang:
-
-     * ``cd llvm-project``
-
-     * ``cmake -S llvm -B build -G <generator> [options]``
-
-        Some common build system generators are:
-
-        * ``Ninja`` --- for generating [Ninja](https://ninja-build.org)
-          build files. Most llvm developers use Ninja.
-        * ``Unix Makefiles`` --- for generating make-compatible parallel makefiles.
-        * ``Visual Studio`` --- for generating Visual Studio projects and
-          solutions.
-        * ``Xcode`` --- for generating Xcode projects.
-
-        Some common options:
-
-        * ``-DLLVM_ENABLE_PROJECTS='...'`` and ``-DLLVM_ENABLE_RUNTIMES='...'`` ---
-          semicolon-separated list of the LLVM sub-projects and runtimes you'd like to
-          additionally build. ``LLVM_ENABLE_PROJECTS`` can include any of: clang,
-          clang-tools-extra, cross-project-tests, flang, libc, libclc, lld, lldb,
-          mlir, openmp, polly, or pstl. ``LLVM_ENABLE_RUNTIMES`` can include any of
-          libcxx, libcxxabi, libunwind, compiler-rt, libc or openmp. Some runtime
-          projects can be specified either in ``LLVM_ENABLE_PROJECTS`` or in
-          ``LLVM_ENABLE_RUNTIMES``.
-
-          For example, to build LLVM, Clang, libcxx, and libcxxabi, use
-          ``-DLLVM_ENABLE_PROJECTS="clang" -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi"``.
-
-        * ``-DCMAKE_INSTALL_PREFIX=directory`` --- Specify for *directory* the full
-          path name of where you want the LLVM tools and libraries to be installed
-          (default ``/usr/local``). Be careful if you install runtime libraries: if
-          your system uses those provided by LLVM (like libc++ or libc++abi), you
-          must not overwrite your system's copy of those libraries, since that
-          could render your system unusable. In general, using something like
-          ``/usr`` is not advised, but ``/usr/local`` is fine.
-
-        * ``-DCMAKE_BUILD_TYPE=type`` --- Valid options for *type* are Debug,
-          Release, RelWithDebInfo, and MinSizeRel. Default is Debug.
-
-        * ``-DLLVM_ENABLE_ASSERTIONS=On`` --- Compile with assertion checks enabled
-          (default is Yes for Debug builds, No for all other build types).
-
-      * ``cmake --build build [-- [options] <target>]`` or your build system specified above
-        directly.
-
-        * The default target (i.e. ``ninja`` or ``make``) will build all of LLVM.
-
-        * The ``check-all`` target (i.e. ``ninja check-all``) will run the
-          regression tests to ensure everything is in working order.
-
-        * CMake will generate targets for each tool and library, and most
-          LLVM sub-projects generate their own ``check-<project>`` target.
-
-        * Running a serial build will be **slow**.  To improve speed, try running a
-          parallel build.  That's done by default in Ninja; for ``make``, use the option
-          ``-j NNN``, where ``NNN`` is the number of parallel jobs, e.g. the number of
-          CPUs you have.
-
-      * For more information see [CMake](https://llvm.org/docs/CMake.html)
-
-Consult the
-[Getting Started with LLVM](https://llvm.org/docs/GettingStarted.html#getting-started-with-llvm)
-page for detailed information on configuring and compiling LLVM. You can visit
-[Directory Layout](https://llvm.org/docs/GettingStarted.html#directory-layout)
-to learn about the layout of the source code tree.
-
-## Getting in touch
-
-Join [LLVM Discourse forums](https://discourse.llvm.org/), [discord chat](https://discord.gg/xS7Z362) or #llvm IRC channel on [OFTC](https://oftc.net/).
-
-The LLVM project has adopted a [code of conduct](https://llvm.org/docs/CodeOfConduct.html) for
-participants to all modes of communication within the project.
+<sub>\*Other names and brands may be claimed as the property of others.</sub>
