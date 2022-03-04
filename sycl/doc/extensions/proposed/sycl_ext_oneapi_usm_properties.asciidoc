@@ -17,20 +17,6 @@
 :language: {basebackend@docbook:c++:cpp}
 
 
-== Introduction
-IMPORTANT: This specification is a draft.
-
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
-trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
-used by permission by Khronos.
-
-This extension adds properties support (as defined in the sycl_ext_oneapi_properties extension) to the USM malloc APIs.  This allows the malloc calls to accept both run time and compile time properties.  
-
-`malloc_device`, `malloc_host`, `malloc_shared` take the properties, and return an annotated_ptr that carries the passed in compile-time properties.
-
-The goal of these changes is to enable information about properties to propagate to the device compiler and thereby enable additional optimization of kernel code.
-
-
 == Notice
 
 [%hardbreaks]
@@ -48,26 +34,6 @@ To report problems with this extension, please open a new issue at:
 https://github.com/intel/llvm/issues
 
 
-== Status
-
-This is a proposed extension specification, intended to gather community
-feedback.  Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state.  The specification itself may also change in
-incompatible ways before it is finalized.  *Shipping software products should
-not rely on APIs defined in this specification.*
-
-
-== Contributors
-
-Abhishek Tiwari, Intel +
-Aditi Kumaraswamy, Intel +
-Gregory Lueck, Intel +
-Jason Sewall, Intel +
-Jessica Davies, Intel +
-Joe Garvey, Intel +
-Mike Kinsner, Intel +
-Sherry Yuan, Intel
-
 == Dependencies
 
 This extension is written against the SYCL 2020 revision 4 specification.  All
@@ -80,7 +46,24 @@ This extension also depends on the following other SYCL extensions:
 - link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
 
 
-== Proposal
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+This extension adds properties support (as defined in the sycl_ext_oneapi_properties extension) to the USM malloc APIs.  This allows the malloc calls to accept both run time and compile time properties.  
+
+`malloc_device`, `malloc_host`, `malloc_shared` take the properties, and return an annotated_ptr that carries the passed in compile-time properties.
+
+The goal of these changes is to enable information about properties to propagate to the device compiler and thereby enable additional optimization of kernel code.
+
+
+== Specification
 
 === Feature test macro
 
@@ -101,6 +84,18 @@ supports.
 |1
 |Initial version of this extension.
 |===
+
+
+== Contributors
+
+Abhishek Tiwari, Intel +
+Aditi Kumaraswamy, Intel +
+Gregory Lueck, Intel +
+Jason Sewall, Intel +
+Jessica Davies, Intel +
+Joe Garvey, Intel +
+Mike Kinsner, Intel +
+Sherry Yuan, Intel
 
 
 === Examples
@@ -133,24 +128,41 @@ q.parallel_for(range<1>(N), [=] (id<1> i){
 ----
 namespace sycl::ext::oneapi::experimental {
 
-// Available only when is_property_list<PropertyListT>::value is true
-template <typename T = void*, typename PropertyListT = property_list_t<>>
+// All function defined below are available only when is_property_list<PropertyListT>::value is true
+
+template <typename T = void, typename PropertyListT>
 annotated_ptr<T, PropertyListT> malloc_device(
     size_t Count, const queue &Q, PropertyListT &PropList) {
   ...
 }
 
-// Available only when is_property_list<PropertyListT>::value is true
-template <typename T = void*, typename PropertyListT = property_list_t<>>
+template <typename T = void, typename PropertyListT>
+annotated_ptr<T, PropertyListT> malloc_device(
+    size_t Count, const device &Dev, const context &Ctxt, PropertyListT &PropList) {
+  ...
+}
+
+template <typename T = void, typename PropertyListT>
 annotated_ptr<T, PropertyListT> malloc_shared(
     size_t Count, const queue &Q, PropertyListT &PropList) {
   ...
 }
 
-// Available only when is_property_list<PropertyListT>::value is true
-template <typename T = void*, typename PropertyListT = property_list_t<>>
+template <typename T = void, typename PropertyListT>
+annotated_ptr<T, PropertyListT> malloc_shared(
+    size_t Count, const device &Dev, const context &Ctxt, PropertyListT &PropList) {
+  ...
+}
+
+template <typename T = void, typename PropertyListT>
 annotated_ptr<T, PropertyListT> malloc_host(
     size_t Count, const context &Ctxt, PropertyListT &PropList) {
+  ...
+}
+
+template <typename T = void, typename PropertyListT>
+annotated_ptr<T, PropertyListT> malloc_host(
+    size_t Count, const queue &Q, PropertyListT &PropList) {
   ...
 }
 
@@ -158,8 +170,6 @@ annotated_ptr<T, PropertyListT> malloc_host(
 ----
 
 The same setup is applied to other overloads of malloc APIs.
-
-Compile time properties can be pass into runtime properties within the allocation function.
 
 The returned `annotated_ptr` contains the USM pointers and the passed in compile-time properties to enable additional compiler optimizations.
 
