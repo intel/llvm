@@ -71,8 +71,15 @@ std::vector<SrcT> generate_ref_conv_data() {
         {min, max, -0.0, +0.0, 0.1, denorm, nan, -inf});
   } else if constexpr (type_traits::is_sycl_floating_point_v<SrcT> &&
                        std::is_unsigned_v<DstT>) {
-    ref_data = details::construct_ref_data<SrcT, NumElems>(
-        {-0.0, max, max_half, -max_half});
+    // We cannot expect negative values to wrap during conversion from
+    // the floating point type to the unsigned integral type.
+    // The C++17 standard has the following statement:
+    // A prvalue of a floating-point type can be converted to a prvalue of an
+    // integer type. The conversion truncates; that is, the fractional part is
+    // discarded. The behavior is undefined if the truncated value cannot be
+    // represented in the destination type.
+    ref_data =
+        details::construct_ref_data<SrcT, NumElems>({0.0, max, max_half});
   } else if constexpr (type_traits::is_sycl_floating_point_v<SrcT> &&
                        type_traits::is_sycl_signed_v<DstT>) {
     ref_data = details::construct_ref_data<SrcT, NumElems>(
