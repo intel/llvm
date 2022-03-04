@@ -266,7 +266,7 @@ non-FPGA users may want to use the `device_global` property
 [`device_image_scope`][5], which requires even non-FPGA users to have precise
 control over the way kernels are bundled into device images.
 
-[5]: <../extensions/proposed/SYCL_EXT_ONEAPI_DEVICE_GLOBAL.asciidoc#properties-for-device-global-variables>
+[5]: <../extensions/proposed/sycl_ext_oneapi_device_global.asciidoc#properties-for-device-global-variables>
 
 The new definition of `-fsycl-device-code-split` is as follows:
 
@@ -368,6 +368,11 @@ can be used in conjunction with partial specialization to mark only certain
 instantiations of `sycl::atomic_ref` as an optional feature.
 
 [6]: <#appendix-adding-an-attribute-to-8-byte-atomic_ref>
+
+Because the `[[sycl_detail::uses_aspects()]]` attribute is only needed for the
+device compiler, the headers should protect it with
+`#ifdef __SYCL_DEVICE_ONLY__`.  This avoids warnings when our headers are
+compiled with a third-party host compiler.
 
 Although the examples above show only a single aspect parameter to the
 `[[sycl_detail::uses_aspects()]]` attribute, this attribute should support a

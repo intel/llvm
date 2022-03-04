@@ -679,17 +679,24 @@ static void addDebugObjectName(const ArgList &Args, ArgStringList &CmdArgs,
 }
 
 /// Add a CC1 and CC1AS option to specify the debug file path prefix map.
-static void addDebugPrefixMapArg(const Driver &D, const ArgList &Args, ArgStringList &CmdArgs) {
-  for (const Arg *A : Args.filtered(options::OPT_ffile_prefix_map_EQ,
-                                    options::OPT_fdebug_prefix_map_EQ)) {
-    StringRef Map = A->getValue();
+static void addDebugPrefixMapArg(const Driver &D, const ToolChain &TC,
+                                 const ArgList &Args, ArgStringList &CmdArgs) {
+  auto AddOneArg = [&](StringRef Map, StringRef Name) {
     if (!Map.contains('='))
-      D.Diag(diag::err_drv_invalid_argument_to_option)
-          << Map << A->getOption().getName();
+      D.Diag(diag::err_drv_invalid_argument_to_option) << Map << Name;
     else
       CmdArgs.push_back(Args.MakeArgString("-fdebug-prefix-map=" + Map));
+  };
+
+  for (const Arg *A : Args.filtered(options::OPT_ffile_prefix_map_EQ,
+                                    options::OPT_fdebug_prefix_map_EQ)) {
+    AddOneArg(A->getValue(), A->getOption().getName());
     A->claim();
   }
+  std::string GlobalRemapEntry = TC.GetGlobalDebugPathRemapping();
+  if (GlobalRemapEntry.empty())
+    return;
+  AddOneArg(GlobalRemapEntry, "environment");
 }
 
 /// Add a CC1 and CC1AS option to specify the macro file path prefix map.
@@ -2830,6 +2837,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   StringRef FPModel = "";
   // -ffp-exception-behavior options: strict, maytrap, ignore
   StringRef FPExceptionBehavior = "";
+  // -ffp-eval-method options: double, extended, source
+  StringRef FPEvalMethod = "";
   const llvm::DenormalMode DefaultDenormalFPMath =
       TC.getDefaultDenormalModeForType(Args, JA);
   const llvm::DenormalMode DefaultDenormalFP32Math =
@@ -3025,6 +3034,18 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       break;
     }
 
+    // Validate and pass through -ffp-eval-method option.
+    case options::OPT_ffp_eval_method_EQ: {
+      StringRef Val = A->getValue();
+      if (Val.equals("double") || Val.equals("extended") ||
+          Val.equals("source"))
+        FPEvalMethod = Val;
+      else
+        D.Diag(diag::err_drv_unsupported_option_argument)
+            << A->getOption().getName() << Val;
+      break;
+    }
+
     case options::OPT_ffinite_math_only:
       HonorINFs = false;
       HonorNaNs = false;
@@ -3179,6 +3200,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   if (!FPExceptionBehavior.empty())
     CmdArgs.push_back(Args.MakeArgString("-ffp-exception-behavior=" +
                       FPExceptionBehavior));
+
+  if (!FPEvalMethod.empty())
+    CmdArgs.push_back(Args.MakeArgString("-ffp-eval-method=" + FPEvalMethod));
 
   ParseMRecip(D, Args, CmdArgs);
 
@@ -4657,13 +4681,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   assert(Inputs.size() >= 1 && "Must have at least one input.");
   // CUDA/HIP compilation may have multiple inputs (source file + results of
-  // device-side compilations).
-  // OpenMP device jobs take the host IR as a second input.
+  // device-side compilations). OpenMP device jobs also take the host IR as a
+  // second input. Module precompilation accepts a list of header files to
+  // include as part of the module. All other jobs are expected to have exactly
+  // one input.
   // SYCL host jobs accept the integration header from the device-side
   // compilation as a second input.
-  // Module precompilation accepts a list of header files to include as part
-  // of the module.
-  // All other jobs are expected to have exactly one input.
   bool IsCuda = JA.isOffloading(Action::OFK_Cuda);
   bool IsCudaDevice = JA.isDeviceOffloading(Action::OFK_Cuda);
   bool IsHIP = JA.isOffloading(Action::OFK_HIP);
@@ -4673,9 +4696,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsSYCL = JA.isOffloading(Action::OFK_SYCL);
   bool IsOpenMPHost = JA.isHostOffloading(Action::OFK_OpenMP);
   bool IsHeaderModulePrecompile = isa<HeaderModulePrecompileJobAction>(JA);
-  assert((IsCuda || IsHIP || (IsOpenMPDevice && Inputs.size() == 2) || IsSYCL ||
-          IsHeaderModulePrecompile || Inputs.size() == 1) &&
-         "Unable to handle multiple inputs.");
+  bool IsDeviceOffloadAction = !(JA.isDeviceOffloading(Action::OFK_None) ||
+                                 JA.isDeviceOffloading(Action::OFK_Host));
+  bool IsUsingLTO = D.isUsingLTO(IsDeviceOffloadAction);
+  auto LTOMode = D.getLTOMode(IsDeviceOffloadAction);
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
@@ -4684,10 +4708,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     ConstructHostCompilerJob(C, JA, Output, Inputs, Args);
     return;
   }
-  bool IsDeviceOffloadAction = !(JA.isDeviceOffloading(Action::OFK_None) ||
-                                 JA.isDeviceOffloading(Action::OFK_Host));
-  bool IsUsingLTO = D.isUsingLTO(IsDeviceOffloadAction);
-  auto LTOMode = D.getLTOMode(IsDeviceOffloadAction);
 
   // A header module compilation doesn't have a main input file, so invent a
   // fake one as a placeholder.
@@ -4705,7 +4725,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   const InputInfo *CudaDeviceInput = nullptr;
   const InputInfo *OpenMPDeviceInput = nullptr;
   const InputInfo *SYCLDeviceInput = nullptr;
-  const InputInfo *OpenMPHostInput = nullptr;
   for (const InputInfo &I : Inputs) {
     if (&I == &Input) {
       // This is the primary input.
@@ -4724,8 +4743,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       OpenMPDeviceInput = &I;
     } else if (IsSYCL && !SYCLDeviceInput) {
       SYCLDeviceInput = &I;
-    } else if (IsOpenMPHost && !OpenMPHostInput) {
-      OpenMPHostInput = &I;
     } else if (IsOpenMPHost) {
       OpenMPHostInputs.push_back(I);
     } else {
@@ -6218,7 +6235,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   const char *DebugCompilationDir =
       addDebugCompDirArg(Args, CmdArgs, D.getVFS());
 
-  addDebugPrefixMapArg(D, Args, CmdArgs);
+  addDebugPrefixMapArg(D, TC, Args, CmdArgs);
 
   if (Arg *A = Args.getLastArg(options::OPT_ftemplate_depth_,
                                options::OPT_ftemplate_depth_EQ)) {
@@ -6489,6 +6506,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                        options::OPT_fno_openmp_assume_threads_oversubscription,
                        /*Default=*/false))
         CmdArgs.push_back("-fopenmp-assume-threads-oversubscription");
+      if (Args.hasArg(options::OPT_fopenmp_assume_no_thread_state))
+        CmdArgs.push_back("-fopenmp-assume-no-thread-state");
+      if (Args.hasArg(options::OPT_fopenmp_offload_mandatory))
+        CmdArgs.push_back("-fopenmp-offload-mandatory");
       break;
     default:
       // By default, if Clang doesn't know how to generate useful OpenMP code
@@ -7392,8 +7413,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(Args.MakeArgString(Twine("-cuid=") + Twine(CUID)));
   }
 
-  if (IsHIP)
+  if (IsHIP) {
     CmdArgs.push_back("-fcuda-allow-variadic-functions");
+    Args.AddLastArg(CmdArgs, options::OPT_fgpu_default_stream_EQ);
+  }
 
   if (IsCudaDevice || IsHIPDevice || IsSYCLOffloadDevice) {
     StringRef InlineThresh =
@@ -8339,7 +8362,8 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
     DebugInfoKind = (WantDebug ? codegenoptions::DebugInfoConstructor
                                : codegenoptions::NoDebugInfo);
 
-    addDebugPrefixMapArg(getToolChain().getDriver(), Args, CmdArgs);
+    addDebugPrefixMapArg(getToolChain().getDriver(), getToolChain(), Args,
+                         CmdArgs);
 
     // Set the AT_producer to the clang version when using the integrated
     // assembler on assembly source files.
@@ -9538,6 +9562,29 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  // Get the AMDGPU math libraries.
+  // FIXME: This method is bad, remove once AMDGPU has a proper math library
+  // (see AMDGCN::OpenMPLinker::constructLLVMLinkCommand).
+  for (auto &I : llvm::make_range(OpenMPTCRange.first, OpenMPTCRange.second)) {
+    const ToolChain *TC = I.second;
+
+    if (!TC->getTriple().isAMDGPU() || Args.hasArg(options::OPT_nogpulib))
+      continue;
+
+    const ArgList &TCArgs = C.getArgsForToolChain(TC, "", Action::OFK_OpenMP);
+    StringRef Arch = TCArgs.getLastArgValue(options::OPT_march_EQ);
+    const toolchains::ROCMToolChain RocmTC(TC->getDriver(), TC->getTriple(),
+                                           TCArgs);
+
+    SmallVector<std::string, 12> BCLibs =
+        RocmTC.getCommonDeviceLibNames(TCArgs, Arch.str(), Action::OFK_OpenMP);
+
+    for (StringRef LibName : BCLibs)
+      CmdArgs.push_back(
+          Args.MakeArgString("-target-library=" + TC->getTripleString() + "-" +
+                             Arch + "=" + LibName));
+  }
+
   if (D.isUsingLTO(/* IsOffload */ true)) {
     // Pass in target features for each toolchain.
     for (auto &I :
@@ -9547,27 +9594,25 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       ArgStringList FeatureArgs;
       TC->addClangTargetOptions(TCArgs, FeatureArgs, Action::OFK_OpenMP);
       auto FeatureIt = llvm::find(FeatureArgs, "-target-feature");
-      CmdArgs.push_back(Args.MakeArgString(
-          "-target-feature=" + TC->getTripleString() + "=" + *(FeatureIt + 1)));
+      if (FeatureIt != FeatureArgs.end())
+        CmdArgs.push_back(
+            Args.MakeArgString("-target-feature=" + TC->getTripleString() +
+                               "=" + *(FeatureIt + 1)));
     }
 
     // Pass in the bitcode library to be linked during LTO.
     for (auto &I :
          llvm::make_range(OpenMPTCRange.first, OpenMPTCRange.second)) {
       const ToolChain *TC = I.second;
+      if (!(TC->getTriple().isNVPTX() || TC->getTriple().isAMDGPU()))
+        continue;
+
       const Driver &TCDriver = TC->getDriver();
       const ArgList &TCArgs = C.getArgsForToolChain(TC, "", Action::OFK_OpenMP);
       StringRef Arch = TCArgs.getLastArgValue(options::OPT_march_EQ);
 
-      std::string BitcodeSuffix;
-      if (TC->getTriple().isNVPTX())
-        BitcodeSuffix += "nvptx-";
-      else if (TC->getTriple().isAMDGPU())
-        BitcodeSuffix += "amdgpu-";
-      BitcodeSuffix += Arch;
-
       ArgStringList BitcodeLibrary;
-      addOpenMPDeviceRTL(TCDriver, TCArgs, BitcodeLibrary, BitcodeSuffix,
+      addOpenMPDeviceRTL(TCDriver, TCArgs, BitcodeLibrary, Arch,
                          TC->getTriple());
 
       if (!BitcodeLibrary.empty())

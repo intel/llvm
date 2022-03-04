@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl -fsycl-device-only -Xclang -disable-noundef-analysis %s -o - | FileCheck %s
-// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl -fno-sycl-early-optimizations -fsycl-device-only -Xclang -disable-noundef-analysis %s -o - | FileCheck %s
+// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl -fsycl-device-only -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s
+// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl -fno-sycl-early-optimizations -fsycl-device-only -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s
 
 #include "CL/__spirv/spirv_ops.hpp"
 

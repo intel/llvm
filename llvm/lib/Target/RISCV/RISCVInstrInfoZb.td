@@ -598,11 +598,14 @@ def ORC_B : RVBUnary<0b0010100, 0b00111, 0b101, OPC_OP_IMM, "orc.b">,
 } // Predicates = [HasStdExtZbbOrZbp]
 
 let Predicates = [HasStdExtZbpOrZbkb] in 
-def BREV8 : RVBUnary<0b0110100, 0b00111, 0b101, OPC_OP_IMM, "brev8">;
+def BREV8 : RVBUnary<0b0110100, 0b00111, 0b101, OPC_OP_IMM, "brev8">,
+            Sched<[]>;
 
 let Predicates = [HasStdExtZbpOrZbkb, IsRV32] in {
-def ZIP_RV32   : RVBUnary<0b0000100, 0b01111, 0b001, OPC_OP_IMM, "zip">;
-def UNZIP_RV32 : RVBUnary<0b0000100, 0b01111, 0b101, OPC_OP_IMM, "unzip">;
+def ZIP_RV32   : RVBUnary<0b0000100, 0b01111, 0b001, OPC_OP_IMM, "zip">,
+                 Sched<[]>;
+def UNZIP_RV32 : RVBUnary<0b0000100, 0b01111, 0b101, OPC_OP_IMM, "unzip">,
+                 Sched<[]>;
 } // Predicates = [HasStdExtZbpOrZbkb, IsRV32]
 
 
@@ -852,7 +855,9 @@ let Predicates = [HasStdExtZbpOrZbkb] in {
 // We treat brev8 as a separate instruction, so match it directly. We also
 // use this for brev8 when lowering bitreverse with Zbkb.
 def : Pat<(riscv_grev GPR:$rs1, 7), (BREV8 GPR:$rs1)>;
+}
 
+let Predicates = [HasStdExtZbpOrZbkb, IsRV32] in {
 // We treat zip and unzip as separate instructions, so match it directly.
 def : Pat<(i32 (riscv_shfl GPR:$rs1, 15)), (ZIP_RV32 GPR:$rs1)>;
 def : Pat<(i32 (riscv_unshfl GPR:$rs1, 15)), (UNZIP_RV32 GPR:$rs1)>;
@@ -880,10 +885,6 @@ def : PatGprGpr<riscv_gorcw, GORCW>;
 def : PatGprImm<riscv_grevw, GREVIW, uimm5>;
 def : PatGprImm<riscv_gorcw, GORCIW, uimm5>;
 
-// FIXME: Move to DAG combine.
-def : Pat<(riscv_rorw (riscv_grevw GPR:$rs1, 24), 16), (GREVIW GPR:$rs1, 8)>;
-def : Pat<(riscv_rolw (riscv_grevw GPR:$rs1, 24), 16), (GREVIW GPR:$rs1, 8)>;
-
 def : PatGprGpr<riscv_shflw, SHFLW>;
 def : PatGprGpr<riscv_unshflw, UNSHFLW>;
 } // Predicates = [HasStdExtZbp, IsRV64]
@@ -892,10 +893,6 @@ let Predicates = [HasStdExtZbp, IsRV64] in
 def : PatGprGpr<int_riscv_xperm_w, XPERM_W>;
 
 let Predicates = [HasStdExtZbp, IsRV32] in {
-// FIXME : Move to DAG combine.
-def : Pat<(i32 (rotr (riscv_grev GPR:$rs1, 24), (i32 16))), (GREVI GPR:$rs1, 8)>;
-def : Pat<(i32 (rotl (riscv_grev GPR:$rs1, 24), (i32 16))), (GREVI GPR:$rs1, 8)>;
-
 // We treat rev8 as a separate instruction, so match it directly.
 def : Pat<(i32 (riscv_grev GPR:$rs1, 24)), (REV8_RV32 GPR:$rs1)>;
 } // Predicates = [HasStdExtZbp, IsRV32]
