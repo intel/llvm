@@ -72,10 +72,7 @@
 /// @endcond ESIMD_DETAIL
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace esimd {
+namespace __ESIMD_NS {
 
 /// @addtogroup sycl_esimd_core
 /// @{
@@ -202,8 +199,5 @@ enum class atomic_op : uint8_t {
 
 /// @} sycl_esimd_core
 
-} // namespace esimd
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __ESIMD_NS
 } // __SYCL_INLINE_NAMESPACE(cl)
