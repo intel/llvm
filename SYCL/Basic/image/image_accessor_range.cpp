@@ -9,8 +9,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// XFAIL: level_zero
-
 #include <CL/sycl.hpp>
 #include <CL/sycl/accessor.hpp>
 #include <iostream>
