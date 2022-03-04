@@ -14,11 +14,37 @@
 #pragma once
 
 #include "../common.hpp"
+#include <string>
 
 namespace esimd_test::api::functional::ctors {
 
-template <typename DataT, int NumElems, typename ContextT>
+#ifdef ESIMD_TESTS_DISABLE_DEPRECATED_TEST_DESCRIPTION_FOR_LOGS
+
+template <int NumElems, typename ContextT>
 class TestDescription : public ITestDescription {
+public:
+  TestDescription(const std::string &data_type) : m_data_type(data_type) {}
+
+  std::string to_string() const override {
+    std::string test_description("simd<");
+
+    test_description += m_data_type + ", " + std::to_string(NumElems) + ">";
+    test_description += ", with context: " + ContextT::get_description();
+
+    return test_description;
+  }
+
+private:
+  const std::string m_data_type;
+};
+
+#else
+
+// Deprecated, use TestDescription<NumElems, ContextT> for new tests instead
+//
+// TODO: Remove deprecated TestDescription from all tests
+template <typename DataT, int NumElems, typename ContextT>
+class [[deprecated]] TestDescription : public ITestDescription {
 public:
   TestDescription(size_t index, DataT retrieved_val, DataT expected_val,
                   const std::string &data_type)
@@ -26,8 +52,6 @@ public:
         m_expected_val(expected_val), m_index(index) {}
 
   std::string to_string() const override {
-    // TODO: Make strings for fp values more short during failure output, may be
-    // by using hex representation
     std::string log_msg("Failed for simd<");
 
     log_msg += m_data_type + ", " + std::to_string(NumElems) + ">";
@@ -45,5 +69,7 @@ private:
   const DataT m_expected_val;
   const size_t m_index;
 };
+
+#endif // ESIMD_TESTS_DISABLE_DEPRECATED_TEST_DESCRIPTION_FOR_LOGS
 
 } // namespace esimd_test::api::functional::ctors

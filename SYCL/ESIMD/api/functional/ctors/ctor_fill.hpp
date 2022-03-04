@@ -13,8 +13,10 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#define ESIMD_TESTS_DISABLE_DEPRECATED_TEST_DESCRIPTION_FOR_LOGS
 
 #include "common.hpp"
+#include <cassert>
 // For std::isnan
 #include <cmath>
 
@@ -138,57 +140,73 @@ DataT get_value(DataT base_val = DataT()) {
   }
 }
 
-template <init_val Val> std::string init_val_to_string() {
-  if constexpr (Val == init_val::min) {
+inline std::string init_val_to_string(init_val val) {
+  switch (val) {
+  case init_val::min:
     return "lowest";
-  } else if constexpr (Val == init_val::max) {
+    break;
+  case init_val::max:
     return "max";
-  } else if constexpr (Val == init_val::zero) {
+    break;
+  case init_val::zero:
     return "zero";
-  } else if constexpr (Val == init_val::positive) {
+    break;
+  case init_val::positive:
     return "positive";
-  } else if constexpr (Val == init_val::negative) {
+    break;
+  case init_val::negative:
     return "negative";
-  } else if constexpr (Val == init_val::min_half) {
+    break;
+  case init_val::min_half:
     return "min_half";
-  } else if constexpr (Val == init_val::max_half) {
+    break;
+  case init_val::max_half:
     return "max_half";
-  } else if constexpr (Val == init_val::neg_inf) {
+    break;
+  case init_val::neg_inf:
     return "neg_inf";
-  } else if constexpr (Val == init_val::nan) {
+    break;
+  case init_val::nan:
     return "nan";
-  } else if constexpr (Val == init_val::denorm) {
+    break;
+  case init_val::denorm:
     return "denorm";
-  } else if constexpr (Val == init_val::inexact) {
+    break;
+  case init_val::inexact:
     return "inexact";
-  } else if constexpr (Val == init_val::ulp) {
+    break;
+  case init_val::ulp:
     return "ulp";
-  } else if constexpr (Val == init_val::ulp_half) {
+    break;
+  case init_val::ulp_half:
     return "ulp_half";
-  } else {
-    static_assert(Val != Val, "Unexpected enum value");
-  }
+    break;
+  default:
+    assert(false && "Unexpected enum value");
+  };
+  return "n/a";
 }
 
-template <typename DataT, int NumElems, typename ContextT, init_val BaseVal,
-          init_val Step>
-class FillCtorTestDescription
-    : public ctors::TestDescription<DataT, NumElems, ContextT> {
+template <int NumElems, typename ContextT>
+class FillCtorTestDescription : public ITestDescription {
 public:
-  FillCtorTestDescription(size_t index, DataT retrieved_val, DataT expected_val,
-                          const std::string &data_type)
-      : ctors::TestDescription<DataT, NumElems, ContextT>(
-            index, retrieved_val, expected_val, data_type) {}
+  FillCtorTestDescription(const std::string &data_type, init_val base_val,
+                          init_val step)
+      : m_description(data_type), m_base_val(base_val), m_step(step) {}
 
   std::string to_string() const override {
-    std::string log_msg(
-        ctors::TestDescription<DataT, NumElems, ContextT>::to_string());
+    std::string log_msg = m_description.to_string();
 
-    log_msg += ", with base value: " + init_val_to_string<BaseVal>();
-    log_msg += ", with step value: " + init_val_to_string<Step>();
+    log_msg += ", with base value: " + init_val_to_string(m_base_val);
+    log_msg += ", with step value: " + init_val_to_string(m_step);
 
     return log_msg;
   }
+
+private:
+  const ctors::TestDescription<NumElems, ContextT> m_description;
+  const init_val m_base_val;
+  const init_val m_step;
 };
 
 template <init_val... Values> auto get_init_values_pack() {
@@ -202,9 +220,13 @@ class run_test {
   static constexpr init_val BaseVal = BaseValT::value;
   static constexpr init_val Step = StepT::value;
   using KernelT = kernel_for_fill<DataT, NumElems, TestCaseT, BaseVal, Step>;
+  using TestDescriptionT = FillCtorTestDescription<NumElems, TestCaseT>;
 
 public:
   bool operator()(sycl::queue &queue, const std::string &data_type) {
+    bool passed = true;
+    log::trace<TestDescriptionT>(data_type, BaseVal, Step);
+
     if (should_skip_test_with<DataT>(queue.get_device())) {
       return true;
     }
@@ -223,11 +245,13 @@ public:
       });
     });
     queue.wait_and_throw();
-    bool passed = true;
 
     // Verify the base value was passed as-is
     if (!are_bitwise_equal(result[0], base_value)) {
-      passed = fail_test(0, result[0], base_value, data_type);
+      passed = false;
+      log::fail(TestDescriptionT(data_type, BaseVal, Step),
+                "Unexpected value at index 0, retrieved: ", result[0],
+                ", expected: ", base_value);
     }
 
     // Verify the step value works as expected being passed to the fill
@@ -238,39 +262,22 @@ public:
 
         if (!std::isnan(result[i])) {
           passed = false;
-
-          // TODO: Make ITestDescription architecture more flexible.
-          // We are assuming that the NaN opcode may differ
-          std::string log_msg = "Failed for simd<";
-          log_msg += data_type + ", " + std::to_string(NumElems) + ">";
-          log_msg += ", with context: " + TestCaseT::get_description();
-          log_msg += ". The element at index: " + std::to_string(i) +
-                     ", is not nan, but it should.";
-          log_msg += ", with base value: " + init_val_to_string<BaseVal>();
-          log_msg += ", with step value: " + init_val_to_string<Step>();
-
-          log::note(log_msg);
+          log::fail(TestDescriptionT(data_type, BaseVal, Step),
+                    "Unexpected value at index ", i, ", retrieved: ", result[i],
+                    ", expected: any NaN value");
         }
       } else {
 
         expected_value += step_value;
         if (!are_bitwise_equal(result[i], expected_value)) {
-          passed = fail_test(i, result[i], expected_value, data_type);
+          passed = false;
+          log::fail(TestDescriptionT(data_type, BaseVal, Step),
+                    "Unexpected value at index ", i, ", retrieved: ", result[i],
+                    ", expected: ", expected_value);
         }
       }
     }
     return passed;
-  }
-
-private:
-  bool fail_test(size_t index, DataT retrieved, DataT expected,
-                 const std::string &data_type) {
-    const auto description =
-        FillCtorTestDescription<DataT, NumElems, TestCaseT, BaseVal, Step>(
-            index, retrieved, expected, data_type);
-    log::fail(description);
-
-    return false;
   }
 };
 

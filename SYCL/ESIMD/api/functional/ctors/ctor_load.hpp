@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#define ESIMD_TESTS_DISABLE_DEPRECATED_TEST_DESCRIPTION_FOR_LOGS
 
 #include "common.hpp"
 
@@ -89,6 +90,7 @@ struct Kernel_for_load_ctor;
 namespace alignment {
 
 struct element {
+  static std::string to_string() { return "element_aligned"; }
   template <typename DataT, int> static size_t get_size() {
     return alignof(DataT);
   }
@@ -96,6 +98,7 @@ struct element {
 };
 
 struct vector {
+  static std::string to_string() { return "vector_aligned"; }
   template <typename DataT, int NumElems> static size_t get_size() {
     // Referring to the simd class specialization on the host side is by design.
     return alignof(esimd::simd<DataT, NumElems>);
@@ -104,6 +107,7 @@ struct vector {
 };
 
 struct overal {
+  static std::string to_string() { return "overaligned"; }
   // Use 16 instead of std::max_align_t because of the fact that long double is
   // not a native type in Intel GPUs. So 16 is not driven by any type, but
   // rather the "oword alignment" requirement for all block loads. In that
@@ -116,16 +120,37 @@ struct overal {
 
 } // namespace alignment
 
+// Detailed test case description to use for logs
+template <int NumElems, typename TestCaseT>
+class LoadCtorTestDescription : public ITestDescription {
+public:
+  LoadCtorTestDescription(const std::string &data_type,
+                          const std::string &alignment_name)
+      : m_description(data_type), m_alignment_name(alignment_name) {}
+
+  std::string to_string() const override {
+    return m_description.to_string() + ", with alignment: " + m_alignment_name;
+  }
+
+private:
+  const ctors::TestDescription<NumElems, TestCaseT> m_description;
+  const std::string m_alignment_name;
+};
+
 // The main test routine.
 // Using functor class to be able to iterate over the pre-defined data types.
-template <typename DataT, typename DimT, typename TestCaseT,
+template <typename DataT, typename SizeT, typename TestCaseT,
           typename AlignmentT>
 class run_test {
-  static constexpr int NumElems = DimT::value;
+  static constexpr int NumElems = SizeT::value;
+  using TestDescriptionT = LoadCtorTestDescription<NumElems, TestCaseT>;
 
 public:
-  bool operator()(sycl::queue &queue, const std::string &data_type) {
+  bool operator()(sycl::queue &queue, const std::string &data_type,
+                  const std::string &alignment_name) {
     bool passed = true;
+    log::trace<TestDescriptionT>(data_type, alignment_name);
+
     const std::vector<DataT> ref_data = generate_ref_data<DataT, NumElems>();
 
     // If current number of elements is equal to one, then run test with each
@@ -134,17 +159,19 @@ public:
     // whole reference data.
     if constexpr (NumElems == 1) {
       for (size_t i = 0; i < ref_data.size(); ++i) {
-        passed = run_verification(queue, {ref_data[i]}, data_type);
+        passed =
+            run_verification(queue, {ref_data[i]}, data_type, alignment_name);
       }
     } else {
-      passed = run_verification(queue, ref_data, data_type);
+      passed = run_verification(queue, ref_data, data_type, alignment_name);
     }
     return passed;
   }
 
 private:
   bool run_verification(sycl::queue &queue, const std::vector<DataT> &ref_data,
-                        const std::string &data_type) {
+                        const std::string &data_type,
+                        const std::string &alignment_name) {
     assert(ref_data.size() == NumElems &&
            "Reference data size is not equal to the simd vector length.");
 
@@ -193,13 +220,15 @@ private:
     queue.wait_and_throw();
 
     for (size_t i = 0; i < result.size(); ++i) {
-      if (!are_bitwise_equal(ref_data[i], result[i])) {
+      const auto &expected = ref_data[i];
+      const auto &retrieved = result[i];
+
+      if (!are_bitwise_equal(expected, retrieved)) {
         passed = false;
 
-        const auto description =
-            ctors::TestDescription<DataT, NumElems, TestCaseT>(
-                i, result[i], ref_data[i], data_type);
-        log::fail(description);
+        log::fail(TestDescriptionT(data_type, alignment_name),
+                  "Unexpected value at index ", i, ", retrieved: ", retrieved,
+                  ", expected: ", expected);
       }
     }
 

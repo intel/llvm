@@ -14,6 +14,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#define ESIMD_TESTS_DISABLE_DEPRECATED_TEST_DESCRIPTION_FOR_LOGS
 
 #include "../mutator.hpp"
 #include "common.hpp"
@@ -111,38 +112,6 @@ struct post_increment {
   static constexpr bool is_increment() { return true; }
 };
 
-template <typename DataT, int NumElems, typename TestCaseT>
-class IncrementAndDecrementTestDescription : public ITestDescription {
-public:
-  IncrementAndDecrementTestDescription(size_t index, DataT retrieved_val,
-                                       DataT expected_val,
-                                       const std::string &error_details,
-                                       const std::string &data_type)
-      : m_data_type(data_type), m_retrieved_val(retrieved_val),
-        m_expected_val(expected_val), m_index(index),
-        m_error_details(error_details) {}
-
-  std::string to_string() const override {
-    std::string log_msg("Failed for simd<");
-
-    log_msg += m_data_type + ", " + std::to_string(NumElems) + ">";
-    log_msg += ", retrieved: " + std::to_string(m_retrieved_val);
-    log_msg += ", expected: " + std::to_string(m_expected_val);
-    log_msg += ", at index: " + std::to_string(m_index);
-    log_msg += " for " + TestCaseT::get_description() + " operator: ";
-    log_msg += m_error_details;
-
-    return log_msg;
-  }
-
-private:
-  const std::string m_data_type;
-  const DataT m_retrieved_val;
-  const DataT m_expected_val;
-  const size_t m_index;
-  const std::string m_error_details;
-};
-
 struct base_test {
   template <typename DataT, int NumElems, typename TestCaseT>
   static std::vector<DataT> generate_input_data() {
@@ -199,6 +168,7 @@ template <typename IsAccuracyTestT, typename DataT, typename SizeT,
           typename TestCaseT>
 class run_test {
   static constexpr int NumElems = SizeT::value;
+  using TestDescriptionT = operators::TestDescription<NumElems, TestCaseT>;
 
 public:
   bool operator()(sycl::queue &queue, const std::string &data_type) {
@@ -228,6 +198,7 @@ private:
            "Reference data size is not equal to the simd vector length.");
 
     bool passed = true;
+    log::trace<TestDescriptionT>(data_type);
 
     shared_allocator<DataT> allocator(queue);
     shared_vector<DataT> source_simd_out(NumElems, allocator);
@@ -255,39 +226,31 @@ private:
           TestCaseT::apply_operator(expected_source_value);
 
       passed &= verify_result(i, expected_source_value, source_simd_out[i],
-                              "unexpected argument modification", data_type);
+                              "argument modification", data_type);
       passed &= verify_result(i, expected_return_value, result_simd_out[i],
-                              "unexpected return value", data_type);
+                              "return value", data_type);
     }
 
     return passed;
   }
 
   bool verify_result(size_t i, DataT expected, DataT retrieved,
-                     const std::string &simd_type,
+                     const std::string &value_description,
                      const std::string &data_type) {
     bool passed = true;
     if constexpr (type_traits::is_sycl_floating_point_v<DataT>) {
       if (std::isnan(expected) && !std::isnan(retrieved)) {
         passed = false;
-
-        // TODO: Make ITestDescription architecture more flexible.
-        // We are assuming that the NaN opcode may differ
-        std::string log_msg("Failed for simd<");
-        log_msg += data_type + ", " + std::to_string(NumElems) + ">";
-        log_msg += ". The element at index: " + std::to_string(i) +
-                   ", is not nan, but it should.";
-
-        log::note(log_msg);
+        log::fail(TestDescriptionT(data_type), "Unexpected ",
+                  value_description, "at index ", i, ", retrieved: ", retrieved,
+                  ", expected: any NaN value");
       }
     }
     if (!are_bitwise_equal(expected, retrieved)) {
       passed = false;
-
-      const auto description =
-          IncrementAndDecrementTestDescription<DataT, NumElems, TestCaseT>(
-              i, retrieved, expected, simd_type, data_type);
-      log::fail(description);
+      log::fail(TestDescriptionT(data_type), "Unexpected ",
+                value_description, "at index ", i, ", retrieved: ", retrieved,
+                ", expected: ", expected);
     }
     return passed;
   }

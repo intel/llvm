@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#define ESIMD_TESTS_DISABLE_DEPRECATED_TEST_DESCRIPTION_FOR_LOGS
 
 #include "common.hpp"
 
@@ -86,15 +87,17 @@ public:
 template <typename DataT, typename SizeT, typename TestCaseT> class run_test {
   static constexpr int NumElems = SizeT::value;
   using KernelName = Kernel<DataT, NumElems, TestCaseT>;
+  using TestDescriptionT = ctors::TestDescription<NumElems, TestCaseT>;
 
 public:
   bool operator()(sycl::queue &queue, const std::string &data_type) {
+    bool passed = true;
+    bool was_moved = false;
+    log::trace<TestDescriptionT>(data_type);
+
     if (should_skip_test_with<DataT>(queue.get_device())) {
       return true;
     }
-
-    bool passed = true;
-    bool was_moved = false;
 
     const shared_allocator<DataT> data_allocator(queue);
     const shared_allocator<int> flags_allocator(queue);
@@ -159,14 +162,8 @@ public:
 
     if (!was_moved) {
       passed = false;
-
-      // TODO: Make ITestDescription architecture more flexible
-      std::string log_msg = "Failed for simd<";
-      log_msg += data_type + ", " + std::to_string(NumElems) + ">";
-      log_msg += ", with context: " + TestCaseT::get_description();
-      log_msg += ". A copy constructor instead of a move constructor was used.";
-
-      log::note(log_msg);
+      log::fail(TestDescriptionT(data_type),
+                "A copy constructor instead of a move constructor was used.");
     } else {
       for (size_t i = 0; i < reference.size(); ++i) {
         const auto &retrieved = result[i];
@@ -174,9 +171,8 @@ public:
 
         if (!are_bitwise_equal(retrieved, expected)) {
           passed = false;
-
-          log::fail(ctors::TestDescription<DataT, NumElems, TestCaseT>(
-              i, retrieved, expected, data_type));
+          log::fail(TestDescriptionT(data_type), "Unexpected value at index ",
+                    i, ", retrieved: ", retrieved, ", expected: ", expected);
         }
       }
     }
