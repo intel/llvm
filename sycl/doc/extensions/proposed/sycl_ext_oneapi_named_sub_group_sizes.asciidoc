@@ -239,7 +239,11 @@ link-time, since this is the first time the compiler will see both translation
 units together.
 
 
-=== Compiler flags
+=== DPC++ compiler flags
+
+This non-normative section describes command line flags that the DPC++ compiler
+supports. Other compilers are free to provide their own command line flags (if
+any).
 
 The `-fsycl-default-sub-group-size` flag controls the default sub-group size
 used within a translation unit, which applies to all kernels and
