@@ -434,7 +434,7 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
 
   // ActualTy - Reverse of 'PromoT' in memory.hpp
   using ActualTy = std::conditional_t<
-      __SEIEED::ElemsPerAddrEncoding<sizeof(Ty)>() == TySizeLog2, Ty,
+      sizeof(Ty) == __SEIEED::ElemsPerAddrDecoding(TySizeLog2), Ty,
       std::conditional_t<
           TySizeLog2 == 1,
           std::conditional_t<std::is_signed<Ty>::value, short, unsigned short>,
@@ -662,7 +662,7 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 
   // ActualTy - Reverse of 'PromoT' in memory.hpp
   using ActualTy = std::conditional_t<
-      __SEIEED::ElemsPerAddrEncoding<sizeof(Ty)>() == TySizeLog2, Ty,
+      sizeof(Ty) == __SEIEED::ElemsPerAddrDecoding(TySizeLog2), Ty,
       std::conditional_t<
           TySizeLog2 == 1,
           std::conditional_t<std::is_signed<Ty>::value, short, unsigned short>,

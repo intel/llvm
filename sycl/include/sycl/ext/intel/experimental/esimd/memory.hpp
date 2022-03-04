@@ -65,8 +65,8 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
   if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy>) {
     return detail::SLM_BTI;
   } else {
-    const auto mem_obj = detail::AccessorPrivateProxy::getNativeImageObj(acc);
-    return __esimd_get_surface_index(mem_obj);
+    return __esimd_get_surface_index(
+        detail::AccessorPrivateProxy::getNativeImageObj(acc));
   }
 }
 
