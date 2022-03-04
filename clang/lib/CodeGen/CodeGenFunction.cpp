@@ -1097,8 +1097,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       D->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
     const auto *A = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
-        CGM.getFilteredValidAttributeNameValuePairs(A->args_begin(),
-                                                    A->args_size(), A);
+        A->getFilteredAttributeNameValuePairs(CGM.getContext());
 
     llvm::AttrBuilder FnAttrBuilder(Fn->getContext());
     for (const auto &NameValuePair : NameValuePairs)

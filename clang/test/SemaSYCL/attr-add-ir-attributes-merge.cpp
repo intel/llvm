@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -std=gnu++11 -fsyntax-only -verify %s
-// RUN: %clang_cc1 -fsycl-is-device -std=gnu++11 -ast-dump %s | FileCheck %s
+// RUN: not %clang_cc1 -fsycl-is-device -std=gnu++11 -ast-dump %s | FileCheck %s
 
 // CHECK:      FunctionDecl [[FunctionRedecl1ID1:0x[0-9a-f]+]] {{.*}} FunctionRedecl1 'void ()'
 // CHECK-NEXT: FunctionDecl [[FunctionRedecl1ID2:0x[0-9a-f]+]] prev [[FunctionRedecl1ID1]] {{.*}} FunctionRedecl1 'void ()'
@@ -30,7 +30,21 @@
 // CHECK-NEXT:     ConstantExpr {{.*}} 'bool'
 // CHECK-NEXT:       value: Int 1
 // CHECK-NEXT:       CXXBoolLiteralExpr {{.*}} 'bool' true
-// CHECK-NEXT: FunctionDecl {{.*}} prev [[FunctionRedecl1ID3]] {{.*}} FunctionRedecl1 'void ()'
+// CHECK-NEXT: FunctionDecl [[FunctionRedecl1ID4:0x[0-9a-f]+]] prev [[FunctionRedecl1ID3]] {{.*}} FunctionRedecl1 'void ()'
+// CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr2"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'bool'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       CXXBoolLiteralExpr {{.*}} 'bool' true
+// CHECK-NEXT:     ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 1
+// CHECK-NEXT: FunctionDecl {{.*}} prev [[FunctionRedecl1ID4]] {{.*}} FunctionRedecl1 'void ()'
 // CHECK-NEXT:   CompoundStmt
 // CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr
 // CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
@@ -40,9 +54,10 @@
 // CHECK-NEXT:       value: Int 0
 // CHECK-NEXT:       CXXBoolLiteralExpr {{.*}} 'bool' false
 void FunctionRedecl1();
-[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]] void FunctionRedecl1(); // expected-note {{previous attribute is here}}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]] void FunctionRedecl1(); // expected-warning {{attribute 'add_ir_attributes_function' is already applied}} // expected-note {{previous attribute is here}}
-[[__sycl_detail__::add_ir_attributes_function("Attr3", false)]] void FunctionRedecl1(){};          // expected-warning {{attribute 'add_ir_attributes_function' is already applied}}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]] void FunctionRedecl1();
+[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]] void FunctionRedecl1();
+[[__sycl_detail__::add_ir_attributes_function("Attr2", "Attr1", true, 1)]] void FunctionRedecl1(); // expected-note {{conflicting attribute is here}}
+[[__sycl_detail__::add_ir_attributes_function("Attr3", false)]] void FunctionRedecl1(){};          // expected-error {{attribute 'add_ir_attributes_function' is already applied with different arguments}}
 
 // CHECK:      FunctionDecl [[FunctionRedecl2ID1:0x[0-9a-f]+]] {{.*}} FunctionRedecl2 'void ()'
 // CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr
@@ -104,7 +119,21 @@ void FunctionRedecl2();
 // CHECK-NEXT:     ConstantExpr {{.*}} 'bool'
 // CHECK-NEXT:       value: Int 1
 // CHECK-NEXT:       CXXBoolLiteralExpr {{.*}} 'bool' true
-// CHECK-NEXT: CXXRecordDecl {{.*}} prev [[GlobalVarStructRedecl1ID3]] {{.*}} struct GlobalVarStructRedecl1 definition
+// CHECK-NEXT: CXXRecordDecl [[GlobalVarStructRedecl1ID4:0x[0-9a-f]+]] prev [[GlobalVarStructRedecl1ID3]] {{.*}} struct GlobalVarStructRedecl1
+// CHECK-NEXT:   SYCLAddIRAttributesGlobalVariableAttr
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr2"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'bool'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       CXXBoolLiteralExpr {{.*}} 'bool' true
+// CHECK-NEXT:     ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 1
+// CHECK-NEXT: CXXRecordDecl {{.*}} prev [[GlobalVarStructRedecl1ID4]] {{.*}} struct GlobalVarStructRedecl1 definition
 // CHECK-NEXT:   DefinitionData
 // CHECK-NEXT:     DefaultConstructor
 // CHECK-NEXT:     CopyConstructor
@@ -121,9 +150,10 @@ void FunctionRedecl2();
 // CHECK-NEXT:       CXXBoolLiteralExpr {{.*}} 'bool' false
 // CHECK-NEXT:   CXXRecordDecl {{.*}} implicit struct GlobalVarStructRedecl1
 struct GlobalVarStructRedecl1;
-struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] GlobalVarStructRedecl1; // expected-note {{previous attribute is here}}
-struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] GlobalVarStructRedecl1; // expected-warning {{attribute 'add_ir_attributes_global_variable' is already applied}} expected-note {{previous attribute is here}}
-struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr3", false)]] GlobalVarStructRedecl1{};          // expected-warning {{attribute 'add_ir_attributes_global_variable' is already applied}}
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] GlobalVarStructRedecl1;
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] GlobalVarStructRedecl1;
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr2", "Attr1", true, 1)]] GlobalVarStructRedecl1; // expected-note {{conflicting attribute is here}}
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr3", false)]] GlobalVarStructRedecl1{};          // expected-error {{attribute 'add_ir_attributes_global_variable' is already applied with different arguments}}
 
 // CHECK:      CXXRecordDecl [[GlobalVarStructRedecl2ID1:0x[0-9a-f]+]] {{.*}} struct GlobalVarStructRedecl2
 // CHECK-NEXT:   SYCLAddIRAttributesGlobalVariableAttr

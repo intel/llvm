@@ -1051,16 +1051,6 @@ public:
                                      llvm::SmallString<256> &AnnotStr);
   void addGlobalIntelFPGAAnnotation(const VarDecl *VD, llvm::GlobalValue *GV);
 
-  // Gets a set of accepted attribute names in a add_ir_attributes_* attribute.
-  Optional<llvm::SmallSet<StringRef, 4>>
-  getAttributeFilter(Expr **AttributeExprs, const size_t AttributeExprsSize,
-                     const Attr *Attribute);
-  // Gets pairs of attribute names and values from the expressions of an
-  // add_ir_attributes_* attribute.
-  SmallVector<std::pair<std::string, std::string>, 4>
-  getFilteredValidAttributeNameValuePairs(Expr **Exprs, size_t ExprsSize,
-                                          const Attr *Attribute);
-
   /// Given a builtin id for a function like "__builtin_fabsf", return a
   /// Function* for "fabsf".
   llvm::Constant *getBuiltinLibFunction(const FunctionDecl *FD,

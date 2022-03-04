@@ -7536,12 +7536,38 @@ static bool evaluateAddIRAttributesArgs(Expr **Args, size_t ArgsSize, Sema &S,
   return false;
 }
 
+static bool hasDependentExpr(Expr **Exprs, const size_t ExprsSize) {
+  return std::any_of(Exprs, Exprs + ExprsSize, [](const Expr *E) {
+    return E->isValueDependent() || E->isTypeDependent();
+  });
+}
+
+static bool hasSameSYCLAddIRAttributes(
+    const SmallVector<std::pair<std::string, std::string>, 4> &LAttrs,
+    const SmallVector<std::pair<std::string, std::string>, 4> &RAttrs) {
+  std::set<std::pair<std::string, std::string>> LNameValSet{LAttrs.begin(),
+                                                            LAttrs.end()};
+  std::set<std::pair<std::string, std::string>> RNameValSet{RAttrs.begin(),
+                                                            RAttrs.end()};
+  return LNameValSet == RNameValSet;
+}
+
 SYCLAddIRAttributesFunctionAttr *Sema::MergeSYCLAddIRAttributesFunctionAttr(
     Decl *D, const SYCLAddIRAttributesFunctionAttr &A) {
   if (const auto *ExistingAttr =
           D->getAttr<SYCLAddIRAttributesFunctionAttr>()) {
-    Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute_exact) << &A;
-    Diag(A.getLoc(), diag::note_previous_attribute);
+    // If there are no dependent argument expressions and the filters or the
+    // attributes are different, then fail due to differing duplicates.
+    if (!hasDependentExpr(A.args_begin(), A.args_size()) &&
+        !hasDependentExpr(ExistingAttr->args_begin(),
+                          ExistingAttr->args_size()) &&
+        (A.getAttributeFilter() != ExistingAttr->getAttributeFilter() ||
+         !hasSameSYCLAddIRAttributes(
+             A.getAttributeNameValuePairs(Context),
+             ExistingAttr->getAttributeNameValuePairs(Context)))) {
+      Diag(ExistingAttr->getLoc(), diag::err_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_conflicting_attribute);
+    }
     return nullptr;
   }
   return A.clone(Context);
@@ -7575,8 +7601,18 @@ Sema::MergeSYCLAddIRAttributesKernelParameterAttr(
     Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A) {
   if (const auto *ExistingAttr =
           D->getAttr<SYCLAddIRAttributesKernelParameterAttr>()) {
-    Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute_exact) << &A;
-    Diag(A.getLoc(), diag::note_previous_attribute);
+    // If there are no dependent argument expressions and the filters or the
+    // attributes are different, then fail due to differing duplicates.
+    if (!hasDependentExpr(A.args_begin(), A.args_size()) &&
+        !hasDependentExpr(ExistingAttr->args_begin(),
+                          ExistingAttr->args_size()) &&
+        (A.getAttributeFilter() != ExistingAttr->getAttributeFilter() ||
+         !hasSameSYCLAddIRAttributes(
+             A.getAttributeNameValuePairs(Context),
+             ExistingAttr->getAttributeNameValuePairs(Context)))) {
+      Diag(ExistingAttr->getLoc(), diag::err_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_conflicting_attribute);
+    }
     return nullptr;
   }
   return A.clone(Context);
@@ -7609,8 +7645,18 @@ Sema::MergeSYCLAddIRAttributesGlobalVariableAttr(
     Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A) {
   if (const auto *ExistingAttr =
           D->getAttr<SYCLAddIRAttributesGlobalVariableAttr>()) {
-    Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute_exact) << &A;
-    Diag(A.getLoc(), diag::note_previous_attribute);
+    // If there are no dependent argument expressions and the filters or the
+    // attributes are different, then fail due to differing duplicates.
+    if (!hasDependentExpr(A.args_begin(), A.args_size()) &&
+        !hasDependentExpr(ExistingAttr->args_begin(),
+                          ExistingAttr->args_size()) &&
+        (A.getAttributeFilter() != ExistingAttr->getAttributeFilter() ||
+         !hasSameSYCLAddIRAttributes(
+             A.getAttributeNameValuePairs(Context),
+             ExistingAttr->getAttributeNameValuePairs(Context)))) {
+      Diag(ExistingAttr->getLoc(), diag::err_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_conflicting_attribute);
+    }
     return nullptr;
   }
   return A.clone(Context);

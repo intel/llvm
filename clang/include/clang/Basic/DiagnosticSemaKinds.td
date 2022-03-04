@@ -9952,6 +9952,7 @@ def warn_duplicate_attribute_exact : Warning<
 def warn_duplicate_attribute : Warning<
   "attribute %0 is already applied with different arguments">,
   InGroup<IgnoredAttributes>;
+def err_duplicate_attribute : Error<warn_duplicate_attribute.Text>;
 def err_disallowed_duplicate_attribute : Error<
   "attribute %0 cannot appear more than once on a declaration">;
 
