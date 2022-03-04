@@ -42,7 +42,7 @@ public:
   static float to_float(const storage_t &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-    unsigned int y = a;
+    uint32_t y = a;
     y = y << 16;
     float *res = reinterpret_cast<float *>(&y);
     return *res;
@@ -81,7 +81,16 @@ public:
 
   // Unary minus operator overloading
   friend bfloat16 operator-(bfloat16 &lhs) {
-    return bfloat16{-to_float(lhs.value)};
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+    return from_bits(__nvvm_neg_bf16(lhs.value));
+#else
+    return bfloat16{-__spirv_ConvertBF16ToFINTEL(lhs.value)};
+#endif
+#else
+    throw exception{errc::feature_not_supported,
+                    "Bfloat16 unary minus is not supported on host device"};
+#endif
   }
 
 // Increment and decrement operators overloading

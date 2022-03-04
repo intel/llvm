@@ -741,6 +741,19 @@ let TargetPrefix = "nvvm" in {
       DefaultAttrsIntrinsic<[llvm_double_ty], [llvm_double_ty], [IntrNoMem, IntrSpeculatable]>;
 
 //
+// Neg bf16, bf16x2
+//
+
+  foreach unary = ["neg"] in {
+    def int_nvvm_ # unary # _bf16 :
+      GCCBuiltin<!strconcat("__nvvm_", unary, "_bf16")>,
+      DefaultAttrsIntrinsic<[llvm_i16_ty], [llvm_i16_ty], [IntrNoMem]>;
+    def int_nvvm_ # unary # _bf16x2 :
+      GCCBuiltin<!strconcat("__nvvm_", unary, "_bf16x2")>,
+      DefaultAttrsIntrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+  }
+
+//
 // Round
 //
 

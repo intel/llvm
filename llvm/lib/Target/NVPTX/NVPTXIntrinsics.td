@@ -720,6 +720,15 @@ def INT_NVVM_FABS_D : F_MATH_1<"abs.f64 \t$dst, $src0;", Float64Regs,
   Float64Regs, int_nvvm_fabs_d>;
 
 //
+// Neg bf16, bf16x2
+//
+
+def INT_NVVM_NEG_BF16 : F_MATH_1<"neg.bf16 \t$dst, $src0;", Int16Regs,
+  Int16Regs, int_nvvm_neg_bf16>;
+def INT_NVVM_NEG_BF16X2 : F_MATH_1<"neg.bf16x2 \t$dst, $src0;", Int32Regs,
+  Int32Regs, int_nvvm_neg_bf16x2>;
+
+//
 // Round
 //
 
