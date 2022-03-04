@@ -101,8 +101,8 @@ __spirv_JointMatrixSUMadINTEL(
     __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
 template <typename T, std::size_t R, std::size_t C,
-          __spv::MatrixUse U = __spv::MatrixUse::Unnecessary,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
+          __spv::MatrixUse U = __spv::MatrixUse::Unnecessary,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, U, S> *
 __spirv_CompositeConstruct(const T v);
