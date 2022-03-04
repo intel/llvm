@@ -47,7 +47,7 @@ template <int D> struct spv_scope_traits<sycl::group<D>> {
 template <typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout = matrix_layout::row_major,
           typename Group = sycl::sub_group>
-class wi_slice;
+class wi_data;
 
 template <typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout = matrix_layout::row_major,
@@ -64,9 +64,9 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  inline __SYCL_ALWAYS_INLINE wi_slice<T, NumRows, NumCols, Layout, Group>
+  inline __SYCL_ALWAYS_INLINE wi_data<T, NumRows, NumCols, Layout, Group>
   get_wi_data() {
-    return wi_slice<T, NumRows, NumCols, Layout, Group>(*this);
+    return wi_data<T, NumRows, NumCols, Layout, Group>(*this);
   }
 };
 
@@ -455,11 +455,11 @@ public:
 
 template <typename T, size_t NumRows, size_t NumCols, matrix_layout Layout,
           typename Group>
-class wi_slice {
+class wi_data {
   joint_matrix<T, NumRows, NumCols, Layout, Group> &M;
 
 public:
-  wi_slice(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat) : M(Mat) {}
+  wi_data(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat) : M(Mat) {}
   size_t length() {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_JointMatrixWorkItemLengthINTEL(M.spvm);
