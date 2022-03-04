@@ -11625,7 +11625,7 @@ def err_sycl_non_constant_array_type : Error<
 def err_conflicting_sycl_kernel_attributes : Error<
   "conflicting attributes applied to a SYCL kernel or SYCL_EXTERNAL function">;
 def err_conflicting_sycl_function_attributes : Error<
-   "%0 attribute conflicts with '%1' attribute">;
+   "%0 attribute conflicts with %1 attribute">;
 def err_sycl_function_attribute_mismatch : Error<
   "SYCL kernel without %0 attribute can't call a function with this attribute">;
 def err_sycl_x_y_z_arguments_must_be_one : Error<

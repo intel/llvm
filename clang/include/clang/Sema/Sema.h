@@ -440,12 +440,14 @@ public:
   SYCLIntegrationFooter(Sema &S) : S(S) {}
   bool emit(StringRef MainSrc);
   void addVarDecl(const VarDecl *VD);
+  bool isDeviceGlobalsEmitted() { return DeviceGlobalsEmitted; }
 
 private:
   bool emit(raw_ostream &O);
   Sema &S;
-  llvm::SmallVector<const VarDecl *> SpecConstants;
+  llvm::SmallVector<const VarDecl *> GlobalVars;
   void emitSpecIDName(raw_ostream &O, const VarDecl *VD);
+  bool DeviceGlobalsEmitted = false;
 };
 
 /// Tracks expected type during expression parsing, for use in code completion.

@@ -78,9 +78,11 @@ Memory order is stored in the lowest 5 bits */                                  
 
 #define __CLC_NVVM_ATOMIC(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP,    \
                           NAME_MANGLED)                                        \
+  __attribute__((always_inline))                                               \
   __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP,     \
                          NAME_MANGLED, __global, AS1, _global_)                \
-  __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP,     \
-                         NAME_MANGLED, __local, AS3, _shared_)
+      __attribute__((always_inline))                                           \
+      __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP, \
+                             NAME_MANGLED, __local, AS3, _shared_)
 
 #endif
