@@ -98,7 +98,7 @@ experts and existing developers from requesting the existing compiler behavior.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_NAMED_SUB_GROUP_SIZES` to one of the values defined in the
+macro `SYCL_EXT_ONEAPI_NAMED_SUB_GROUP_SIZES` to one of the values defined in the
 table below.  Applications can test for the existence of this macro to
 determine if the implementation supports this feature, or applications can test
 the macro's value to determine which of the extension's features the
