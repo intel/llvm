@@ -19,9 +19,9 @@ namespace experimental {
 
 class
 #if defined(__SYCL_DEVICE_ONLY__)
-[[__sycl_detail__::__uses_aspects__(ext_intel_bf16_conversion)]]
+    [[__sycl_detail__::__uses_aspects__(ext_intel_bf16_conversion)]]
 #endif
-bfloat16 {
+    bfloat16 {
   using storage_t = uint16_t;
   storage_t value;
 
