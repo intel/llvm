@@ -464,7 +464,9 @@ protected:
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
   static void
-  enqueueUnlockedCommands(const EventImplPtr& UnblockedDep, const std::unordered_set<EventImplPtr> &CmdsToEnqueue,
+
+  enqueueUnlockedCommands(const EventImplPtr &UnblockedDep,
+                          const std::unordered_set<EventImplPtr> &CmdsToEnqueue,
                           std::vector<Command *> &ToCleanUp);
 
   /// Graph builder class.

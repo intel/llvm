@@ -256,7 +256,11 @@ public:
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
   std::unordered_set<Command *> MUsers;
-  /// Contains list of commands that blocks this command from being enqueued (not edges). Commands from set is moved to the top level command during dependency building process and erased when blocking host task is completed.
+
+  /// Contains list of commands that blocks this command from being enqueued
+  /// (not edges). Commands from set is moved to the top level command during
+  /// dependency building process and erased when blocking host task is
+  /// completed.
   std::unordered_set<EventImplPtr> MBlockingExplicitDeps;
   /// Indicates whether the command can be blocked from enqueueing.
   bool MIsBlockable = false;
@@ -335,9 +339,11 @@ public:
 
   bool producesPiEvent() const final;
   bool supportsPostEnqueueCleanup() const final;
-  void addBlockedUser(const EventImplPtr& NewUser) {MBlockedUsers.insert(NewUser);}
-  void removeBlockedUser(const EventImplPtr& User) {MBlockedUsers.erase(User);}
-  const std::unordered_set<EventImplPtr>& getBlockedUsers() const { return MBlockedUsers; }
+
+  void addBlockedUser(const EventImplPtr &NewUser);
+  void removeBlockedUser(const EventImplPtr &User);
+  const std::unordered_set<EventImplPtr> &getBlockedUsers() const;
+
 private:
   cl_int enqueueImp() final;
 

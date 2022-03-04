@@ -120,10 +120,11 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     if (Type != CG::CodeplayHostTask)
       EventToReturn = NewEvent;
-    else
-    {
-      ExecCGCommand* ExecCmd = static_cast<ExecCGCommand*>(NewCmd);
-      assert(ExecCmd->MEmptyCmd && "Host command nust have Empty command attached");
+
+    else {
+      ExecCGCommand *ExecCmd = static_cast<ExecCGCommand *>(NewCmd);
+      assert(ExecCmd->MEmptyCmd &&
+             "Host command nust have Empty command attached");
       EventToReturn = ExecCmd->MEmptyCmd->getEvent();
     }
 
@@ -368,12 +369,15 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::enqueueUnlockedCommands(const EventImplPtr& UnblockedDep,
+void Scheduler::enqueueUnlockedCommands(
+    const EventImplPtr &UnblockedDep,
     const std::unordered_set<EventImplPtr> &ToEnqueue,
     std::vector<Command *> &ToCleanUp) {
   for (auto &CmdEvent : ToEnqueue) {
-    Command* Cmd = static_cast<Command*>(CmdEvent->getCommand());
-    assert(Cmd && "Event with blocked command must always has not NULL command");
+    Command *Cmd = static_cast<Command *>(CmdEvent->getCommand());
+    assert(Cmd &&
+           "Event with blocked command must always has not NULL command");
+
     EnqueueResultT Res;
     bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)

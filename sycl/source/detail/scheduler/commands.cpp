@@ -290,7 +290,9 @@ public:
 
       EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-      Scheduler::enqueueUnlockedCommands(EmptyCmd->getEvent(), EmptyCmd->getBlockedUsers(), ToCleanUp);
+      Scheduler::enqueueUnlockedCommands(
+          EmptyCmd->getEvent(), EmptyCmd->getBlockedUsers(), ToCleanUp);
+
       for (const DepDesc &Dep : Deps)
         Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
     }
@@ -554,16 +556,18 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   bool PiEventExpected =
       !DepEvent->is_host() || getType() == CommandType::HOST_TASK;
   auto *DepCmd = static_cast<Command *>(DepEvent->getCommand());
-  if (DepCmd)
-  {
+
+  if (DepCmd) {
     PiEventExpected &= DepCmd->producesPiEvent();
 
-    for (auto& BlockingCmdEvent : DepCmd->MBlockingExplicitDeps)
-    {
+    for (auto &BlockingCmdEvent : DepCmd->MBlockingExplicitDeps) {
       MBlockingExplicitDeps.insert(BlockingCmdEvent);
 
-      EmptyCommand* BlockingCmd = static_cast<EmptyCommand*>(BlockingCmdEvent->getCommand());
-      assert(BlockingCmd && "Blocking cmd after cleanup must be removed from deps");
+      EmptyCommand *BlockingCmd =
+          static_cast<EmptyCommand *>(BlockingCmdEvent->getCommand());
+      assert(BlockingCmd &&
+             "Blocking cmd after cleanup must be removed from deps");
+
       BlockingCmd->removeBlockedUser(DepCmd->getEvent());
       BlockingCmd->addBlockedUser(this->MEvent);
     }
@@ -816,6 +820,16 @@ const char *Command::getBlockReason() const {
   }
 
   return "Unknown block reason";
+}
+
+void Command::addBlockedUser(const EventImplPtr &NewUser) {
+  MBlockedUsers.insert(NewUser);
+}
+void Command::removeBlockedUser(const EventImplPtr &User) {
+  MBlockedUsers.erase(User);
+}
+const std::unordered_set<EventImplPtr> &Command::getBlockedUsers() const {
+  return MBlockedUsers;
 }
 
 AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
