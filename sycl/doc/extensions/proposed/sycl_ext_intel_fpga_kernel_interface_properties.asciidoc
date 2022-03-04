@@ -23,9 +23,8 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
-This extension introduces a replacement for the kernel attributes defined in
-Section 5.8.1 of the SYCL 2020 specification, in the form of a property list
-accepting properties with compile-time constant values.
+This extension introduces new kernel properties that can be applied to kernels
+using the mechanism defined in sycl_ext_oneapi_kernel_properties.
 
 == Notice
 
@@ -55,7 +54,7 @@ Abhishek Tiwari, Intel
 This extension is written against the SYCL 2020 specification, Revision 4 and
 the following extensions:
 
-- link:sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+- sycl_ext_oneapi_properties
 - link:sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
 
 == Feature Test Macro
@@ -63,10 +62,11 @@ the following extensions:
 This extension provides a feature-test macro as described in the core SYCL
 specification section 6.3.3 "Feature test macros".  Therefore, an
 implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_KERNEL_PROPERTIES` to one of the values defined in the table
-below.  Applications can test for the existence of this macro to determine if
-the implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's APIs the implementation supports.
+`SYCL_EXT_INTEL_FPGA_KERNEL_INTERFACE_PROPERTIES` to one of the values defined
+in the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's APIs the implementation
+supports.
 
 [%header,cols="1,5"]
 |===
@@ -76,9 +76,9 @@ value to determine which of the extension's APIs the implementation supports.
 
 == Overview
 
-This extension specifies the kernel properties designed for kernels that target
-the FPGA device. These properties are supported by the Intel FPGA backend
-compiler.
+This extension introduces kernel properties to specify how or when control and
+data signals can be passed in to or out of an FPGA kernel. These properties are
+meaningless on non-FPGA devices and can be ignored on such devices.
 
 == Kernel Properties
 
@@ -88,24 +88,33 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-// Corresponds to ip_interface_streaming
-struct ip_interface_streaming_key {
-  template <bool is_stall_free_return>
-  using value_t = property_value<ip_interface_streaming_key, std::bool_constant<bool, is_stall_free_return>>;
-}; // ip_interface_streaming_key
+// Corresponds to streaming_kernel
+struct streaming_kernel_key {
+  using value_t = property_value<streaming_kernel_key>;
+}; // streaming_kernel_key
 
-// Corresponds to ip_interface_streaming_stall_free_return
-struct ip_pipelined_key {
-  using value_t = property_value<ip_pipelined_key>;
-}; // ip_pipelined_key
+// Corresponds to csr_kernel
+struct csr_kernel_key {
+  using value_t = property_value<csr_kernel_key>;
+}; // csr_kernel_key
 
-template<bool is_stall_free_return = false>
-inline constexpr ip_interface_streaming_key::value_t<is_stall_free_return> ip_interface_streaming;
-inline constexpr bool ip_stall_free_return = true;
+// Corresponds to stall_free_return_kernel
+struct stall_free_return_kernel_key {
+  using value_t = property_value<stall_free_return_kernel_key>;
+}; // stall_free_return_kernel_key
 
-inline constexpr ip_interface_streaming_key::value_t ip_interface_streaming_stall_free_return;
+// Corresponds to pipelined_kernel
+struct pipelined_kernel_key {
+  using value_t = property_value<pipelined_kernel_key>;
+}; // pipelined_kernel_key
 
-inline constexpr ip_interface_streaming_key::value_t ip_pipelined;
+inline constexpr streaming_kernel_key::value_t streaming_kernel;
+
+inline constexpr csr_kernel_key::value_t csr_kernel;
+
+inline constexpr stall_free_return_kernel_key::value_t stall_free_return_kernel;
+
+inline constexpr pipelined_kernel_key::value_t pipelined_kernel;
 
 } // namespace experimental
 } // namespace oneapi
@@ -115,23 +124,24 @@ inline constexpr ip_interface_streaming_key::value_t ip_pipelined;
 
 |===
 |Property|Description
-|`ip_interface_streaming`
-|The `ip_interface_streaming` property adds the requirement that the kernel must
- have dedicated ports for input / output signals in the generated
- Register Transfer Level (RTL) module.
- 
- The property takes a constant boolean template argument. When the value of the
- argument is `true` it adds the requirement that the kernel module should not
- take a 'stall' control flow signal from downstream logic as input. The kernel
- can take such an input signal otherwise. Pass the value `true` to this argument
- when the downstream logic is known to not stall.
- 
- For convenience, a constant bool named `stall_free_return` with the value
- `true` is provided.
+|`streaming_kernel`
+|The `streaming_kernel` property adds the requirement that the kernel must
+ have dedicated ports for input / output signals. This applies for both
+ control, and kernel argument data signals.
 
-|`ip_pipelined`
-| The `ip_pipelined` property adds the requirement that the kernel's logic be
-  pipelined.
+|`csr_kernel`
+|The `csr_kernel` property adds the requirement that the kernel must have
+ its input / output control and kernel argument data signals placed in a shared
+ Control and Status Register (CSR) map.
+
+|`stall_free_return_kernel`
+|The `stall_free_return_kernel` property provides the compiler the guarantee
+ that downstream logic will not back-pressure the kernel.
+
+|`pipelined_kernel`
+| The `pipelined_kernel` property directs the compiler to pipeline calls to the
+ kernel so that multiple invocations of the kernel can be in flight
+ simultaneously.
 
 |===
 
@@ -141,11 +151,16 @@ Device compilers that do not support this extension may accept and ignore these
 == Adding a Property List to a Kernel Launch
 
 A simple example of using this extension to launch a kernel with a streaming
- interface which does not need to accept a 'stall' control flow signal from
- downstream logic is given below:
+ interface is shown below.
+
+The example assumes that the kernel will not be back-pressured by the downstream
+logic and hence uses the property `stall_free_return_kernel`:
 
 ```c++
-sycl::ext::oneapi::experimental::properties properties{sycl::ext::oneapi::experimental::ip_interface_streaming<ip_stall_free_return>};
+sycl::ext::oneapi::experimental::properties properties{
+  sycl::ext::oneapi::experimental::streaming_kernel,
+  sycl::ext::oneapi::experimental::stall_free_return_kernel};
+
 q.single_task(properties, [=]() {
   *a = *b + *c;
 }).wait();
@@ -167,8 +182,8 @@ struct KernelFunctor {
 
   auto get(sycl::ext::oneapi::experimental::properties_tag) {
     return sycl::ext::oneapi::experimental::properties{
-      sycl::ext::oneapi::experimental::ip_interface_streaming<
-        ip_stall_free_return>};
+      sycl::ext::oneapi::experimental::streaming_kernel,
+      sycl::ext::oneapi::experimental::stall_free_return_kernel};
   }
 
   int* a;
