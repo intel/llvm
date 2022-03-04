@@ -24,11 +24,7 @@
 #endif // __SYCL_DEVICE_ONLY__
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace esimd {
-namespace detail {
+namespace __ESIMD_DNS {
 
 /// ESIMD intrinsic operand size in bytes.
 struct OperandSize {
@@ -191,12 +187,7 @@ public:
   }
 };
 
-} // namespace detail
-
-} // namespace esimd
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __ESIMD_DNS
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 /// @endcond ESIMD_DETAIL

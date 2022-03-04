@@ -22,10 +22,7 @@
 #include <cstdint>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace esimd {
+namespace __ESIMD_NS {
 
 /// @addtogroup sycl_esimd_math
 /// @{
@@ -961,8 +958,5 @@ ESIMD_INLINE ESIMD_NODEBUG T0 reduce(simd<T1, SZ> v, BinaryOperation op) {
 
 /// @} sycl_esimd_math
 
-} // namespace esimd
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __ESIMD_NS
 } // __SYCL_INLINE_NAMESPACE(cl)

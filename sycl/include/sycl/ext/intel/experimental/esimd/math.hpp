@@ -16,11 +16,7 @@
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
-namespace esimd {
+namespace __ESIMD_ENS {
 
 /// @addtogroup sycl_esimd_bitmanip
 /// @{
@@ -2253,9 +2249,5 @@ __ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(__ESIMD_NS::simd<T1, N1> src1,
 }
 /// @} sycl_esimd_systolic_array_api
 
-} // namespace esimd
-} // namespace experimental
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __ESIMD_ENS
 } // __SYCL_INLINE_NAMESPACE(cl)

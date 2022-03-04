@@ -14,10 +14,7 @@
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace esimd {
+namespace __ESIMD_NS {
 
 /// @addtogroup sycl_esimd_core_vectors
 /// @{
@@ -227,8 +224,5 @@ public:
 
 /// @} sycl_esimd_core_vectors
 
-} // namespace esimd
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __ESIMD_NS
 } // __SYCL_INLINE_NAMESPACE(cl)

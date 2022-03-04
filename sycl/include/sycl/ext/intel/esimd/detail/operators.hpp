@@ -24,11 +24,7 @@
 // etc. on the table).
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace esimd {
-namespace detail {
+namespace __ESIMD_DNS {
 // clang-format off
 /// @addtogroup sycl_esimd_core
 /// @{
@@ -485,9 +481,5 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
 
 #undef __ESIMD_DEF_SIMD_VIEW_CMP_OP
 
-} // namespace detail
-} // namespace esimd
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __ESIMD_DNS
 } // __SYCL_INLINE_NAMESPACE(cl)

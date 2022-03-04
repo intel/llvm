@@ -15,12 +15,7 @@
 #include <sycl/ext/intel/esimd/detail/util.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
-namespace esimd {
-namespace detail {
+namespace __ESIMD_EDNS {
 
 template <unsigned int N, unsigned int M>
 constexpr unsigned int roundUpNextMultiple() {
@@ -57,12 +52,7 @@ struct is_one_of_enum<enumClass, Checked, First, Else...> {
 template <typename enumClass, enumClass... T>
 inline constexpr bool is_one_of_enum_v = is_one_of_enum<enumClass, T...>::value;
 
-} // namespace detail
-} // namespace esimd
-} // namespace experimental
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __ESIMD_EDNS
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 /// @endcond ESIMD_DETAIL

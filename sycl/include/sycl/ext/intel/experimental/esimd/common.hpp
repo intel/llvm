@@ -21,11 +21,7 @@
 /// @endcond ESIMD_DETAIL
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
-namespace esimd {
+namespace __ESIMD_ENS {
 
 /// @addtogroup sycl_esimd_core
 /// @{
@@ -424,9 +420,5 @@ enum class split_barrier_action : uint8_t {
 
 /// @} sycl_esimd_core
 
-} // namespace esimd
-} // namespace experimental
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __ESIMD_ENS
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -24,10 +24,7 @@
 #endif // __SYCL_DEVICE_ONLY__
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace esimd {
+namespace __ESIMD_NS {
 
 /// @addtogroup sycl_esimd_core
 /// @{
@@ -176,10 +173,7 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 
 /// @} sycl_esimd_core_vectors
 
-} // namespace esimd
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __ESIMD_NS
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 /// @ingroup sycl_esimd_misc

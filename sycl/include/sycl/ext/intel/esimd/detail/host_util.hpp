@@ -32,12 +32,7 @@ class half;
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace esimd {
-namespace emu {
-namespace detail {
+namespace __ESIMD_EMU_DNS {
 
 using half = sycl::detail::half_impl::half;
 constexpr int sat_is_on = 1;
@@ -707,12 +702,7 @@ template <> struct dwordtype<unsigned int> {
   static const bool value = true;
 };
 
-} // namespace detail
-} // namespace emu
-} // namespace esimd
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __ESIMD_EMU_DNS
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #endif // #ifndef __SYCL_DEVICE_ONLY__

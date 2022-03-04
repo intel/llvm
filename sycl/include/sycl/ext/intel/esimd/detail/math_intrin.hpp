@@ -203,21 +203,13 @@ __ESIMD_INTRIN int __esimd_lane_id();
   }
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace esimd {
-namespace detail {
+namespace __ESIMD_DNS {
 // TODO support half vectors in std sycl math functions.
 ESIMD_MATH_INTRINSIC_IMPL(float, sin)
 ESIMD_MATH_INTRINSIC_IMPL(float, cos)
 ESIMD_MATH_INTRINSIC_IMPL(float, exp)
 ESIMD_MATH_INTRINSIC_IMPL(float, log)
-} // namespace detail
-} // namespace esimd
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __ESIMD_DNS
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef __ESIMD_SIMT_BEGIN
