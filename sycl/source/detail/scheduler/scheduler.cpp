@@ -357,6 +357,17 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
+void Scheduler::enqueueUnlockedCommands(
+    const std::unordered_set<Command *> &CmdsToEnqueue,
+    std::vector<Command *> &ToCleanUp) {
+  for (auto &Cmd : CmdsToEnqueue) {
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+  }
+}
+
 void Scheduler::allocateStreamBuffers(stream_impl *Impl,
                                       size_t StreamBufferSize,
                                       size_t FlushBufferSize) {

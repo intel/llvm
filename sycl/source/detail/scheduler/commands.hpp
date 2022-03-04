@@ -122,6 +122,7 @@ public:
                                 std::vector<Command *> &ToCleanUp);
 
   void addUser(Command *NewUser) { MUsers.insert(NewUser); }
+  void addExplicitUser(Command *NewUser) { MExplicitUsers.insert(NewUser); }
 
   /// \return type of the command, e.g. Allocate, MemoryCopy.
   CommandType getType() const { return MType; }
@@ -201,10 +202,10 @@ public:
   /// for memory copy commands.
   virtual const QueueImplPtr &getWorkerQueue() const;
 
-  /// Returns true iff the command produces a PI event on non-host devices.
+  /// Returns true if the command produces a PI event on non-host devices.
   virtual bool producesPiEvent() const;
 
-  /// Returns true iff this command can be freed by post enqueue cleanup.
+  /// Returns true if this command can be freed by post enqueue cleanup.
   virtual bool supportsPostEnqueueCleanup() const;
 
 protected:
@@ -256,6 +257,10 @@ public:
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
   std::unordered_set<Command *> MUsers;
+  /// Contains list of commands that depend on the host command explicitly (by
+  /// depends_on). Not involved into cleanup process since it is one-way link
+  /// and not holds resources.
+  std::unordered_set<Command *> MExplicitUsers;
   /// Indicates whether the command can be blocked from enqueueing.
   bool MIsBlockable = false;
   /// Counts the number of memory objects this command is a leaf for.
@@ -332,6 +337,7 @@ public:
   void emitInstrumentationData() override;
 
   bool producesPiEvent() const final;
+  bool supportsPostEnqueueCleanup() const final;
 
 private:
   cl_int enqueueImp() final;

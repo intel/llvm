@@ -1226,22 +1226,6 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
     if (CmdT == Command::ALLOCA || CmdT == Command::ALLOCA_SUB_BUF)
       continue;
 
-    // We should enqueue empty cmd without deps for cleanup only when related
-    // Cmd is planned to be deleted. Host task doesn't support post enqueue
-    // cleanup so here we definitely know that it will be marked as
-    // MToBeDeleted.
-    if (Cmd->getType() == Command::CommandType::RUN_CG) {
-      auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-      if (ExecCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask &&
-          !ExecCmd->MEmptyCmd->MDeps.size()) {
-        assert(ExecCmd->MEmptyCmd && "EmptyTask must be attached to HOST_TASK");
-        assert(Cmd->MUsers.size() == 1 &&
-               (*Cmd->MUsers.begin()) == ExecCmd->MEmptyCmd &&
-               "HostTask must have the only user which is EmptyTask");
-        MCmdsToVisit.push(ExecCmd->MEmptyCmd);
-      }
-    }
-
     for (Command *UserCmd : Cmd->MUsers) {
       for (DepDesc &Dep : UserCmd->MDeps) {
         // Link the users of the command to the alloca command(s) instead

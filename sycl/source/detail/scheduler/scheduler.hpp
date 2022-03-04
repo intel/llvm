@@ -463,6 +463,9 @@ protected:
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
+  static void
+  enqueueUnlockedCommands(const std::unordered_set<Command *> &CmdsToEnqueue,
+                          std::vector<Command *> &ToCleanUp);
 
   /// Graph builder class.
   ///

@@ -284,12 +284,19 @@ public:
       Scheduler::ReadLockT Lock(Sched.MGraphLock);
 
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
+      std::unordered_set<Command *> ExtraCommandsToEnqueue =
+          MThisCmd->MExplicitUsers;
+      // EmptyCmd enqueue is redundant when we have "users" and other deps but
+      // is essential when we have no sych dependencies and should do enqueue to
+      // trigger cleanup and prevent leak.
+      ExtraCommandsToEnqueue.insert(EmptyCmd);
 
       // update self-event status
       MThisCmd->MEvent->setComplete();
 
       EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
+      Scheduler::enqueueUnlockedCommands(ExtraCommandsToEnqueue, ToCleanUp);
       for (const DepDesc &Dep : Deps)
         Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
     }
@@ -552,13 +559,22 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // distinction since the command might still be unenqueued at this point.
   bool PiEventExpected =
       !DepEvent->is_host() || getType() == CommandType::HOST_TASK;
-  if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
+  auto *DepCmd = static_cast<Command *>(DepEvent->getCommand());
+  if (DepCmd)
     PiEventExpected &= DepCmd->producesPiEvent();
 
   if (!PiEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
     MPreparedHostDepsEvents.push_back(DepEvent);
+    // Explicit use is a notification approach of host task completion only
+    if (DepCmd && DepCmd->getType() == CommandType::HOST_TASK) {
+      DepCmd->addExplicitUser(this);
+      EmptyCommand *EmptyCmd = static_cast<ExecCGCommand *>(DepCmd)->MEmptyCmd;
+      assert(EmptyCmd &&
+             "EmptyCmd must be not nullptr for a valid host command");
+      MPreparedHostDepsEvents.push_back(EmptyCmd->getEvent());
+    }
     return nullptr;
   }
 
@@ -1575,6 +1591,13 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
 }
 
 bool EmptyCommand::producesPiEvent() const { return false; }
+
+bool EmptyCommand::supportsPostEnqueueCleanup() const {
+  // Even if it is isolated it is not cleaned up separately because not rendered
+  // after addCG (only paired host task is enqueued there and analyzed be
+  // released).
+  return true;
+}
 
 void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
