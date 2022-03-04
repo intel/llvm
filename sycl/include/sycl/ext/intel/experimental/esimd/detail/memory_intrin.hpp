@@ -432,13 +432,10 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
   static_assert(TySizeLog2 <= 2);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
 
-  // ActualTy - Reverse of 'PromoT' in memory.hpp
-  using ActualTy = std::conditional_t<
-      sizeof(Ty) == __SEIEED::ElemsPerAddrDecoding(TySizeLog2), Ty,
-      std::conditional_t<
-          TySizeLog2 == 1,
-          std::conditional_t<std::is_signed<Ty>::value, short, unsigned short>,
-          std::conditional_t<std::is_signed<Ty>::value, char, unsigned char>>>;
+  // determine the original element's type size (as __esimd_scatter_scaled requires vals to be
+  // a vector of 4-byte integers)
+  size_t OrigSize = __SEIEED::ElemsPerAddrDecoding(TySizeLog2);
+  using OrigTyAsInt = detail::uint_type_t<OrigSize>;
 
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
