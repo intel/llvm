@@ -426,13 +426,11 @@ template <class T, unsigned VL, unsigned STRIDE> bool test(queue q) {
   passed &= test_impl<T, VL, STRIDE, MEM_GATHER, TEST_SCALAR>(q);
   passed &= test_impl<T, VL, STRIDE, MEM_GATHER, TEST_VECTOR_NO_MASK>(q);
   passed &= test_impl<T, VL, STRIDE, MEM_GATHER, TEST_VECTOR_CONST_MASK>(q);
-  // TODO FIXME enable TEST_VECTOR_VAR_MASK test cases once the VCBE bug with
-  // handling non-compile-time constant masks in scatter is fixed.
-  // passed &= test_impl<T, VL, STRIDE, MEM_GATHER, TEST_VECTOR_VAR_MASK>(q);
+  passed &= test_impl<T, VL, STRIDE, MEM_GATHER, TEST_VECTOR_VAR_MASK>(q);
   passed &= test_impl<T, VL, STRIDE, MEM_SCATTER, TEST_SCALAR>(q);
   passed &= test_impl<T, VL, STRIDE, MEM_SCATTER, TEST_VECTOR_NO_MASK>(q);
   passed &= test_impl<T, VL, STRIDE, MEM_SCATTER, TEST_VECTOR_CONST_MASK>(q);
-  // passed &= test_impl<T, VL, STRIDE, MEM_SCATTER, TEST_VECTOR_VAR_MASK>(q);
+  passed &= test_impl<T, VL, STRIDE, MEM_SCATTER, TEST_VECTOR_VAR_MASK>(q);
   return passed;
 }
 

@@ -9,9 +9,6 @@
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL: *
-// TODO: once BE problem is fixed and this test starts to pass, need to also
-// enable TEST_VECTOR_VAR_MASK test cases in slm_gather_scatter_heavy.cpp
 //
 // This is a regression test for the VC BE bug which generates incorrect code in
 // some cases in presence of variable (not compile-time constant) mask
@@ -44,16 +41,16 @@ struct KernelAcc {
 #endif
 #ifdef USE_RAW_API
     constexpr int val = MASKED_LANE;
-    simd<int, VL>::vector_type v{val, val, val, val, val, val, val, val};
-    simd_mask<VL>::vector_type pred{1, 1, 1, 1, 1, 1, 1, 1};
+    simd<int, VL>::raw_vector_type v{val, val, val, val, val, val, val, val};
+    simd_mask<VL>::raw_vector_type pred{1, 1, 1, 1, 1, 1, 1, 1};
     pred[masked_lane] = 0;
 #if defined(USE_WORKAROUND)
-    pred = __builtin_convertvector(pred == 1, simd_mask<VL>::vector_type);
+    pred = __builtin_convertvector(pred == 1, simd_mask<VL>::raw_vector_type);
 #endif
-    simd<uint32_t, VL>::vector_type offsets = {0, 4, 8, 12, 16, 20, 24, 28};
+    simd<uint32_t, VL>::raw_vector_type offsets = {0, 4, 8, 12, 16, 20, 24, 28};
     SurfaceIndex si = get_surface_index(acc);
-    __esimd_scatter_scaled<int, VL, unsigned int, 2, 0, CacheHint::None,
-                           CacheHint::None>(pred, si, 0, offsets, v);
+    __esimd_scatter_scaled<int, VL, unsigned int, 2, 0>(pred, si, 0, offsets,
+                                                        v);
 #else
     simd<int, VL> v(MASKED_LANE);
     simd_mask<VL> pred = 1;
@@ -138,7 +135,7 @@ int main(int argc, char **argv) {
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
   std::cout << "MaskedLane=" << MASKED_LANE << "\n";
 
-  bool passed = false;
+  bool passed = true;
 
   passed &= test("accessor", q, [&](int *B) {
     sycl::buffer<int, 1> Bbuf(B, range<1>(VL));
@@ -157,6 +154,6 @@ int main(int argc, char **argv) {
     });
   });
 
-  std::cout << (passed ? "Test FAILED\n" : "Test passed\n");
+  std::cout << (passed ? "Test passed\n" : "Test FAILED\n");
   return passed ? 0 : 1;
 }
