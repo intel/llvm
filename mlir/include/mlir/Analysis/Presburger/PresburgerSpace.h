@@ -15,13 +15,14 @@
 #define MLIR_ANALYSIS_PRESBURGER_PRESBURGERSPACE_H
 
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace mlir {
 
 class PresburgerLocalSpace;
 
-/// PresburgerSpace is a tuple of identifiers with information about what kind
-/// they correspond to. The identifiers can be split into three types:
+/// PresburgerSpace is the space of all possible values of a tuple of integer
+/// valued variables/identifiers. Each identifier has one of the three types:
 ///
 /// Dimension: Ordinary variables over which the space is represented.
 ///
@@ -30,24 +31,63 @@ class PresburgerLocalSpace;
 /// family of spaces indexed by the symbolic identifiers.
 ///
 /// Local: Local identifiers correspond to existentially quantified variables.
+/// For example, consider the space: `(x, exists q)` where x is a dimension
+/// identifier and q is a local identifier. Let us put the constraints:
+///       `1 <= x <= 7, x = 2q`
+/// on this space to get the set:
+///       `(x) : (exists q : q <= x <= 7, x = 2q)`.
+/// An assignment to symbolic and dimension variables is valid if there
+/// exists some assignment to the local variable `q` satisfying these
+/// constraints. For this example, the set is equivalent to {2, 4, 6}.
+/// Mathematically, existential quantification can be thought of as the result
+/// of projection. In this example, `q` is existentially quantified. This can be
+/// thought of as the result of projecting out `q` from the previous example,
+/// i.e. we obtained {2, 4, 6} by projecting out the second dimension from
+/// {(2, 1), (4, 2), (6, 2)}.
 ///
-/// PresburgerSpace only supports identifiers of kind Dimension and Symbol.
+/// Dimension identifiers are further divided into Domain and Range identifiers
+/// to support building relations.
+///
+/// Spaces with distinction between domain and range identifiers should use
+/// IdKind::Domain and IdKind::Range to refer to domain and range identifiers.
+/// Identifiers for such spaces are stored in the following order:
+///       [Domain, Range, Symbols, Locals]
+///
+/// Spaces with no distinction between domain and range identifiers should use
+/// IdKind::SetDim to refer to dimension identifiers. Identifiers for such
+/// spaces are stored in the following order:
+///       [SetDim, Symbol, Locals]
+///
+/// PresburgerSpace does not allow identifiers of kind Local. See
+/// PresburgerLocalSpace for an extension that does allow local identifiers.
 class PresburgerSpace {
   friend PresburgerLocalSpace;
 
 public:
-  /// Kind of identifier (column).
-  enum IdKind { Dimension, Symbol, Local };
+  /// Kind of identifier. Implementation wise SetDims are treated as Range
+  /// ids, and spaces with no distinction between dimension ids are treated
+  /// as relations with zero domain ids.
+  enum IdKind { Symbol, Local, Domain, Range, SetDim = Range };
 
-  PresburgerSpace(unsigned numDims, unsigned numSymbols)
-      : numDims(numDims), numSymbols(numSymbols), numLocals(0) {}
+  static PresburgerSpace getRelationSpace(unsigned numDomain, unsigned numRange,
+                                          unsigned numSymbols);
+
+  static PresburgerSpace getSetSpace(unsigned numDims, unsigned numSymbols);
 
   virtual ~PresburgerSpace() = default;
 
-  unsigned getNumIds() const { return numDims + numSymbols + numLocals; }
-  unsigned getNumDimIds() const { return numDims; }
+  unsigned getNumDomainIds() const { return numDomain; }
+  unsigned getNumRangeIds() const { return numRange; }
   unsigned getNumSymbolIds() const { return numSymbols; }
-  unsigned getNumDimAndSymbolIds() const { return numDims + numSymbols; }
+  unsigned getNumSetDimIds() const { return numRange; }
+
+  unsigned getNumDimIds() const { return numDomain + numRange; }
+  unsigned getNumDimAndSymbolIds() const {
+    return numDomain + numRange + numSymbols;
+  }
+  unsigned getNumIds() const {
+    return numDomain + numRange + numSymbols + numLocals;
+  }
 
   /// Get the number of ids of the specified kind.
   unsigned getNumIdKind(IdKind kind) const;
@@ -78,12 +118,36 @@ public:
   /// split become dimensions.
   void setDimSymbolSeparation(unsigned newSymbolCount);
 
-private:
-  PresburgerSpace(unsigned numDims, unsigned numSymbols, unsigned numLocals)
-      : numDims(numDims), numSymbols(numSymbols), numLocals(numLocals) {}
+  void print(llvm::raw_ostream &os) const;
+  void dump() const;
 
-  /// Number of identifiers corresponding to real dimensions.
-  unsigned numDims;
+protected:
+  /// Space constructor for Relation space type.
+  PresburgerSpace(unsigned numDomain, unsigned numRange, unsigned numSymbols)
+      : PresburgerSpace(Relation, numDomain, numRange, numSymbols,
+                        /*numLocals=*/0) {}
+
+  /// Space constructor for Set space type.
+  PresburgerSpace(unsigned numDims, unsigned numSymbols)
+      : PresburgerSpace(Set, /*numDomain=*/0, numDims, numSymbols,
+                        /*numLocals=*/0) {}
+
+private:
+  /// Kind of space.
+  enum SpaceKind { Set, Relation };
+
+  PresburgerSpace(SpaceKind spaceKind, unsigned numDomain, unsigned numRange,
+                  unsigned numSymbols, unsigned numLocals)
+      : spaceKind(spaceKind), numDomain(numDomain), numRange(numRange),
+        numSymbols(numSymbols), numLocals(numLocals) {}
+
+  SpaceKind spaceKind;
+
+  // Number of identifiers corresponding to domain identifiers.
+  unsigned numDomain;
+
+  // Number of identifiers corresponding to range identifiers.
+  unsigned numRange;
 
   /// Number of identifiers corresponding to symbols (unknown but constant for
   /// analysis).
@@ -96,9 +160,13 @@ private:
 /// Extension of PresburgerSpace supporting Local identifiers.
 class PresburgerLocalSpace : public PresburgerSpace {
 public:
-  PresburgerLocalSpace(unsigned numDims, unsigned numSymbols,
-                       unsigned numLocals)
-      : PresburgerSpace(numDims, numSymbols, numLocals) {}
+  static PresburgerLocalSpace getRelationSpace(unsigned numDomain,
+                                               unsigned numRange,
+                                               unsigned numSymbols,
+                                               unsigned numLocals);
+
+  static PresburgerLocalSpace getSetSpace(unsigned numDims, unsigned numSymbols,
+                                          unsigned numLocals);
 
   unsigned getNumLocalIds() const { return numLocals; }
 
@@ -110,6 +178,20 @@ public:
 
   /// Removes identifiers in the column range [idStart, idLimit).
   void removeIdRange(unsigned idStart, unsigned idLimit) override;
+
+  void print(llvm::raw_ostream &os) const;
+  void dump() const;
+
+protected:
+  /// Local Space constructor for Relation space type.
+  PresburgerLocalSpace(unsigned numDomain, unsigned numRange,
+                       unsigned numSymbols, unsigned numLocals)
+      : PresburgerSpace(Relation, numDomain, numRange, numSymbols, numLocals) {}
+
+  /// Local Space constructor for Set space type.
+  PresburgerLocalSpace(unsigned numDims, unsigned numSymbols,
+                       unsigned numLocals)
+      : PresburgerSpace(Set, /*numDomain=*/0, numDims, numSymbols, numLocals) {}
 };
 
 } // namespace mlir

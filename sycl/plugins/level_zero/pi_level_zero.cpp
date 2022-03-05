@@ -343,6 +343,26 @@ private:
 
 } // anonymous namespace
 
+// SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE can be set to an integer (>=0) in
+// which case all compute commands will be submitted to the command-queue
+// with the given index in the compute command group. If it is instead set
+// to negative (or unset) then all available compute engines may be used.
+//
+static const std::pair<int, int> getRangeOfAllowedComputeEngines = [] {
+  const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
+  // If the environment variable is not set, all available compute engines
+  // can be used.
+  if (!EnvVar)
+    return std::pair<int, int>(0, INT_MAX);
+
+  auto EnvVarValue = std::atoi(EnvVar);
+  if (EnvVarValue >= 0) {
+    return std::pair<int, int>(EnvVarValue, EnvVarValue);
+  }
+
+  return std::pair<int, int>(0, INT_MAX);
+}();
+
 // SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE can be set to an integer value, or
 // a pair of integer values of the form "lower_index:upper_index".
 // Here, the indices point to copy engines in a list of all available copy
@@ -679,11 +699,6 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
     if (QueueGroup[queue_group_info_t::Compute].ZeOrdinal < 0) {
       return PI_ERROR_UNKNOWN;
     }
-
-    // The index for a root or a sub-device is always 0.
-    // TODO: we want to start submitting to multiple queues in the
-    // compute group for more parallelism.
-    QueueGroup[queue_group_info_t::Compute].ZeIndex = 0;
 
     if (CopyEngineRequested) {
       for (uint32_t i = 0; i < numQueueGroups; i++) {
@@ -1028,7 +1043,7 @@ static const zeCommandListBatchConfig ZeCommandListBatchCopyConfig = [] {
   return ZeCommandListBatchConfig(IsCopy{true});
 }();
 
-_pi_queue::_pi_queue(ze_command_queue_handle_t Queue,
+_pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      pi_context Context, pi_device Device,
                      bool OwnZeCommandQueue,
@@ -1036,11 +1051,32 @@ _pi_queue::_pi_queue(ze_command_queue_handle_t Queue,
     : Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
       Properties(PiQueueProperties) {
 
-  // Compute group has currently single CCS only.
-  ComputeQueueGroup.ZeQueues.push_back(Queue);
-  ComputeQueueGroup.LowerIndex = 0;
-  ComputeQueueGroup.UpperIndex = 0;
-  ComputeQueueGroup.NextIndex = 0;
+  // Compute group initialization.
+  // First, see if the queue's device allows for round-robin or it is
+  // fixed to one particular compute CCS (it is so for sub-sub-devices).
+  auto &ComputeQueueGroupInfo = Device->QueueGroup[queue_type::Compute];
+  if (ComputeQueueGroupInfo.ZeIndex >= 0) {
+    ComputeQueueGroup.LowerIndex = ComputeQueueGroupInfo.ZeIndex;
+    ComputeQueueGroup.UpperIndex = ComputeQueueGroupInfo.ZeIndex;
+    ComputeQueueGroup.NextIndex = ComputeQueueGroupInfo.ZeIndex;
+  } else {
+    ComputeQueueGroup.LowerIndex = 0;
+    ComputeQueueGroup.UpperIndex = INT_MAX;
+    ComputeQueueGroup.NextIndex = 0;
+  }
+
+  uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines.first;
+  uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines.second;
+  FilterUpperIndex =
+      std::min((size_t)FilterUpperIndex, ComputeQueues.size() - 1);
+  if (FilterLowerIndex <= FilterUpperIndex) {
+    ComputeQueueGroup.ZeQueues = ComputeQueues;
+    ComputeQueueGroup.LowerIndex = FilterLowerIndex;
+    ComputeQueueGroup.UpperIndex = FilterUpperIndex;
+    ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
+  } else {
+    die("No compute queue available.");
+  }
 
   // Copy group initialization.
   if (getRangeOfAllowedCopyEngines.first < 0 ||
@@ -1473,6 +1509,12 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
 
   ZeCommandQueueDesc.ordinal = *QueueGroupOrdinal;
   ZeCommandQueueDesc.index = ZeCommandQueueIndex;
+  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
+
+  zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
+          "(round robin in [%d, %d])\n",
+          ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+          UpperIndex);
 
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -3086,59 +3128,38 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
                              PI_QUEUE_ON_DEVICE_DEFAULT)),
             PI_INVALID_VALUE);
 
-  ze_device_handle_t ZeDevice;
-  ze_command_queue_handle_t ZeComputeCommandQueue;
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
+  PI_ASSERT(Queue, PI_INVALID_QUEUE);
+  PI_ASSERT(Device, PI_INVALID_DEVICE);
 
   if (std::find(Context->Devices.begin(), Context->Devices.end(), Device) ==
       Context->Devices.end()) {
     return PI_INVALID_DEVICE;
   }
 
-  PI_ASSERT(Device, PI_INVALID_DEVICE);
+  // Create placeholder queues in the compute queue group.
+  // Actual L0 queues will be created at first use.
+  std::vector<ze_command_queue_handle_t> ZeComputeCommandQueues(
+      Device->QueueGroup[_pi_queue::queue_type::Compute].ZeProperties.numQueues,
+      nullptr);
 
-  ZeDevice = Device->ZeDevice;
-  auto &ComputeQueueGroup =
-      Device->QueueGroup[_pi_device::queue_group_info_t::Compute];
-  ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
-  ZeCommandQueueDesc.ordinal = ComputeQueueGroup.ZeOrdinal;
-  ZeCommandQueueDesc.index = ComputeQueueGroup.ZeIndex;
-  // TODO: add round-robin through compute CCS.
-  if (ComputeQueueGroup.ZeIndex == -1)
-    ZeCommandQueueDesc.index = 0;
-
-  ZE_CALL(zeCommandQueueCreate,
-          (Context->ZeContext, ZeDevice,
-           &ZeCommandQueueDesc, // TODO: translate properties
-           &ZeComputeCommandQueue));
-
-  std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
-
-  // Create a placeholder in ZeCopyCommandQueues for a queue that will be used
-  // to submit commands to main copy engine. This queue is initially NULL and
-  // will be replaced by the Ze Command Queue which gets created just before its
-  // first use.
-  ze_command_queue_handle_t ZeMainCopyCommandQueue = nullptr;
+  // Create placeholder queues in the copy queue group (main and link
+  // native groups are combined into one group).
+  // Actual L0 queues will be created at first use.
+  size_t NumCopyGroups = 0;
   if (Device->hasMainCopyEngine()) {
-    ZeCopyCommandQueues.push_back(ZeMainCopyCommandQueue);
+    NumCopyGroups += Device->QueueGroup[_pi_queue::queue_type::MainCopy]
+                         .ZeProperties.numQueues;
   }
-
-  // Create additional 'placeholder queues' to link copy engines and push them
-  // into ZeCopyCommandQueues.
   if (Device->hasLinkCopyEngine()) {
-    auto ZeNumLinkCopyQueues =
-        Device->QueueGroup[_pi_device::queue_group_info_t::LinkCopy]
-            .ZeProperties.numQueues;
-    for (uint32_t i = 0; i < ZeNumLinkCopyQueues; ++i) {
-      ze_command_queue_handle_t ZeLinkCopyCommandQueue = nullptr;
-      ZeCopyCommandQueues.push_back(ZeLinkCopyCommandQueue);
-    }
+    NumCopyGroups += Device->QueueGroup[_pi_queue::queue_type::LinkCopy]
+                         .ZeProperties.numQueues;
   }
-  PI_ASSERT(Queue, PI_INVALID_QUEUE);
+  std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues(NumCopyGroups,
+                                                             nullptr);
 
   try {
-    *Queue = new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueues, Context,
+    *Queue = new _pi_queue(ZeComputeCommandQueues, ZeCopyCommandQueues, Context,
                            Device, true, Properties);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
@@ -3361,6 +3382,8 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
+  // Assume this is the "0" index queue in the compute command-group.
+  std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
 
   // Attach the queue to the "0" device.
   // TODO: see if we need to let user choose the device.
@@ -3370,7 +3393,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   // all commands to the "ZeQueue".
   std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
   *Queue =
-      new _pi_queue(ZeQueue, ZeroCopyQueues, Context, Device, OwnNativeHandle);
+      new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device, OwnNativeHandle);
   return PI_SUCCESS;
 }
 
