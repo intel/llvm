@@ -114,8 +114,12 @@ public:
 
   size_t get_group_id(int dimension) const { return index[dimension]; }
 
+  __SYCL2020_DEPRECATED(
+      "sycl::group::get_global_range() is removed in SYCL 2020")
   range<Dimensions> get_global_range() const { return globalRange; }
 
+  __SYCL2020_DEPRECATED(
+      "sycl::group::get_global_range() is removed in SYCL 2020")
   size_t get_global_range(int dimension) const {
     return globalRange[dimension];
   }
