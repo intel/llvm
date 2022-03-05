@@ -403,6 +403,10 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     if (!CompileOpts.empty())
       CompileOpts += " ";
     CompileOpts += "-vc-codegen";
+    // Allow warning and performance hints from vc/finalizer if the RT warning
+    // level is at least 1.
+    if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() == 0)
+      CompileOpts += " -disable-finalizer-msg";
   }
 }
 
