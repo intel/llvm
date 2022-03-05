@@ -82,7 +82,8 @@ a|
 ```c++
 property::buffer_location
 ``` | The buffer_location property notifies the SYCL device compiler that the given accessor will only ever point to the memory identified by the int template parameter of its instance class.
-It also notifies the SYCL runtime to store the given accessor in that memory. | Yes
+It also notifies the SYCL runtime to store the given accessor in that memory. 
+This property is ignored for devices that don't support ```c++ cl_intel_mem_alloc_buffer_location ``` extension. | Yes
 |===
 --
 
