@@ -413,9 +413,7 @@ static void applyOptionsFromImage(std::string &CompileOpts,
   appendLinkOptionsFromImage(LinkOpts, Img);
 }
 
-static void applyOptionsFromEnvironment(std::string &CompileOpts,
-                                        std::string &LinkOpts) {
-  // Build options are overridden if environment variables are present.
+static void applyCompileOptionsFromEnvironment(std::string &CompileOpts) {
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
   static const char *CompileOptsEnv =
@@ -423,10 +421,22 @@ static void applyOptionsFromEnvironment(std::string &CompileOpts,
   if (CompileOptsEnv) {
     CompileOpts = CompileOptsEnv;
   }
+}
+
+static void applyLinkOptionsFromEnvironment(std::string &LinkOpts) {
+  // Environment variables are not changed during program lifecycle so it
+  // is reasonable to use static here to read them only once.
   static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
   if (LinkOptsEnv) {
     LinkOpts = LinkOptsEnv;
   }
+}
+
+static void applyOptionsFromEnvironment(std::string &CompileOpts,
+                                        std::string &LinkOpts) {
+  // Build options are overridden if environment variables are present.
+  applyCompileOptionsFromEnvironment(CompileOpts);
+  applyLinkOptionsFromEnvironment(LinkOpts);
 }
 
 std::pair<RT::PiProgram, bool> ProgramManager::getOrCreatePIProgram(
@@ -1691,8 +1701,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 
   // TODO: Handle zero sized Device list.
   std::string CompileOptions;
-  std::string TmpStr;
-  applyOptionsFromEnvironment(CompileOptions, TmpStr);
+  applyCompileOptionsFromEnvironment(CompileOptions);
   appendCompileOptionsFromImage(CompileOptions,
                                 *(InputImpl->get_bin_image_ref()));
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
@@ -1727,8 +1736,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
   std::string LinkOptionsStr;
-  std::string TmpStr;
-  applyOptionsFromEnvironment(TmpStr, LinkOptionsStr);
+  applyLinkOptionsFromEnvironment(LinkOptionsStr);
   if (LinkOptionsStr.empty()) {
     for (const device_image_plain &DeviceImage : DeviceImages) {
       const std::shared_ptr<device_image_impl> &InputImpl =
