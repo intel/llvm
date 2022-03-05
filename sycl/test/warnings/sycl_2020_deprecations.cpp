@@ -187,6 +187,10 @@ int main() {
   group.get_id(1);
   // expected-warning@+1{{'get_linear_id' is deprecated: use sycl::group::get_group_linear_id() instead}}
   group.get_linear_id();
+  // expected-warning@+1{{'get_global_range' is deprecated: sycl::group::get_global_range() is removed in SYCL 2020}}
+  group.get_global_range();
+  // expected-warning@+1{{'get_global_range' is deprecated: sycl::group::get_global_range() is removed in SYCL 2020}}
+  group.get_global_range(1);
 
   return 0;
 }
