@@ -822,13 +822,13 @@ const char *Command::getBlockReason() const {
   return "Unknown block reason";
 }
 
-void Command::addBlockedUser(const EventImplPtr &NewUser) {
+void EmptyCommand::addBlockedUser(const EventImplPtr &NewUser) {
   MBlockedUsers.insert(NewUser);
 }
-void Command::removeBlockedUser(const EventImplPtr &User) {
+void EmptyCommand::removeBlockedUser(const EventImplPtr &User) {
   MBlockedUsers.erase(User);
 }
-const std::unordered_set<EventImplPtr> &Command::getBlockedUsers() const {
+const std::unordered_set<EventImplPtr> &EmptyCommand::getBlockedUsers() const {
   return MBlockedUsers;
 }
 
