@@ -1691,6 +1691,8 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 
   // TODO: Handle zero sized Device list.
   std::string CompileOptions;
+  std::string TmpStr;
+  applyOptionsFromEnvironment(CompileOptions, TmpStr);
   appendCompileOptionsFromImage(CompileOptions,
                                 *(InputImpl->get_bin_image_ref()));
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
@@ -1725,11 +1727,15 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
   std::string LinkOptionsStr;
-  for (const device_image_plain &DeviceImage : DeviceImages) {
-    const std::shared_ptr<device_image_impl> &InputImpl =
-        getSyclObjImpl(DeviceImage);
-    appendLinkOptionsFromImage(LinkOptionsStr,
-                               *(InputImpl->get_bin_image_ref()));
+  std::string TmpStr;
+  applyOptionsFromEnvironment(TmpStr, LinkOptionsStr);
+  if (LinkOptionsStr.empty()) {
+    for (const device_image_plain &DeviceImage : DeviceImages) {
+      const std::shared_ptr<device_image_impl> &InputImpl =
+          getSyclObjImpl(DeviceImage);
+      appendLinkOptionsFromImage(LinkOptionsStr,
+                                *(InputImpl->get_bin_image_ref()));
+    }
   }
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
