@@ -14,8 +14,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda || hip
 // UNSUPPORTED: ze_debug-1,ze_debug4
-// TODO: esimd_emulator fails due to unimplemented __esimd_scatter_scaled
-// XFAIL: esimd_emulator
 //
 // The test checks that ESIMD kernels correctly handle function pointers as
 // arguments of LLVM's PHI function.
