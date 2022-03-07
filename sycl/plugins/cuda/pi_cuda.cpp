@@ -1732,6 +1732,10 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     }
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
+  case PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER: {
+    int value = getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >= 8;
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
 
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
