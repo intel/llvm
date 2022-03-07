@@ -154,7 +154,7 @@ Several changes are needed to the DPC++ runtime
 * The runtime implements the `read` and `write` functions of the pipe 
   class. These will use this [host pipe API][3].
   
-[3] https://github.com/intel-sandbox/ip-authoring-specs/blob/MJ_ChangeDocs4/Pipe/Spec/cl_intel_host_pipe_symbol.asciidocdefined
+[3] https://github.com/intel-sandbox/ip-authoring-specs/blob/MJ_ChangeDocs4/Pipe/Spec/cl_intel_host_pipe_symbol.asciidoc
 
 ### Open Questions
 
