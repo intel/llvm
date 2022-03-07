@@ -37,7 +37,7 @@ void func(sycl::queue q) {
 Device global variables, by contrast, are referenced by their address:
 
 ```
-sycl::ext::oneapi::device_global<int> dev_var;
+sycl::ext::oneapi::experimental::device_global<int> dev_var;
 
 void func(sycl::queue q) {
   int val = 42;
@@ -254,7 +254,7 @@ class __sycl_device_global_registration {
  public:
   __sycl_device_global_registration() noexcept;
 };
-__sycl_device_global_registration __sycl_device_global_registerer;
+__sycl_device_global_registration __sycl_device_global_registrar;
 
 } // namespace (unnamed)
 } // namespace sycl::detail
@@ -297,7 +297,7 @@ constructed before subsequent global variables in the same translation unit.
 Therefore, a user application could reference a device global from another
 global constructor only if that global constructor is for an object defined
 *after* the device global in the same translation unit.  However, the
-integration header defines `__sycl_device_global_registerer` *before* all
+integration header defines `__sycl_device_global_registrar` *before* all
 device globals in the user's translation unit.  Therefore, the address of all
 device global variables in the translation unit will be registered with the
 DPC++ runtime before any user code could legally use them.

@@ -1988,7 +1988,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**BreakBeforeConceptDeclarations** (``BreakBeforeConceptDeclarationsStyle``) :versionbadge:`clang-format 13`
+**BreakBeforeConceptDeclarations** (``BreakBeforeConceptDeclarationsStyle``) :versionbadge:`clang-format 12`
   The concept declaration style to use.
 
   Possible values:
@@ -2278,7 +2278,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**EmptyLineBeforeAccessModifier** (``EmptyLineBeforeAccessModifierStyle``) :versionbadge:`clang-format 13`
+**EmptyLineBeforeAccessModifier** (``EmptyLineBeforeAccessModifierStyle``) :versionbadge:`clang-format 12`
   Defines in which cases to put empty line before access modifiers.
 
   Possible values:
@@ -2706,9 +2706,11 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**IndentRequiresClause** (``Boolean``) :versionbadge:`clang-format 13`
+**IndentRequiresClause** (``Boolean``) :versionbadge:`clang-format 15`
   Indent the requires clause in a template. This only applies when
   ``RequiresClausePosition`` is ``OwnLine``, or ``WithFollowing``.
+
+  In clang-format 13 and 14 it was named ``IndentRequires``.
 
   .. code-block:: c++
 
@@ -2753,6 +2755,39 @@ the configuration (without a prefix: ``Auto``).
      false:
      LoooooooooooooooooooooooooooooooooooooooongReturnType
      LoooooooooooooooooooooooooooooooongFunctionDeclaration();
+
+**InsertBraces** (``Boolean``) :versionbadge:`clang-format 15`
+  Insert braces after control statements (``if``, ``else``, ``for``, ``do``,
+  and ``while``) in C++ unless the control statements are inside macro
+  definitions or the braces would enclose preprocessor directives.
+
+  .. warning:: 
+
+   Setting this option to `true` could lead to incorrect code formatting due
+   to clang-format's lack of complete semantic information. As such, extra
+   care should be taken to review code changes made by this option.
+
+  .. code-block:: c++
+
+    false:                                    true:
+
+    if (isa<FunctionDecl>(D))        vs.      if (isa<FunctionDecl>(D)) {
+      handleFunctionDecl(D);                    handleFunctionDecl(D);
+    else if (isa<VarDecl>(D))                 } else if (isa<VarDecl>(D)) {
+      handleVarDecl(D);                         handleVarDecl(D);
+    else                                      } else {
+      return;                                   return;
+                                              }
+
+    while (i--)                      vs.      while (i--) {
+      for (auto *A : D.attrs())                 for (auto *A : D.attrs()) {
+        handleAttr(A);                            handleAttr(A);
+                                                }
+                                              }
+
+    do                               vs.      do {
+      --i;                                      --i;
+    while (i);                                } while (i);
 
 **InsertTrailingCommas** (``TrailingCommaStyle``) :versionbadge:`clang-format 12`
   If set to ``TCS_Wrapped`` will insert trailing commas in container

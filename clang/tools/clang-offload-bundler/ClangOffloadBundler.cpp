@@ -25,6 +25,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Object/Archive.h"

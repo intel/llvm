@@ -1690,7 +1690,7 @@
 ?depends_on@handler@sycl@cl@@QEAAXVevent@23@@Z
 ?destructorNotification@buffer_impl@detail@sycl@cl@@QEAAXPEAX@Z
 ?determineHostPtr@SYCLMemObjT@detail@sycl@cl@@IEAAXAEBV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@_NAEAPEAXAEA_N@Z
-?device_has@queue@sycl@cl@@QEBA_NW4aspect@23@@Z
+?device_has@queue@sycl@cl@@AEBA_NW4aspect@23@@Z
 ?die@pi@detail@sycl@cl@@YAXPEBD@Z
 ?discard_or_return@queue@sycl@cl@@AEAA?AVevent@23@AEBV423@@Z
 ?distance@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V34562@0@Z
