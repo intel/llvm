@@ -80,7 +80,7 @@ supports.
  feature-test macro always has this value.
 |===
 
-=== New member function declarations
+=== New functions
 
 This extension allows the `sycl::native::exp2` function (that originally
 supports `genfloatf` types) to support `genfloath` types in the
