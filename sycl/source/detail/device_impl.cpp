@@ -327,7 +327,7 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::ext_oneapi_srgb>();
   case aspect::ext_oneapi_native_assert:
     return isAssertFailSupported();
-  case aspect::ext_oneapi_cuda_async_barrier:{
+  case aspect::ext_oneapi_cuda_async_barrier: {
     int async_barrier_supported;
     bool call_successful =
         getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
