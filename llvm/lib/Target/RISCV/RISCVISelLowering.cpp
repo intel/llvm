@@ -1041,7 +1041,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   }
   setTargetDAGCombine(ISD::ANY_EXTEND);
   setTargetDAGCombine(ISD::INTRINSIC_WO_CHAIN);
-  if (Subtarget.hasStdExtZfh())
+  if (Subtarget.hasStdExtZfh() || Subtarget.hasStdExtZbb())
     setTargetDAGCombine(ISD::SIGN_EXTEND_INREG);
   if (Subtarget.hasStdExtF()) {
     setTargetDAGCombine(ISD::ZERO_EXTEND);
@@ -7346,45 +7346,57 @@ static SDValue transformAddShlImm(SDNode *N, SelectionDAG &DAG,
 }
 
 // Combine
-// ROTR ((GREV x, 24), 16) -> (GREVI x, 8)
-// ROTL ((GREV x, 24), 16) -> (GREVI x, 8)
-// RORW ((GREVW x, 24), 16) -> (GREVIW x, 8)
-// ROLW ((GREVW x, 24), 16) -> (GREVIW x, 8)
+// ROTR ((GREV x, 24), 16) -> (GREVI x, 8) for RV32
+// ROTL ((GREV x, 24), 16) -> (GREVI x, 8) for RV32
+// ROTR ((GREV x, 56), 32) -> (GREVI x, 24) for RV64
+// ROTL ((GREV x, 56), 32) -> (GREVI x, 24) for RV64
+// RORW ((GREVW x, 24), 16) -> (GREVIW x, 8) for RV64
+// ROLW ((GREVW x, 24), 16) -> (GREVIW x, 8) for RV64
+// The grev patterns represents BSWAP.
+// FIXME: This can be generalized to any GREV. We just need to toggle the MSB
+// off the grev.
 static SDValue combineROTR_ROTL_RORW_ROLW(SDNode *N, SelectionDAG &DAG,
                                           const RISCVSubtarget &Subtarget) {
+  bool IsWInstruction =
+      N->getOpcode() == RISCVISD::RORW || N->getOpcode() == RISCVISD::ROLW;
   assert((N->getOpcode() == ISD::ROTR || N->getOpcode() == ISD::ROTL ||
-          N->getOpcode() == RISCVISD::RORW ||
-          N->getOpcode() == RISCVISD::ROLW) &&
+          IsWInstruction) &&
          "Unexpected opcode!");
   SDValue Src = N->getOperand(0);
+  EVT VT = N->getValueType(0);
   SDLoc DL(N);
-  unsigned Opc;
 
   if (!Subtarget.hasStdExtZbp())
     return SDValue();
 
-  if ((N->getOpcode() == ISD::ROTR || N->getOpcode() == ISD::ROTL) &&
-      Src.getOpcode() == RISCVISD::GREV)
-    Opc = RISCVISD::GREV;
-  else if ((N->getOpcode() == RISCVISD::RORW ||
-            N->getOpcode() == RISCVISD::ROLW) &&
-           Src.getOpcode() == RISCVISD::GREVW)
-    Opc = RISCVISD::GREVW;
-  else
+  unsigned GrevOpc = IsWInstruction ? RISCVISD::GREVW : RISCVISD::GREV;
+  if (Src.getOpcode() != GrevOpc)
     return SDValue();
 
   if (!isa<ConstantSDNode>(N->getOperand(1)) ||
       !isa<ConstantSDNode>(Src.getOperand(1)))
     return SDValue();
 
+  unsigned BitWidth = IsWInstruction ? 32 : VT.getSizeInBits();
+  assert(isPowerOf2_32(BitWidth) && "Expected a power of 2");
+
+  // Needs to be a rotate by half the bitwidth for ROTR/ROTL or by 16 for
+  // RORW/ROLW. And the grev should be the encoding for bswap for this width.
   unsigned ShAmt1 = N->getConstantOperandVal(1);
   unsigned ShAmt2 = Src.getConstantOperandVal(1);
-  if (ShAmt1 != 16 && ShAmt2 != 24)
+  if (BitWidth < 16 || ShAmt1 != (BitWidth / 2) || ShAmt2 != (BitWidth - 8))
     return SDValue();
 
   Src = Src.getOperand(0);
-  return DAG.getNode(Opc, DL, N->getValueType(0), Src,
-                     DAG.getConstant(8, DL, N->getOperand(1).getValueType()));
+
+  // Toggle bit the MSB of the shift.
+  unsigned CombinedShAmt = ShAmt1 ^ ShAmt2;
+  if (CombinedShAmt == 0)
+    return Src;
+
+  return DAG.getNode(
+      GrevOpc, DL, VT, Src,
+      DAG.getConstant(CombinedShAmt, DL, N->getOperand(1).getValueType()));
 }
 
 // Combine (GREVI (GREVI x, C2), C1) -> (GREVI x, C1^C2) when C1^C2 is
@@ -7605,14 +7617,42 @@ static SDValue performXORCombine(SDNode *N, SelectionDAG &DAG) {
   return combineSelectAndUseCommutative(N, DAG, /*AllOnes*/ false);
 }
 
-static SDValue performSIGN_EXTEND_INREG(SDNode *N, SelectionDAG &DAG) {
+static SDValue
+performSIGN_EXTEND_INREGCombine(SDNode *N, SelectionDAG &DAG,
+                                const RISCVSubtarget &Subtarget) {
   SDValue Src = N->getOperand(0);
+  EVT VT = N->getValueType(0);
 
   // Fold (sext_inreg (fmv_x_anyexth X), i16) -> (fmv_x_signexth X)
   if (Src.getOpcode() == RISCVISD::FMV_X_ANYEXTH &&
       cast<VTSDNode>(N->getOperand(1))->getVT().bitsGE(MVT::i16))
-    return DAG.getNode(RISCVISD::FMV_X_SIGNEXTH, SDLoc(N), N->getValueType(0),
+    return DAG.getNode(RISCVISD::FMV_X_SIGNEXTH, SDLoc(N), VT,
                        Src.getOperand(0));
+
+  // Fold (i64 (sext_inreg (abs X), i32)) ->
+  // (i64 (smax (sext_inreg (neg X), i32), X)) if X has more than 32 sign bits.
+  // The (sext_inreg (neg X), i32) will be selected to negw by isel. This
+  // pattern occurs after type legalization of (i32 (abs X)) on RV64 if the user
+  // of the (i32 (abs X)) is a sext or setcc or something else that causes type
+  // legalization to add a sext_inreg after the abs. The (i32 (abs X)) will have
+  // been type legalized to (i64 (abs (sext_inreg X, i32))), but the sext_inreg
+  // may get combined into an earlier operation so we need to use
+  // ComputeNumSignBits.
+  // NOTE: (i64 (sext_inreg (abs X), i32)) can also be created for
+  // (i64 (ashr (shl (abs X), 32), 32)) without any type legalization so
+  // we can't assume that X has 33 sign bits. We must check.
+  if (Subtarget.hasStdExtZbb() && Subtarget.is64Bit() &&
+      Src.getOpcode() == ISD::ABS && Src.hasOneUse() && VT == MVT::i64 &&
+      cast<VTSDNode>(N->getOperand(1))->getVT() == MVT::i32 &&
+      DAG.ComputeNumSignBits(Src.getOperand(0)) > 32) {
+    SDLoc DL(N);
+    SDValue Freeze = DAG.getFreeze(Src.getOperand(0));
+    SDValue Neg =
+        DAG.getNode(ISD::SUB, DL, VT, DAG.getConstant(0, DL, MVT::i64), Freeze);
+    Neg = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i64, Neg,
+                      DAG.getValueType(MVT::i32));
+    return DAG.getNode(ISD::SMAX, DL, MVT::i64, Freeze, Neg);
+  }
 
   return SDValue();
 }
@@ -8232,7 +8272,7 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::XOR:
     return performXORCombine(N, DAG);
   case ISD::SIGN_EXTEND_INREG:
-    return performSIGN_EXTEND_INREG(N, DAG);
+    return performSIGN_EXTEND_INREGCombine(N, DAG, Subtarget);
   case ISD::ANY_EXTEND:
     return performANY_EXTENDCombine(N, DCI, Subtarget);
   case ISD::ZERO_EXTEND:
@@ -11015,24 +11055,13 @@ RISCVTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
   std::pair<Register, const TargetRegisterClass *> Res =
       TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 
-  if (Res.second == &RISCV::GPRF32RegClass) {
-    if (!Subtarget.is64Bit() || VT == MVT::Other)
-      return std::make_pair(Res.first, &RISCV::GPRRegClass);
-    return std::make_pair(0, nullptr);
-  }
-
-  if (Res.second == &RISCV::GPRF64RegClass ||
-      Res.second == &RISCV::GPRPF64RegClass) {
-    if (Subtarget.is64Bit() || VT == MVT::Other)
-      return std::make_pair(Res.first, &RISCV::GPRRegClass);
-    return std::make_pair(0, nullptr);
-  }
-
-  if (Res.second == &RISCV::GPRF16RegClass) {
-    if (VT == MVT::Other)
-      return std::make_pair(Res.first, &RISCV::GPRRegClass);
-    return std::make_pair(0, nullptr);
-  }
+  // If we picked one of the Zfinx register classes, remap it to the GPR class.
+  // FIXME: When Zfinx is supported in CodeGen this will need to take the
+  // Subtarget into account.
+  if (Res.second == &RISCV::GPRF16RegClass ||
+      Res.second == &RISCV::GPRF32RegClass ||
+      Res.second == &RISCV::GPRF64RegClass)
+    return std::make_pair(Res.first, &RISCV::GPRRegClass);
 
   return Res;
 }

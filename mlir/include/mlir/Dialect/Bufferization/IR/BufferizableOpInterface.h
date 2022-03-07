@@ -28,8 +28,8 @@ class FuncOp;
 namespace bufferization {
 
 class BufferizableOpInterface;
-struct BufferizationOptions;
 class BufferizationState;
+struct DialectBufferizationState;
 
 /// Options for ComprehensiveBufferize.
 struct BufferizationOptions {
@@ -44,6 +44,11 @@ struct BufferizationOptions {
   /// Memcpy function: Generate a memcpy between two buffers.
   using MemCpyFn =
       std::function<LogicalResult(OpBuilder &, Location, Value, Value)>;
+  /// Initializer function for bufferization state.
+  using BufferizationStateInitFn = std::function<void(BufferizationState &)>;
+  /// Initializer function for dialect-specific bufferization state.
+  using DialectStateInitFn =
+      std::function<std::unique_ptr<DialectBufferizationState>()>;
 
   /// An op filter entry. Filters can be used to specify which ops should be
   /// processed by the bufferization.
@@ -228,6 +233,14 @@ struct BufferizationOptions {
   /// DENY-filtered and have at least one matching ALLOW filter are processed.
   SmallVector<OpFilterEntry> opFilter;
 
+  /// Initializer functions for bufferization state. These can be used to
+  /// initialize dialect-specific bufferization state.
+  SmallVector<BufferizationStateInitFn> stateInitializers;
+
+  /// Add a bufferization state initializer that initializes the specified
+  /// dialect-specific bufferization state.
+  void addDialectStateInitializer(StringRef name, DialectStateInitFn fn);
+
 private:
   /// Allow a dialect.
   template <typename DialectT>
@@ -362,6 +375,12 @@ public:
     return static_cast<StateT &>(*dialectState[name]);
   }
 
+  void insertDialectState(StringRef name,
+                          std::unique_ptr<DialectBufferizationState> state) {
+    assert(!dialectState.count(name) && "dialect state already initialized");
+    dialectState[name] = std::move(state);
+  }
+
   /// Return a reference to the BufferizationOptions.
   const BufferizationOptions &getOptions() const { return options; }
 
@@ -403,6 +422,17 @@ public:
 /// must be replaced with memref values.
 void replaceOpWithBufferizedValues(RewriterBase &rewriter, Operation *op,
                                    ValueRange values);
+
+/// Lookup the buffer for the given value. If the value was not bufferized yet,
+/// wrap it in a ToMemrefOp. Otherwise, it is the result of a ToTensorOp, from
+/// which the memref operand is returned.
+///
+/// Note: Use `BufferizationState::getBuffer` during bufferization.
+/// `lookupBuffer` is just for compatibility and gradual migration of
+/// bufferization patterns to BufferizableOpInterface-based bufferization. It
+/// does not insert any buffer copies.
+Value lookupBuffer(RewriterBase &rewriter, Value tensor,
+                   const BufferizationOptions &options);
 
 /// Replace an op with a new op. The new op must have the same number of
 /// results as the replaced op. The new op may not return any tensor values.

@@ -583,6 +583,29 @@ TEST_F(FormatTest, FormatIfWithoutCompoundStatement) {
                "  }\n"
                "g();");
 
+  verifyFormat("if consteval {\n}");
+  verifyFormat("if !consteval {\n}");
+  verifyFormat("if not consteval {\n}");
+  verifyFormat("if consteval {\n} else {\n}");
+  verifyFormat("if !consteval {\n} else {\n}");
+  verifyFormat("if consteval {\n"
+               "  f();\n"
+               "}");
+  verifyFormat("if !consteval {\n"
+               "  f();\n"
+               "}");
+  verifyFormat("if consteval {\n"
+               "  f();\n"
+               "} else {\n"
+               "  g();\n"
+               "}");
+  verifyFormat("if CONSTEVAL {\n"
+               "  f();\n"
+               "}");
+  verifyFormat("if !CONSTEVAL {\n"
+               "  f();\n"
+               "}");
+
   verifyFormat("if (a)\n"
                "  g();");
   verifyFormat("if (a) {\n"
@@ -1569,6 +1592,9 @@ TEST_F(FormatTest, FormatShortBracedStatements) {
   verifyFormat("if (true) {}", AllowSimpleBracedStatements);
   verifyFormat("if constexpr (true) {}", AllowSimpleBracedStatements);
   verifyFormat("if CONSTEXPR (true) {}", AllowSimpleBracedStatements);
+  verifyFormat("if consteval {}", AllowSimpleBracedStatements);
+  verifyFormat("if !consteval {}", AllowSimpleBracedStatements);
+  verifyFormat("if CONSTEVAL {}", AllowSimpleBracedStatements);
   verifyFormat("MYIF (true) {}", AllowSimpleBracedStatements);
   verifyFormat("MYIF constexpr (true) {}", AllowSimpleBracedStatements);
   verifyFormat("MYIF CONSTEXPR (true) {}", AllowSimpleBracedStatements);
@@ -1577,9 +1603,13 @@ TEST_F(FormatTest, FormatShortBracedStatements) {
   verifyFormat("if (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("if constexpr (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("if CONSTEXPR (true) { f(); }", AllowSimpleBracedStatements);
+  verifyFormat("if consteval { f(); }", AllowSimpleBracedStatements);
+  verifyFormat("if CONSTEVAL { f(); }", AllowSimpleBracedStatements);
   verifyFormat("MYIF (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("MYIF constexpr (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("MYIF CONSTEXPR (true) { f(); }", AllowSimpleBracedStatements);
+  verifyFormat("MYIF consteval { f(); }", AllowSimpleBracedStatements);
+  verifyFormat("MYIF CONSTEVAL { f(); }", AllowSimpleBracedStatements);
   verifyFormat("while (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("for (;;) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("if (true) { fffffffffffffffffffffff(); }",
@@ -24942,6 +24972,20 @@ TEST_F(FormatTest, RemoveBraces) {
                "  }\n"
                "  return -i;\n"
                "};",
+               Style);
+
+  verifyFormat("if (a)\n"
+               "  foo();\n"
+               "else\n"
+               "  bar();",
+               "if (a)\n"
+               "{\n"
+               "  foo();\n"
+               "}\n"
+               "else\n"
+               "{\n"
+               "  bar();\n"
+               "}",
                Style);
 
   // FIXME: See https://github.com/llvm/llvm-project/issues/53543.
