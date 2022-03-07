@@ -1110,8 +1110,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
           ExecCmd->getAuxiliaryResources();
       ExecCmd->clearAuxiliaryResources();
       AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
-                                       AuxResources.begin(),
-                                       AuxResources.end());
+                                      AuxResources.begin(), AuxResources.end());
     }
 
     for (Command *UserCmd : Cmd->MUsers)
@@ -1232,8 +1231,7 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
           ExecCmd->getAuxiliaryResources();
       ExecCmd->clearAuxiliaryResources();
       AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
-                                       AuxResources.begin(),
-                                       AuxResources.end());
+                                      AuxResources.begin(), AuxResources.end());
     }
 
     for (const DepDesc &Dep : Cmd->MDeps) {
