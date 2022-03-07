@@ -129,13 +129,11 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
       // Parse out buffer location property
       // Buffer location is only supported on FPGA devices
-      bool IsBufferLocSupported = true;
-      if (!Dev.has_extension("cl_intel_mem_alloc_buffer_location")) {
-        IsBufferLocSupported = false;
-      }
-      if (PropList.has_property<cl::sycl::ext::intel::experimental::property::
-                                    usm::buffer_location>() &&
-          IsBufferLocSupported) {
+      bool IsBufferLocSupported =
+          Dev.has_extension("cl_intel_mem_alloc_buffer_location");
+      if (IsBufferLocSupported &&
+          PropList.has_property<cl::sycl::ext::intel::experimental::property::
+                                    usm::buffer_location>()) {
         auto location = PropList
                             .get_property<cl::sycl::ext::intel::experimental::
                                               property::usm::buffer_location>()
