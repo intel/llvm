@@ -53,20 +53,20 @@ void math_prefer_softlogic_no_propagate(Function f)
   f();
 }
 
-// Preference: Control the hardware implementation of math operations in the
-// lambda expression.
-// -- DSP: Prefer math operations to be implemented in DSPs.
-// -- Softlogic: Prefer math operations to be implemented in soft-logic.
-// -- Compiler_default: Compiler determines the implementation based on the data
-// type and math operation.
-//
-// Propagate: Determine the propagation of 'Preference' to function calls in the
-// lambda expression.
-// -- On: 'Preference' recursively applies to math operations in all function
-// calls in the lambda expression.
-// -- Off: 'Preference' applies only to math operations directly inside the
-// lambda expression. Math operations in function calls inside the lambda
-// expression are not affected by 'Preference'.
+/// Preference: Control the hardware implementation of math operations in the
+/// lambda expression.
+/// -- DSP: Prefer math operations to be implemented in DSPs.
+/// -- Softlogic: Prefer math operations to be implemented in soft-logic.
+/// -- Compiler_default: Compiler determines the implementation based on the
+/// data type and math operation.
+///
+/// Propagate: Determine the propagation of 'Preference' to function calls in
+/// the lambda expression.
+/// -- On: 'Preference' recursively applies to math operations in all function
+/// calls in the lambda expression.
+/// -- Off: 'Preference' applies only to math operations directly inside the
+/// lambda expression. Math operations in function calls inside the lambda
+/// expression are not affected by 'Preference'.
 template <Preference my_preference = Preference::DSP,
           Propagate my_propagate = Propagate::On, typename Function>
 void math_dsp_control(Function f) {
