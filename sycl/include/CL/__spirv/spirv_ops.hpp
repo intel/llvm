@@ -755,8 +755,6 @@ __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
 extern SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
 #endif
 
-extern SYCL_EXTERNAL __SYCL_EXPORT uint16_t __clc_fabs(uint16_t) noexcept;
-
 #define __CLC_BF16(...) \
 extern SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fabs(__VA_ARGS__) noexcept; \
 extern SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fmin(__VA_ARGS__, __VA_ARGS__) noexcept; \
