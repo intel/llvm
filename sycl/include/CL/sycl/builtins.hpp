@@ -191,18 +191,6 @@ detail::enable_if_t<detail::is_genfloat<T>::value, T> fma(T a, T b,
   return __sycl_std::__invoke_fma<T>(a, b, c);
 }
 
-// genfloath fma_relu (genfloath a, genfloath b, genfloath c)
-// BF16 : uint16_t fma_relu (uint16_t a, uint16_t b, uint16_t c)
-// BF16X2 : uint32_t fma_relu (uint32_t a, uint32_t b, uint32_t c)
-template <typename T>
-detail::enable_if_t<detail::is_genfloath<T>::value ||
-                        std::is_same<T, uint16_t>::value ||
-                        std::is_same<T, uint32_t>::value,
-                    T>
-fma(T a, T b, T c) __NOEXC {
-  return __sycl_std::__invoke_fma<T>(a, b, c);
-}
-
 // genfloat fmax (genfloat x, genfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_genfloat<T>::value, T> fmax(T x, T y) __NOEXC {
