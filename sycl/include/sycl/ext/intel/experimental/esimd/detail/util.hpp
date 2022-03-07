@@ -84,6 +84,11 @@ static ESIMD_INLINE constexpr bool isPowerOf2(unsigned int n,
   return (n & (n - 1)) == 0 && n <= limit;
 }
 
+template <unsigned int N, unsigned int M>
+constexpr unsigned int roundUpNextMultiple() {
+  return ((N + M - 1) / M) * M;
+}
+
 /// type traits
 template <typename T> struct is_esimd_vector : public std::false_type {};
 
