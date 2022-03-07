@@ -8,7 +8,16 @@
 
 #pragma once
 
+#include <CL/sycl/builtins.hpp>
+#include <CL/sycl/detail/builtins.hpp>
+#include <CL/sycl/detail/generic_type_lists.hpp>
+#include <CL/sycl/detail/generic_type_traits.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
+
 #include <CL/__spirv/spirv_ops.hpp>
+
+// TODO Decide whether to mark functions with this attribute.
+#define __NOEXC /*noexcept*/
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_CONSTANT_AS __attribute__((opencl_constant))
@@ -71,6 +80,42 @@ int printf(const FormatT *__format, Args... args) {
   return ::printf(__format, args...);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
 }
+
+namespace native {
+
+// genfloatfh tanh (genfloatfh x)
+template <typename T>
+inline __SYCL_ALWAYS_INLINE
+    sycl::detail::enable_if_t<sycl::detail::is_genfloatf<T>::value ||
+                                  sycl::detail::is_genfloath<T>::value,
+                              T>
+    tanh(T x) __NOEXC {
+#if defined(__NVPTX__)
+  using _ocl_T = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  _ocl_T arg1 = cl::sycl::detail::convertDataToType<T, _ocl_T>(x);
+  return cl::sycl::detail::convertDataToType<_ocl_T, T>(
+      __clc_native_tanh(arg1));
+#else
+  return __sycl_std::__invoke_tanh<T>(x);
+#endif
+}
+
+// genfloath exp2 (genfloath x)
+template <typename T>
+inline __SYCL_ALWAYS_INLINE
+    sycl::detail::enable_if_t<sycl::detail::is_genfloath<T>::value, T>
+    exp2(T x) __NOEXC {
+#if defined(__NVPTX__)
+  using _ocl_T = cl::sycl::detail::ConvertToOpenCLType_t<T>;
+  _ocl_T arg1 = cl::sycl::detail::convertDataToType<T, _ocl_T>(x);
+  return cl::sycl::detail::convertDataToType<_ocl_T, T>(
+      __clc_native_exp2(arg1));
+#else
+  return __sycl_std::__invoke_exp2<T>(x);
+#endif
+}
+
+} // namespace native
 
 } // namespace experimental
 } // namespace oneapi

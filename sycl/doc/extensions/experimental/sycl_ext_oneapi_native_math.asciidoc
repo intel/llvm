@@ -1,0 +1,93 @@
+# Native math functions extension for DPC++: SYCL_ONEAPI_NATIVE_MATH
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+:dpcpp: pass:[DPC++]
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+Copyright (c) 2021-2021 Intel Corporation.  All rights reserved.
+
+IMPORTANT: This specification is a draft.
+
+NOTE: The APIs described in this specification are experimental. Future versions of this extension may change these APIs in ways that are incompatible with the versions described here.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This extension is written against the SYCL 2020 revision 4 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+## Contributors
+
+* Jack Kirk
+* Paolo Gorlani
+
+## Introduction
+
+This document proposes extending the `sycl::native::exp2` function (that supports `genfloatf` types) to support `genfloath` types in the `sycl::ext::oneapi::experimental` namespace. It also proposes introducing a new native `tanh` function supporting `genfloath` and `genfloatf` types in the `sycl::ext::oneapi::experimental` namespace.
+
+NOTE: This document does not propose `genfloatd` support for either `sycl::ext::oneapi::experimental::exp2` or `sycl::ext::oneapi::experimental::tanh`. 
+
+## Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro
+SYCL_EXT_ONEAPI_NATIVE_MATH to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro’s value
+to determine which of the extension’s APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension implementation.
+|===
+
+## Motivation
+
+The CUDA backend has introduced fast math "approx" versions of the exp2 and tanh functions for `half` and `float` types. It is considered likely that other backends will eventually introduce similar functionality, motivated particularly by deep learning use cases of these functions. We propose that the appropriate place to call such functionality in SYCL applications would be from the newly proposed native functions.
+
+## New function declarations
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+// Available only when "T" is one of the genfloath types.
+template <typename T>
+T exp2(T x);
+
+// Available only when "T" is one of the genfloatf or genfloath types.
+template <typename T>
+T tanh(T x);
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+## Issues for future discussion
+
+
+## Revision History
+
+[frame="none",options="header"]
+|======================
+|Rev |Date       |Author        |Changes
+|1   |2022-02-23 |Jack Kirk and ... |Initial working draft.
+|======================

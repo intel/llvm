@@ -205,6 +205,8 @@ BUILTIN(__nvvm_saturate_d, "dd", "")
 BUILTIN(__nvvm_ex2_approx_ftz_f, "ff", "")
 BUILTIN(__nvvm_ex2_approx_f, "ff", "")
 BUILTIN(__nvvm_ex2_approx_d, "dd", "")
+TARGET_BUILTIN(__nvvm_ex2_approx_f16, "hh", "", AND(SM_75, PTX70))
+TARGET_BUILTIN(__nvvm_ex2_approx_f16x2, "V2hV2h", "", AND(SM_75, PTX70))
 
 BUILTIN(__nvvm_lg2_approx_ftz_f, "ff", "")
 BUILTIN(__nvvm_lg2_approx_f, "ff", "")
@@ -217,6 +219,12 @@ BUILTIN(__nvvm_sin_approx_f, "ff", "")
 
 BUILTIN(__nvvm_cos_approx_ftz_f, "ff", "")
 BUILTIN(__nvvm_cos_approx_f, "ff", "")
+
+// Tanh
+
+TARGET_BUILTIN(__nvvm_tanh_approx_f, "ff", "", AND(SM_75,PTX70))
+TARGET_BUILTIN(__nvvm_tanh_approx_f16, "hh", "", AND(SM_75, PTX70))
+TARGET_BUILTIN(__nvvm_tanh_approx_f16x2, "V2hV2h", "", AND(SM_75, PTX70))
 
 // Fma
 
