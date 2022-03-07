@@ -16,11 +16,24 @@
 #define __SYCL_CONSTANT_AS
 #endif
 
+// TODO Decide whether to mark functions with this attribute.
+#define __NOEXC /*noexcept*/
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
 namespace experimental {
+
+// fma_relu returns a * b + c > 0 ? a * b + c : 0
+template <typename T>
+sycl::detail::enable_if_t<sycl::detail::is_genfloath<T>::value ||
+                              sycl::detail::is_ugenshort<T>::value ||
+                              sycl::detail::is_ugenint<T>::value,
+                          T>
+fma_relu(T a, T b, T c) __NOEXC {
+  return __sycl_std::__invoke_fma_relu<T>(a, b, c);
+}
 
 // Provides functionality to print data from kernels in a C way:
 // - On non-host devices this function is directly mapped to printf from

@@ -20,6 +20,7 @@
 #ifdef __SYCL_DEVICE_ONLY__
 #define __FUNC_PREFIX_OCL __spirv_ocl_
 #define __FUNC_PREFIX_CORE __spirv_
+#define __FUNC_PREFIX_GENERIC __clc_
 #define __SYCL_EXTERN_IT1(Ret, prefix, call, Arg1)
 #define __SYCL_EXTERN_IT2(Ret, prefix, call, Arg1, Arg2)
 #define __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, Arg)
@@ -27,6 +28,7 @@
 #else
 #define __FUNC_PREFIX_OCL
 #define __FUNC_PREFIX_CORE
+#define __FUNC_PREFIX_GENERIC
 #define __SYCL_EXTERN_IT1(Ret, prefix, call, Arg)                              \
   extern Ret __SYCL_PPCAT(prefix, call)(Arg)
 #define __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, Arg)                         \
@@ -134,6 +136,7 @@ __SYCL_MAKE_CALL_ARG1(fabs, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG2(fdim, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG1(floor, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG3(fma, __FUNC_PREFIX_OCL)
+__SYCL_MAKE_CALL_ARG3(fma_relu, __FUNC_PREFIX_GENERIC)
 __SYCL_MAKE_CALL_ARG2(fmax, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG2(fmin, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG2(fmod, __FUNC_PREFIX_OCL)

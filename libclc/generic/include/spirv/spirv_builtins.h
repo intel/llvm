@@ -14146,6 +14146,22 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
     __spirv_ocl_fma(__clc_vec16_fp16_t, __clc_vec16_fp16_t, __clc_vec16_fp16_t);
 #endif
 
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t __clc_fma_relu(__clc_fp16_t,
+                                                                 __clc_fp16_t,
+                                                                 __clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __clc_fma_relu(__clc_vec2_fp16_t, __clc_vec2_fp16_t, __clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __clc_fma_relu(__clc_vec3_fp16_t, __clc_vec3_fp16_t, __clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __clc_fma_relu(__clc_vec4_fp16_t, __clc_vec4_fp16_t, __clc_vec4_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __clc_fma_relu(__clc_vec8_fp16_t, __clc_vec8_fp16_t, __clc_vec8_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __clc_fma_relu(__clc_vec16_fp16_t, __clc_vec16_fp16_t, __clc_vec16_fp16_t);
+#endif
+
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ocl_fmax(__clc_fp32_t, __clc_fp32_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
