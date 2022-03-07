@@ -6,7 +6,7 @@ target_include_directories(sycl-trace PRIVATE
 
 target_compile_options(sycl-trace PRIVATE -fno-exceptions -fno-rtti)
 
-target_link_libraries(sycl-trace PRIVATE
+link_llvm_libs(sycl-trace
   LLVMSupport
 )
 
