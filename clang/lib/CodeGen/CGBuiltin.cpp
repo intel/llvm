@@ -15784,6 +15784,8 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
     return Builder.CreateTrunc(LoadIntrinsic, Int16Ty);
   }
   // FMA variations
+  case PPC::BI__builtin_ppc_fnmsub:
+  case PPC::BI__builtin_ppc_fnmsubs:
   case PPC::BI__builtin_vsx_xvmaddadp:
   case PPC::BI__builtin_vsx_xvmaddasp:
   case PPC::BI__builtin_vsx_xvnmaddadp:
@@ -15822,6 +15824,8 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
               F, {X, Y, Builder.CreateFNeg(Z, "neg")});
         else
           return Builder.CreateCall(F, {X, Y, Builder.CreateFNeg(Z, "neg")});
+      case PPC::BI__builtin_ppc_fnmsub:
+      case PPC::BI__builtin_ppc_fnmsubs:
       case PPC::BI__builtin_vsx_xvnmsubadp:
       case PPC::BI__builtin_vsx_xvnmsubasp:
         if (Builder.getIsFPConstrained())
@@ -15830,10 +15834,9 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
                   F, {X, Y, Builder.CreateFNeg(Z, "neg")}),
               "neg");
         else
-          return Builder.CreateFNeg(
-              Builder.CreateCall(F, {X, Y, Builder.CreateFNeg(Z, "neg")}),
-              "neg");
-    }
+          return Builder.CreateCall(
+              CGM.getIntrinsic(Intrinsic::ppc_fnmsub, ResultType), {X, Y, Z});
+      }
     llvm_unreachable("Unknown FMA operation");
     return nullptr; // Suppress no-return warning
   }
