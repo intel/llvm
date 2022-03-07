@@ -3268,12 +3268,31 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   ASTContext &Ctx = S.getASTContext();
 
+  // The arguments to reqd_work_group_size are ordered based on which index
+  // increments the fastest. In OpenCL, the first argument is the index that
+  // increments the fastest, and in SYCL, the last argument is the index that
+  // increments the fastest.
+  //
+  // [[sycl::reqd_work_group_size]] and [[cl::reqd_work_group_size]] are
+  // available in SYCL modes and follow the SYCL rules.
+  // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
+  // and follows the OpenCL rules.
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (!((getExprValue(AL.getArgAsExpr(0), Ctx) <= *A->getXDimVal()) &&
-          (getExprValue(AL.getArgAsExpr(1), Ctx) <= *A->getYDimVal()) &&
-          (getExprValue(AL.getArgAsExpr(2), Ctx) <= *A->getZDimVal()))) {
+    bool CheckFirstArgument =
+        S.getLangOpts().OpenCL
+            ? getExprValue(AL.getArgAsExpr(0), Ctx) > *A->getZDimVal()
+            : getExprValue(AL.getArgAsExpr(0), Ctx) > *A->getXDimVal();
+    bool CheckSecondArgument =
+        getExprValue(AL.getArgAsExpr(1), Ctx) > *A->getYDimVal();
+    bool CheckThirdArgument =
+        S.getLangOpts().OpenCL
+            ? getExprValue(AL.getArgAsExpr(2), Ctx) > *A->getXDimVal()
+            : getExprValue(AL.getArgAsExpr(2), Ctx) > *A->getZDimVal();
+
+    if (CheckFirstArgument || CheckSecondArgument || CheckThirdArgument) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << AL << A->getSpelling();
+          << AL << A;
+      S.Diag(A->getLocation(), diag::note_conflicting_attribute);
       Result &= false;
     }
   }
@@ -3286,7 +3305,8 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
           (getExprValue(AL.getArgAsExpr(2), Ctx) >=
            getExprValue(A->getZDim(), Ctx)))) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << AL << A->getSpelling();
+          << AL << A;
+      S.Diag(A->getLocation(), diag::note_conflicting_attribute);
       Result &= false;
     }
   }
@@ -3562,6 +3582,23 @@ static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
            ZDimExpr->getResultAsAPSInt() != 1));
 }
 
+// If the [[intel::max_work_group_size(X, Y, Z)]] attribute is specified on
+// a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
+// attribute, check to see if values of reqd_work_group_size arguments are
+// equal or less than values of max_work_group_size attribute arguments.
+static bool checkWorkGroupSizeAttrValues(const Expr *RWGS, const Expr *MWGS) {
+  // If any of the operand is still value dependent, we can't test anything.
+  const auto *RWGSCE = dyn_cast<ConstantExpr>(RWGS);
+  const auto *MWGSCE = dyn_cast<ConstantExpr>(MWGS);
+
+  if (!RWGSCE || !MWGSCE)
+    return false;
+
+  // Otherwise, check if value of reqd_work_group_size argument is
+  // greater than value of max_work_group_size attribute argument.
+  return RWGSCE->getResultAsAPSInt() > MWGSCE->getResultAsAPSInt();
+}
+
 void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
                                             const AttributeCommonInfo &CI,
                                             Expr *XDim, Expr *YDim,
@@ -3594,6 +3631,40 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   ZDim = CheckAndConvertArg(ZDim);
   if (!XDim || !YDim || !ZDim)
     return;
+
+  // If the [[intel::max_work_group_size(X, Y, Z)]] attribute is specified on
+  // a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
+  // attribute, check to see if values of reqd_work_group_size arguments are
+  // equal or less than values of max_work_group_size attribute arguments.
+  //
+  // The arguments to reqd_work_group_size are ordered based on which index
+  // increments the fastest. In OpenCL, the first argument is the index that
+  // increments the fastest, and in SYCL, the last argument is the index that
+  // increments the fastest.
+  //
+  // [[sycl::reqd_work_group_size]] and [[cl::reqd_work_group_size]] are
+  // available in SYCL modes and follow the SYCL rules.
+  // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
+  // and follows the OpenCL rules.
+  if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+    bool CheckFirstArgument =
+        getLangOpts().OpenCL
+            ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), ZDim)
+            : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), XDim);
+    bool CheckSecondArgument =
+        checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), YDim);
+    bool CheckThirdArgument =
+        getLangOpts().OpenCL
+            ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), XDim)
+            : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), ZDim);
+
+    if (CheckFirstArgument || CheckSecondArgument || CheckThirdArgument) {
+      Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << CI << DeclAttr;
+      Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
+      return;
+    }
+  }
 
   // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr, check to see if
   // the attribute holds equal values to (1, 1, 1) in case the value of
@@ -3653,6 +3724,40 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
     if (llvm::all_of(Results,
                      [](DupArgResult V) { return V == DupArgResult::Same; }))
       return nullptr;
+  }
+
+  // If the [[intel::max_work_group_size(X, Y, Z)]] attribute is specified on
+  // a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
+  // attribute, check to see if values of reqd_work_group_size arguments are
+  // equal or less than values of max_work_group_size attribute arguments.
+  //
+  // The arguments to reqd_work_group_size are ordered based on which index
+  // increments the fastest. In OpenCL, the first argument is the index that
+  // increments the fastest, and in SYCL, the last argument is the index that
+  // increments the fastest.
+  //
+  // [[sycl::reqd_work_group_size]] and [[cl::reqd_work_group_size]] are
+  // available in SYCL modes and follow the SYCL rules.
+  // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
+  // and follows the OpenCL rules.
+  if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+    bool CheckFirstArgument =
+        getLangOpts().OpenCL
+            ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getZDim())
+            : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getXDim());
+    bool CheckSecondArgument =
+        checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), A.getYDim());
+    bool CheckThirdArgument =
+        getLangOpts().OpenCL
+            ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getXDim())
+            : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getZDim());
+
+    if (CheckFirstArgument || CheckSecondArgument || CheckThirdArgument) {
+      Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << DeclAttr << &A;
+      Diag(A.getLoc(), diag::note_conflicting_attribute);
+      return nullptr;
+    }
   }
 
   // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr,
