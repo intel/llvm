@@ -79,7 +79,7 @@ Roland Schulz, Intel
 
 This extension is written against the SYCL 2020 specification, revision 3.
 
-It also depends on the `SYCL_EXT_ONEAPI_PROPERTY_LIST` extension.
+It also depends on the `SYCL_EXT_ONEAPI_PROPERTIES` extension.
 
 == Overview
 
