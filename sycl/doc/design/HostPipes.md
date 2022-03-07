@@ -10,10 +10,11 @@ links a device kernel with a host program.
 ## Requirements
 
 The extension specification document referenced above contains the full set of
-requirements for this feature, but some requirements that are particularly
-relevant to the design are called out here.
+requirements for this feature, but a requirement that is particularly
+relevant to the design, and similar in nature to one raised in the [device_global][2]
+design is called out here.
 
-The first issue relates to the mechanism for integrating host and device code.
+This issue relates to the mechanism for integrating host and device code.
 Like device global variables, host pipes are referenced in both
 host and device code, so they require some mechanism to correlate the variable
 instance in device code with the variable instance in host code. We will use
@@ -23,8 +24,6 @@ database in the integration headers and footers.
 ## Design
 
 ### Changes to DPC++ headers
-
-#### Partial specialization
 
 #### Attributes attached to the class
 
