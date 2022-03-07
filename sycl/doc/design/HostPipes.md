@@ -1,11 +1,13 @@
-# Implementation design for "HostPipes"
+# Implementation design for "Host Pipes"
 
 This document describes the implementation design for the host pipes section
-of the DPC++ extension [SYCL_INTEL_data_flow_pipes]. Pipes are a FIFO construct 
+of the DPC++ extension [SYCL_INTEL_data_flow_pipes][1]. Pipes are a FIFO construct 
 that provide links between elements of a design that are accessed through read 
 and write application programming interfaces (APIs), without the notion of a
 memory address/pointer to elements within the FIFO. A host pipe is a pipe that 
 links a device kernel with a host program.
+
+[1]: https://github.com/intel-sandbox/ip-authoring-specs/blob/main/Pipe/Spec/data_flow_pipes.asciidoc
 
 ## Requirements
 
@@ -51,11 +53,11 @@ ifdef __SYCL_DEVICE_ONLY__
 }
 ```
 The `[[__sycl_detail__::add_ir_global_variable_attributes()]]` attribute is 
-described more fully by the [compile-time properties][1] design 
+described more fully by the [compile-time properties][3] design 
 document. This attribute is also used for other classes that have properties,
 so it is not specific to the `pipe` class.
 
-[1]: <CompileTimeProperties.md>
+[3]: <CompileTimeProperties.md>
 
 ### Changes to the DPC++ front-end
 
@@ -133,7 +135,7 @@ __sycl_host_pipe_registration::__sycl_host_pipe_registration() noexcept {
 Further details on adherence to C++ rules for unconstructed objects can be found
 in the [device_global][2] design.
 
-[2]: <DeviceGlobal.md>
+[3]: <DeviceGlobal.md>
 
 Generating a unique pipe id is addressed in Open Questions below.
 
@@ -142,19 +144,17 @@ Generating a unique pipe id is addressed in Open Questions below.
 Several changes are needed to the DPC++ runtime
 
 * As we noted above, the front-end generates new content in the integration
-  footer which calls the function `sycl::detail::device_global_map::add()`.
+  footer which calls the function `sycl::detail::host_pipe_map::add()`.
   The runtime defines this function and maintains information about all the
   device global variables in the application.  This information includes:
 
   - The host address of the variable.
   - The string which uniquely identifies the variable.
 
-  We refer to this information as the "device global database" below.
-
 * The runtime implements the `read` and `write` functions of the pipe 
-  class. These will use this [host pipe API][3].
+  class. These will use this [host pipe API][4].
   
-[3] https://github.com/intel-sandbox/ip-authoring-specs/blob/MJ_ChangeDocs4/Pipe/Spec/cl_intel_host_pipe_symbol.asciidoc
+[4]: https://github.com/intel-sandbox/ip-authoring-specs/blob/MJ_ChangeDocs4/Pipe/Spec/cl_intel_host_pipe_symbol.asciidoc
 
 ### Open Questions
 
