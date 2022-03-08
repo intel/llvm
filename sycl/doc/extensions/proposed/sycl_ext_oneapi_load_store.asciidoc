@@ -1,4 +1,5 @@
 = sycl_ext_oneapi_load_store
+
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -8,80 +9,86 @@
 :toc: left
 :encoding: utf-8
 :lang: en
-
-:blank: pass:[ +]
+:dpcpp: pass:[DPC++]
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
 // docbook uses c++ and html5 uses cpp.
 :language: {basebackend@docbook:c++:cpp}
 
-== Introduction
-IMPORTANT: This specification is a draft.
-
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
-trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
-used by permission by Khronos.
-
-This proposal adds support for a family of load and store functions to SYCL. These functions are intended to support semantic hints to help guide code generation.  This document describes these functions, the hint mechanisms, and a group of hints for control over nontemporal memory operations.
 
 == Notice
 
-Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
 
-== Status
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of
+The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
-Working Draft
 
-This is a proposed extension specification, intended to gather community
-feedback. Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state.  The specification itself may also change in
-incompatible ways before it is finalized. Shipping software products should not
-rely on APIs defined in this specification.
+== Contact
 
-== Version
+To report problems with this extension, please open a new issue at:
 
-Revision: 1
+https://github.com/intel/llvm/issues
 
-== Contributors
-
-Jason Sewall, Intel +
-Konst Bobrovsky, Intel +
-John Pennycook, Intel
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 4 and
-the following extensions:
+This extension is written against the SYCL 2020 revision 4 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
 
-* link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+This extension also depends on the following other SYCL extensions:
+
+* link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
 * link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_uniform.asciidoc[sycl_ext_oneapi_uniform]
 
-== Feature Test Macro
+== Status
 
-This extension provides a feature-test macro as described in the core SYCL
-specification section 6.3.3 "Feature test macros".  Therefore, an
-implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_LOAD_STORE` to one of the values defined in the table
-below.  Applications can test for the existence of this macro to determine if
-the implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's APIs the implementation supports.
-
-[%header,cols="1,5"]
-|===
-|Value |Description
-|1     |Initial extension version.  Base features are supported.
-|===
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
 
 == Overview
 
-Many architectures allow for sophisticated controls to be placed on how memory operations are executed, but these vary in form and execution. This extension adds high-level abstractions for expressing semantic hints.
+Many architectures allow for sophisticated controls to be placed on how memory
+operations are executed, but these vary in form and execution. This extension
+adds high-level abstractions for expressing semantic hints.
 
-This extension consists of a family of free functions for loading and storing data; these functions support hints that are passed through property list arguments. This extension also proposes a set of such hints for describing temporal behavior.
+This extension consists of a family of free functions for loading and storing
+data; these functions support hints that are passed through property list
+arguments. This extension also proposes a set of such hints for describing
+temporal behavior.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_LOAD_STORE` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
 
 == Load and store functions
 
-These are fine-grained functions that accept property lists and apply them to the granularity of a single logical memory transaction.
+These are fine-grained functions that accept property lists and apply them to
+the granularity of a single logical memory transaction.
 
 === Work-item granularity
 
@@ -111,14 +118,18 @@ namespace experimental {
 } // namespace sycl
 ```
 
-1:: Load and return the object of type `T` at `addr` with the hints in property list `p`. `p` cannot vary across work-items, but `addr` is expected to. Each work-item recieves a copy of the loaded object.
+1:: Load and return the object of type `T` at `addr` with the hints in property
+list `p`. Each work-item recieves a copy of the loaded object.
 1a:: Special case of 1 with no property list.
-2:: Store `value` at `addr` with the hints in property list `p`. `p` cannot vary across work-items, but `value` and `addr` are expected to.
+2:: Store `value` at `addr` with the hints in property list `p`.
 2a:: Special case of 2 with no property list.
 
 === Joint (cooperative) group granularity
 
-The following functions apply to the passed `Group g`; the group cooperates to perform the operation to uniform arguments. These functions follow the restrictions and behaviors described in Sec. 4.17.3: Group functions.
+The following functions apply to the passed `Group g`; the group cooperates to
+perform the operation on uniform arguments. These are cooperative group
+functions, so they have the same restrictions and behaviors described in
+Sec. 4.17.3 "Group functions" of the core SYCL specification.
 
 ```c++
 namespace sycl {
@@ -152,16 +163,24 @@ namespace experimental {
 } // namespace sycl
 ```
 
-1:: Load and return the object of type `T` at `addr` with the hints in property list `p`. Each argument must be the same for each work-item in `g`, and a different object is returned for each work-item, unless the `Group` is a `sub_group`, in which case a `sycl::ext::oneapi::experimental::uniform<T>` is returned (see 1b-1c.)
+1:: Load and return the object of type `T` at `addr` with the hints in property
+list `p`. Each argument must be the same for each work-item in `g`. If `Group` is a
+`sub_group`, in which case a `sycl::ext::oneapi::experimental::uniform<T>` is
+returned (see 1b-1c.)
 1a:: Special case of 1 with no property list.
 1b:: Special case of 1 with `sub_group`
 1c:: Special case of 1 with `sub_group` and no property list
-2:: Store `value` at `addr` with the hints in property list `p`. `p` cannot vary across work-items, but `value` and `addr` are expected to.
+2:: Store `value` at `addr` with the hints in property list `p`. `p` cannot vary across
+work-items, but `value` and `addr` are expected to.
 2a:: Special case of 2 with no property list.
 
 === `group_block`
 
-The following functions apply to the passed `Group g` and operate on the memory range `[addr, addr + g.get_group_linear_range())` (`[addr, addr + g.get_max_local_range())` for `sub_groups'); see below for more details. These functions follow the restrictions and behaviors described in Sec. 4.17.3: Group functions.
+The following functions apply to the passed `Group g` and operate on the memory
+range `[addr, addr + g.get_group_linear_range())` (`[addr, addr +
+g.get_max_local_range())` for `sub_groups'); see below for more details. These
+functions follow the restrictions and behaviors described in Sec. 4.17.3: Group
+functions.
 
 ```c++
 namespace sycl {
@@ -187,16 +206,24 @@ namespace experimental {
 } // namespace sycl
 ```
 
-1:: Load and return an object of type `T` for each work-item in `g`; each work-item in `g` will return the corresponding object `T` at `addr + g.get_local_linear_id()`, subject to any hints in `p`.
+1:: Load and return an object of type `T` for each work-item in `g`; each
+work-item in `g` will return the corresponding object `T` at `addr +
+g.get_local_linear_id()`, subject to any hints in `p`.
 1a:: Special case of 1 with no property list.
-2:: For each work-item in `g`, store that item's `value` at `addr + g.get_local_linear_id()` as computed by that work-item, using the hints in `p`.
+2:: For each work-item in `g`, store that item's `value` at
+`addr + g.get_local_linear_id()` as computed by that work-item, using the
+hints in `p`.
 2a:: Special case of 2 with no property list.
 
 == Nontemporal properties
 
-These properties allow programmers to express hints at how memory accesses should behave. These assume compile-time property values, and are passed to various constructs via property lists so that they may be associated with memory operations.
+These properties allow programmers to express hints at how memory accesses
+should behave. These assume compile-time property values, and are passed to
+various constructs via property lists so that they may be associated with memory
+operations.
 
-The default behavior for any property class, if some other specified property class does not override it, is to assume the most temporal behavior as possible.
+The default behavior for any property class, if some other specified property
+class does not override it, is to assume the most temporal behavior as possible.
 
 === Values
 
@@ -212,13 +239,14 @@ struct nontemporal { /* unspecified */ }; // 1
 struct temporal { /* unspecified */ }; // 2
 
 } // namespace experimental
-} // namespace ext
+} // namespace extg
 } // namespace oneapi
 } // namespace sycl
 ```
 
-1:: indicates that the associated memory be accessed in as maximally nontemporal a fashion as possible.
-2:: indicates that the associated memory be accessed in as maximally temporal a fashion as possible.
+1:: indicates that the associated memory be accessed in as maximally nontemporal
+a fashion as possible.  2:: indicates that the associated memory be accessed in
+as maximally temporal a fashion as possible.
 
 === Properties
 
@@ -261,22 +289,52 @@ struct L4_cache_hint_key {
 } // namespace sycl
 ```
 
-The `temporality_hint_key` property is the most generic and it should override any other nontemporal properties, if present.
+The `temporality_hint_key` property is the most generic and it should override
+any other nontemporal properties, if present.
 
-The property values as passed to the `{L1,L2,L3,L4}_cache_hint_key` property classes should apply only to the cache level specified; the precise mapping to hardware constructs is otherwise implementation-defined.
+The property values as passed to the `{L1,L2,L3,L4}_cache_hint_key` property
+classes should apply only to the cache level specified; the precise mapping to
+hardware constructs is otherwise implementation-defined.
 
-== Notes
+=== Convenience variables
 
-These properties are intended to be hints to guide the compiler; specific nontemporal behavior should not be assumed.
+The following convenience variables help use the above when declaring property lists:
 
-Most extant architectures lack awareness of categories of memory as they are understood by the programmer (i.e. buffers, arrays, structures) and only expose temporality controls at the granularity of memory-transacting instructions. This extension provides a groundwork for future extensions that expose pointer- and accessor-level semantics. A future extension may provide more architecture-specific hints and coarser controls for applying hints.
+```c++
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
 
-== Revision History
+template <typename T>
+inline constexpr temporality_hint_key::value_t<T> temporality_hint;
 
-[cols="5,15,15,70"]
-[grid="rows"]
-[options="header"]
-|========================================
-|Rev|Date|Author|Changes
-|1|2022-02-22|Jason Sewall|*Initial public working draft*
-|========================
+template <typename T>
+inline constexpr L1_cache_hint_key::value_t<T> L1_cache_hint;
+
+template <typename T>
+inline constexpr L2_cache_hint_key::value_t<T> L2_cache_hint;
+
+template <typename T>
+inline constexpr L3_cache_hint_key::value_t<T> L3_cache_hint;
+
+template <typename T>
+inline constexpr L4_cache_hint_key::value_t<T> L4_cache_hint;
+
+} // namespace experimental
+} // namespace ext
+} // namespace oneapi
+} // namespace sycl
+```
+
+== Implementation Notes
+
+These properties are intended to be hints to guide the compiler; specific
+nontemporal behavior should not be assumed.
+
+Most extant architectures lack awareness of categories of memory as they are
+understood by the programmer (i.e. buffers, arrays, structures) and only expose
+temporality controls at the granularity of memory-transacting instructions. This
+extension provides a groundwork for future extensions that expose pointer- and
+accessor-level semantics. A future extension may provide more
+architecture-specific hints and coarser controls for applying hints.
