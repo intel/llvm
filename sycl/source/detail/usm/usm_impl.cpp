@@ -43,12 +43,15 @@ using alloc = cl::sycl::usm::alloc;
 namespace detail {
 namespace usm {
 
-void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
-                       alloc Kind, const detail::code_location &CL) {
+static pi_result alignedAllocHostHelper(size_t Alignment, size_t Size,
+                                        const context &Ctxt, alloc Kind,
+                                        const detail::code_location &CL,
+                                        void **OutPtr) {
   XPTI_CREATE_TRACEPOINT(CL);
-  void *RetVal = nullptr;
-  if (Size == 0)
-    return nullptr;
+  if (Size == 0) {
+    *OutPtr = nullptr;
+    return PI_SUCCESS;
+  }
   if (Ctxt.is_host()) {
     if (!Alignment) {
       // worst case default
@@ -57,10 +60,11 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
 
     aligned_allocator<char> Alloc(Alignment);
     try {
-      RetVal = Alloc.allocate(Size);
+      *OutPtr = Alloc.allocate(Size);
     } catch (const std::bad_alloc &) {
       // Conform with Specification behavior
-      RetVal = nullptr;
+      *OutPtr = nullptr;
+      return PI_MEM_OBJECT_ALLOCATION_FAILURE;
     }
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
@@ -71,13 +75,13 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
     switch (Kind) {
     case alloc::host: {
       Error = Plugin.call_nocheck<PiApiKind::piextUSMHostAlloc>(
-          &RetVal, C, nullptr, Size, Alignment);
+          OutPtr, C, nullptr, Size, Alignment);
       break;
     }
     case alloc::device:
     case alloc::shared:
     case alloc::unknown: {
-      RetVal = nullptr;
+      *OutPtr = nullptr;
       Error = PI_INVALID_VALUE;
       break;
     }
@@ -86,21 +90,41 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
     // Error is for debugging purposes.
     // The spec wants a nullptr returned, not an exception.
     if (Error != PI_SUCCESS)
-      return nullptr;
+      *OutPtr = nullptr;
+
+    return Error;
+  }
+  return PI_SUCCESS;
+}
+
+void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
+                       alloc Kind, const detail::code_location &CL) {
+  void *RetVal;
+  pi_result Err =
+      alignedAllocHostHelper(Alignment, Size, Ctxt, Kind, CL, &RetVal);
+
+  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  ResourcePool &Resources = CtxImpl->getResourcePool();
+  if (Err == PI_OUT_OF_RESOURCES && Resources.isEnabled()) {
+    // Clear resource pool and retry allocation.
+    Resources.clear();
+    alignedAllocHostHelper(Alignment, Size, Ctxt, Kind, CL, &RetVal);
   }
   return RetVal;
 }
 
-void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
-                   const device &Dev, alloc Kind,
-                   const detail::code_location &CL) {
+static pi_result alignedAllocHelper(size_t Alignment, size_t Size,
+                                    const context &Ctxt, const device &Dev,
+                                    alloc Kind, const detail::code_location &CL,
+                                    void **OutPtr) {
   XPTI_CREATE_TRACEPOINT(CL);
-  void *RetVal = nullptr;
-  if (Size == 0)
-    return nullptr;
+  if (Size == 0) {
+    *OutPtr = nullptr;
+    return PI_SUCCESS;
+  }
   if (Ctxt.is_host()) {
     if (Kind == alloc::unknown) {
-      RetVal = nullptr;
+      *OutPtr = nullptr;
     } else {
       if (!Alignment) {
         // worst case default
@@ -109,10 +133,11 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 
       aligned_allocator<char> Alloc(Alignment);
       try {
-        RetVal = Alloc.allocate(Size);
+        *OutPtr = Alloc.allocate(Size);
       } catch (const std::bad_alloc &) {
         // Conform with Specification behavior
-        RetVal = nullptr;
+        *OutPtr = nullptr;
+        return PI_MEM_OBJECT_ALLOCATION_FAILURE;
       }
     }
   } else {
@@ -126,18 +151,18 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     case alloc::device: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
       Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
-          &RetVal, C, Id, nullptr, Size, Alignment);
+          OutPtr, C, Id, nullptr, Size, Alignment);
       break;
     }
     case alloc::shared: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
       Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
-          &RetVal, C, Id, nullptr, Size, Alignment);
+          OutPtr, C, Id, nullptr, Size, Alignment);
       break;
     }
     case alloc::host:
     case alloc::unknown: {
-      RetVal = nullptr;
+      *OutPtr = nullptr;
       Error = PI_INVALID_VALUE;
       break;
     }
@@ -146,7 +171,27 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     // Error is for debugging purposes.
     // The spec wants a nullptr returned, not an exception.
     if (Error != PI_SUCCESS)
-      return nullptr;
+      *OutPtr = nullptr;
+
+    return Error;
+  }
+
+  return PI_SUCCESS;
+}
+
+void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
+                   const device &Dev, alloc Kind,
+                   const detail::code_location &CL) {
+  void *RetVal;
+  pi_result Err =
+      alignedAllocHelper(Alignment, Size, Ctxt, Dev, Kind, CL, &RetVal);
+
+  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  ResourcePool &Resources = CtxImpl->getResourcePool();
+  if (Err == PI_OUT_OF_RESOURCES && Resources.isEnabled()) {
+    // Clear resource pool and retry allocation.
+    Resources.clear();
+    alignedAllocHelper(Alignment, Size, Ctxt, Dev, Kind, CL, &RetVal);
   }
   return RetVal;
 }

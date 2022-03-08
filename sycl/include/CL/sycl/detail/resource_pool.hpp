@@ -184,6 +184,11 @@ public:
     MPlatform = Platform;
   }
 
+  /// Returns true if the resource pool is enabled and false otherwise.
+  ///
+  /// \return a boolean value specifying whether the pool is enabled.
+  bool isEnabled() { return MIsPoolingEnabled; }
+
   /// Creates a managed resource from the pool.
   ///
   /// \param Range is the range of the resulting buffer.

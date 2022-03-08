@@ -194,14 +194,12 @@ public:
   RT::PiMem &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
-      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
       // Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
       // since post-enqueue cleanup might trigger destruction of
       // device_image_impl and, as a result, destruction of MSpecConstsBlob
       // while MSpecConstsBuffer is still in use.
       // TODO consider changing the lifetime of device_image_impl instead
-      memBufferCreateHelper(Plugin,
-                            detail::getSyclObjImpl(MContext)->getHandleRef(),
+      memBufferCreateHelper(detail::getSyclObjImpl(MContext),
                             PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY,
                             MSpecConstsBlob.size(), MSpecConstsBlob.data(),
                             &MSpecConstsBuffer, nullptr);

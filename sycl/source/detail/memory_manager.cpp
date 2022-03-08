@@ -124,9 +124,11 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   }
 }
 
-void memBufferCreateHelper(const plugin &Plugin, pi_context Ctx,
-                           pi_mem_flags Flags, size_t Size, void *HostPtr,
-                           pi_mem *RetMem, const pi_mem_properties *Props) {
+static pi_result memBufferCreateNocheckHelper(const plugin &Plugin,
+                                              pi_context Ctx,
+                                              pi_mem_flags Flags, size_t Size,
+                                              void *HostPtr, pi_mem *RetMem,
+                                              const pi_mem_properties *Props) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   uint64_t CorrID = 0;
 #endif
@@ -147,9 +149,28 @@ void memBufferCreateHelper(const plugin &Plugin, pi_context Ctx,
                            CorrID);
     }};
 #endif
-    Plugin.call<PiApiKind::piMemBufferCreate>(Ctx, Flags, Size, HostPtr, RetMem,
-                                              Props);
+    return Plugin.call_nocheck<PiApiKind::piMemBufferCreate>(
+        Ctx, Flags, Size, HostPtr, RetMem, Props);
   }
+}
+
+void memBufferCreateHelper(std::shared_ptr<context_impl> CtxImpl,
+                           pi_mem_flags Flags, size_t Size, void *HostPtr,
+                           pi_mem *RetMem, const pi_mem_properties *Props) {
+  const detail::plugin &Plugin = CtxImpl->getPlugin();
+  RT::PiResult Err = memBufferCreateNocheckHelper(
+      Plugin, CtxImpl->getHandleRef(), Flags, Size, HostPtr, RetMem, Props);
+
+  ResourcePool &Resources = CtxImpl->getResourcePool();
+  if (Err == PI_MEM_OBJECT_ALLOCATION_FAILURE && Resources.isEnabled()) {
+    // Clear resource pool and retry allocation.
+    Resources.clear();
+    Err = memBufferCreateNocheckHelper(Plugin, CtxImpl->getHandleRef(), Flags,
+                                       Size, HostPtr, RetMem, Props);
+  }
+
+  if (Err != PI_SUCCESS)
+    Plugin.reportPiError(Err, "memBufferCreateHelper()");
 }
 
 void memReleaseHelper(const plugin &Plugin, pi_mem Mem) {
@@ -361,9 +382,8 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
     CreationFlags |= PI_MEM_FLAGS_HOST_PTR_ALLOC;
 
   RT::PiMem NewMem = nullptr;
-  const detail::plugin &Plugin = TargetContext->getPlugin();
-  memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
-                        Size, UserPtr, &NewMem, nullptr);
+  memBufferCreateHelper(TargetContext, CreationFlags, Size, UserPtr, &NewMem,
+                        nullptr);
   return NewMem;
 }
 

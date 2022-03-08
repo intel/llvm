@@ -42,19 +42,21 @@ ResourcePool::FreeEntry ResourcePool::getOrAllocateEntry(
   assert(Size && "Size must be greater than 0");
   assert(ContextImplPtr->getPlatformImpl() == MPlatform &&
          "Context platform does not match the resource pool platform.");
-  std::lock_guard<std::mutex> Lock{MMutex};
+  {
+    std::lock_guard<std::mutex> Lock{MMutex};
 
-  // Find the free entry with the smallest suitable size.
-  auto FoundFreeEntry = MFreeEntries.upper_bound(Size - 1);
+    // Find the free entry with the smallest suitable size.
+    auto FoundFreeEntry = MFreeEntries.upper_bound(Size - 1);
 
-  // If there was a fitting free entry in the pool, remove and return it.
-  const bool IsOldEntry = FoundFreeEntry != MFreeEntries.end();
-  if (IsNewEntry)
-    *IsNewEntry = !IsOldEntry;
-  if (IsOldEntry) {
-    FreeEntry Entry = *FoundFreeEntry;
-    MFreeEntries.erase(FoundFreeEntry);
-    return Entry;
+    // If there was a fitting free entry in the pool, remove and return it.
+    const bool IsOldEntry = FoundFreeEntry != MFreeEntries.end();
+    if (IsNewEntry)
+      *IsNewEntry = !IsOldEntry;
+    if (IsOldEntry) {
+      FreeEntry Entry = *FoundFreeEntry;
+      MFreeEntries.erase(FoundFreeEntry);
+      return Entry;
+    }
   }
 
   // If there was no suitable free entry we allocate memory and return it in a
@@ -63,8 +65,8 @@ ResourcePool::FreeEntry ResourcePool::getOrAllocateEntry(
   if (DataPtr)
     MemFlags |= PI_MEM_FLAGS_HOST_PTR_COPY;
   RT::PiMem NewResMem;
-  memBufferCreateHelper(MPlatform->getPlugin(), ContextImplPtr->getHandleRef(),
-                        MemFlags, Size, DataPtr, &NewResMem, nullptr);
+  memBufferCreateHelper(ContextImplPtr, MemFlags, Size, DataPtr, &NewResMem,
+                        nullptr);
   ++MAllocCount;
   return {Size, NewResMem};
 }
