@@ -245,7 +245,8 @@ struct temporal { /* unspecified */ }; // 2
 ```
 
 1:: indicates that the associated memory be accessed in as maximally nontemporal
-a fashion as possible.  2:: indicates that the associated memory be accessed in
+a fashion as possible.
+2:: indicates that the associated memory be accessed in
 as maximally temporal a fashion as possible.
 
 === Properties
