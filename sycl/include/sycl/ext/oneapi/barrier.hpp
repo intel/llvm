@@ -130,5 +130,5 @@ public:
   static constexpr uint64_t max() { return (1 << 20) - 1; }
 };
 
-} // namespace sycl::ext::oneapi::cuda
+} // namespace sycl::ext::oneapi::experimental::cuda
 } // __SYCL_INLINE_NAMESPACE(cl)
