@@ -97,6 +97,7 @@ public:
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
+        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(
             MDiscardEvents &&
             (MHostQueue ? true
@@ -135,6 +136,7 @@ public:
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
+        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(
             MDiscardEvents &&
             (MHostQueue ? true
@@ -584,6 +586,7 @@ private:
 public:
   // Queue constructed with the discard_events property
   const bool MDiscardEvents;
+  const bool MIsProfilingEnabled;
 
 private:
   // This flag says if we can discard events based on a queue "setup" which will

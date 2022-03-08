@@ -43,7 +43,7 @@ on:
       intel_drivers_image:
         type: string
         required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest"
+        default: "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:unstable"
       lts_config:
         type: string
         required: false
