@@ -3582,7 +3582,8 @@ pi_result piMemRelease(pi_mem Mem) {
     std::scoped_lock Guard(Mem->Mutex);
     if (--(Mem->RefCount) == 0) {
       if (Mem->isImage()) {
-        ZE_CALL(zeImageDestroy, (pi_cast<ze_image_handle_t>(Mem->getZeHandle())));
+        ZE_CALL(zeImageDestroy,
+                (pi_cast<ze_image_handle_t>(Mem->getZeHandle())));
       } else {
         auto Buf = static_cast<_pi_buffer *>(Mem);
         if (!Buf->isSubBuffer()) {
@@ -3603,7 +3604,7 @@ pi_result piMemRelease(pi_mem Mem) {
       }
     }
   }
-  
+
   if (RefCountZero)
     delete Mem;
 
