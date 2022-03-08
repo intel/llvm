@@ -3099,6 +3099,24 @@ void Sema::CheckOverrideControl(NamedDecl *D) {
       << MD->getDeclName();
 }
 
+// Check and diagnose if a SYCLAddIRAttributesFunctionAttr is attached to a
+// virtual member function.
+void Sema::CheckVirtualSYCLAddIRAttributesFunctionAttr(NamedDecl *D) {
+  const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(D);
+  if (!MD)
+    return;
+
+  // sycl_add_ir_attributes_function is not currently allowed on virtual member
+  // functions.
+  if (const auto *AddIRAttr = MD->getAttr<SYCLAddIRAttributesFunctionAttr>()) {
+    if (MD->isVirtual()) {
+      Diag(AddIRAttr->getLoc(), diag::err_disallow_attribute_on_virtual)
+          << AddIRAttr;
+      return;
+    }
+  }
+}
+
 void Sema::DiagnoseAbsenceOfOverrideControl(NamedDecl *D, bool Inconsistent) {
   if (D->isInvalidDecl() || D->hasAttr<OverrideAttr>())
     return;
@@ -3510,6 +3528,7 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
   }
 
   CheckOverrideControl(Member);
+  CheckVirtualSYCLAddIRAttributesFunctionAttr(Member);
 
   assert((Name || isInstField) && "No identifier for non-field ?");
 

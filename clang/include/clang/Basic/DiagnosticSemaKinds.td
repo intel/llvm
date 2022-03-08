@@ -9956,6 +9956,9 @@ def err_duplicate_attribute : Error<warn_duplicate_attribute.Text>;
 def err_disallowed_duplicate_attribute : Error<
   "attribute %0 cannot appear more than once on a declaration">;
 
+def err_disallow_attribute_on_virtual : Error<
+  "attribute %0 cannot be applied to a virtual, overridden, or final function">;
+
 def warn_sync_fetch_and_nand_semantics_change : Warning<
   "the semantics of this intrinsic changed with GCC "
   "version 4.4 - the newer semantics are provided here">,
