@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
 
   // Allocate Input Buffer
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
-          property::queue::enable_profiling{});
+          cl::sycl::property::queue::enable_profiling{});
 
   auto dev = q.get_device();
   auto ctxt = q.get_context();

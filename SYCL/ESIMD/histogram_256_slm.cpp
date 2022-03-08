@@ -105,7 +105,7 @@ int CheckHistogram(unsigned int *cpu_histogram, unsigned int *gpu_histogram) {
 
 int main() {
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
-          property::queue::enable_profiling{});
+          cl::sycl::property::queue::enable_profiling{});
 
   const char *input_file = nullptr;
   unsigned int width = 1024;
