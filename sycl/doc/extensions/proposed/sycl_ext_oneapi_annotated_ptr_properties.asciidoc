@@ -1,0 +1,158 @@
+= sycl_ext_oneapi_annotated_ptr_properties
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+:dpcpp: DPC++
+
+== Introduction
+This extension defines the properties supported with the class `annotated_ptr`
+which is defined by the extension `sycl_ext_oneapi_annotated_ptr`. These
+properties are carried by the `annotated_ptr` class and implemented by the
+toolchain.
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+== Status
+
+Final Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Contact
+
+Abhishek Tiwari, Intel (abhishek2 'dot' tiwari 'at' intel 'dot' com)
+
+== Contributors
+
+Abhishek Tiwari, Intel +
+Joseph Garvey, Intel
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, revision 4.
+
+It depends on the following extensions:
+ - sycl_ext_oneapi_annotated_ptr
+ - sycl_ext_intel_buffer_location
+
+== Overview
+
+This extension introduces properties that establish the annotations that will be
+carried by the class `sycl::ext::oneapi::annotated_ptr`.
+
+An example of the syntax can be seen below. 
+
+[source,c++]
+----
+annotated_ptr<MyClass, property_list_t<align<16>>> aptr;
+----
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_ANNOTATED_PTR_PROPERTIES` to one of the values defined in the
+table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1   |Initial extension version.  Base features are supported.
+|===
+
+
+=== New Section 4.7.9.1 annotated_ptr properties
+
+Below is a list of compile-time-constant properties supported with `annotated_ptr`.
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+struct align_key {
+  template<int K>
+  using value_t = property_value<align, std::integral_constant<int, K>>;
+};
+
+template<int K>
+inline constexpr align::value_t<K> align;
+
+template<>
+struct is_property_key<align_key> : std::true_type {};
+
+template<typename SyclObjectT>
+struct is_property_key_of<align_key, SyclObjectT> : std::true_type {};
+
+} // namespace experimental::oneapi::ext::sycl
+```
+--
+[options="header"]
+|====
+| Property | Description
+|`align`
+| The alignment of the pointer address in bytes.
+
+| Property | Description
+|`buffer_location`
+| The alignment of the pointer address in bytes.
+See the extension `sycl_ext_intel_buffer_location` for more details.
+|====
+--
+
+== Issues
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-02-17|Abhishek Tiwari|*Initial draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************
