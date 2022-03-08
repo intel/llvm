@@ -265,14 +265,14 @@ struct get_device_info<std::vector<memory_scope>,
 };
 
 // Specialization for bf16
-template <> struct get_device_info<bool, info::device::bf16> {
+template <> struct get_device_info<bool, info::device::ext_oneapi_bfloat16> {
   static bool get(RT::PiDevice dev, const plugin &Plugin) {
 
     bool result = false;
 
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
-        dev, pi::cast<RT::PiDeviceInfo>(info::device::bf16), sizeof(result),
-        &result, nullptr);
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::ext_oneapi_bfloat16),
+        sizeof(result), &result, nullptr);
     if (Err != PI_SUCCESS) {
       return false;
     }
@@ -785,7 +785,8 @@ get_device_info_host<info::device::atomic_memory_scope_capabilities>() {
           memory_scope::work_group, memory_scope::device, memory_scope::system};
 }
 
-template <> inline bool get_device_info_host<info::device::bf16>() {
+template <>
+inline bool get_device_info_host<info::device::ext_oneapi_bfloat16>() {
   return false;
 }
 
