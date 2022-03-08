@@ -42,9 +42,9 @@
   },
   "linux_staging": {
     "compute_runtime": {
-      "github_tag": "22.07.22465",
-      "version": "22.07.22465",
-      "url": "https://github.com/intel/compute-runtime/releases/tag/22.07.22465",
+      "github_tag": "22.09.22577",
+      "version": "22.09.22577",
+      "url": "https://github.com/intel/compute-runtime/releases/tag/22.09.22577",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "igc": {
