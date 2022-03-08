@@ -58,7 +58,7 @@ Abhishek Tiwari, Intel (abhishek2 'dot' tiwari 'at' intel 'dot' com)
 == Contributors
 
 Abhishek Tiwari, Intel +
-Greg Lueck, Intel +
+Gregory Lueck, Intel +
 Jason Sewall, Intel +
 Jessica Davies, Intel +
 Joe Garvey, Intel +
