@@ -2251,6 +2251,21 @@ static void handleNoReturnAttr(Sema &S, Decl *D, const ParsedAttr &Attrs) {
   D->addAttr(::new (S.Context) NoReturnAttr(S.Context, Attrs));
 }
 
+static void handleStandardNoReturnAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+  // The [[_Noreturn]] spelling is deprecated in C2x, so if that was used,
+  // issue an appropriate diagnostic. However, don't issue a diagnostic if the
+  // attribute name comes from a macro expansion. We don't want to punish users
+  // who write [[noreturn]] after including <stdnoreturn.h> (where 'noreturn'
+  // is defined as a macro which expands to '_Noreturn').
+  if (!S.getLangOpts().CPlusPlus &&
+      A.getSemanticSpelling() == CXX11NoReturnAttr::C2x_Noreturn &&
+      !(A.getLoc().isMacroID() &&
+        S.getSourceManager().isInSystemMacro(A.getLoc())))
+    S.Diag(A.getLoc(), diag::warn_deprecated_noreturn_spelling) << A.getRange();
+
+  D->addAttr(::new (S.Context) CXX11NoReturnAttr(S.Context, A));
+}
+
 static void handleNoCfCheckAttr(Sema &S, Decl *D, const ParsedAttr &Attrs) {
   if (!S.getLangOpts().CFProtectionBranch)
     S.Diag(Attrs.getLoc(), diag::warn_nocf_check_attribute_ignored);
@@ -3253,12 +3268,31 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   ASTContext &Ctx = S.getASTContext();
 
+  // The arguments to reqd_work_group_size are ordered based on which index
+  // increments the fastest. In OpenCL, the first argument is the index that
+  // increments the fastest, and in SYCL, the last argument is the index that
+  // increments the fastest.
+  //
+  // [[sycl::reqd_work_group_size]] and [[cl::reqd_work_group_size]] are
+  // available in SYCL modes and follow the SYCL rules.
+  // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
+  // and follows the OpenCL rules.
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (!((getExprValue(AL.getArgAsExpr(0), Ctx) <= *A->getXDimVal()) &&
-          (getExprValue(AL.getArgAsExpr(1), Ctx) <= *A->getYDimVal()) &&
-          (getExprValue(AL.getArgAsExpr(2), Ctx) <= *A->getZDimVal()))) {
+    bool CheckFirstArgument =
+        S.getLangOpts().OpenCL
+            ? getExprValue(AL.getArgAsExpr(0), Ctx) > *A->getZDimVal()
+            : getExprValue(AL.getArgAsExpr(0), Ctx) > *A->getXDimVal();
+    bool CheckSecondArgument =
+        getExprValue(AL.getArgAsExpr(1), Ctx) > *A->getYDimVal();
+    bool CheckThirdArgument =
+        S.getLangOpts().OpenCL
+            ? getExprValue(AL.getArgAsExpr(2), Ctx) > *A->getXDimVal()
+            : getExprValue(AL.getArgAsExpr(2), Ctx) > *A->getZDimVal();
+
+    if (CheckFirstArgument || CheckSecondArgument || CheckThirdArgument) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << AL << A->getSpelling();
+          << AL << A;
+      S.Diag(A->getLocation(), diag::note_conflicting_attribute);
       Result &= false;
     }
   }
@@ -3271,7 +3305,8 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
           (getExprValue(AL.getArgAsExpr(2), Ctx) >=
            getExprValue(A->getZDim(), Ctx)))) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << AL << A->getSpelling();
+          << AL << A;
+      S.Diag(A->getLocation(), diag::note_conflicting_attribute);
       Result &= false;
     }
   }
@@ -3495,8 +3530,32 @@ Sema::MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A) {
 static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  S.AddWorkGroupSizeHintAttr(D, AL, AL.getArgAsExpr(0), AL.getArgAsExpr(1),
-                             AL.getArgAsExpr(2));
+  // __attribute__((work_group_size_hint) requires exactly three arguments.
+  if (AL.getSyntax() == ParsedAttr::AS_GNU || !AL.hasScope() ||
+      (AL.hasScope() && !AL.getScopeName()->isStr("sycl"))) {
+    if (!AL.checkExactlyNumArgs(S, 3))
+      return;
+  }
+
+  // FIXME: NumArgs checking is disabled in Attr.td to keep consistent
+  // disgnostics with OpenCL C that does not have optional values here.
+  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 3))
+    return;
+
+  // Handles default arguments in [[sycl::work_group_size_hint]] attribute.
+  auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL) {
+    assert(AL.getKind() == ParsedAttr::AT_WorkGroupSizeHint && AL.hasScope() &&
+           AL.getScopeName()->isStr("sycl"));
+    return IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                  S.Context.IntTy, AL.getLoc());
+  };
+
+  Expr *XDimExpr = AL.getArgAsExpr(0);
+  Expr *YDimExpr =
+      AL.isArgExpr(1) ? AL.getArgAsExpr(1) : SetDefaultValue(S, AL);
+  Expr *ZDimExpr =
+      AL.isArgExpr(2) ? AL.getArgAsExpr(2) : SetDefaultValue(S, AL);
+  S.AddWorkGroupSizeHintAttr(D, AL, XDimExpr, YDimExpr, ZDimExpr);
 }
 
 // Handles max_work_group_size attribute.
@@ -3521,6 +3580,23 @@ static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
           (XDimExpr->getResultAsAPSInt() != 1 ||
            YDimExpr->getResultAsAPSInt() != 1 ||
            ZDimExpr->getResultAsAPSInt() != 1));
+}
+
+// If the [[intel::max_work_group_size(X, Y, Z)]] attribute is specified on
+// a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
+// attribute, check to see if values of reqd_work_group_size arguments are
+// equal or less than values of max_work_group_size attribute arguments.
+static bool checkWorkGroupSizeAttrValues(const Expr *RWGS, const Expr *MWGS) {
+  // If any of the operand is still value dependent, we can't test anything.
+  const auto *RWGSCE = dyn_cast<ConstantExpr>(RWGS);
+  const auto *MWGSCE = dyn_cast<ConstantExpr>(MWGS);
+
+  if (!RWGSCE || !MWGSCE)
+    return false;
+
+  // Otherwise, check if value of reqd_work_group_size argument is
+  // greater than value of max_work_group_size attribute argument.
+  return RWGSCE->getResultAsAPSInt() > MWGSCE->getResultAsAPSInt();
 }
 
 void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
@@ -3555,6 +3631,40 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   ZDim = CheckAndConvertArg(ZDim);
   if (!XDim || !YDim || !ZDim)
     return;
+
+  // If the [[intel::max_work_group_size(X, Y, Z)]] attribute is specified on
+  // a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
+  // attribute, check to see if values of reqd_work_group_size arguments are
+  // equal or less than values of max_work_group_size attribute arguments.
+  //
+  // The arguments to reqd_work_group_size are ordered based on which index
+  // increments the fastest. In OpenCL, the first argument is the index that
+  // increments the fastest, and in SYCL, the last argument is the index that
+  // increments the fastest.
+  //
+  // [[sycl::reqd_work_group_size]] and [[cl::reqd_work_group_size]] are
+  // available in SYCL modes and follow the SYCL rules.
+  // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
+  // and follows the OpenCL rules.
+  if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+    bool CheckFirstArgument =
+        getLangOpts().OpenCL
+            ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), ZDim)
+            : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), XDim);
+    bool CheckSecondArgument =
+        checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), YDim);
+    bool CheckThirdArgument =
+        getLangOpts().OpenCL
+            ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), XDim)
+            : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), ZDim);
+
+    if (CheckFirstArgument || CheckSecondArgument || CheckThirdArgument) {
+      Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << CI << DeclAttr;
+      Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
+      return;
+    }
+  }
 
   // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr, check to see if
   // the attribute holds equal values to (1, 1, 1) in case the value of
@@ -3614,6 +3724,40 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
     if (llvm::all_of(Results,
                      [](DupArgResult V) { return V == DupArgResult::Same; }))
       return nullptr;
+  }
+
+  // If the [[intel::max_work_group_size(X, Y, Z)]] attribute is specified on
+  // a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
+  // attribute, check to see if values of reqd_work_group_size arguments are
+  // equal or less than values of max_work_group_size attribute arguments.
+  //
+  // The arguments to reqd_work_group_size are ordered based on which index
+  // increments the fastest. In OpenCL, the first argument is the index that
+  // increments the fastest, and in SYCL, the last argument is the index that
+  // increments the fastest.
+  //
+  // [[sycl::reqd_work_group_size]] and [[cl::reqd_work_group_size]] are
+  // available in SYCL modes and follow the SYCL rules.
+  // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
+  // and follows the OpenCL rules.
+  if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+    bool CheckFirstArgument =
+        getLangOpts().OpenCL
+            ? checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getZDim())
+            : checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getXDim());
+    bool CheckSecondArgument =
+        checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), A.getYDim());
+    bool CheckThirdArgument =
+        getLangOpts().OpenCL
+            ? checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getXDim())
+            : checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getZDim());
+
+    if (CheckFirstArgument || CheckSecondArgument || CheckThirdArgument) {
+      Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << DeclAttr << &A;
+      Diag(A.getLoc(), diag::note_conflicting_attribute);
+      return nullptr;
+    }
   }
 
   // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr,
@@ -10494,6 +10638,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_NoReturn:
     handleNoReturnAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_CXX11NoReturn:
+    handleStandardNoReturnAttr(S, D, AL);
     break;
   case ParsedAttr::AT_AnyX86NoCfCheck:
     handleNoCfCheckAttr(S, D, AL);

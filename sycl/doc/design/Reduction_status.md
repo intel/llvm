@@ -8,7 +8,7 @@
 
 There are 2 specifications of the reduction feature and both are still actual:
 
-* `sycl::ext::oneapi::reduction` is described in [this document](../extensions/deprecated/SYCL_EXT_ONEAPI_ND_RANGE_REDUCTIONS.md). This extension is deprecated, and was created as part of a pathfinding/prototyping work before it was added to SYCL 2020 standard.
+* `sycl::ext::oneapi::reduction` is described in [this document](../extensions/deprecated/sycl_ext_oneapi_nd_range_reductions.md). This extension is deprecated, and was created as part of a pathfinding/prototyping work before it was added to SYCL 2020 standard.
 
 * `sycl::reduction` is described in [SYCL 2020 standard](https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reduction).
 

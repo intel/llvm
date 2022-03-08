@@ -32,83 +32,83 @@
 #include <limits>
 #include <utility>
 
-#define FOR_EACH_NODE_KIND(X) \
-    X(NodeArrayNode) \
-    X(DotSuffix) \
-    X(VendorExtQualType) \
-    X(QualType) \
-    X(ConversionOperatorType) \
-    X(PostfixQualifiedType) \
-    X(ElaboratedTypeSpefType) \
-    X(NameType) \
-    X(AbiTagAttr) \
-    X(EnableIfAttr) \
-    X(ObjCProtoName) \
-    X(PointerType) \
-    X(ReferenceType) \
-    X(PointerToMemberType) \
-    X(ArrayType) \
-    X(FunctionType) \
-    X(NoexceptSpec) \
-    X(DynamicExceptionSpec) \
-    X(FunctionEncoding) \
-    X(LiteralOperator) \
-    X(SpecialName) \
-    X(CtorVtableSpecialName) \
-    X(QualifiedName) \
-    X(NestedName) \
-    X(LocalName) \
-    X(VectorType) \
-    X(PixelVectorType) \
-    X(BinaryFPType) \
-    X(SyntheticTemplateParamName) \
-    X(TypeTemplateParamDecl) \
-    X(NonTypeTemplateParamDecl) \
-    X(TemplateTemplateParamDecl) \
-    X(TemplateParamPackDecl) \
-    X(ParameterPack) \
-    X(TemplateArgumentPack) \
-    X(ParameterPackExpansion) \
-    X(TemplateArgs) \
-    X(ForwardTemplateReference) \
-    X(NameWithTemplateArgs) \
-    X(GlobalQualifiedName) \
-    X(ExpandedSpecialSubstitution) \
-    X(SpecialSubstitution) \
-    X(CtorDtorName) \
-    X(DtorName) \
-    X(UnnamedTypeName) \
-    X(ClosureTypeName) \
-    X(StructuredBindingName) \
-    X(BinaryExpr) \
-    X(ArraySubscriptExpr) \
-    X(PostfixExpr) \
-    X(ConditionalExpr) \
-    X(MemberExpr) \
-    X(SubobjectExpr) \
-    X(EnclosingExpr) \
-    X(CastExpr) \
-    X(SizeofParamPackExpr) \
-    X(CallExpr) \
-    X(NewExpr) \
-    X(DeleteExpr) \
-    X(PrefixExpr) \
-    X(FunctionParam) \
-    X(ConversionExpr) \
-    X(PointerToMemberConversionExpr) \
-    X(InitListExpr) \
-    X(FoldExpr) \
-    X(ThrowExpr) \
-    X(BoolExpr) \
-    X(StringLiteral) \
-    X(LambdaExpr) \
-    X(EnumLiteral)    \
-    X(IntegerLiteral) \
-    X(FloatLiteral) \
-    X(DoubleLiteral) \
-    X(LongDoubleLiteral) \
-    X(BracedExpr) \
-    X(BracedRangeExpr)
+#define FOR_EACH_NODE_KIND(X)                                                  \
+  X(NodeArrayNode)                                                             \
+  X(DotSuffix)                                                                 \
+  X(VendorExtQualType)                                                         \
+  X(QualType)                                                                  \
+  X(ConversionOperatorType)                                                    \
+  X(PostfixQualifiedType)                                                      \
+  X(ElaboratedTypeSpefType)                                                    \
+  X(NameType)                                                                  \
+  X(AbiTagAttr)                                                                \
+  X(EnableIfAttr)                                                              \
+  X(ObjCProtoName)                                                             \
+  X(PointerType)                                                               \
+  X(ReferenceType)                                                             \
+  X(PointerToMemberType)                                                       \
+  X(ArrayType)                                                                 \
+  X(FunctionType)                                                              \
+  X(NoexceptSpec)                                                              \
+  X(DynamicExceptionSpec)                                                      \
+  X(FunctionEncoding)                                                          \
+  X(LiteralOperator)                                                           \
+  X(SpecialName)                                                               \
+  X(CtorVtableSpecialName)                                                     \
+  X(QualifiedName)                                                             \
+  X(NestedName)                                                                \
+  X(LocalName)                                                                 \
+  X(VectorType)                                                                \
+  X(PixelVectorType)                                                           \
+  X(BinaryFPType)                                                              \
+  X(SyntheticTemplateParamName)                                                \
+  X(TypeTemplateParamDecl)                                                     \
+  X(NonTypeTemplateParamDecl)                                                  \
+  X(TemplateTemplateParamDecl)                                                 \
+  X(TemplateParamPackDecl)                                                     \
+  X(ParameterPack)                                                             \
+  X(TemplateArgumentPack)                                                      \
+  X(ParameterPackExpansion)                                                    \
+  X(TemplateArgs)                                                              \
+  X(ForwardTemplateReference)                                                  \
+  X(NameWithTemplateArgs)                                                      \
+  X(GlobalQualifiedName)                                                       \
+  X(ExpandedSpecialSubstitution)                                               \
+  X(SpecialSubstitution)                                                       \
+  X(CtorDtorName)                                                              \
+  X(DtorName)                                                                  \
+  X(UnnamedTypeName)                                                           \
+  X(ClosureTypeName)                                                           \
+  X(StructuredBindingName)                                                     \
+  X(BinaryExpr)                                                                \
+  X(ArraySubscriptExpr)                                                        \
+  X(PostfixExpr)                                                               \
+  X(ConditionalExpr)                                                           \
+  X(MemberExpr)                                                                \
+  X(SubobjectExpr)                                                             \
+  X(EnclosingExpr)                                                             \
+  X(CastExpr)                                                                  \
+  X(SizeofParamPackExpr)                                                       \
+  X(CallExpr)                                                                  \
+  X(NewExpr)                                                                   \
+  X(DeleteExpr)                                                                \
+  X(PrefixExpr)                                                                \
+  X(FunctionParam)                                                             \
+  X(ConversionExpr)                                                            \
+  X(PointerToMemberConversionExpr)                                             \
+  X(InitListExpr)                                                              \
+  X(FoldExpr)                                                                  \
+  X(ThrowExpr)                                                                 \
+  X(BoolExpr)                                                                  \
+  X(StringLiteral)                                                             \
+  X(LambdaExpr)                                                                \
+  X(EnumLiteral)                                                               \
+  X(IntegerLiteral)                                                            \
+  X(FloatLiteral)                                                              \
+  X(DoubleLiteral)                                                             \
+  X(LongDoubleLiteral)                                                         \
+  X(BracedExpr)                                                                \
+  X(BracedRangeExpr)
 
 DEMANGLE_NAMESPACE_BEGIN
 
@@ -3220,15 +3220,6 @@ AbstractManglingParser<Derived, Alloc>::parseNestedName(NameState *State) {
 
   Node *SoFar = nullptr;
   while (!consumeIf('E')) {
-    consumeIf('L'); // extension
-
-    if (consumeIf('M')) {
-      // <data-member-prefix> := <member source-name> [<template-args>] M
-      if (SoFar == nullptr)
-        return nullptr;
-      continue;
-    }
-
     if (State)
       // Only set end-with-template on the case that does that.
       State->EndsWithTemplateArgs = false;
@@ -3273,12 +3264,17 @@ AbstractManglingParser<Derived, Alloc>::parseNestedName(NameState *State) {
         return nullptr;
       continue; // Do not push a new substitution.
     } else {
+      consumeIf('L'); // extension
       //          ::= [<prefix>] <unqualified-name>
       SoFar = getDerived().parseUnqualifiedName(State, SoFar);
     }
     if (SoFar == nullptr)
       return nullptr;
     Subs.push_back(SoFar);
+
+    // No longer used.
+    // <data-member-prefix> := <member source-name> [<template-args>] M
+    consumeIf('M');
   }
 
   if (SoFar == nullptr || Subs.empty())
@@ -5064,30 +5060,29 @@ Node *AbstractManglingParser<Derived, Alloc>::parseExpr() {
     // interpreted as <type> node 'short' or 'ellipsis'. However, neither
     // __uuidof(short) nor __uuidof(...) can actually appear, so there is no
     // actual conflict here.
+    bool IsUUID = false;
+    Node *UUID = nullptr;
     if (Name->getBaseName() == "__uuidof") {
-      if (numLeft() < 2)
-        return nullptr;
-      if (*First == 't') {
-        ++First;
-        Node *Ty = getDerived().parseType();
-        if (!Ty)
-          return nullptr;
-        return make<CallExpr>(Name, makeNodeArray(&Ty, &Ty + 1));
-      }
-      if (*First == 'z') {
-        ++First;
-        Node *Ex = getDerived().parseExpr();
-        if (!Ex)
-          return nullptr;
-        return make<CallExpr>(Name, makeNodeArray(&Ex, &Ex + 1));
+      if (consumeIf('t')) {
+        UUID = getDerived().parseType();
+        IsUUID = true;
+      } else if (consumeIf('z')) {
+        UUID = getDerived().parseExpr();
+        IsUUID = true;
       }
     }
     size_t ExprsBegin = Names.size();
-    while (!consumeIf('E')) {
-      Node *E = getDerived().parseTemplateArg();
-      if (E == nullptr)
-        return E;
-      Names.push_back(E);
+    if (IsUUID) {
+      if (UUID == nullptr)
+        return nullptr;
+      Names.push_back(UUID);
+    } else {
+      while (!consumeIf('E')) {
+        Node *E = getDerived().parseTemplateArg();
+        if (E == nullptr)
+          return E;
+        Names.push_back(E);
+      }
     }
     return make<CallExpr>(Name, popTrailingNodeArray(ExprsBegin));
   }
