@@ -14,7 +14,7 @@
 #include <cstddef>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl::ext::oneapi::cuda {
+namespace sycl::ext::oneapi::experimental::cuda {
 
 class barrier {
   int64_t state;
