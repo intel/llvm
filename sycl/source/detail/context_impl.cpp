@@ -30,7 +30,6 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
     : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
       MPlatform(), MPropList(PropList), MHostContext(Device.is_host()) {
   MKernelProgramCache.setContextPtr(this);
-  MAuxiliaryResourcePool.setPlatform(MPlatform);
 }
 
 context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
@@ -62,7 +61,6 @@ context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
   }
 
   MKernelProgramCache.setContextPtr(this);
-  MAuxiliaryResourcePool.setPlatform(MPlatform);
 }
 
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
@@ -101,7 +99,6 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
     getPlugin().call<PiApiKind::piContextRetain>(MContext);
   }
   MKernelProgramCache.setContextPtr(this);
-  MAuxiliaryResourcePool.setPlatform(MPlatform);
 }
 
 cl_context context_impl::get() const {

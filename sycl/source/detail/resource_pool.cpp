@@ -40,10 +40,13 @@ ResourcePool::FreeEntry ResourcePool::getOrAllocateEntry(
     const size_t Size, const std::shared_ptr<context_impl> &ContextImplPtr,
     void *DataPtr, bool *IsNewEntry) {
   assert(Size && "Size must be greater than 0");
-  assert(ContextImplPtr->getPlatformImpl() == MPlatform &&
-         "Context platform does not match the resource pool platform.");
+
   {
     std::lock_guard<std::mutex> Lock{MMutex};
+
+    // Store platform to allow future freeing.
+    if (!MPlatform)
+      MPlatform = ContextImplPtr->getPlatformImpl();
 
     // Find the free entry with the smallest suitable size.
     auto FoundFreeEntry = MFreeEntries.upper_bound(Size - 1);

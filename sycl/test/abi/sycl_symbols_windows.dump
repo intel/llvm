@@ -3951,7 +3951,6 @@
 ?setPitches@?$image_impl@$00@detail@sycl@cl@@AEAAXXZ
 ?setPitches@?$image_impl@$01@detail@sycl@cl@@AEAAXXZ
 ?setPitches@?$image_impl@$02@detail@sycl@cl@@AEAAXXZ
-?setPlatform@ResourcePool@detail@sycl@cl@@QEAAXAEBV?$shared_ptr@Vplatform_impl@detail@sycl@cl@@@std@@@Z
 ?setStateExplicitKernelBundle@handler@sycl@cl@@AEAAXXZ
 ?setStateSpecConstSet@handler@sycl@cl@@AEAAXXZ
 ?setType@handler@sycl@cl@@AEAAXW4CGTYPE@CG@detail@23@@Z

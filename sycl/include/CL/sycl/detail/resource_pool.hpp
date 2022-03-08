@@ -178,12 +178,6 @@ public:
     assert(MAllocCount == 0 && "Not all resources have returned to the pool.");
   }
 
-  /// Sets the platform of the resource pool.
-  void setPlatform(const std::shared_ptr<platform_impl> &Platform) {
-    assert(MPlatform == nullptr && "Platform of pool has already been set.");
-    MPlatform = Platform;
-  }
-
   /// Returns true if the resource pool is enabled and false otherwise.
   ///
   /// \return a boolean value specifying whether the pool is enabled.
