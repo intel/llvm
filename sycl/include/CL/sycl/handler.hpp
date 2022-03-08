@@ -479,7 +479,7 @@ private:
   void addReduction(const std::shared_ptr<const void> &ReduObj) {
     MSharedPtrStorage.push_back(ReduObj);
   }
-  
+
   /// Gets the context implementation of the context associated with the
   /// handler.
   ///

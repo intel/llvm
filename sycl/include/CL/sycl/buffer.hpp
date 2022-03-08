@@ -513,8 +513,7 @@ private:
   template <typename HT, int HDims, typename HAllocT>
   friend buffer<HT, HDims, HAllocT, void>
   detail::make_buffer_helper(pi_native_handle, const context &, event);
-  template <typename RT, int RDims>
-  friend struct detail::ManagedResource;
+  template <typename RT, int RDims> friend struct detail::ManagedResource;
 
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent

@@ -171,9 +171,7 @@ public:
   /// Gets the resource pool of the SYCL context.
   ///
   /// \return a reference to the resource pool.
-  ResourcePool &getResourcePool() {
-    return MAuxiliaryResourcePool;
-  }
+  ResourcePool &getResourcePool() { return MAuxiliaryResourcePool; }
 
 private:
   async_handler MAsyncHandler;
