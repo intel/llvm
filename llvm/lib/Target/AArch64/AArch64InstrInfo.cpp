@@ -1094,7 +1094,10 @@ bool AArch64InstrInfo::isSchedulingBoundary(const MachineInstr &MI,
     return true;
   default:;
   }
-  return isSEHInstruction(MI);
+  if (isSEHInstruction(MI))
+    return true;
+  auto Next = std::next(MI.getIterator());
+  return Next != MBB->end() && Next->isCFIInstruction();
 }
 
 /// analyzeCompare - For a comparison instruction, return the source registers
@@ -3458,7 +3461,8 @@ void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   // Copy a Predicate register by ORRing with itself.
   if (AArch64::PPRRegClass.contains(DestReg) &&
       AArch64::PPRRegClass.contains(SrcReg)) {
-    assert(Subtarget.hasSVE() && "Unexpected SVE register.");
+    assert((Subtarget.hasSVE() || Subtarget.hasStreamingSVE()) &&
+           "Unexpected SVE register.");
     BuildMI(MBB, I, DL, get(AArch64::ORR_PPzPP), DestReg)
       .addReg(SrcReg) // Pg
       .addReg(SrcReg)
@@ -3469,7 +3473,8 @@ void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   // Copy a Z register by ORRing with itself.
   if (AArch64::ZPRRegClass.contains(DestReg) &&
       AArch64::ZPRRegClass.contains(SrcReg)) {
-    assert(Subtarget.hasSVE() && "Unexpected SVE register.");
+    assert((Subtarget.hasSVE() || Subtarget.hasStreamingSVE()) &&
+           "Unexpected SVE register.");
     BuildMI(MBB, I, DL, get(AArch64::ORR_ZZZ), DestReg)
       .addReg(SrcReg)
       .addReg(SrcReg, getKillRegState(KillSrc));
@@ -3479,6 +3484,8 @@ void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   // Copy a Z register pair by copying the individual sub-registers.
   if (AArch64::ZPR2RegClass.contains(DestReg) &&
       AArch64::ZPR2RegClass.contains(SrcReg)) {
+    assert((Subtarget.hasSVE() || Subtarget.hasStreamingSVE()) &&
+           "Unexpected SVE register.");
     static const unsigned Indices[] = {AArch64::zsub0, AArch64::zsub1};
     copyPhysRegTuple(MBB, I, DL, DestReg, SrcReg, KillSrc, AArch64::ORR_ZZZ,
                      Indices);
@@ -3488,6 +3495,8 @@ void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   // Copy a Z register triple by copying the individual sub-registers.
   if (AArch64::ZPR3RegClass.contains(DestReg) &&
       AArch64::ZPR3RegClass.contains(SrcReg)) {
+    assert((Subtarget.hasSVE() || Subtarget.hasStreamingSVE()) &&
+           "Unexpected SVE register.");
     static const unsigned Indices[] = {AArch64::zsub0, AArch64::zsub1,
                                        AArch64::zsub2};
     copyPhysRegTuple(MBB, I, DL, DestReg, SrcReg, KillSrc, AArch64::ORR_ZZZ,
@@ -3498,6 +3507,8 @@ void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   // Copy a Z register quad by copying the individual sub-registers.
   if (AArch64::ZPR4RegClass.contains(DestReg) &&
       AArch64::ZPR4RegClass.contains(SrcReg)) {
+    assert((Subtarget.hasSVE() || Subtarget.hasStreamingSVE()) &&
+           "Unexpected SVE register.");
     static const unsigned Indices[] = {AArch64::zsub0, AArch64::zsub1,
                                        AArch64::zsub2, AArch64::zsub3};
     copyPhysRegTuple(MBB, I, DL, DestReg, SrcReg, KillSrc, AArch64::ORR_ZZZ,
@@ -7424,11 +7435,13 @@ static void signOutlinedFunction(MachineFunction &MF, MachineBasicBlock &MBB,
           .addReg(AArch64::SP, RegState::InternalRead);
     MI.setMIFlag(MachineInstr::FrameSetup);
 
-    unsigned CFIIndex =
-        MF.addFrameInst(MCCFIInstruction::createNegateRAState(nullptr));
-    BuildMI(MBB, MBBPAC, DebugLoc(), TII->get(AArch64::CFI_INSTRUCTION))
-        .addCFIIndex(CFIIndex)
-        .setMIFlags(MachineInstr::FrameSetup);
+    if (MF.getInfo<AArch64FunctionInfo>()->needsDwarfUnwindInfo()) {
+      unsigned CFIIndex =
+          MF.addFrameInst(MCCFIInstruction::createNegateRAState(nullptr));
+      BuildMI(MBB, MBBPAC, DebugLoc(), TII->get(AArch64::CFI_INSTRUCTION))
+          .addCFIIndex(CFIIndex)
+          .setMIFlags(MachineInstr::FrameSetup);
+    }
 
     // If v8.3a features are available we can replace a RET instruction by
     // RETAA or RETAB and omit the AUT instructions
@@ -7515,24 +7528,26 @@ void AArch64InstrInfo::buildOutlinedFrame(
                                 .addImm(-16);
     It = MBB.insert(It, STRXpre);
 
-    const TargetSubtargetInfo &STI = MF.getSubtarget();
-    const MCRegisterInfo *MRI = STI.getRegisterInfo();
-    unsigned DwarfReg = MRI->getDwarfRegNum(AArch64::LR, true);
+    if (MF.getInfo<AArch64FunctionInfo>()->needsDwarfUnwindInfo()) {
+      const TargetSubtargetInfo &STI = MF.getSubtarget();
+      const MCRegisterInfo *MRI = STI.getRegisterInfo();
+      unsigned DwarfReg = MRI->getDwarfRegNum(AArch64::LR, true);
 
-    // Add a CFI saying the stack was moved 16 B down.
-    int64_t StackPosEntry =
-        MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, 16));
-    BuildMI(MBB, It, DebugLoc(), get(AArch64::CFI_INSTRUCTION))
-        .addCFIIndex(StackPosEntry)
-        .setMIFlags(MachineInstr::FrameSetup);
+      // Add a CFI saying the stack was moved 16 B down.
+      int64_t StackPosEntry =
+          MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, 16));
+      BuildMI(MBB, It, DebugLoc(), get(AArch64::CFI_INSTRUCTION))
+          .addCFIIndex(StackPosEntry)
+          .setMIFlags(MachineInstr::FrameSetup);
 
-    // Add a CFI saying that the LR that we want to find is now 16 B higher than
-    // before.
-    int64_t LRPosEntry =
-        MF.addFrameInst(MCCFIInstruction::createOffset(nullptr, DwarfReg, -16));
-    BuildMI(MBB, It, DebugLoc(), get(AArch64::CFI_INSTRUCTION))
-        .addCFIIndex(LRPosEntry)
-        .setMIFlags(MachineInstr::FrameSetup);
+      // Add a CFI saying that the LR that we want to find is now 16 B higher
+      // than before.
+      int64_t LRPosEntry = MF.addFrameInst(
+          MCCFIInstruction::createOffset(nullptr, DwarfReg, -16));
+      BuildMI(MBB, It, DebugLoc(), get(AArch64::CFI_INSTRUCTION))
+          .addCFIIndex(LRPosEntry)
+          .setMIFlags(MachineInstr::FrameSetup);
+    }
 
     // Insert a restore before the terminator for the function.
     MachineInstr *LDRXpost = BuildMI(MF, DebugLoc(), get(AArch64::LDRXpost))

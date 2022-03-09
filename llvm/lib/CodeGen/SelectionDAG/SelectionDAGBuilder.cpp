@@ -2751,7 +2751,7 @@ SelectionDAGBuilder::visitSPDescriptorFailure(StackProtectorDescriptor &SPD) {
   // On PS4, the "return address" must still be within the calling function,
   // even if it's at the very end, so emit an explicit TRAP here.
   // Passing 'true' for doesNotReturn above won't generate the trap for us.
-  if (TM.getTargetTriple().isPS4CPU())
+  if (TM.getTargetTriple().isPS4())
     Chain = DAG.getNode(ISD::TRAP, getCurSDLoc(), MVT::Other, Chain);
   // WebAssembly needs an unreachable instruction after a non-returning call,
   // because the function return type can be different from __stack_chk_fail's
@@ -8286,7 +8286,7 @@ public:
     // accessed type.
     if (isIndirect) {
       OpTy = ParamElemType;
-      assert(OpTy && "Indirect opernad must have elementtype attribute");
+      assert(OpTy && "Indirect operand must have elementtype attribute");
     }
 
     // Look for vector wrapped in a struct. e.g. { <16 x i8> }.
@@ -8588,7 +8588,7 @@ void SelectionDAGBuilder::visitInlineAsm(const CallBase &Call,
     if (OpInfo.hasArg()) {
       OpInfo.CallOperandVal = Call.getArgOperand(ArgNo);
       OpInfo.CallOperand = getValue(OpInfo.CallOperandVal);
-      Type *ParamElemTy = Call.getAttributes().getParamElementType(ArgNo);
+      Type *ParamElemTy = Call.getParamElementType(ArgNo);
       EVT VT = OpInfo.getCallOperandValEVT(*DAG.getContext(), TLI,
                                            DAG.getDataLayout(), ParamElemTy);
       OpInfo.ConstraintVT = VT.isSimple() ? VT.getSimpleVT() : MVT::Other;

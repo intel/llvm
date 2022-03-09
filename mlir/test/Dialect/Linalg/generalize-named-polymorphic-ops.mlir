@@ -36,6 +36,20 @@ func @generalize_matmul_tensor_i16i64i32(%A : tensor<16x8xi16>, %B: tensor<8x32x
 // CHECK-NEXT:   linalg.yield %[[ADD]] : i32
 // CHECK-NEXT: -> tensor<16x32xi32>
 
+
+// -----
+
+// Verifies that cast attributes control the cast operations used.
+func @generalize_matmul_tensor_i16i64i32_unsigned(%A : tensor<16x8xi16>, %B: tensor<8x32xi64>, %C: tensor<16x32xi32>) -> tensor<16x32xi32> {
+  %0 = linalg.matmul {cast = #linalg.type_fn<cast_unsigned>}
+                     ins(%A, %B: tensor<16x8xi16>, tensor<8x32xi64>)
+                          outs(%C: tensor<16x32xi32>) -> tensor<16x32xi32>
+  return %0: tensor<16x32xi32>
+}
+
+// CHECK-LABEL: @generalize_matmul_tensor_i16i64i32_unsigned
+// CHECK:        = arith.extui
+
 // -----
 
 func @generalize_matmul_tensor_i16i64f32(%A : tensor<16x8xi16>, %B: tensor<8x32xi64>, %C: tensor<16x32xf32>) -> tensor<16x32xf32> {
@@ -278,16 +292,48 @@ func @generalize_fill_rng_2d_i32(%min: f64, %max: f64, %seed: i32, %O: tensor<16
 
 // -----
 
-func @generalize_soft_plus_2d_f32(%input: tensor<16x32xf32>, %output: tensor<16x32xf32>) -> tensor<16x32xf32> {
-  %0 = linalg.soft_plus_2d ins(%input: tensor<16x32xf32>) outs(%output: tensor<16x32xf32>) -> tensor<16x32xf32>
-  return %0: tensor<16x32xf32>
+// Verifies the default value of the fun attribute is an exp op.
+func @generalize_elemwise_exp(%lhs : tensor<4x8xf32>, %output : tensor<4x8xf32>) -> tensor<4x8xf32> {
+  %0 = linalg.elemwise_unary ins(%lhs: tensor<4x8xf32>) outs(%output: tensor<4x8xf32>) -> tensor<4x8xf32>
+  return %0: tensor<4x8xf32>
 }
 
-// CHECK-LABEL: @generalize_soft_plus_2d_f32
-//      CHECK: %[[C1:.+]] = arith.constant 1.000000e+00 : f32
-//      CHECK: ^{{.*}}(%[[IN:.+]]: f32, %[[OUT:.+]]: f32
-// CHECK-NEXT:   %[[EXP:.+]] = math.exp %[[IN]] : f32
-// CHECK-NEXT:   %[[SUM:.+]] = arith.addf %[[EXP]], %[[C1]] : f32
-// CHECK-NEXT:   %[[LOG:.+]] = math.log %[[SUM]] : f32
-// CHECK-NEXT:   linalg.yield %[[LOG]] : f32
-// CHECK-NEXT: -> tensor<16x32xf32>
+// CHECK-LABEL: @generalize_elemwise_exp
+// CHECK:        = math.exp
+
+// -----
+
+// Verifies the fun attribute controls the unary function used.
+func @generalize_elemwise_log(%lhs : tensor<4x8xf32>, %output : tensor<4x8xf32>) -> tensor<4x8xf32> {
+  %0 = linalg.elemwise_unary {fun = #linalg.unary_fn<log>}
+                              ins(%lhs: tensor<4x8xf32>) outs(%output: tensor<4x8xf32>) -> tensor<4x8xf32>
+  return %0: tensor<4x8xf32>
+}
+
+// CHECK-LABEL: @generalize_elemwise_log
+// CHECK:        = math.log
+
+// -----
+
+// Verifies the default value of the fun attribute is an add op.
+func @generalize_elemwise_add(%lhs : tensor<4x8xf32>, %rhs : tensor<4x8xf32>, %output : tensor<4x8xf32>) -> tensor<4x8xf32> {
+  %0 = linalg.elemwise_binary ins(%lhs, %rhs: tensor<4x8xf32>, tensor<4x8xf32>)
+                              outs(%output: tensor<4x8xf32>) -> tensor<4x8xf32>
+  return %0: tensor<4x8xf32>
+}
+
+// CHECK-LABEL: @generalize_elemwise_add
+// CHECK:        = arith.addf
+
+// -----
+
+// Verifies the fun attribute controls the binary function used.
+func @generalize_elemwise_mul(%lhs : tensor<4x8xf32>, %rhs : tensor<4x8xf32>, %output : tensor<4x8xf32>) -> tensor<4x8xf32> {
+  %0 = linalg.elemwise_binary {fun = #linalg.binary_fn<mul>}
+                              ins(%lhs, %rhs: tensor<4x8xf32>, tensor<4x8xf32>)
+                              outs(%output: tensor<4x8xf32>) -> tensor<4x8xf32>
+  return %0: tensor<4x8xf32>
+}
+
+// CHECK-LABEL: @generalize_elemwise_mul
+// CHECK:        = arith.mulf

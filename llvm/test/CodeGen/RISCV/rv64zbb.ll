@@ -945,10 +945,9 @@ declare i32 @llvm.abs.i32(i32, i1 immarg)
 define i32 @abs_i32(i32 %x) {
 ; RV64I-LABEL: abs_i32:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    sext.w a0, a0
-; RV64I-NEXT:    srai a1, a0, 63
+; RV64I-NEXT:    sraiw a1, a0, 31
 ; RV64I-NEXT:    xor a0, a0, a1
-; RV64I-NEXT:    sub a0, a0, a1
+; RV64I-NEXT:    subw a0, a0, a1
 ; RV64I-NEXT:    ret
 ;
 ; RV64ZBB-LABEL: abs_i32:
@@ -961,20 +960,18 @@ define i32 @abs_i32(i32 %x) {
   ret i32 %abs
 }
 
-; FIXME: We can remove the sext.w on RV64ZBB by using negw.
 define signext i32 @abs_i32_sext(i32 signext %x) {
 ; RV64I-LABEL: abs_i32_sext:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    srai a1, a0, 63
+; RV64I-NEXT:    sraiw a1, a0, 31
 ; RV64I-NEXT:    xor a0, a0, a1
 ; RV64I-NEXT:    subw a0, a0, a1
 ; RV64I-NEXT:    ret
 ;
 ; RV64ZBB-LABEL: abs_i32_sext:
 ; RV64ZBB:       # %bb.0:
-; RV64ZBB-NEXT:    neg a1, a0
+; RV64ZBB-NEXT:    negw a1, a0
 ; RV64ZBB-NEXT:    max a0, a0, a1
-; RV64ZBB-NEXT:    sext.w a0, a0
 ; RV64ZBB-NEXT:    ret
   %abs = tail call i32 @llvm.abs.i32(i32 %x, i1 true)
   ret i32 %abs

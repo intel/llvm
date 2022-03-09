@@ -1079,7 +1079,7 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
 
   DBuilder.insertDeclare(Shape.FramePtr, FrameDIVar,
                          DBuilder.createExpression(), DILoc,
-                         Shape.FramePtr->getNextNode());
+                         Shape.getInsertPtAfterFramePtr());
 }
 
 // Build a struct that will keep state for an active coroutine.
@@ -1518,13 +1518,12 @@ static void createFramePtr(coro::Shape &Shape) {
 //    whatever
 //
 //
-static Instruction *insertSpills(const FrameDataInfo &FrameData,
-                                 coro::Shape &Shape) {
+static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
   auto *CB = Shape.CoroBegin;
   LLVMContext &C = CB->getContext();
   IRBuilder<> Builder(C);
   StructType *FrameTy = Shape.FrameTy;
-  Instruction *FramePtr = Shape.FramePtr;
+  Value *FramePtr = Shape.FramePtr;
   DominatorTree DT(*CB->getFunction());
   SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> DbgPtrAllocaCache;
 
@@ -1577,7 +1576,7 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
       // For arguments, we will place the store instruction right after
       // the coroutine frame pointer instruction, i.e. bitcast of
       // coro.begin from i8* to %f.frame*.
-      InsertPt = FramePtr->getNextNode();
+      InsertPt = Shape.getInsertPtAfterFramePtr();
 
       // If we're spilling an Argument, make sure we clear 'nocapture'
       // from the coroutine function.
@@ -1594,7 +1593,7 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
       if (!DT.dominates(CB, I)) {
         // If it is not dominated by CoroBegin, then spill should be
         // inserted immediately after CoroFrame is computed.
-        InsertPt = FramePtr->getNextNode();
+        InsertPt = Shape.getInsertPtAfterFramePtr();
       } else if (auto *II = dyn_cast<InvokeInst>(I)) {
         // If we are spilling the result of the invoke instruction, split
         // the normal edge and insert the spill in the new block.
@@ -1687,10 +1686,10 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
     }
   }
 
-  BasicBlock *FramePtrBB = FramePtr->getParent();
+  BasicBlock *FramePtrBB = Shape.getInsertPtAfterFramePtr()->getParent();
 
-  auto SpillBlock =
-      FramePtrBB->splitBasicBlock(FramePtr->getNextNode(), "AllocaSpillBB");
+  auto SpillBlock = FramePtrBB->splitBasicBlock(
+      Shape.getInsertPtAfterFramePtr(), "AllocaSpillBB");
   SpillBlock->splitBasicBlock(&SpillBlock->front(), "PostSpill");
   Shape.AllocaSpillBlock = SpillBlock;
 
@@ -1709,7 +1708,7 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
       Alloca->replaceAllUsesWith(G);
       Alloca->eraseFromParent();
     }
-    return FramePtr;
+    return;
   }
 
   // If we found any alloca, replace all of their remaining uses with GEP
@@ -1740,7 +1739,7 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
     for (Instruction *I : UsersToUpdate)
       I->replaceUsesOfWith(Alloca, G);
   }
-  Builder.SetInsertPoint(FramePtr->getNextNode());
+  Builder.SetInsertPoint(Shape.getInsertPtAfterFramePtr());
   for (const auto &A : FrameData.Allocas) {
     AllocaInst *Alloca = A.Alloca;
     if (A.MayWriteBeforeCoroBegin) {
@@ -1769,7 +1768,6 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
           AliasPtrTyped, [&](Use &U) { return DT.dominates(CB, U); });
     }
   }
-  return FramePtr;
 }
 
 // Moves the values in the PHIs in SuccBB that correspong to PredBB into a new

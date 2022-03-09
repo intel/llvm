@@ -634,6 +634,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(attributes);
 
   KEYWORD(alwaysinline);
+  KEYWORD(allocalign);
   KEYWORD(allocsize);
   KEYWORD(argmemonly);
   KEYWORD(builtin);
@@ -672,6 +673,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(nocf_check);
   KEYWORD(noundef);
   KEYWORD(nounwind);
+  KEYWORD(nosanitize_bounds);
   KEYWORD(nosanitize_coverage);
   KEYWORD(null_pointer_is_valid);
   KEYWORD(optforfuzzing);

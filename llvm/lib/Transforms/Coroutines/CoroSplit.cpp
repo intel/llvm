@@ -22,6 +22,7 @@
 #include "CoroInstr.h"
 #include "CoroInternal.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/PriorityWorklist.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -1151,7 +1152,8 @@ static void updateCoroFrame(coro::Shape &Shape, Function *ResumeFn,
                             Function *DestroyFn, Function *CleanupFn) {
   assert(Shape.ABI == coro::ABI::Switch);
 
-  IRBuilder<> Builder(Shape.FramePtr->getNextNode());
+  IRBuilder<> Builder(Shape.getInsertPtAfterFramePtr());
+
   auto *ResumeAddr = Builder.CreateStructGEP(
       Shape.FrameTy, Shape.FramePtr, coro::Shape::SwitchFieldIndex::Resume,
       "resume.addr");
@@ -1662,7 +1664,7 @@ static void splitAsyncCoroutine(Function &F, coro::Shape &Shape,
   // Map all uses of llvm.coro.begin to the allocated frame pointer.
   {
     // Make sure we don't invalidate Shape.FramePtr.
-    TrackingVH<Instruction> Handle(Shape.FramePtr);
+    TrackingVH<Value> Handle(Shape.FramePtr);
     Shape.CoroBegin->replaceAllUsesWith(FramePtr);
     Shape.FramePtr = Handle.getValPtr();
   }
@@ -1774,7 +1776,7 @@ static void splitRetconCoroutine(Function &F, coro::Shape &Shape,
   // Map all uses of llvm.coro.begin to the allocated frame pointer.
   {
     // Make sure we don't invalidate Shape.FramePtr.
-    TrackingVH<Instruction> Handle(Shape.FramePtr);
+    TrackingVH<Value> Handle(Shape.FramePtr);
     Shape.CoroBegin->replaceAllUsesWith(RawFramePtr);
     Shape.FramePtr = Handle.getValPtr();
   }

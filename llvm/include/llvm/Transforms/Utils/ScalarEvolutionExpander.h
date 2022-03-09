@@ -16,12 +16,10 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/InstSimplifyFolder.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/ScalarEvolutionNormalization.h"
-#include "llvm/Analysis/TargetFolder.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/ValueHandle.h"
@@ -385,8 +383,8 @@ public:
   /// Note that this function does not perform an exhaustive search. I.e if it
   /// didn't find any value it does not mean that there is no such value.
   ///
-  Optional<ScalarEvolution::ValueOffsetPair>
-  getRelatedExistingExpansion(const SCEV *S, const Instruction *At, Loop *L);
+  Value *getRelatedExistingExpansion(const SCEV *S, const Instruction *At,
+                                     Loop *L);
 
   /// Returns a suitable insert point after \p I, that dominates \p
   /// MustDominate. Skips instructions inserted by the expander.
@@ -444,8 +442,7 @@ private:
   Value *expandAddToGEP(const SCEV *Op, PointerType *PTy, Type *Ty, Value *V);
 
   /// Find a previous Value in ExprValueMap for expand.
-  ScalarEvolution::ValueOffsetPair
-  FindValueInExprValueMap(const SCEV *S, const Instruction *InsertPt);
+  Value *FindValueInExprValueMap(const SCEV *S, const Instruction *InsertPt);
 
   Value *expand(const SCEV *S);
 

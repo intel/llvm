@@ -116,7 +116,7 @@ static const uint64_t kFreeBSDKasan_ShadowOffset64 = 0xdffff7c000000000;
 static const uint64_t kNetBSD_ShadowOffset32 = 1ULL << 30;
 static const uint64_t kNetBSD_ShadowOffset64 = 1ULL << 46;
 static const uint64_t kNetBSDKasan_ShadowOffset64 = 0xdfff900000000000;
-static const uint64_t kPS4CPU_ShadowOffset64 = 1ULL << 40;
+static const uint64_t kPS4_ShadowOffset64 = 1ULL << 40;
 static const uint64_t kWindowsShadowOffset32 = 3ULL << 28;
 static const uint64_t kEmscriptenShadowOffset = 0;
 
@@ -470,7 +470,7 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
   bool IsMacOS = TargetTriple.isMacOSX();
   bool IsFreeBSD = TargetTriple.isOSFreeBSD();
   bool IsNetBSD = TargetTriple.isOSNetBSD();
-  bool IsPS4CPU = TargetTriple.isPS4CPU();
+  bool IsPS4 = TargetTriple.isPS4();
   bool IsLinux = TargetTriple.isOSLinux();
   bool IsPPC64 = TargetTriple.getArch() == Triple::ppc64 ||
                  TargetTriple.getArch() == Triple::ppc64le;
@@ -529,8 +529,8 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
         Mapping.Offset = kNetBSDKasan_ShadowOffset64;
       else
         Mapping.Offset = kNetBSD_ShadowOffset64;
-    } else if (IsPS4CPU)
-      Mapping.Offset = kPS4CPU_ShadowOffset64;
+    } else if (IsPS4)
+      Mapping.Offset = kPS4_ShadowOffset64;
     else if (IsLinux && IsX86_64) {
       if (IsKasan)
         Mapping.Offset = kLinuxKasan_ShadowOffset64;
@@ -569,7 +569,7 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
   // offset is not necessary 1/8-th of the address space.  On SystemZ,
   // we could OR the constant in a single instruction, but it's more
   // efficient to load it once and use indexed addressing.
-  Mapping.OrShadowOffset = !IsAArch64 && !IsPPC64 && !IsSystemZ && !IsPS4CPU &&
+  Mapping.OrShadowOffset = !IsAArch64 && !IsPPC64 && !IsSystemZ && !IsPS4 &&
                            !IsRISCV64 &&
                            !(Mapping.Offset & (Mapping.Offset - 1)) &&
                            Mapping.Offset != kDynamicShadowSentinel;
@@ -1269,36 +1269,6 @@ AnalysisKey ASanGlobalsMetadataAnalysis::Key;
 GlobalsMetadata ASanGlobalsMetadataAnalysis::run(Module &M,
                                                  ModuleAnalysisManager &AM) {
   return GlobalsMetadata(M);
-}
-
-PreservedAnalyses AddressSanitizerPass::run(Function &F,
-                                            AnalysisManager<Function> &AM) {
-  auto &MAMProxy = AM.getResult<ModuleAnalysisManagerFunctionProxy>(F);
-  Module &M = *F.getParent();
-  if (auto *R = MAMProxy.getCachedResult<ASanGlobalsMetadataAnalysis>(M)) {
-    const TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
-    AddressSanitizer Sanitizer(M, R, nullptr, Options.CompileKernel,
-                               Options.Recover, Options.UseAfterScope,
-                               Options.UseAfterReturn);
-    if (Sanitizer.instrumentFunction(F, TLI))
-      return PreservedAnalyses::none();
-    return PreservedAnalyses::all();
-  }
-
-  report_fatal_error(
-      "The ASanGlobalsMetadataAnalysis is required to run before "
-      "AddressSanitizer can run");
-  return PreservedAnalyses::all();
-}
-
-void AddressSanitizerPass::printPipeline(
-    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
-  static_cast<PassInfoMixin<AddressSanitizerPass> *>(this)->printPipeline(
-      OS, MapClassName2PassName);
-  OS << "<";
-  if (Options.CompileKernel)
-    OS << "kernel";
-  OS << ">";
 }
 
 void ModuleAddressSanitizerPass::printPipeline(

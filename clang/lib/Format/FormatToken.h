@@ -43,6 +43,7 @@ namespace format {
   TYPE(ConflictAlternative)                                                    \
   TYPE(ConflictEnd)                                                            \
   TYPE(ConflictStart)                                                          \
+  TYPE(CppCastLParen)                                                          \
   TYPE(CtorInitializerColon)                                                   \
   TYPE(CtorInitializerComma)                                                   \
   TYPE(DesignatedInitializerLSquare)                                           \
@@ -132,34 +133,6 @@ namespace format {
   TYPE(CSharpGenericTypeConstraintColon)                                       \
   TYPE(CSharpGenericTypeConstraintComma)                                       \
   TYPE(Unknown)
-
-/// Sorted operators that can follow a C variable.
-static const std::vector<clang::tok::TokenKind> COperatorsFollowingVar = [] {
-  std::vector<clang::tok::TokenKind> ReturnVal = {
-      tok::l_square,     tok::r_square,
-      tok::l_paren,      tok::r_paren,
-      tok::r_brace,      tok::period,
-      tok::ellipsis,     tok::ampamp,
-      tok::ampequal,     tok::star,
-      tok::starequal,    tok::plus,
-      tok::plusplus,     tok::plusequal,
-      tok::minus,        tok::arrow,
-      tok::minusminus,   tok::minusequal,
-      tok::exclaim,      tok::exclaimequal,
-      tok::slash,        tok::slashequal,
-      tok::percent,      tok::percentequal,
-      tok::less,         tok::lessless,
-      tok::lessequal,    tok::lesslessequal,
-      tok::greater,      tok::greatergreater,
-      tok::greaterequal, tok::greatergreaterequal,
-      tok::caret,        tok::caretequal,
-      tok::pipe,         tok::pipepipe,
-      tok::pipeequal,    tok::question,
-      tok::semi,         tok::equal,
-      tok::equalequal,   tok::comma};
-  assert(std::is_sorted(ReturnVal.begin(), ReturnVal.end()));
-  return ReturnVal;
-}();
 
 /// Determines the semantic type of a syntactic token, e.g. whether "<" is a
 /// template opener or binary operator.
@@ -257,7 +230,7 @@ struct FormatToken {
         PartOfMultiVariableDeclStmt(false), ContinuesLineCommentSection(false),
         Finalized(false), ClosesRequiresClause(false), BlockKind(BK_Unknown),
         Decision(FD_Unformatted), PackingKind(PPK_Inconclusive),
-        Type(TT_Unknown) {}
+        TypeIsFinalized(false), Type(TT_Unknown) {}
 
   /// The \c Token.
   Token Tok;
@@ -366,13 +339,31 @@ public:
   }
 
 private:
+  unsigned TypeIsFinalized : 1;
   TokenType Type;
 
 public:
   /// Returns the token's type, e.g. whether "<" is a template opener or
   /// binary operator.
   TokenType getType() const { return Type; }
-  void setType(TokenType T) { Type = T; }
+  void setType(TokenType T) {
+    assert((!TypeIsFinalized || T == Type) &&
+           "Please use overwriteFixedType to change a fixed type.");
+    Type = T;
+  }
+  /// Sets the type and also the finalized flag. This prevents the type to be
+  /// reset in TokenAnnotator::resetTokenMetadata(). If the type needs to be set
+  /// to another one please use overwriteFixedType, or even better remove the
+  /// need to reassign the type.
+  void setFinalizedType(TokenType T) {
+    Type = T;
+    TypeIsFinalized = true;
+  }
+  void overwriteFixedType(TokenType T) {
+    TypeIsFinalized = false;
+    setType(T);
+  }
+  bool isTypeFinalized() const { return TypeIsFinalized; }
 
   /// The number of newlines immediately before the \c Token.
   ///

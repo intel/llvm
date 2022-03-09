@@ -2355,7 +2355,7 @@ There are built-in sources, propagations and sinks defined in code inside ``Gene
 These operations are handled even if no external taint configuration is provided.
 
 Default sources defined by ``GenericTaintChecker``:
-``fdopen``, ``fopen``, ``freopen``, ``getch``, ``getchar``, ``getchar_unlocked``, ``gets``, ``scanf``, ``socket``, ``wgetch``
+ ``_IO_getc``, ``fdopen``, ``fopen``, ``freopen``, ``get_current_dir_name``, ``getch``, ``getchar``, ``getchar_unlocked``, ``getwd``, ``getcwd``, ``getgroups``, ``gethostname``, ``getlogin``, ``getlogin_r``, ``getnameinfo``, ``gets``, ``gets_s``, ``getseuserbyname``, ``readlink``, ``readlinkat``, ``scanf``, ``scanf_s``, ``socket``, ``wgetch``
 
 Default propagations defined by ``GenericTaintChecker``:
 ``atoi``, ``atol``, ``atoll``, ``fgetc``, ``fgetln``, ``fgets``, ``fscanf``, ``sscanf``, ``getc``, ``getc_unlocked``, ``getdelim``, ``getline``, ``getw``, ``pread``, ``read``, ``strchr``, ``strrchr``, ``tolower``, ``toupper``
@@ -2625,13 +2625,45 @@ alpha.unix.cstring.OutOfBounds (C)
 """"""""""""""""""""""""""""""""""
 Check for out-of-bounds access in string functions; applies to:`` strncopy, strncat``.
 
-
 .. code-block:: c
 
  void test() {
    int y = strlen((char *)&test); // warn
  }
 
+.. _alpha-unix-cstring-UninitializedRead:
+
+alpha.unix.cstring.UninitializedRead (C)
+""""""""""""""""""""""""""""""""""""""""
+Check for uninitialized reads from common memory copy/manipulation functions such as:
+ ``memcpy, mempcpy, memmove, memcmp, strcmp, strncmp, strcpy, strlen, strsep`` and many more.
+
+.. code-block:: c 
+
+ void test() {
+  char src[10];
+  char dst[5];
+  memcpy(dst,src,sizeof(dst)); // warn: Bytes string function accesses uninitialized/garbage values
+ }
+
+Limitations:
+  
+   - Due to limitations of the memory modeling in the analyzer, one can likely
+     observe a lot of false-positive reports like this:
+
+      .. code-block:: c
+  
+        void false_positive() {
+          int src[] = {1, 2, 3, 4};
+          int dst[5] = {0};
+          memcpy(dst, src, 4 * sizeof(int)); // false-positive:
+          // The 'src' buffer was correctly initialized, yet we cannot conclude
+          // that since the analyzer could not see a direct initialization of the
+          // very last byte of the source buffer.
+        }
+  
+     More details at the corresponding `GitHub issue <https://github.com/llvm/llvm-project/issues/43459>`_.
+  
 .. _alpha-nondeterminism-PointerIteration:
 
 alpha.nondeterminism.PointerIteration (C++)

@@ -162,7 +162,7 @@ class RISCVAsmParser : public MCTargetAsmParser {
   OperandMatchResultTy parseRegister(OperandVector &Operands,
                                      bool AllowParens = false);
   OperandMatchResultTy parseMemOpBaseReg(OperandVector &Operands);
-  OperandMatchResultTy parseAtomicMemOp(OperandVector &Operands);
+  OperandMatchResultTy parseZeroOffsetMemOp(OperandVector &Operands);
   OperandMatchResultTy parseOperandWithModifier(OperandVector &Operands);
   OperandMatchResultTy parseBareSymbol(OperandVector &Operands);
   OperandMatchResultTy parseCallSymbol(OperandVector &Operands);
@@ -1626,9 +1626,11 @@ OperandMatchResultTy RISCVAsmParser::parseBareSymbol(OperandVector &Operands) {
     return MatchOperand_Success;
   case AsmToken::Plus:
     Opcode = MCBinaryExpr::Add;
+    getLexer().Lex();
     break;
   case AsmToken::Minus:
     Opcode = MCBinaryExpr::Sub;
+    getLexer().Lex();
     break;
   }
 
@@ -1858,7 +1860,8 @@ RISCVAsmParser::parseMemOpBaseReg(OperandVector &Operands) {
   return MatchOperand_Success;
 }
 
-OperandMatchResultTy RISCVAsmParser::parseAtomicMemOp(OperandVector &Operands) {
+OperandMatchResultTy
+RISCVAsmParser::parseZeroOffsetMemOp(OperandVector &Operands) {
   // Atomic operations such as lr.w, sc.w, and amo*.w accept a "memory operand"
   // as one of their register operands, such as `(a0)`. This just denotes that
   // the register (in this case `a0`) contains a memory address.
@@ -1874,9 +1877,9 @@ OperandMatchResultTy RISCVAsmParser::parseAtomicMemOp(OperandVector &Operands) {
   // offset if it is zero; require (and discard) parentheses; and add only the
   // parsed register operand to `Operands`.
   //
-  // These operands are printed with RISCVInstPrinter::printAtomicMemOp, which
-  // will only print the register surrounded by parentheses (which GNU as also
-  // uses as its canonical representation for these operands).
+  // These operands are printed with RISCVInstPrinter::printZeroOffsetMemOp,
+  // which will only print the register surrounded by parentheses (which GNU as
+  // also uses as its canonical representation for these operands).
   std::unique_ptr<RISCVOperand> OptionalImmOp;
 
   if (getLexer().isNot(AsmToken::LParen)) {

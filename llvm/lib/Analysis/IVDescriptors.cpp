@@ -11,26 +11,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Analysis/IVDescriptors.h"
-#include "llvm/ADT/ScopeExit.h"
-#include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/DemandedBits.h"
-#include "llvm/Analysis/DomTreeUpdater.h"
-#include "llvm/Analysis/GlobalsModRef.h"
-#include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/LoopPass.h"
-#include "llvm/Analysis/MustExecute.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Analysis/ScalarEvolutionAliasAnalysis.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
-#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/ValueHandle.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/KnownBits.h"
 
@@ -917,17 +907,36 @@ bool RecurrenceDescriptor::isFirstOrderRecurrence(
         SinkCandidate->mayReadFromMemory() || SinkCandidate->isTerminator())
       return false;
 
-    // Try to sink an instruction after the 'deepest' previous instruction,
-    // which has multiple operands for first order recurrences.
+    // Avoid sinking an instruction multiple times (if multiple operands are
+    // first order recurrences) by sinking once - after the latest 'previous'
+    // instruction.
     auto It = SinkAfter.find(SinkCandidate);
     if (It != SinkAfter.end()) {
-      auto LastPrev = It->second;
-      if (LastPrev->getParent() != Previous->getParent())
-        return false;
+      auto *OtherPrev = It->second;
+      // Find the earliest entry in the 'sink-after' chain. The last entry in
+      // the chain is the original 'Previous' for a recurrence handled earlier.
+      auto EarlierIt = SinkAfter.find(OtherPrev);
+      while (EarlierIt != SinkAfter.end()) {
+        Instruction *EarlierInst = EarlierIt->second;
+        EarlierIt = SinkAfter.find(EarlierInst);
+        assert((EarlierIt == SinkAfter.end() ||
+                EarlierInst->comesBefore(OtherPrev)) &&
+               "earlier instructions in the chain must come before later ones, "
+               "except for the first one");
+        OtherPrev = EarlierInst;
+      }
+      assert((OtherPrev == It->second || It->second->comesBefore(OtherPrev)) &&
+             "found OtherPrev must either match the original one or come after "
+             "it");
 
-      // If LastPrev comes after the current Previous, SinkCandidate already
-      // gets sunk past Previous and nothing left to do.
-      return Previous->comesBefore(LastPrev);
+      // SinkCandidate is already being sunk after an instruction after
+      // Previous. Nothing left to do.
+      if (DT->dominates(Previous, OtherPrev) || Previous == OtherPrev)
+        return true;
+      // Otherwise, Previous comes after OtherPrev and SinkCandidate needs to be
+      // re-sunk to Previous, instead of sinking to OtherPrev. Remove
+      // SinkCandidate from SinkAfter to ensure it's insert position is updated.
+      SinkAfter.erase(SinkCandidate);
     }
 
     // If we reach a PHI node that is not dominated by Previous, we reached a

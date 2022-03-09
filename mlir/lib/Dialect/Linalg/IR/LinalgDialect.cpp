@@ -16,11 +16,12 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/FunctionInterfaces.h"
-#include "mlir/Parser.h"
+#include "mlir/Parser/Parser.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/InliningUtils.h"
 
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
@@ -95,6 +96,10 @@ void addNamedOpBuilders(
 }
 
 void mlir::linalg::LinalgDialect::initialize() {
+  addAttributes<
+#define GET_ATTRDEF_LIST
+#include "mlir/Dialect/Linalg/IR/LinalgOpsAttrDefs.cpp.inc"
+      >();
   addOperations<
 #define GET_OP_LIST
 #include "mlir/Dialect/Linalg/IR/LinalgOps.cpp.inc"
@@ -144,3 +149,10 @@ LogicalResult LinalgDialect::verifyOperationAttribute(Operation *op,
   return op->emitError() << "attribute '" << attr.getName()
                          << "' not supported by the linalg dialect";
 }
+
+#include "mlir/Dialect/Linalg/IR/LinalgOpsEnums.cpp.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "mlir/Dialect/Linalg/IR/LinalgOpsAttrDefs.cpp.inc"
+
+#include "mlir/Dialect/Linalg/IR/LinalgOpsDialect.cpp.inc"

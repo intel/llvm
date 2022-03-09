@@ -164,8 +164,8 @@ namespace {
 std::set<const FileEntry *> GetAllModuleMaps(const HeaderSearch &HS,
                                              Module *RootModule) {
   std::set<const FileEntry *> ModuleMaps{};
-  std::set<Module *> ProcessedModules;
-  SmallVector<Module *> ModulesToProcess{RootModule};
+  std::set<const Module *> ProcessedModules;
+  SmallVector<const Module *> ModulesToProcess{RootModule};
 
   SmallVector<const FileEntry *, 16> FilesByUID;
   HS.getFileMgr().GetUniqueIDMapping(FilesByUID);
@@ -209,6 +209,11 @@ std::set<const FileEntry *> GetAllModuleMaps(const HeaderSearch &HS,
       }
       ModulesToProcess.push_back(ImportedModule);
     }
+
+    for (const Module *UndeclaredModule : CurrentModule->UndeclaredUses)
+      if (UndeclaredModule &&
+          ProcessedModules.find(UndeclaredModule) == ProcessedModules.end())
+        ModulesToProcess.push_back(UndeclaredModule);
   }
 
   return ModuleMaps;
@@ -1879,7 +1884,7 @@ void ASTWriter::WriteHeaderSearch(const HeaderSearch &HS) {
       // headers list when emitting resolved headers in the first loop below.
       // FIXME: It'd be preferable to avoid doing this if we were given
       // sufficient stat information in the module map.
-      HS.getModuleMap().resolveHeaderDirectives(M);
+      HS.getModuleMap().resolveHeaderDirectives(M, /*File=*/llvm::None);
 
       // If the file didn't exist, we can still create a module if we were given
       // enough information in the module map.
@@ -2860,6 +2865,8 @@ void ASTWriter::WriteSubmodules(Module *WritingModule) {
     //FIXME: How do we emit the 'use'd modules?  They may not be submodules.
     // Might be unnecessary as use declarations are only used to build the
     // module itself.
+
+    // TODO: Consider serializing undeclared uses of modules.
 
     // Emit the link libraries.
     for (const auto &LL : Mod->LinkLibraries) {

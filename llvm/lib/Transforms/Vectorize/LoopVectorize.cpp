@@ -1132,6 +1132,7 @@ void InnerLoopVectorizer::collectPoisonGeneratingRecipes(
       // handled.
       if (isa<VPWidenMemoryInstructionRecipe>(CurRec) ||
           isa<VPInterleaveRecipe>(CurRec) ||
+          isa<VPScalarIVStepsRecipe>(CurRec) ||
           isa<VPCanonicalIVPHIRecipe>(CurRec))
         continue;
 
@@ -2458,12 +2459,8 @@ void InnerLoopVectorizer::createVectorIntOrFpInductionPHI(
 }
 
 /// Compute scalar induction steps. \p ScalarIV is the scalar induction
-/// variable on which to base the steps, \p Step is the size of the step, and
-/// \p EntryVal is the value from the original loop that maps to the steps.
-/// Note that \p EntryVal doesn't have to be an induction variable - it
-/// can also be a truncate instruction.
+/// variable on which to base the steps, \p Step is the size of the step.
 static void buildScalarSteps(Value *ScalarIV, Value *Step,
-                             Instruction *EntryVal,
                              const InductionDescriptor &ID, VPValue *Def,
                              VPTransformState &State) {
   IRBuilderBase &Builder = State.Builder;
@@ -2642,7 +2639,7 @@ void InnerLoopVectorizer::widenIntOrFpInduction(
   TruncInst *Trunc = Def->getTruncInst();
   IRBuilderBase &Builder = State.Builder;
   assert(IV->getType() == ID.getStartValue()->getType() && "Types must match");
-  assert(!State.VF.isZero() && "VF must be non-zero");
+  assert(State.VF.isVector() && "must have vector VF");
 
   // The value from the original loop to which we are mapping the new induction
   // variable.
@@ -2695,37 +2692,11 @@ void InnerLoopVectorizer::widenIntOrFpInduction(
 
   // Now do the actual transformations, and start with creating the step value.
   Value *Step = CreateStepValue(ID.getStep());
-  if (State.VF.isScalar()) {
-    Value *ScalarIV = CreateScalarIV(Step);
-    Type *ScalarTy = IntegerType::get(ScalarIV->getContext(),
-                                      Step->getType()->getScalarSizeInBits());
 
-    Instruction::BinaryOps IncOp = ID.getInductionOpcode();
-    if (IncOp == Instruction::BinaryOpsEnd)
-      IncOp = Instruction::Add;
-    for (unsigned Part = 0; Part < UF; ++Part) {
-      Value *StartIdx = ConstantInt::get(ScalarTy, Part);
-      Instruction::BinaryOps MulOp = Instruction::Mul;
-      if (Step->getType()->isFloatingPointTy()) {
-        StartIdx = Builder.CreateUIToFP(StartIdx, Step->getType());
-        MulOp = Instruction::FMul;
-      }
-
-      Value *Mul = Builder.CreateBinOp(MulOp, StartIdx, Step);
-      Value *EntryPart = Builder.CreateBinOp(IncOp, ScalarIV, Mul, "induction");
-      State.set(Def, EntryPart, Part);
-      if (Trunc) {
-        assert(!Step->getType()->isFloatingPointTy() &&
-               "fp inductions shouldn't be truncated");
-        addMetadata(EntryPart, Trunc);
-      }
-    }
-    return;
-  }
-
-  // Create a new independent vector induction variable, if one is needed.
-  if (Def->needsVectorIV())
-    createVectorIntOrFpInductionPHI(ID, Step, Start, EntryVal, Def, State);
+  // Create a new independent vector induction variable. Later VPlan2VPlan
+  // optimizations will remove it, if it won't be needed, e.g. because all users
+  // of it access scalar values.
+  createVectorIntOrFpInductionPHI(ID, Step, Start, EntryVal, Def, State);
 
   if (Def->needsScalarIV()) {
     // Create scalar steps that can be used by instructions we will later
@@ -2733,7 +2704,7 @@ void InnerLoopVectorizer::widenIntOrFpInduction(
     // the number of instructions in the loop in the common case prior to
     // InstCombine. We will be trading one vector extract for each scalar step.
     Value *ScalarIV = CreateScalarIV(Step);
-    buildScalarSteps(ScalarIV, Step, EntryVal, ID, Def, State);
+    buildScalarSteps(ScalarIV, Step, ID, Def, State);
   }
 }
 
@@ -9328,8 +9299,10 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
   // in ways that accessing values using original IR values is incorrect.
   Plan->disableValue2VPValue();
 
+  VPlanTransforms::optimizeInductions(*Plan, *PSE.getSE());
   VPlanTransforms::sinkScalarOperands(*Plan);
   VPlanTransforms::mergeReplicateRegions(*Plan);
+  VPlanTransforms::removeDeadRecipes(*Plan, *OrigLoop);
 
   std::string PlanName;
   raw_string_ostream RSO(PlanName);
@@ -9753,6 +9726,65 @@ void VPWidenIntOrFpInductionRecipe::execute(VPTransformState &State) {
   State.ILV->widenIntOrFpInduction(IV, this, State, CanonicalIV);
 }
 
+void VPScalarIVStepsRecipe::execute(VPTransformState &State) {
+  assert(!State.Instance && "VPScalarIVStepsRecipe being replicated.");
+
+  // Fast-math-flags propagate from the original induction instruction.
+  IRBuilder<>::FastMathFlagGuard FMFG(State.Builder);
+  if (IndDesc.getInductionBinOp() &&
+      isa<FPMathOperator>(IndDesc.getInductionBinOp()))
+    State.Builder.setFastMathFlags(
+        IndDesc.getInductionBinOp()->getFastMathFlags());
+
+  Value *Step = State.get(getStepValue(), VPIteration(0, 0));
+  auto CreateScalarIV = [&](Value *&Step) -> Value * {
+    Value *ScalarIV = State.get(getCanonicalIV(), VPIteration(0, 0));
+    auto *CanonicalIV = State.get(getParent()->getPlan()->getCanonicalIV(), 0);
+    if (!isCanonical() || CanonicalIV->getType() != Ty) {
+      ScalarIV =
+          Ty->isIntegerTy()
+              ? State.Builder.CreateSExtOrTrunc(ScalarIV, Ty)
+              : State.Builder.CreateCast(Instruction::SIToFP, ScalarIV, Ty);
+      ScalarIV = emitTransformedIndex(State.Builder, ScalarIV,
+                                      getStartValue()->getLiveInIRValue(), Step,
+                                      IndDesc);
+      ScalarIV->setName("offset.idx");
+    }
+    if (TruncToTy) {
+      assert(Step->getType()->isIntegerTy() &&
+             "Truncation requires an integer step");
+      ScalarIV = State.Builder.CreateTrunc(ScalarIV, TruncToTy);
+      Step = State.Builder.CreateTrunc(Step, TruncToTy);
+    }
+    return ScalarIV;
+  };
+
+  Value *ScalarIV = CreateScalarIV(Step);
+  if (State.VF.isVector()) {
+    buildScalarSteps(ScalarIV, Step, IndDesc, this, State);
+    return;
+  }
+
+  for (unsigned Part = 0; Part < State.UF; ++Part) {
+    assert(!State.VF.isScalable() && "scalable vectors not yet supported.");
+    Value *EntryPart;
+    if (Step->getType()->isFloatingPointTy()) {
+      Value *StartIdx =
+          getRuntimeVFAsFloat(State.Builder, Step->getType(), State.VF * Part);
+      // Floating-point operations inherit FMF via the builder's flags.
+      Value *MulOp = State.Builder.CreateFMul(StartIdx, Step);
+      EntryPart = State.Builder.CreateBinOp(IndDesc.getInductionOpcode(),
+                                            ScalarIV, MulOp);
+    } else {
+      Value *StartIdx =
+          getRuntimeVF(State.Builder, Step->getType(), State.VF * Part);
+      EntryPart = State.Builder.CreateAdd(
+          ScalarIV, State.Builder.CreateMul(StartIdx, Step), "induction");
+    }
+    State.set(this, EntryPart, Part);
+  }
+}
+
 void VPWidenPHIRecipe::execute(VPTransformState &State) {
   State.ILV->widenPHIInstruction(cast<PHINode>(getUnderlyingValue()), this,
                                  State);
@@ -10160,7 +10192,8 @@ Value *VPTransformState::get(VPValue *Def, unsigned Part) {
   // Check if there is a scalar value for the selected lane.
   if (!hasScalarValue(Def, {Part, LastLane})) {
     // At the moment, VPWidenIntOrFpInductionRecipes can also be uniform.
-    assert(isa<VPWidenIntOrFpInductionRecipe>(Def->getDef()) &&
+    assert((isa<VPWidenIntOrFpInductionRecipe>(Def->getDef()) ||
+            isa<VPScalarIVStepsRecipe>(Def->getDef())) &&
            "unexpected recipe found to be invariant");
     IsUniform = true;
     LastLane = 0;

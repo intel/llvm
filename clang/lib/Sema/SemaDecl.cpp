@@ -1608,6 +1608,14 @@ bool Sema::CheckRedeclarationModuleOwnership(NamedDecl *New, NamedDecl *Old) {
   if (OldM && OldM->Kind == Module::PrivateModuleFragment)
     OldM = OldM->Parent;
 
+  // If we have a decl in a module partition, it is part of the containing
+  // module (which is the only thing that can be importing it).
+  if (NewM && OldM &&
+      (OldM->Kind == Module::ModulePartitionInterface ||
+       OldM->Kind == Module::ModulePartitionImplementation)) {
+    return false;
+  }
+
   if (NewM == OldM)
     return false;
 
@@ -2006,6 +2014,12 @@ void Sema::DiagnoseUnusedButSetDecl(const VarDecl *VD) {
   // be assigned in the block but not used elsewhere for the purpose of lifetime
   // extension.
   if (VD->hasAttr<BlocksAttr>() && Ty->isObjCObjectPointerType())
+    return;
+
+  // Don't warn about Objective-C pointer variables with precise lifetime
+  // semantics; they can be used to ensure ARC releases the object at a known
+  // time, which may mean assignment but no other references.
+  if (VD->hasAttr<ObjCPreciseLifetimeAttr>() && Ty->isObjCObjectPointerType())
     return;
 
   auto iter = RefsMinusAssignments.find(VD);
@@ -14739,18 +14753,20 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
       if (getLangOpts().CPlusPlus14) {
         if (!FD->isInvalidDecl() && Body && !FD->isDependentContext() &&
             FD->getReturnType()->isUndeducedType()) {
-          // If the function has a deduced result type but contains no 'return'
-          // statements, the result type as written must be exactly 'auto', and
-          // the deduced result type is 'void'.
+          // For a function with a deduced result type to return void,
+          // the result type as written must be 'auto' or 'decltype(auto)',
+          // possibly cv-qualified or constrained, but not ref-qualified.
           if (!FD->getReturnType()->getAs<AutoType>()) {
             Diag(dcl->getLocation(), diag::err_auto_fn_no_return_but_not_auto)
                 << FD->getReturnType();
             FD->setInvalidDecl();
           } else {
-            // Substitute 'void' for the 'auto' in the type.
-            TypeLoc ResultType = getReturnTypeLoc(FD);
-            Context.adjustDeducedFunctionResultType(
-                FD, SubstAutoType(ResultType.getType(), Context.VoidTy));
+            // Falling off the end of the function is the same as 'return;'.
+            Expr *Dummy = nullptr;
+            if (DeduceFunctionTypeFromReturnExpr(
+                    FD, dcl->getLocation(), Dummy,
+                    FD->getReturnType()->getAs<AutoType>()))
+              FD->setInvalidDecl();
           }
         }
       } else if (getLangOpts().CPlusPlus11 && isLambdaCallOperator(FD)) {
@@ -18539,9 +18555,6 @@ void Sema::ActOnEnumBody(SourceLocation EnumLoc, SourceRange BraceRange,
   unsigned NumNegativeBits = 0;
   unsigned NumPositiveBits = 0;
 
-  // Keep track of whether all elements have type int.
-  bool AllElementsInt = true;
-
   for (unsigned i = 0, e = Elements.size(); i != e; ++i) {
     EnumConstantDecl *ECD =
       cast_or_null<EnumConstantDecl>(Elements[i]);
@@ -18556,10 +18569,6 @@ void Sema::ActOnEnumBody(SourceLocation EnumLoc, SourceRange BraceRange,
     else
       NumNegativeBits = std::max(NumNegativeBits,
                                  (unsigned)InitVal.getMinSignedBits());
-
-    // Keep track of whether every enum element has type int (very common).
-    if (AllElementsInt)
-      AllElementsInt = ECD->getType() == Context.IntTy;
   }
 
   // Figure out the type that should be used for this enum.

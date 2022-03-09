@@ -35,8 +35,8 @@ static bool isSparseTensor(OpOperand *op) {
   if (auto enc = getSparseTensorEncoding(op->get().getType())) {
     ArrayRef<SparseTensorEncodingAttr::DimLevelType> dimTypes =
         enc.getDimLevelType();
-    for (unsigned i = 0, e = dimTypes.size(); i < e; i++)
-      if (dimTypes[i] == SparseTensorEncodingAttr::DimLevelType::Compressed)
+    for (auto dimType : dimTypes)
+      if (dimType == SparseTensorEncodingAttr::DimLevelType::Compressed)
         return true; // at least one compressed
   }
   return false;
@@ -45,21 +45,14 @@ static bool isSparseTensor(OpOperand *op) {
 // Helper method to find zero or empty initialization.
 static bool isEmptyInit(OpOperand *op) {
   Value val = op->get();
-  if (matchPattern(val, m_Zero()))
-    return true;
-  if (matchPattern(val, m_AnyZeroFloat()))
-    return true;
-  if (val.getDefiningOp<InitTensorOp>())
-    return true;
-  if (val.getDefiningOp<InitOp>())
-    return true;
-  return false;
+  return matchPattern(val, m_Zero()) || matchPattern(val, m_AnyZeroFloat()) ||
+         val.getDefiningOp<InitTensorOp>() || val.getDefiningOp<InitOp>();
 }
 
 // Helper to detect sampling operation.
 static bool isSampling(GenericOp op) {
   auto yieldOp = cast<linalg::YieldOp>(op.region().front().getTerminator());
-  if (auto def = yieldOp.getOperand(0).getDefiningOp()) {
+  if (auto *def = yieldOp.getOperand(0).getDefiningOp()) {
     if (isa<arith::MulFOp>(def) || isa<arith::MulIOp>(def)) {
       // Both scalar input arguments used exactly once.
       Value s1 = op.getBlock()->getArgument(0);
@@ -75,7 +68,7 @@ static bool isSampling(GenericOp op) {
 static bool isMulChain(Value val, Value x) {
   if (auto arg = val.dyn_cast<BlockArgument>())
     return arg != x;
-  if (auto def = val.getDefiningOp()) {
+  if (auto *def = val.getDefiningOp()) {
     if (isa<arith::MulFOp>(def) || isa<arith::MulIOp>(def))
       return isMulChain(def->getOperand(0), x) &&
              isMulChain(def->getOperand(1), x);
@@ -86,7 +79,7 @@ static bool isMulChain(Value val, Value x) {
 // Helper to detect x = x + <multiplications>.
 static bool isSumOfMul(GenericOp op) {
   auto yieldOp = cast<linalg::YieldOp>(op.region().front().getTerminator());
-  if (auto def = yieldOp.getOperand(0).getDefiningOp()) {
+  if (auto *def = yieldOp.getOperand(0).getDefiningOp()) {
     if (isa<arith::AddFOp>(def) || isa<arith::AddIOp>(def)) {
       Value x = op.getBlock()->getArguments().back();
       return (def->getOperand(0) == x && isMulChain(def->getOperand(1), x)) ||
@@ -123,11 +116,9 @@ struct FuseSparseMultiplyOverAdd : public OpRewritePattern<GenericOp> {
                                 PatternRewriter &rewriter) const override {
     // Check consumer.
     if (!op.hasTensorSemantics() || op.getNumInputs() != 2 ||
-        op.getNumResults() != 1)
-      return failure();
-    if (op.getNumParallelLoops() != op.getNumLoops())
-      return failure();
-    if (!op.getTiedIndexingMap(op.getOutputOperand(0)).isIdentity() ||
+        op.getNumResults() != 1 ||
+        op.getNumParallelLoops() != op.getNumLoops() ||
+        !op.getTiedIndexingMap(op.getOutputOperand(0)).isIdentity() ||
         !op.getTiedIndexingMap(op.getInputOperand(0)).isIdentity() ||
         !op.getTiedIndexingMap(op.getInputOperand(1)).isIdentity())
       return failure();
@@ -143,15 +134,13 @@ struct FuseSparseMultiplyOverAdd : public OpRewritePattern<GenericOp> {
     // Check producer.
     auto prod = dyn_cast_or_null<GenericOp>(
         op.getInputOperand(other)->get().getDefiningOp());
-    if (!prod || !prod.hasTensorSemantics() || prod.getNumResults() != 1)
-      return failure();
-    if (!prod.getResult(0).hasOneUse())
+    if (!prod || !prod.hasTensorSemantics() || prod.getNumResults() != 1 ||
+        !prod.getResult(0).hasOneUse())
       return failure();
     // Sampling consumer and sum of multiplication chain producer.
     if (!isEmptyInit(op.getOutputOperand(0)) ||
-        !isEmptyInit(prod.getOutputOperand(0)))
-      return failure();
-    if (!isSampling(op) || !isSumOfMul(prod))
+        !isEmptyInit(prod.getOutputOperand(0)) || !isSampling(op) ||
+        !isSumOfMul(prod))
       return failure();
     // Modify operand structure of producer and consumer.
     Location loc = prod.getLoc();
@@ -176,8 +165,8 @@ struct FuseSparseMultiplyOverAdd : public OpRewritePattern<GenericOp> {
     addArg(mapper, fusedBlock, consBlock.getArgument(1 - other));
     addArg(mapper, fusedBlock, prodBlock.getArgument(num - 1));
     // Clone bodies of the producer and consumer in new evaluation order.
-    auto acc = prodBlock.getTerminator()->getOperand(0).getDefiningOp();
-    auto sampler = consBlock.getTerminator()->getOperand(0).getDefiningOp();
+    auto *acc = prodBlock.getTerminator()->getOperand(0).getDefiningOp();
+    auto *sampler = consBlock.getTerminator()->getOperand(0).getDefiningOp();
     rewriter.setInsertionPointToStart(fusedBlock);
     Value last;
     for (auto &op : prodBlock.without_terminator())

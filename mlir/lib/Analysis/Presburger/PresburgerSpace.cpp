@@ -11,6 +11,7 @@
 #include <cassert>
 
 using namespace mlir;
+using namespace presburger;
 
 PresburgerSpace PresburgerSpace::getRelationSpace(unsigned numDomain,
                                                   unsigned numRange,
@@ -37,10 +38,8 @@ PresburgerLocalSpace PresburgerLocalSpace::getSetSpace(unsigned numDims,
 }
 
 unsigned PresburgerSpace::getNumIdKind(IdKind kind) const {
-  if (kind == IdKind::Domain) {
-    assert(spaceKind == Relation && "IdKind::Domain is not supported in Set.");
+  if (kind == IdKind::Domain)
     return getNumDomainIds();
-  }
   if (kind == IdKind::Range)
     return getNumRangeIds();
   if (kind == IdKind::Symbol)
@@ -51,10 +50,8 @@ unsigned PresburgerSpace::getNumIdKind(IdKind kind) const {
 }
 
 unsigned PresburgerSpace::getIdKindOffset(IdKind kind) const {
-  if (kind == IdKind::Domain) {
-    assert(spaceKind == Relation && "IdKind::Domain is not supported in Set.");
+  if (kind == IdKind::Domain)
     return 0;
-  }
   if (kind == IdKind::Range)
     return getNumDomainIds();
   if (kind == IdKind::Symbol)
@@ -153,6 +150,17 @@ void PresburgerLocalSpace::removeIdRange(unsigned idStart, unsigned idLimit) {
   numLocals -= numLocalsEliminated;
 }
 
+bool PresburgerSpace::isEqual(const PresburgerSpace &other) const {
+  return getNumDomainIds() == other.getNumDomainIds() &&
+         getNumRangeIds() == other.getNumRangeIds() &&
+         getNumSymbolIds() == other.getNumSymbolIds();
+}
+
+bool PresburgerLocalSpace::isEqual(const PresburgerLocalSpace &other) const {
+  return PresburgerSpace::isEqual(other) &&
+         getNumLocalIds() == other.getNumLocalIds();
+}
+
 void PresburgerSpace::setDimSymbolSeparation(unsigned newSymbolCount) {
   assert(newSymbolCount <= getNumDimAndSymbolIds() &&
          "invalid separation position");
@@ -180,7 +188,7 @@ void PresburgerLocalSpace::print(llvm::raw_ostream &os) const {
     os << "Dimension: " << getNumDomainIds() << ", ";
   }
   os << "Symbols: " << getNumSymbolIds() << ", "
-     << "Locals" << getNumLocalIds() << "\n";
+     << "Locals: " << getNumLocalIds() << "\n";
 }
 
 void PresburgerLocalSpace::dump() const { print(llvm::errs()); }

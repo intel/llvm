@@ -12,7 +12,7 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/Parser.h"
+#include "mlir/Parser/Parser.h"
 
 #include <gtest/gtest.h>
 
@@ -54,8 +54,7 @@ struct SequentialRegionsOp
   void getSuccessorRegions(Optional<unsigned> index,
                            ArrayRef<Attribute> operands,
                            SmallVectorImpl<RegionSuccessor> &regions) {
-    assert(index.hasValue() && "expected index");
-    if (*index == 0) {
+    if (index == 0u) {
       Operation *thisOp = this->getOperation();
       regions.push_back(RegionSuccessor(&thisOp->getRegion(1)));
     }

@@ -64,6 +64,12 @@ BufferizationOptions::dynCastBufferizableOp(Value value) const {
   return nullptr;
 }
 
+void BufferizationOptions::addDialectStateInitializer(
+    StringRef name, const DialectStateInitFn &fn) {
+  stateInitializers.push_back(
+      [=](BufferizationState &state) { state.insertDialectState(name, fn()); });
+}
+
 //===----------------------------------------------------------------------===//
 // Helper functions for BufferizableOpInterface
 //===----------------------------------------------------------------------===//
@@ -200,7 +206,11 @@ BufferizationState::findLastPrecedingWrite(Value value) const {
 }
 
 BufferizationState::BufferizationState(const BufferizationOptions &options)
-    : options(options) {}
+    : options(options) {
+  for (const BufferizationOptions::BufferizationStateInitFn &fn :
+       options.stateInitializers)
+    fn(*this);
+}
 
 // bufferization.to_memref is not allowed to change the rank.
 static void ensureToMemrefOpIsValid(Value tensor, Type memrefType) {
@@ -212,8 +222,8 @@ static void ensureToMemrefOpIsValid(Value tensor, Type memrefType) {
 #endif
 }
 
-static Value lookupBuffer(RewriterBase &rewriter, Value tensor,
-                          const BufferizationOptions &options) {
+Value mlir::bufferization::lookupBuffer(RewriterBase &rewriter, Value tensor,
+                                        const BufferizationOptions &options) {
   auto tensorType = tensor.getType().dyn_cast<TensorType>();
   assert(tensorType && "unexpected non-tensor type");
 

@@ -79,7 +79,6 @@
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/ScalarEvolutionDivision.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -96,7 +95,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/GlobalValue.h"
-#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
@@ -104,7 +102,6 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Type.h"
@@ -125,7 +122,6 @@
 #include <algorithm>
 #include <cassert>
 #include <climits>
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <map>
@@ -145,8 +141,12 @@ STATISTIC(NumTripCountsNotComputed,
           "Number of loops without predictable loop counts");
 STATISTIC(NumBruteForceTripCountsComputed,
           "Number of loops with trip counts computed by force");
-STATISTIC(NumFoundPhiSCCs,
-          "Number of found Phi-composed strongly connected components");
+
+#ifdef EXPENSIVE_CHECKS
+bool llvm::VerifySCEV = true;
+#else
+bool llvm::VerifySCEV = false;
+#endif
 
 static cl::opt<unsigned>
 MaxBruteForceIterations("scalar-evolution-max-iterations", cl::ReallyHidden,
@@ -156,9 +156,8 @@ MaxBruteForceIterations("scalar-evolution-max-iterations", cl::ReallyHidden,
                                  "derived loop"),
                         cl::init(100));
 
-// FIXME: Enable this with EXPENSIVE_CHECKS when the test suite is clean.
-static cl::opt<bool> VerifySCEV(
-    "verify-scev", cl::Hidden,
+static cl::opt<bool, true> VerifySCEVOpt(
+    "verify-scev", cl::Hidden, cl::location(VerifySCEV),
     cl::desc("Verify ScalarEvolution's backedge taken counts (slow)"));
 static cl::opt<bool> VerifySCEVStrict(
     "verify-scev-strict", cl::Hidden,
@@ -532,12 +531,13 @@ void SCEVUnknown::deleted() {
 }
 
 void SCEVUnknown::allUsesReplacedWith(Value *New) {
+  // Clear this SCEVUnknown from various maps.
+  SE->forgetMemoizedResults(this);
+
   // Remove this SCEVUnknown from the uniquing map.
   SE->UniqueSCEVs.RemoveNode(this);
 
-  // Update this SCEVUnknown to point to the new value. This is needed
-  // because there may still be outstanding SCEVs which still point to
-  // this SCEVUnknown.
+  // Replace the value pointer in case someone is still using this SCEVUnknown.
   setValPtr(New);
 }
 
@@ -4278,39 +4278,20 @@ bool ScalarEvolution::containsAddRecurrence(const SCEV *S) {
   return FoundAddRec;
 }
 
-/// Try to split a SCEVAddExpr into a pair of {SCEV, ConstantInt}.
-/// If \p S is a SCEVAddExpr and is composed of a sub SCEV S' and an
-/// offset I, then return {S', I}, else return {\p S, nullptr}.
-static std::pair<const SCEV *, ConstantInt *> splitAddExpr(const SCEV *S) {
-  const auto *Add = dyn_cast<SCEVAddExpr>(S);
-  if (!Add)
-    return {S, nullptr};
-
-  if (Add->getNumOperands() != 2)
-    return {S, nullptr};
-
-  auto *ConstOp = dyn_cast<SCEVConstant>(Add->getOperand(0));
-  if (!ConstOp)
-    return {S, nullptr};
-
-  return {Add->getOperand(1), ConstOp->getValue()};
-}
-
 /// Return the ValueOffsetPair set for \p S. \p S can be represented
 /// by the value and offset from any ValueOffsetPair in the set.
-ScalarEvolution::ValueOffsetPairSetVector *
-ScalarEvolution::getSCEVValues(const SCEV *S) {
+ArrayRef<Value *> ScalarEvolution::getSCEVValues(const SCEV *S) {
   ExprValueMapType::iterator SI = ExprValueMap.find_as(S);
   if (SI == ExprValueMap.end())
-    return nullptr;
+    return None;
 #ifndef NDEBUG
   if (VerifySCEVMap) {
     // Check there is no dangling Value in the set returned.
-    for (const auto &VE : SI->second)
-      assert(ValueExprMap.count(VE.first));
+    for (Value *V : SI->second)
+      assert(ValueExprMap.count(V));
   }
 #endif
-  return &SI->second;
+  return SI->second.getArrayRef();
 }
 
 /// Erase Value from ValueExprMap and ExprValueMap. ValueExprMap.erase(V)
@@ -4319,20 +4300,11 @@ ScalarEvolution::getSCEVValues(const SCEV *S) {
 void ScalarEvolution::eraseValueFromMap(Value *V) {
   ValueExprMapType::iterator I = ValueExprMap.find_as(V);
   if (I != ValueExprMap.end()) {
-    const SCEV *S = I->second;
-    // Remove {V, 0} from the set of ExprValueMap[S]
-    if (auto *SV = getSCEVValues(S))
-      SV->remove({V, nullptr});
-
-    // Remove {V, Offset} from the set of ExprValueMap[Stripped]
-    const SCEV *Stripped;
-    ConstantInt *Offset;
-    std::tie(Stripped, Offset) = splitAddExpr(S);
-    if (Offset != nullptr) {
-      if (auto *SV = getSCEVValues(Stripped))
-        SV->remove({V, Offset});
-    }
-    ValueExprMap.erase(V);
+    auto EVIt = ExprValueMap.find(I->second);
+    bool Removed = EVIt->second.remove(V);
+    (void) Removed;
+    assert(Removed && "Value not in ExprValueMap?");
+    ValueExprMap.erase(I);
   }
 }
 
@@ -4343,7 +4315,7 @@ void ScalarEvolution::insertValueToMap(Value *V, const SCEV *S) {
   auto It = ValueExprMap.find_as(V);
   if (It == ValueExprMap.end()) {
     ValueExprMap.insert({SCEVCallbackVH(V, this), S});
-    ExprValueMap[S].insert({V, nullptr});
+    ExprValueMap[S].insert(V);
   }
 }
 
@@ -4360,23 +4332,8 @@ const SCEV *ScalarEvolution::getSCEV(Value *V) {
     // ValueExprMap before insert S->{V, 0} into ExprValueMap.
     std::pair<ValueExprMapType::iterator, bool> Pair =
         ValueExprMap.insert({SCEVCallbackVH(V, this), S});
-    if (Pair.second) {
-      ExprValueMap[S].insert({V, nullptr});
-
-      // If S == Stripped + Offset, add Stripped -> {V, Offset} into
-      // ExprValueMap.
-      const SCEV *Stripped = S;
-      ConstantInt *Offset = nullptr;
-      std::tie(Stripped, Offset) = splitAddExpr(S);
-      // If stripped is SCEVUnknown, don't bother to save
-      // Stripped -> {V, offset}. It doesn't simplify and sometimes even
-      // increase the complexity of the expansion code.
-      // If V is GetElementPtrInst, don't save Stripped -> {V, offset}
-      // because it may generate add/sub instead of GEP in SCEV expansion.
-      if (Offset != nullptr && !isa<SCEVUnknown>(Stripped) &&
-          !isa<GetElementPtrInst>(V))
-        ExprValueMap[Stripped].insert({V, Offset});
-    }
+    if (Pair.second)
+      ExprValueMap[S].insert(V);
   }
   return S;
 }
@@ -6579,130 +6536,29 @@ ScalarEvolution::getRangeRef(const SCEV *S,
           RangeType);
 
     // A range of Phi is a subset of union of all ranges of its input.
-    if (const PHINode *Phi = dyn_cast<PHINode>(U->getValue()))
-      if (!PendingPhiRanges.count(Phi))
-        sharpenPhiSCCRange(Phi, ConservativeResult, SignHint);
+    if (const PHINode *Phi = dyn_cast<PHINode>(U->getValue())) {
+      // Make sure that we do not run over cycled Phis.
+      if (PendingPhiRanges.insert(Phi).second) {
+        ConstantRange RangeFromOps(BitWidth, /*isFullSet=*/false);
+        for (auto &Op : Phi->operands()) {
+          auto OpRange = getRangeRef(getSCEV(Op), SignHint);
+          RangeFromOps = RangeFromOps.unionWith(OpRange);
+          // No point to continue if we already have a full set.
+          if (RangeFromOps.isFullSet())
+            break;
+        }
+        ConservativeResult =
+            ConservativeResult.intersectWith(RangeFromOps, RangeType);
+        bool Erased = PendingPhiRanges.erase(Phi);
+        assert(Erased && "Failed to erase Phi properly?");
+        (void) Erased;
+      }
+    }
 
     return setRange(U, SignHint, std::move(ConservativeResult));
   }
 
   return setRange(S, SignHint, std::move(ConservativeResult));
-}
-
-bool ScalarEvolution::collectSCC(const PHINode *Phi,
-                                 SmallVectorImpl<const PHINode *> &SCC) const {
-  assert(SCC.empty() && "Precondition: SCC should be empty.");
-  auto Bail = [&]() {
-    SCC.clear();
-    SCC.push_back(Phi);
-    return false;
-  };
-  SmallPtrSet<const PHINode *, 4> Reachable;
-  {
-    // First, find all PHI nodes that are reachable from Phi.
-    SmallVector<const PHINode *, 4> Worklist;
-    Reachable.insert(Phi);
-    Worklist.push_back(Phi);
-    while (!Worklist.empty()) {
-      if (Reachable.size() > MaxPhiSCCAnalysisSize)
-        // Too many nodes to process. Assume that SCC is composed of Phi alone.
-        return Bail();
-      auto *Curr = Worklist.pop_back_val();
-      for (auto &Op : Curr->operands()) {
-        if (auto *PhiOp = dyn_cast<PHINode>(&*Op)) {
-          if (PendingPhiRanges.count(PhiOp))
-            // Do not want to deal with this situation, so conservatively bail.
-            return Bail();
-          if (Reachable.insert(PhiOp).second)
-            Worklist.push_back(PhiOp);
-        }
-      }
-    }
-  }
-  {
-    // Out of reachable nodes, find those from which Phi is also reachable. This
-    // defines a SCC.
-    SmallVector<const PHINode *, 4> Worklist;
-    SmallPtrSet<const PHINode *, 4> SCCSet;
-    SCCSet.insert(Phi);
-    SCC.push_back(Phi);
-    Worklist.push_back(Phi);
-    while (!Worklist.empty()) {
-      auto *Curr = Worklist.pop_back_val();
-      for (auto *User : Curr->users())
-        if (auto *PN = dyn_cast<PHINode>(User))
-          if (Reachable.count(PN) && SCCSet.insert(PN).second) {
-            Worklist.push_back(PN);
-            SCC.push_back(PN);
-          }
-    }
-  }
-  return true;
-}
-
-void
-ScalarEvolution::sharpenPhiSCCRange(const PHINode *Phi,
-                                    ConstantRange &ConservativeResult,
-                                    ScalarEvolution::RangeSignHint SignHint) {
-  // Collect strongly connected component (further on - SCC ) composed of Phis.
-  // Analyze all values that are incoming to this SCC (we call them roots).
-  // All SCC elements have range that is not wider than union of ranges of
-  // roots.
-  SmallVector<const PHINode *, 8> SCC;
-  if (collectSCC(Phi, SCC))
-    ++NumFoundPhiSCCs;
-
-  // Collect roots: inputs of SCC nodes that come from outside of SCC.
-  SmallPtrSet<Value *, 4> Roots;
-  const SmallPtrSet<const PHINode *, 8> SCCSet(SCC.begin(), SCC.end());
-  for (auto *PN : SCC)
-    for (auto &Op : PN->operands()) {
-      auto *PhiInput = dyn_cast<PHINode>(Op);
-      if (!PhiInput || !SCCSet.count(PhiInput))
-        Roots.insert(Op);
-    }
-
-  // Mark SCC elements as pending to avoid infinite recursion if there is a
-  // cyclic dependency through some instruction that is not a PHI.
-  for (auto *PN : SCC) {
-    bool Inserted = PendingPhiRanges.insert(PN).second;
-    assert(Inserted && "PHI is already pending?");
-    (void)Inserted;
-  }
-
-  auto BitWidth = ConservativeResult.getBitWidth();
-  ConstantRange RangeFromRoots(BitWidth, /*isFullSet=*/false);
-  for (auto *Root : Roots) {
-    auto OpRange = getRangeRef(getSCEV(Root), SignHint);
-    RangeFromRoots = RangeFromRoots.unionWith(OpRange);
-    // No point to continue if we already have a full set.
-    if (RangeFromRoots.isFullSet())
-      break;
-  }
-  ConstantRange::PreferredRangeType RangeType =
-      SignHint == ScalarEvolution::HINT_RANGE_UNSIGNED ? ConstantRange::Unsigned
-                                                       : ConstantRange::Signed;
-  ConservativeResult =
-      ConservativeResult.intersectWith(RangeFromRoots, RangeType);
-
-  DenseMap<const SCEV *, ConstantRange> &Cache =
-      SignHint == ScalarEvolution::HINT_RANGE_UNSIGNED ? UnsignedRanges
-                                                       : SignedRanges;
-  // Entire SCC has the same range.
-  for (auto *PN : SCC) {
-    bool Erased = PendingPhiRanges.erase(PN);
-    assert(Erased && "Failed to erase Phi properly?");
-    (void)Erased;
-    auto *PNSCEV = getSCEV(const_cast<PHINode *>(PN));
-    auto I = Cache.find(PNSCEV);
-    if (I == Cache.end())
-      setRange(PNSCEV, SignHint, ConservativeResult);
-    else {
-      auto SharpenedRange =
-          I->second.intersectWith(ConservativeResult, RangeType);
-      setRange(PNSCEV, SignHint, SharpenedRange);
-    }
-  }
 }
 
 // Given a StartRange, Step and MaxBECount for an expression compute a range of
@@ -13399,12 +13255,10 @@ void ScalarEvolution::forgetMemoizedResultsImpl(const SCEV *S) {
 
   auto ExprIt = ExprValueMap.find(S);
   if (ExprIt != ExprValueMap.end()) {
-    for (auto &ValueAndOffset : ExprIt->second) {
-      if (ValueAndOffset.second == nullptr) {
-        auto ValueIt = ValueExprMap.find_as(ValueAndOffset.first);
-        if (ValueIt != ValueExprMap.end())
-          ValueExprMap.erase(ValueIt);
-      }
+    for (Value *V : ExprIt->second) {
+      auto ValueIt = ValueExprMap.find_as(V);
+      if (ValueIt != ValueExprMap.end())
+        ValueExprMap.erase(ValueIt);
     }
     ExprValueMap.erase(ExprIt);
   }
@@ -13455,6 +13309,25 @@ ScalarEvolution::getUsedLoops(const SCEV *S,
   SCEVTraversal<FindUsedLoops>(F).visitAll(S);
 }
 
+static void getReachableBlocks(SmallPtrSetImpl<BasicBlock *> &Reachable,
+                               Function &F) {
+  SmallVector<BasicBlock *> Worklist;
+  Worklist.push_back(&F.getEntryBlock());
+  while (!Worklist.empty()) {
+    BasicBlock *BB = Worklist.pop_back_val();
+    if (!Reachable.insert(BB).second)
+      continue;
+
+    const APInt *Cond;
+    BasicBlock *TrueBB, *FalseBB;
+    if (match(BB->getTerminator(),
+              m_Br(m_APInt(Cond), m_BasicBlock(TrueBB), m_BasicBlock(FalseBB))))
+      Worklist.push_back(Cond->isOne() ? TrueBB : FalseBB);
+    else
+      append_range(Worklist, successors(BB));
+  }
+}
+
 void ScalarEvolution::verify() const {
   ScalarEvolution &SE = *const_cast<ScalarEvolution *>(this);
   ScalarEvolution SE2(F, TLI, AC, DT, LI);
@@ -13479,13 +13352,26 @@ void ScalarEvolution::verify() const {
   };
 
   SCEVMapper SCM(SE2);
+  SmallPtrSet<BasicBlock *, 16> ReachableBlocks;
+  getReachableBlocks(ReachableBlocks, F);
 
   while (!LoopStack.empty()) {
     auto *L = LoopStack.pop_back_val();
     llvm::append_range(LoopStack, *L);
 
-    auto *CurBECount = SCM.visit(
-        const_cast<ScalarEvolution *>(this)->getBackedgeTakenCount(L));
+    // Only verify BECounts in reachable loops. For an unreachable loop,
+    // any BECount is legal.
+    if (!ReachableBlocks.contains(L->getHeader()))
+      continue;
+
+    // Only verify cached BECounts. Computing new BECounts may change the
+    // results of subsequent SCEV uses.
+    auto It = BackedgeTakenCounts.find(L);
+    if (It == BackedgeTakenCounts.end())
+      continue;
+
+    auto *CurBECount =
+        SCM.visit(It->second.getExact(L, const_cast<ScalarEvolution *>(this)));
     auto *NewBECount = SE2.getBackedgeTakenCount(L);
 
     if (CurBECount == SE2.getCouldNotCompute() ||
@@ -13546,7 +13432,7 @@ void ScalarEvolution::verify() const {
 
     // Check that the value is also part of the reverse map.
     auto It = ExprValueMap.find(KV.second);
-    if (It == ExprValueMap.end() || !It->second.contains({KV.first, nullptr})) {
+    if (It == ExprValueMap.end() || !It->second.contains(KV.first)) {
       dbgs() << "Value " << *KV.first
              << " is in ValueExprMap but not in ExprValueMap\n";
       std::abort();
@@ -13554,19 +13440,15 @@ void ScalarEvolution::verify() const {
   }
 
   for (const auto &KV : ExprValueMap) {
-    for (const auto &ValueAndOffset : KV.second) {
-      if (ValueAndOffset.second != nullptr)
-        continue;
-
-      auto It = ValueExprMap.find_as(ValueAndOffset.first);
+    for (Value *V : KV.second) {
+      auto It = ValueExprMap.find_as(V);
       if (It == ValueExprMap.end()) {
-        dbgs() << "Value " << *ValueAndOffset.first
+        dbgs() << "Value " << *V
                << " is in ExprValueMap but not in ValueExprMap\n";
         std::abort();
       }
       if (It->second != KV.first) {
-        dbgs() << "Value " << *ValueAndOffset.first
-               << " mapped to " << *It->second
+        dbgs() << "Value " << *V << " mapped to " << *It->second
                << " rather than " << *KV.first << "\n";
         std::abort();
       }

@@ -583,6 +583,29 @@ TEST_F(FormatTest, FormatIfWithoutCompoundStatement) {
                "  }\n"
                "g();");
 
+  verifyFormat("if consteval {\n}");
+  verifyFormat("if !consteval {\n}");
+  verifyFormat("if not consteval {\n}");
+  verifyFormat("if consteval {\n} else {\n}");
+  verifyFormat("if !consteval {\n} else {\n}");
+  verifyFormat("if consteval {\n"
+               "  f();\n"
+               "}");
+  verifyFormat("if !consteval {\n"
+               "  f();\n"
+               "}");
+  verifyFormat("if consteval {\n"
+               "  f();\n"
+               "} else {\n"
+               "  g();\n"
+               "}");
+  verifyFormat("if CONSTEVAL {\n"
+               "  f();\n"
+               "}");
+  verifyFormat("if !CONSTEVAL {\n"
+               "  f();\n"
+               "}");
+
   verifyFormat("if (a)\n"
                "  g();");
   verifyFormat("if (a) {\n"
@@ -1569,6 +1592,9 @@ TEST_F(FormatTest, FormatShortBracedStatements) {
   verifyFormat("if (true) {}", AllowSimpleBracedStatements);
   verifyFormat("if constexpr (true) {}", AllowSimpleBracedStatements);
   verifyFormat("if CONSTEXPR (true) {}", AllowSimpleBracedStatements);
+  verifyFormat("if consteval {}", AllowSimpleBracedStatements);
+  verifyFormat("if !consteval {}", AllowSimpleBracedStatements);
+  verifyFormat("if CONSTEVAL {}", AllowSimpleBracedStatements);
   verifyFormat("MYIF (true) {}", AllowSimpleBracedStatements);
   verifyFormat("MYIF constexpr (true) {}", AllowSimpleBracedStatements);
   verifyFormat("MYIF CONSTEXPR (true) {}", AllowSimpleBracedStatements);
@@ -1577,9 +1603,13 @@ TEST_F(FormatTest, FormatShortBracedStatements) {
   verifyFormat("if (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("if constexpr (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("if CONSTEXPR (true) { f(); }", AllowSimpleBracedStatements);
+  verifyFormat("if consteval { f(); }", AllowSimpleBracedStatements);
+  verifyFormat("if CONSTEVAL { f(); }", AllowSimpleBracedStatements);
   verifyFormat("MYIF (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("MYIF constexpr (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("MYIF CONSTEXPR (true) { f(); }", AllowSimpleBracedStatements);
+  verifyFormat("MYIF consteval { f(); }", AllowSimpleBracedStatements);
+  verifyFormat("MYIF CONSTEVAL { f(); }", AllowSimpleBracedStatements);
   verifyFormat("while (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("for (;;) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("if (true) { fffffffffffffffffffffff(); }",
@@ -3704,6 +3734,36 @@ TEST_F(FormatTest, FormatsNamespaces) {
   LLVMWithNoNamespaceFix.FixNamespaceComments = false;
 
   verifyFormat("namespace some_namespace {\n"
+               "class A {};\n"
+               "void f() { f(); }\n"
+               "}",
+               LLVMWithNoNamespaceFix);
+  verifyFormat("#define M(x) x##x\n"
+               "namespace M(x) {\n"
+               "class A {};\n"
+               "void f() { f(); }\n"
+               "}",
+               LLVMWithNoNamespaceFix);
+  verifyFormat("#define M(x) x##x\n"
+               "namespace N::inline M(x) {\n"
+               "class A {};\n"
+               "void f() { f(); }\n"
+               "}",
+               LLVMWithNoNamespaceFix);
+  verifyFormat("#define M(x) x##x\n"
+               "namespace M(x)::inline N {\n"
+               "class A {};\n"
+               "void f() { f(); }\n"
+               "}",
+               LLVMWithNoNamespaceFix);
+  verifyFormat("#define M(x) x##x\n"
+               "namespace N::M(x) {\n"
+               "class A {};\n"
+               "void f() { f(); }\n"
+               "}",
+               LLVMWithNoNamespaceFix);
+  verifyFormat("#define M(x) x##x\n"
+               "namespace M::N(x) {\n"
                "class A {};\n"
                "void f() { f(); }\n"
                "}",
@@ -6437,6 +6497,43 @@ TEST_F(FormatTest, AllowBinPackingInsideArguments) {
                "          to + being + bin - packed,\n"
                "      arg3);\n"
                "}",
+               Style);
+}
+
+TEST_F(FormatTest, BreakBinaryOperatorsInPresenceOfTemplates) {
+  auto Style = getLLVMStyleWithColumns(45);
+  EXPECT_EQ(Style.BreakBeforeBinaryOperators, FormatStyle::BOS_None);
+  verifyFormat("bool b =\n"
+               "    is_default_constructible_v<hash<T>> and\n"
+               "    is_copy_constructible_v<hash<T>> and\n"
+               "    is_move_constructible_v<hash<T>> and\n"
+               "    is_copy_assignable_v<hash<T>> and\n"
+               "    is_move_assignable_v<hash<T>> and\n"
+               "    is_destructible_v<hash<T>> and\n"
+               "    is_swappable_v<hash<T>> and\n"
+               "    is_callable_v<hash<T>(T)>;",
+               Style);
+
+  Style.BreakBeforeBinaryOperators = FormatStyle::BOS_NonAssignment;
+  verifyFormat("bool b = is_default_constructible_v<hash<T>>\n"
+               "         and is_copy_constructible_v<hash<T>>\n"
+               "         and is_move_constructible_v<hash<T>>\n"
+               "         and is_copy_assignable_v<hash<T>>\n"
+               "         and is_move_assignable_v<hash<T>>\n"
+               "         and is_destructible_v<hash<T>>\n"
+               "         and is_swappable_v<hash<T>>\n"
+               "         and is_callable_v<hash<T>(T)>;",
+               Style);
+
+  Style.BreakBeforeBinaryOperators = FormatStyle::BOS_All;
+  verifyFormat("bool b = is_default_constructible_v<hash<T>>\n"
+               "         and is_copy_constructible_v<hash<T>>\n"
+               "         and is_move_constructible_v<hash<T>>\n"
+               "         and is_copy_assignable_v<hash<T>>\n"
+               "         and is_move_assignable_v<hash<T>>\n"
+               "         and is_destructible_v<hash<T>>\n"
+               "         and is_swappable_v<hash<T>>\n"
+               "         and is_callable_v<hash<T>(T)>;",
                Style);
 }
 
@@ -9512,6 +9609,8 @@ TEST_F(FormatTest, UnderstandsTemplateParameters) {
   verifyFormat("f(aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
                "      .template operator()<A>());",
                getLLVMStyleWithColumns(35));
+  verifyFormat("bool_constant<a && noexcept(f())>");
+  verifyFormat("bool_constant<a || noexcept(f())>");
 
   // Not template parameters.
   verifyFormat("return a < b && c > d;");
@@ -9919,6 +10018,11 @@ TEST_F(FormatTest, UnderstandsNewAndDelete) {
   verifyFormat("void operator new(void *foo) ATTRIB;");
   verifyFormat("void operator delete[](void *foo) ATTRIB;");
   verifyFormat("void operator delete(void *ptr) noexcept;");
+
+  EXPECT_EQ("void new(link p);\n"
+            "void delete(link p);\n",
+            format("void new (link p);\n"
+                   "void delete (link p);\n"));
 }
 
 TEST_F(FormatTest, UnderstandsUsesOfStarAndAmp) {
@@ -10565,6 +10669,19 @@ TEST_F(FormatTest, FormatsBinaryOperatorsPrecedingEquals) {
 
 TEST_F(FormatTest, FormatsCasts) {
   verifyFormat("Type *A = static_cast<Type *>(P);");
+  verifyFormat("static_cast<Type *>(P);");
+  verifyFormat("static_cast<Type &>(Fun)(Args);");
+  verifyFormat("static_cast<Type &>(*Fun)(Args);");
+  verifyFormat("if (static_cast<int>(A) + B >= 0)\n  ;");
+  // Check that static_cast<...>(...) does not require the next token to be on
+  // the same line.
+  verifyFormat("some_loooong_output << something_something__ << "
+               "static_cast<const void *>(R)\n"
+               "                    << something;");
+  verifyFormat("a = static_cast<Type &>(*Fun)(Args);");
+  verifyFormat("const_cast<Type &>(*Fun)(Args);");
+  verifyFormat("dynamic_cast<Type &>(*Fun)(Args);");
+  verifyFormat("reinterpret_cast<Type &>(*Fun)(Args);");
   verifyFormat("Type *A = (Type *)P;");
   verifyFormat("Type *A = (vector<Type *, int *>)P;");
   verifyFormat("int a = (int)(2.0f);");
@@ -24033,6 +24150,47 @@ TEST_F(FormatTest, RequiresClauses) {
                "    return number_zero_v<T>;\n"
                "  }\n"
                "};");
+
+  auto Style = getLLVMStyle();
+
+  verifyFormat(
+      "template <typename T>\n"
+      "  requires is_default_constructible_v<hash<T>> and\n"
+      "           is_copy_constructible_v<hash<T>> and\n"
+      "           is_move_constructible_v<hash<T>> and\n"
+      "           is_copy_assignable_v<hash<T>> and "
+      "is_move_assignable_v<hash<T>> and\n"
+      "           is_destructible_v<hash<T>> and is_swappable_v<hash<T>> and\n"
+      "           is_callable_v<hash<T>(T)> and\n"
+      "           is_same_v<size_t, decltype(hash<T>(declval<T>()))> and\n"
+      "           is_same_v<size_t, decltype(hash<T>(declval<T &>()))> and\n"
+      "           is_same_v<size_t, decltype(hash<T>(declval<const T &>()))>\n"
+      "struct S {};",
+      Style);
+
+  Style.BreakBeforeBinaryOperators = FormatStyle::BOS_All;
+  verifyFormat(
+      "template <typename T>\n"
+      "  requires is_default_constructible_v<hash<T>>\n"
+      "           and is_copy_constructible_v<hash<T>>\n"
+      "           and is_move_constructible_v<hash<T>>\n"
+      "           and is_copy_assignable_v<hash<T>> and "
+      "is_move_assignable_v<hash<T>>\n"
+      "           and is_destructible_v<hash<T>> and is_swappable_v<hash<T>>\n"
+      "           and is_callable_v<hash<T>(T)>\n"
+      "           and is_same_v<size_t, decltype(hash<T>(declval<T>()))>\n"
+      "           and is_same_v<size_t, decltype(hash<T>(declval<T &>()))>\n"
+      "           and is_same_v<size_t, decltype(hash<T>(declval<const T "
+      "&>()))>\n"
+      "struct S {};",
+      Style);
+
+  // Not a clause, but we once hit an assert.
+  verifyFormat("#if 0\n"
+               "#else\n"
+               "foo();\n"
+               "#endif\n"
+               "bar(requires);");
 }
 
 TEST_F(FormatTest, StatementAttributeLikeMacros) {
@@ -24464,6 +24622,13 @@ TEST_F(FormatTest, InsertBraces) {
                Style);
 
   verifyFormat("if (a) {\n"
+               "  f(); // comment\n"
+               "}",
+               "if (a)\n"
+               "  f(); // comment",
+               Style);
+
+  verifyFormat("if (a) {\n"
                "  f();\n"
                "}\n"
                "#undef A\n"
@@ -24837,6 +25002,37 @@ TEST_F(FormatTest, RemoveBraces) {
                "  }\n"
                "  return -i;\n"
                "};",
+               Style);
+
+  verifyFormat("if (a)\n"
+               "  foo();\n"
+               "else\n"
+               "  bar();",
+               "if (a)\n"
+               "{\n"
+               "  foo();\n"
+               "}\n"
+               "else\n"
+               "{\n"
+               "  bar();\n"
+               "}",
+               Style);
+
+  verifyFormat("if (a) {\n"
+               "Label:\n"
+               "}",
+               Style);
+
+  verifyFormat("if (a) {\n"
+               "Label:\n"
+               "  f();\n"
+               "}",
+               Style);
+
+  verifyFormat("if (a) {\n"
+               "  f();\n"
+               "Label:\n"
+               "}",
                Style);
 
   // FIXME: See https://github.com/llvm/llvm-project/issues/53543.

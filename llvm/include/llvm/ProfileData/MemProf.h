@@ -1,17 +1,16 @@
 #ifndef LLVM_PROFILEDATA_MEMPROF_H_
 #define LLVM_PROFILEDATA_MEMPROF_H_
 
-#include <cstdint>
-#include <string>
-#include <vector>
-
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Function.h"
 #include "llvm/ProfileData/MemProfData.inc"
-#include "llvm/ProfileData/ProfileCommon.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/EndianStream.h"
 #include "llvm/Support/raw_ostream.h"
+
+#include <cstdint>
+#include <vector>
 
 namespace llvm {
 namespace memprof {
@@ -197,7 +196,7 @@ struct MemProfRecord {
   };
 
   // The dynamic calling context for the allocation.
-  std::vector<Frame> CallStack;
+  llvm::SmallVector<Frame> CallStack;
   // The statistics obtained from the runtime for the allocation.
   PortableMemInfoBlock Info;
 
