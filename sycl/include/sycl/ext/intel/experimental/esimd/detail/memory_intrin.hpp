@@ -47,16 +47,12 @@ namespace detail {
 // Provides access to sycl accessor class' private members.
 class AccessorPrivateProxy {
 public:
+#ifdef __SYCL_DEVICE_ONLY__
   template <typename AccessorTy>
   static auto getNativeImageObj(const AccessorTy &Acc) {
-#ifdef __SYCL_DEVICE_ONLY__
     return Acc.getNativeImageObj();
-#else  // __SYCL_DEVICE_ONLY__
-    return Acc;
-#endif // __SYCL_DEVICE_ONLY__
   }
-
-#ifndef __SYCL_DEVICE_ONLY__
+#else  // __SYCL_DEVICE_ONLY__
   static void *getPtr(const sycl::detail::AccessorBaseHost &Acc) {
     return Acc.getPtr();
   }
@@ -432,12 +428,6 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
   static_assert(TySizeLog2 <= 2);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
 
-  // determine the original element's type size (as __esimd_scatter_scaled
-  // requires vals to be a vector of 4-byte integers)
-  constexpr size_t OrigSize = __SEIEED::ElemsPerAddrDecoding(TySizeLog2);
-  using RestoredTy = std::conditional_t<sizeof(Ty) == OrigSize, Ty,
-                                        __SEIEED::uint_type_t<OrigSize>>;
-
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
@@ -448,9 +438,8 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     char *SlmBase = I->__cm_emu_get_slm_ptr();
     for (int i = 0; i < N; ++i) {
       if (pred[i]) {
-        RestoredTy *addr =
-            reinterpret_cast<RestoredTy *>(elem_offsets[i] + SlmBase);
-        *addr = static_cast<RestoredTy>(vals[i]);
+        Ty *addr = reinterpret_cast<Ty *>(elem_offsets[i] + SlmBase);
+        *addr = vals[i];
       }
     }
   } else {
@@ -467,9 +456,8 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
 
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
-        RestoredTy *addr =
-            reinterpret_cast<RestoredTy *>(elem_offsets[idx] + writeBase);
-        *addr = static_cast<RestoredTy>(vals[idx]);
+        Ty *addr = reinterpret_cast<Ty *>(elem_offsets[idx] + writeBase);
+        *addr = vals[idx];
       }
     }
 
@@ -658,12 +646,6 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 {
   static_assert(Scale == 0);
 
-  // determine the original element's type size (as __esimd_scatter_scaled
-  // requires vals to be a vector of 4-byte integers)
-  constexpr size_t OrigSize = __SEIEED::ElemsPerAddrDecoding(TySizeLog2);
-  using RestoredTy = std::conditional_t<sizeof(Ty) == OrigSize, Ty,
-                                        __SEIEED::uint_type_t<OrigSize>>;
-
   __SEIEED::vector_type_t<Ty, N> retv = 0;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
@@ -674,9 +656,8 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     char *SlmBase = I->__cm_emu_get_slm_ptr();
     for (int idx = 0; idx < N; ++idx) {
       if (pred[idx]) {
-        RestoredTy *addr =
-            reinterpret_cast<RestoredTy *>(offsets[idx] + SlmBase);
-        retv[idx] = static_cast<Ty>(*addr);
+        Ty *addr = reinterpret_cast<Ty *>(offsets[idx] + SlmBase);
+        retv[idx] = *addr;
       }
     }
   } else {
@@ -691,9 +672,8 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     std::unique_lock<std::mutex> lock(*mutexLock);
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
-        RestoredTy *addr =
-            reinterpret_cast<RestoredTy *>(offsets[idx] + readBase);
-        retv[idx] = static_cast<Ty>(*addr);
+        Ty *addr = reinterpret_cast<Ty *>(offsets[idx] + readBase);
+        retv[idx] = *addr;
       }
     }
 
