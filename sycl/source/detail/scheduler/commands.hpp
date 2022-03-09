@@ -216,6 +216,7 @@ protected:
   /// See processDepEvent for details.
   std::vector<EventImplPtr> &MPreparedDepsEvents;
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
+  std::unordered_set<EventImplPtr> &MBlockingExplicitDeps;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
@@ -257,11 +258,6 @@ public:
   /// Contains list of commands that depend on the command.
   std::unordered_set<Command *> MUsers;
 
-  /// Contains list of commands that blocks this command from being enqueued
-  /// (not edges). Commands from set is moved to the top level command during
-  /// dependency building process and erased when blocking host task is
-  /// completed.
-  std::unordered_set<EventImplPtr> MBlockingExplicitDeps;
   /// Indicates whether the command can be blocked from enqueueing.
   bool MIsBlockable = false;
   /// Counts the number of memory objects this command is a leaf for.

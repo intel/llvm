@@ -17,6 +17,7 @@
 
 #include <atomic>
 #include <cassert>
+#include <unordered_set>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -206,6 +207,18 @@ public:
   }
   bool needsCleanupAfterWait() { return MNeedsCleanupAfterWait; }
 
+  // Should be called only when MCommand != NULL && MCommand is a host task
+  void attachEmptyCommand(void *Cmd);
+  const EventImplPtr &getEmptyCommandEvent() { return MEmptyCmdEvent; };
+
+  /// Returns set of explicit dependencies that may block the command from being
+  /// enqueued.
+  ///
+  /// @return a reference to MBlockingExplicitDeps.
+  std::unordered_set<EventImplPtr> &getBlockingExplicitDeps() {
+    return MBlockingExplicitDeps;
+  }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -221,11 +234,18 @@ private:
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
+  // May be not NULL only if MCommand is a host task. Used for proper handling
+  // (blocking) dependencies via depends_on(...).
+  EventImplPtr MEmptyCmdEvent = nullptr;
   std::weak_ptr<queue_impl> MQueue;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;
   std::vector<EventImplPtr> MPreparedHostDepsEvents;
+  /// Contains list of commands that blocks this command from being enqueued
+  /// (not edges). Commands from set is moved to the top level command during
+  /// dependency building process.
+  std::unordered_set<EventImplPtr> MBlockingExplicitDeps;
 
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.

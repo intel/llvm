@@ -374,7 +374,7 @@ Command::Command(CommandType Type, QueueImplPtr Queue)
       MEvent(std::make_shared<detail::event_impl>(MQueue)),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
-      MType(Type) {
+      MBlockingExplicitDeps(MEvent->getBlockingExplicitDeps()), MType(Type) {
   MSubmittedQueue = MQueue;
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
@@ -565,23 +565,22 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // distinction since the command might still be unenqueued at this point.
   bool PiEventExpected =
       !DepEvent->is_host() || getType() == CommandType::HOST_TASK;
-  auto *DepCmd = static_cast<Command *>(DepEvent->getCommand());
 
-  if (DepCmd) {
+  if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand())) {
     PiEventExpected &= DepCmd->producesPiEvent();
-
-    // MBlockingExplicitDeps used to avoid graph depth search for empty command
-    // to add new command as user to it. It is trade-off between average perf
-    // and scenario influence and memory usage. if
-    // BlockingCmdEvent->getCommand() returns nullptr - task is completed and
-    // event is signalled, not blocking any more so no copy.
-    for (auto &BlockingCmdEvent : DepCmd->MBlockingExplicitDeps) {
-      if (EmptyCommand *BlockingCmd =
-              static_cast<EmptyCommand *>(BlockingCmdEvent->getCommand())) {
-        MBlockingExplicitDeps.insert(BlockingCmdEvent);
-        BlockingCmd->removeBlockedUser(DepCmd->getEvent());
-        BlockingCmd->addBlockedUser(this->MEvent);
-      }
+  }
+  // MBlockingExplicitDeps used to avoid graph depth search for empty command
+  // to add new command as user to it. It is trade-off between average perf
+  // and scenario influence and memory usage. if
+  // BlockingCmdEvent->getCommand() returns nullptr - task is completed and
+  // event is signalled, not blocking any more so no copy.
+  for (const auto &BlockingCmdEvent : DepEvent->getBlockingExplicitDeps()) {
+    if (EmptyCommand *BlockingCmd =
+            static_cast<EmptyCommand *>(BlockingCmdEvent->getCommand());
+        BlockingCmd && BlockingCmd->isEnqueueBlocked()) {
+      MBlockingExplicitDeps.insert(BlockingCmdEvent);
+      BlockingCmd->removeBlockedUser(DepEvent);
+      BlockingCmd->addBlockedUser(this->MEvent);
     }
   }
 
@@ -589,14 +588,21 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
 
-    // Explicit user is a notification approach of host task completion only
-    if (DepCmd && DepCmd->getType() == CommandType::EMPTY_TASK) {
-      MBlockingExplicitDeps.insert(DepCmd->getEvent());
-      EmptyCommand *EmptyCmd = static_cast<EmptyCommand *>(DepCmd);
-      EmptyCmd->addBlockedUser(this->MEvent);
-    }
+    // Explicit user is a notification approach of host task completion only.
+    // Skip DepEvent command check (== HOST_TASK) because of empty command
+    // existence conditions.
+    if (const EventImplPtr &EmptyCmdEvent = DepEvent->getEmptyCommandEvent()) {
+      EmptyCommand *EmptyCmd =
+          static_cast<EmptyCommand *>(EmptyCmdEvent->getCommand());
+      if (EmptyCmd && EmptyCmd->isEnqueueBlocked()) {
+        MBlockingExplicitDeps.insert(EmptyCmdEvent);
+        EmptyCmd->addBlockedUser(this->MEvent);
+        // Blocks new command and prevent waiting on event
+      }
+      MPreparedHostDepsEvents.push_back(EmptyCmdEvent);
+    } else
+      MPreparedHostDepsEvents.push_back(DepEvent);
 
-    MPreparedHostDepsEvents.push_back(DepEvent);
     return nullptr;
   }
 
@@ -765,6 +771,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     // Consider the command is successfully enqueued if return code is
     // CL_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
+    // Stop MBlockingExplicitDeps copy/analysis chain since all dependencies are
+    // already unblocked as enqueue succeeded.
+    MBlockingExplicitDeps.clear();
     if (MLeafCounter == 0 && supportsPostEnqueueCleanup() &&
         !SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
       assert(!MPostEnqueueCleanup);

@@ -73,8 +73,6 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
                               QueueImplPtr Queue) {
   EventImplPtr NewEvent = nullptr;
-  // EventToReturn differs from NewEvent only in case if new task is a task task
-  EventImplPtr EventToReturn = nullptr;
   const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
   std::vector<StreamImplPtr> Streams;
@@ -117,16 +115,6 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     ReadLockT Lock(MGraphLock);
 
     Command *NewCmd = static_cast<Command *>(NewEvent->getCommand());
-
-    if (Type != CG::CodeplayHostTask)
-      EventToReturn = NewEvent;
-
-    else {
-      ExecCGCommand *ExecCmd = static_cast<ExecCGCommand *>(NewCmd);
-      assert(ExecCmd->MEmptyCmd &&
-             "Host command nust have Empty command attached");
-      EventToReturn = ExecCmd->MEmptyCmd->getEvent();
-    }
 
     EnqueueResultT Res;
     bool Enqueued;
@@ -182,7 +170,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     StreamImplPtr->flush();
   }
 
-  return EventToReturn;
+  return NewEvent;
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
@@ -382,7 +370,6 @@ void Scheduler::enqueueUnblockedCommands(
     bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
-    Cmd->MBlockingExplicitDeps.erase(UnblockedDep);
   }
 }
 

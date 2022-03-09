@@ -395,6 +395,18 @@ void event_impl::cleanupDependencyEvents() {
   MPreparedHostDepsEvents.clear();
 }
 
+void event_impl::attachEmptyCommand(void *Cmd) {
+  assert(MCommand && static_cast<Command *>(MCommand)->getType() ==
+                         Command::CommandType::HOST_TASK);
+  assert(Cmd && "NULL empty command is not acceptable");
+
+  Command *TypedCmd = static_cast<Command *>(Cmd);
+  assert(TypedCmd->getType() == Command::CommandType::EMPTY_TASK &&
+         "Command type is not acceptable");
+
+  MEmptyCmdEvent = TypedCmd->getEvent();
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
