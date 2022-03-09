@@ -420,33 +420,6 @@ static bool PiPlatformCachePopulated = false;
 static bool PiDriverGlobalOffsetExtensionFound = false;
 static bool PiDriverModuleProgramExtensionFound = false;
 
-// TODO:: In the following 4 methods we may want to distinguish read access vs.
-// write (as it is OK for multiple threads to read the map without locking it).
-
-pi_result _pi_mem::addMapping(void *MappedTo, size_t Offset, size_t Size) {
-  std::lock_guard<std::mutex> Lock(MappingsMutex);
-  auto Res = Mappings.insert({MappedTo, {Offset, Size}});
-  // False as the second value in pair means that mapping was not inserted
-  // because mapping already exists.
-  if (!Res.second) {
-    zePrint("piEnqueueMemBufferMap: duplicate mapping detected\n");
-    return PI_INVALID_VALUE;
-  }
-  return PI_SUCCESS;
-}
-
-pi_result _pi_mem::removeMapping(void *MappedTo, Mapping &MapInfo) {
-  std::lock_guard<std::mutex> Lock(MappingsMutex);
-  auto It = Mappings.find(MappedTo);
-  if (It == Mappings.end()) {
-    zePrint("piEnqueueMemUnmap: unknown memory mapping\n");
-    return PI_INVALID_VALUE;
-  }
-  MapInfo = It->second;
-  Mappings.erase(It);
-  return PI_SUCCESS;
-}
-
 pi_result
 _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
                                             size_t &Index, bool HostVisible,
@@ -1653,7 +1626,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
           // in the queue's batch.
 
           // Lock automatically releases when this goes out of scope.
-          std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+          std::scoped_lock lock(Queue->Mutex);
 
           if (auto Res = Queue->executeAllOpenCommandLists())
             return Res;
@@ -3204,7 +3177,7 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
 
 pi_result piQueueRetain(pi_queue Queue) {
   // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  std::scoped_lock lock(Queue->Mutex);
   Queue->RefCountExternal++;
   piQueueRetainNoLock(Queue);
   return PI_SUCCESS;
@@ -3216,7 +3189,7 @@ pi_result piQueueRelease(pi_queue Queue) {
     // Have this scope such that the lock is released before the
     // queue is potentially deleted in QueueRelease.
     // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+    std::scoped_lock lock(Queue->Mutex);
 
     Queue->RefCountExternal--;
     if (Queue->RefCountExternal == 0) {
@@ -3270,14 +3243,13 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
   PI_ASSERT(Queue->RefCount, PI_INVALID_QUEUE);
 
   // We need to use a bool variable here to check the condition that
-  // RefCount becomes zero atomically with PiQueueMutex lock.
+  // RefCount becomes zero atomically with Queue->Mutex lock.
   // Then, we can release the lock before we remove the Queue below.
   bool RefCountZero = false;
   {
     // Lock automatically releases when this goes out of scope.
-    auto Lock = ((Queue == LockedQueue)
-                     ? std::unique_lock<std::mutex>()
-                     : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
+    auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
+                                        : std::unique_lock(Queue->Mutex));
 
     Queue->RefCount--;
     if (Queue->RefCount == 0) {
@@ -3317,9 +3289,8 @@ static pi_result QueueFinish(pi_queue Queue, pi_queue LockedQueue) {
   std::vector<ze_command_queue_handle_t> ZeQueues;
   {
     // Lock automatically releases when this goes out of scope.
-    auto Lock = ((Queue == LockedQueue)
-                     ? std::unique_lock<std::mutex>()
-                     : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
+    auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
+                                        : std::unique_lock(Queue->Mutex));
 
     Queue->SkipLastEventInEventlessMode = true;
     // execute any command list that may still be open.
@@ -3342,9 +3313,8 @@ static pi_result QueueFinish(pi_queue Queue, pi_queue LockedQueue) {
   }
 
   // Lock automatically releases when this goes out of scope.
-  auto Lock = ((Queue == LockedQueue)
-                   ? std::unique_lock<std::mutex>()
-                   : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
+  auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
+                                      : std::unique_lock(Queue->Mutex));
   // Prevent unneeded already finished events to show up in the wait list.
   Queue->LastCommandEvent = nullptr;
   Queue->LastEventInPrevCmdList = nullptr;
@@ -3366,7 +3336,7 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
 
   // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  std::scoped_lock lock(Queue->Mutex);
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
   // Extract the Level Zero compute queue handle from the given PI queue
@@ -3650,6 +3620,7 @@ pi_result piMemGetInfo(pi_mem Mem,
 pi_result piMemRetain(pi_mem Mem) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
 
+  std::scoped_lock Guard(Mem->Mutex);
   ++(Mem->RefCount);
   return PI_SUCCESS;
 }
@@ -3687,29 +3658,37 @@ static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr) {
 
 pi_result piMemRelease(pi_mem Mem) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
-
-  if (--(Mem->RefCount) == 0) {
-    if (Mem->isImage()) {
-      ZE_CALL(zeImageDestroy, (pi_cast<ze_image_handle_t>(Mem->getZeHandle())));
-    } else {
-      auto Buf = static_cast<_pi_buffer *>(Mem);
-      if (!Buf->isSubBuffer()) {
-        if (Mem->HostPtrImported) {
-          ze_driver_handle_t driverHandle =
-              Mem->Context->Devices[0]->Platform->ZeDriver;
-          ZeUSMImport.doZeUSMRelease(driverHandle, Mem->MapHostPtr);
-        } else {
-          if (enableBufferPooling()) {
-            PI_CALL(piextUSMFree(Mem->Context, Mem->getZeHandle()));
+  bool RefCountZero = false;
+  {
+    std::scoped_lock Guard(Mem->Mutex);
+    if (--(Mem->RefCount) == 0) {
+      if (Mem->isImage()) {
+        ZE_CALL(zeImageDestroy,
+                (pi_cast<ze_image_handle_t>(Mem->getZeHandle())));
+      } else {
+        auto Buf = static_cast<_pi_buffer *>(Mem);
+        if (!Buf->isSubBuffer()) {
+          if (Mem->HostPtrImported) {
+            ze_driver_handle_t driverHandle =
+                Mem->Context->Devices[0]->Platform->ZeDriver;
+            ZeUSMImport.doZeUSMRelease(driverHandle, Mem->MapHostPtr);
           } else {
-            if (auto Res = ZeMemFreeHelper(Mem->Context, Mem->getZeHandle()))
-              return Res;
+            if (enableBufferPooling()) {
+              PI_CALL(piextUSMFree(Mem->Context, Mem->getZeHandle()));
+            } else {
+              if (auto Res = ZeMemFreeHelper(Mem->Context, Mem->getZeHandle()))
+                return Res;
+            }
           }
         }
+        RefCountZero = true;
       }
     }
-    delete Mem;
   }
+
+  if (RefCountZero)
+    delete Mem;
+
   return PI_SUCCESS;
 }
 
@@ -3886,6 +3865,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
 pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
+  std::shared_lock Guard(Mem->Mutex);
   *NativeHandle = pi_cast<pi_native_handle>(Mem->getZeHandle());
   return PI_SUCCESS;
 }
@@ -4137,7 +4117,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
     // potential if there was some other code that holds more than one of these
     // locks simultaneously with "exclusive" access.  However, there is no such
     // code like that, so this is also not a danger.
-    std::vector<std::shared_lock<std::shared_mutex>> Guards(NumInputPrograms);
+    std::vector<std::shared_lock<pi_shared_mutex>> Guards(NumInputPrograms);
     for (pi_uint32 I = 0; I < NumInputPrograms; I++) {
       std::shared_lock Guard(InputPrograms[I]->Mutex);
       Guards[I].swap(Guard);
@@ -4915,7 +4895,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   ZE_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
 
   // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> QueueLock(Queue->PiQueueMutex);
+  std::scoped_lock QueueLock(Queue->Mutex);
 
   bool UseCopyEngine = false;
   Queue->EventlessMode |= !Event;
@@ -5036,7 +5016,7 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
     //
     // Get a new command list to be used on this call
     {
-      std::lock_guard<std::mutex> Lock(Queue->PiQueueMutex);
+      std::scoped_lock Lock(Queue->Mutex);
 
       // We want to batch these commands to avoid extra submissions (costly)
       bool OkToBatch = true;
@@ -5153,7 +5133,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     // like a reasonable thing to do.
     if (Event->Queue) {
       // Lock automatically releases when this goes out of scope.
-      std::lock_guard<std::mutex> lock(Event->Queue->PiQueueMutex);
+      std::scoped_lock lock(Event->Queue->Mutex);
       Event->Queue->executeOpenCommandListWithEvent(Event);
     }
 
@@ -5263,9 +5243,8 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
   // part of the cleanup operations.
   if (Queue) {
     // Lock automatically releases when this goes out of scope.
-    auto Lock = ((Queue == LockedQueue)
-                     ? std::unique_lock<std::mutex>()
-                     : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
+    auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
+                                        : std::unique_lock(Queue->Mutex));
 
     if (ZeCommandList) {
       // Event has been signalled: If the fence for the associated command list
@@ -5357,10 +5336,9 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
       // twice, so it is safe. Lock automatically releases when this goes out of
       // scope.
       // TODO: this code needs to be moved out of the guard.
-      auto Lock =
-          ((DepEvent->Queue == LockedQueue)
-               ? std::unique_lock<std::mutex>()
-               : std::unique_lock<std::mutex>(DepEvent->Queue->PiQueueMutex));
+      auto Lock = ((DepEvent->Queue == LockedQueue)
+                       ? std::unique_lock<pi_shared_mutex>()
+                       : std::unique_lock(DepEvent->Queue->Mutex));
 
       if (DepEvent->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
           DepEvent->CommandData) {
@@ -5396,7 +5374,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     auto Queue = EventList[I]->Queue;
     if (Queue) {
       // Lock automatically releases when this goes out of scope.
-      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+      std::scoped_lock lock(Queue->Mutex);
 
       if (Queue->RefCount > 0) {
         if (auto Res = Queue->executeAllOpenCommandLists())
@@ -5505,7 +5483,7 @@ pi_result piextEventGetNativeHandle(pi_event Event,
   // it is submitted for execution to avoid potential deadlock if
   // interop app is going to wait for it.
   if (Event->Queue) {
-    std::lock_guard<std::mutex> lock(Event->Queue->PiQueueMutex);
+    std::scoped_lock lock(Event->Queue->Mutex);
     Event->Queue->executeOpenCommandListWithEvent(Event);
   }
   return PI_SUCCESS;
@@ -5705,7 +5683,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     PI_ASSERT(NumEventsInWaitList > 0, PI_INVALID_VALUE);
 
     // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+    std::scoped_lock lock(Queue->Mutex);
 
     bool UseCopyEngine = false;
     Queue->EventlessMode |= !Event;
@@ -5759,7 +5737,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   // TODO: find a way to do that without blocking the host.
 
   // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  std::scoped_lock lock(Queue->Mutex);
 
   if (Event) {
     auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
@@ -5798,7 +5776,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     auto EventQueue = EventWaitList[I]->Queue;
     if (EventQueue && EventQueue != Queue) {
       // Lock automatically releases when this goes out of scope.
-      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+      std::scoped_lock lock(Queue->Mutex);
 
       if (EventQueue->RefCount > 0) {
         if (auto Res = EventQueue->executeAllOpenCommandLists())
@@ -5808,7 +5786,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   }
 
   // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  std::scoped_lock lock(Queue->Mutex);
 
   bool UseCopyEngine = false;
   Queue->EventlessMode |= !Event;
@@ -5861,6 +5839,8 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   PI_ASSERT(Src, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  std::shared_lock SrcLock(Src->Mutex, std::defer_lock);
+  std::scoped_lock LockAll(SrcLock, Queue->Mutex);
   return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst,
                               BlockingRead, Size,
                               pi_cast<char *>(Src->getZeHandle()) + Offset,
@@ -5878,6 +5858,8 @@ pi_result piEnqueueMemBufferReadRect(
   PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  std::shared_lock SrcLock(Buffer->Mutex, std::defer_lock);
+  std::scoped_lock LockAll(SrcLock, Queue->Mutex);
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, Queue, Buffer->getZeHandle(),
       static_cast<char *>(Ptr), BufferOffset, HostOffset, Region,
@@ -5893,7 +5875,8 @@ bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
 }
 
 // Shared by all memory read/write/copy PI interfaces.
-// PI interfaces must not have queue's mutex locked on entry.
+// PI interfaces must have queue's and destination buffer's mutexes locked for
+// exclusive use and source buffer's mutex locked for shared use on entry.
 static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
                                       pi_queue Queue, void *Dst,
                                       pi_bool BlockingWrite, size_t Size,
@@ -5902,8 +5885,6 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
                                       const pi_event *EventWaitList,
                                       pi_event *Event, bool PreferCopyEngine) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
   Queue->EventlessMode |= !Event;
@@ -5961,7 +5942,8 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
 }
 
 // Shared by all memory read/write/copy rect PI interfaces.
-// PI interfaces must not have queue's mutex locked on entry.
+// PI interfaces must have queue's and destination buffer's mutexes locked for
+// exclusive use and source buffer's mutex locked for shared use on entry.
 static pi_result enqueueMemCopyRectHelper(
     pi_command_type CommandType, pi_queue Queue, void *SrcBuffer,
     void *DstBuffer, pi_buff_rect_offset SrcOrigin,
@@ -5972,9 +5954,6 @@ static pi_result enqueueMemCopyRectHelper(
 
   PI_ASSERT(Region && SrcOrigin && DstOrigin && Queue, PI_INVALID_VALUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
-
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
 
@@ -6073,6 +6052,7 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
   PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  std::scoped_lock Lock(Queue->Mutex, Buffer->Mutex);
   return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_WRITE, Queue,
                               pi_cast<char *>(Buffer->getZeHandle()) +
                                   Offset, // dst
@@ -6092,6 +6072,7 @@ pi_result piEnqueueMemBufferWriteRect(
   PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  std::scoped_lock Lock(Queue->Mutex, Buffer->Mutex);
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, Queue,
       const_cast<char *>(static_cast<const char *>(Ptr)), Buffer->getZeHandle(),
@@ -6108,6 +6089,10 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
                                  pi_event *Event) {
   PI_ASSERT(SrcBuffer && DstBuffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
+
+  std::shared_lock SrcLock(SrcBuffer->Mutex, std::defer_lock);
+  std::scoped_lock LockAll(SrcLock, DstBuffer->Mutex, Queue->Mutex);
+
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
   bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
@@ -6131,6 +6116,10 @@ pi_result piEnqueueMemBufferCopyRect(
     const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(SrcBuffer && DstBuffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
+
+  std::shared_lock SrcLock(SrcBuffer->Mutex, std::defer_lock);
+  std::scoped_lock LockAll(SrcLock, DstBuffer->Mutex, Queue->Mutex);
+
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
   bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
@@ -6144,9 +6133,7 @@ pi_result piEnqueueMemBufferCopyRect(
 
 } // extern "C"
 
-//
-// Caller of this must assure that the Queue is non-null and has not
-// acquired the lock.
+// PI interfaces must have queue's and buffer's mutexes locked on entry.
 static pi_result
 enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
                      const void *Pattern, size_t PatternSize, size_t Size,
@@ -6156,9 +6143,6 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   // Pattern size must be a power of two.
   PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
             PI_INVALID_VALUE);
-
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   auto &Device = Queue->Device;
 
@@ -6259,6 +6243,7 @@ pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
   PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  std::scoped_lock Lock(Queue->Mutex, Buffer->Mutex);
   return enqueueMemFillHelper(PI_COMMAND_TYPE_MEM_BUFFER_FILL, Queue,
                               pi_cast<char *>(Buffer->getZeHandle()) + Offset,
                               Pattern, PatternSize, Size, NumEventsInWaitList,
@@ -6287,7 +6272,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   bool UseCopyEngine = false;
   {
     // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+    std::scoped_lock lock(Queue->Mutex);
 
     _pi_ze_event_list_t TmpWaitList;
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
@@ -6325,7 +6310,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
       {
         // Lock automatically releases when this goes out of scope.
-        std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+        std::scoped_lock lock(Queue->Mutex);
         if (Queue->EventlessMode) {
           PI_CALL(QueueFinish(Queue, Queue));
         } else {
@@ -6338,6 +6323,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
       }
     }
 
+    // Lock automatically releases when this goes out of scope.
+    std::scoped_lock Guard(Buffer->Mutex);
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
       if (!Buffer->HostPtrImported &&
@@ -6350,11 +6337,18 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
 
-    return Buffer->addMapping(*RetMap, Offset, Size);
+    auto Res = Buffer->Mappings.insert({*RetMap, {Offset, Size}});
+    // False as the second value in pair means that mapping was not inserted
+    // because mapping already exists.
+    if (!Res.second) {
+      zePrint("piEnqueueMemBufferMap: duplicate mapping detected\n");
+      return PI_INVALID_VALUE;
+    }
+    return PI_SUCCESS;
   }
 
   // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  std::scoped_lock Lock(Queue->Mutex, Buffer->Mutex);
 
   // For discrete devices we need a command list
   pi_command_list_ptr_t CommandList{};
@@ -6392,7 +6386,14 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   if (auto Res = Queue->executeCommandList(CommandList, BlockingMap))
     return Res;
 
-  return Buffer->addMapping(*RetMap, Offset, Size);
+  auto Res = Buffer->Mappings.insert({*RetMap, {Offset, Size}});
+  // False as the second value in pair means that mapping was not inserted
+  // because mapping already exists.
+  if (!Res.second) {
+    zePrint("piEnqueueMemBufferMap: duplicate mapping detected\n");
+    return PI_INVALID_VALUE;
+  }
+  return PI_SUCCESS;
 }
 
 pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
@@ -6409,7 +6410,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   bool UseCopyEngine = false;
   {
     // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+    std::scoped_lock lock(Queue->Mutex);
 
     _pi_ze_event_list_t TmpWaitList;
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
@@ -6426,18 +6427,28 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   }
 
   _pi_mem::Mapping MapInfo = {};
-  if (pi_result Res = MemObj->removeMapping(MappedPtr, MapInfo))
-    return Res;
+  {
+    // Lock automatically releases when this goes out of scope.
+    std::scoped_lock Guard(MemObj->Mutex);
+    auto It = MemObj->Mappings.find(MappedPtr);
+    if (It == MemObj->Mappings.end()) {
+      zePrint("piEnqueueMemUnmap: unknown memory mapping\n");
+      return PI_INVALID_VALUE;
+    }
+    MapInfo = It->second;
+    MemObj->Mappings.erase(It);
 
-  // NOTE: we still have to free the host memory allocated/returned by
-  // piEnqueueMemBufferMap, but can only do so after the above copy
-  // is completed. Instead of waiting for It here (blocking), we shall
-  // do so in piEventRelease called for the pi_event tracking the unmap.
-  // In the case of an integrated device, the map operation does not allocate
-  // any memory, so there is nothing to free. This is indicated by a nullptr.
-  if (Event)
-    (*Event)->CommandData =
-        (MemObj->OnHost ? nullptr : (MemObj->MapHostPtr ? nullptr : MappedPtr));
+    // NOTE: we still have to free the host memory allocated/returned by
+    // piEnqueueMemBufferMap, but can only do so after the above copy
+    // is completed. Instead of waiting for It here (blocking), we shall
+    // do so in piEventRelease called for the pi_event tracking the unmap.
+    // In the case of an integrated device, the map operation does not allocate
+    // any memory, so there is nothing to free. This is indicated by a nullptr.
+    if (Event)
+      (*Event)->CommandData =
+          (MemObj->OnHost ? nullptr
+                          : (MemObj->MapHostPtr ? nullptr : MappedPtr));
+  }
 
   // For integrated devices the buffer is allocated in host memory.
   if (MemObj->OnHost) {
@@ -6449,7 +6460,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
       {
         // Lock automatically releases when this goes out of scope.
-        std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+        std::shared_lock lock(Queue->Mutex);
         if (Queue->EventlessMode) {
           PI_CALL(QueueFinish(Queue, Queue));
         } else {
@@ -6462,6 +6473,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
       }
     }
 
+    std::scoped_lock Guard(MemObj->Mutex);
     if (MemObj->MapHostPtr)
       memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
              MapInfo.Size);
@@ -6473,7 +6485,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   }
 
   // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  std::scoped_lock Lock(Queue->Mutex, MemObj->Mutex);
 
   pi_command_list_ptr_t CommandList{};
   if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
@@ -6570,7 +6582,8 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
 }
 
 // Helper function to implement image read/write/copy.
-// Caller must not hold a lock on the Queue passed in.
+// PI interfaces must have queue's and destination image's mutexes locked for
+// exclusive use and source image's mutex locked for shared use on entry.
 static pi_result enqueueMemImageCommandHelper(
     pi_command_type CommandType, pi_queue Queue,
     const void *Src, // image or ptr
@@ -6582,8 +6595,6 @@ static pi_result enqueueMemImageCommandHelper(
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
 
   _pi_ze_event_list_t TmpWaitList;
@@ -6721,6 +6732,8 @@ pi_result piEnqueueMemImageRead(pi_queue Queue, pi_mem Image,
                                 pi_event *Event) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  std::shared_lock SrcLock(Image->Mutex, std::defer_lock);
+  std::scoped_lock LockAll(SrcLock, Queue->Mutex);
   return enqueueMemImageCommandHelper(
       PI_COMMAND_TYPE_IMAGE_READ, Queue,
       Image, // src
@@ -6741,6 +6754,7 @@ pi_result piEnqueueMemImageWrite(pi_queue Queue, pi_mem Image,
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  std::scoped_lock Lock(Queue->Mutex, Image->Mutex);
   return enqueueMemImageCommandHelper(PI_COMMAND_TYPE_IMAGE_WRITE, Queue,
                                       Ptr,   // src
                                       Image, // dst
@@ -6759,6 +6773,9 @@ piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
                       const pi_event *EventWaitList, pi_event *Event) {
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
+
+  std::shared_lock SrcLock(SrcImage->Mutex, std::defer_lock);
+  std::scoped_lock LockAll(SrcLock, DstImage->Mutex, Queue->Mutex);
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
   bool PreferCopyEngine = (SrcImage->OnHost || DstImage->OnHost);
@@ -6788,7 +6805,7 @@ pi_result piEnqueueMemImageFill(pi_queue Queue, pi_mem Image,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  std::scoped_lock Lock(Queue->Mutex, Image->Mutex);
 
   die("piEnqueueMemImageFill: not implemented");
   return {};
@@ -6805,6 +6822,8 @@ pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
   PI_ASSERT(BufferCreateType == PI_BUFFER_CREATE_TYPE_REGION &&
                 BufferCreateInfo && RetMem,
             PI_INVALID_VALUE);
+
+  std::shared_lock Guard(Buffer->Mutex);
 
   if (Flags != PI_MEM_FLAGS_ACCESS_RW) {
     die("piMemBufferPartition: Level-Zero implements only read-write buffer,"
@@ -6854,7 +6873,7 @@ pi_result piEnqueueNativeKernel(pi_queue Queue, void (*UserFunc)(void *),
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  std::scoped_lock lock(Queue->Mutex);
 
   die("piEnqueueNativeKernel: not implemented");
   return {};
@@ -7441,6 +7460,7 @@ pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  std::scoped_lock Lock(Queue->Mutex);
   return enqueueMemFillHelper(
       // TODO: do we need a new command type for USM memset?
       PI_COMMAND_TYPE_MEM_BUFFER_FILL, Queue, Ptr,
@@ -7473,6 +7493,8 @@ pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
   }
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
+
+  std::scoped_lock lock(Queue->Mutex);
 
   // Device to Device copies are found to execute slower on copy engine
   // (versus compute engine).
@@ -7508,7 +7530,7 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  std::scoped_lock lock(Queue->Mutex);
 
   // TODO: Change UseCopyEngine argument to 'true' once L0 backend
   // support is added
@@ -7583,7 +7605,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  std::scoped_lock lock(Queue->Mutex);
 
   // UseCopyEngine is set to 'false' here.
   // TODO: Additional analysis is required to check if this operation will
