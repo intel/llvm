@@ -37,7 +37,7 @@ _CLC_DEF _CLC_OVERLOAD half __spirv_ocl_fmax(half x, half y) {
   if (__clc_nvvm_reflect_arch() >= 800) {
     return __nvvm_fmax_f16(x, y);
   }
-  return x > y ? x : y;
+  return __nv_fmaxf(x,y);
 }
 _CLC_DEF _CLC_OVERLOAD half2 __spirv_ocl_fmax(half2 x, half2 y) {
   if (__clc_nvvm_reflect_arch() >= 800) {
