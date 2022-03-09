@@ -31,19 +31,17 @@ module.exports = ({core, process}) => {
       testConfigs.lts.forEach(v => {
         if (ltsConfigs.includes(v.config)) {
           if (needsDrivers) {
-            v["env"] = [
-              {
-                "compute_runtime_tag" :
-                    driverNew["linux"]["compute_runtime"]["github_tag"]
-              },
-              {"igc_tag" : driverNew["linux"]["igc"]["github_tag"]},
-              {"cm_tag" : driverNew["linux"]["cm"]["github_tag"]},
-              {"tbb_tag" : driverNew["linux"]["tbb"]["github_tag"]},
-              {"cpu_tag" : driverNew["linux"]["oclcpu"]["github_tag"]},
-              {"fpgaemu_tag" : driverNew["linux"]["fpgaemu"]["github_tag"]},
-            ];
+            v["env"] = {
+              "compute_runtime_tag" :
+                  driverNew["linux"]["compute_runtime"]["github_tag"],
+              "igc_tag" : driverNew["linux"]["igc"]["github_tag"],
+              "cm_tag" : driverNew["linux"]["cm"]["github_tag"],
+              "tbb_tag" : driverNew["linux"]["tbb"]["github_tag"],
+              "cpu_tag" : driverNew["linux"]["oclcpu"]["github_tag"],
+              "fpgaemu_tag" : driverNew["linux"]["fpgaemu"]["github_tag"],
+            };
           } else {
-            v["env"] = [];
+            v["env"] = {};
           }
           enabledLTSConfigs.push(v);
         }
