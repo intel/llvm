@@ -53,7 +53,7 @@ template <typename T> struct TS {
 public:
   static device_global<T> d;
 };
-template<> device_global<int> TS<int>::d{};
+template <> device_global<int> TS<int>::d{};
 // CHECK: @_ZN2TSIiE1dE = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[TEMPLATED_WRAPPER_ATTRS:[0-9]+]]
 
 template <typename T>

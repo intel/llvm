@@ -1600,8 +1600,8 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
         getLLVMContext(), getContext().getTargetAddressSpace(LangAS::Default));
 
   // Get the type of a ctor entry, { i32, void ()*, i8* }.
-  llvm::StructType *CtorStructTy = llvm::StructType::get(
-      Int32Ty, CtorPFTy, TargetType);
+  llvm::StructType *CtorStructTy =
+      llvm::StructType::get(Int32Ty, CtorPFTy, TargetType);
 
   // Construct the constructor and destructor arrays.
   ConstantInitBuilder builder(*this);
@@ -2444,9 +2444,8 @@ static void emitUsed(CodeGenModule &CGM, StringRef Name,
   SmallVector<llvm::Constant*, 8> UsedArray;
   UsedArray.resize(List.size());
   for (unsigned i = 0, e = List.size(); i != e; ++i) {
-    UsedArray[i] =
-        llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
-            cast<llvm::Constant>(&*List[i]), TargetType);
+    UsedArray[i] = llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+        cast<llvm::Constant>(&*List[i]), TargetType);
   }
 
   if (UsedArray.empty())
