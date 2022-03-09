@@ -44,23 +44,25 @@ support them as general attributes that customer code can use.
 template <typename name,
           typename dataT,
           typename property_listT = property_list<>>
-class
-ifdef __SYCL_DEVICE_ONLY__
+class pipe
+{ 
+  struct
+#ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_global_variable_attributes(
     "sycl-host-access",
     "readwrite"
     )]]
 #endif
-pipe
-{ 
-  static const char __pipe;
+  __pipeType { const char __p };
+  
+  __pipeType __pipe;
   ...
 }
 ```
 The `[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute is 
 described more fully by the [compile-time properties][3] design 
 document. This attribute is also used for other classes that have properties,
-so it is not specific to the `pipe` class.
+so it is not specific to the `pipe` class. 
 
 The address of `static const char` member `__pipe` will be used to identify the pipe
 in host code, and provide one half of the host-to-device mapping of the pipe 
@@ -89,8 +91,15 @@ variable. To illustrate, consider a translation unit that defines two
 ```
 #include <sycl/sycl.hpp>
 
-using a_pipe = pipe<class some_pipe, ...>;
-using b_pipe = pipe<class some_other_pipe, ...>;
+class some_pipe;
+namespace inner {
+  class some_other_pipe;
+} // namespace inner
+...
+pipe<class some_pipe, ...>::write(...); // a usage of pipe<class some_pipe, ...>
+...
+pipe<class some_other_pipe, ...>::read(...); // a usage of pipe<class some_other_pipe, ...> 
+...
 
 ```
 
@@ -114,7 +123,7 @@ __sycl_host_pipe_registration __sycl_host_pipe_registrar;
 
 The integration footer contains the definition of the constructor, which calls
 a function in the DPC++ runtime with the following information for each host
-pipe that is defined in the translation unit:
+pipe that is used in the translation unit:
 
 * The (host) address of the static member variable `__pipe`.
 * The variable's string from the `sycl-unique-id` attribute.
@@ -124,10 +133,10 @@ namespace sycl::detail {
 namespace {
 
 __sycl_host_pipe_registration::__sycl_host_pipe_registration() noexcept {
-  host_pipe_map::add(&a_pipe::__pipe,
-    /* same string returned from __builtin_sycl_unique_pipe_id(&a_pipe::__pipe) */);
-  host_pipe_map::add(&b_pipe::__pipe,
-    /* same string returned from __builtin_sycl_unique_pipe_id(&b_pipe::__pipe) */);
+  host_pipe_map::add(&pipe<some_pipe, ...>::__pipe,
+    /* same string returned from __builtin_sycl_unique_pipe_id(pipe<some_pipe, ...>::__pipe) */);
+  host_pipe_map::add(&inner::pipe<some_other_pipe>::__pipe,
+    /* same string returned from __builtin_sycl_unique_pipe_id(pipe<some_other_pipe, ...>::__pipe) */);
 }
 
 } // namespace (unnamed)
@@ -163,9 +172,10 @@ Several changes are needed to the DPC++ runtime
 
 ### Open Questions
 
-The 'unique pipe id' must be globally unique. Since all global variables in 
-the LLVM IR must have such a unique names, it is our intention to use this
-naming. Is this possible? We would also need to define a builtin to return
-this string (see 'builtin_sycl_unique_id' in the headers and footers section).
+* The 'unique pipe id' must be globally unique. Since all global variables in 
+  the LLVM IR must have such a unique names, it is our intention to use this
+  naming. Is this possible? We would also need to define a builtin to return
+  this string (see 'builtin_sycl_unique_id' in the headers and footers section).
 
-
+* Is the `[[__sycl_detail__::add_ir_attributes_global_variable()]]` usable on the 
+  static class member `__pipe` as shown?
