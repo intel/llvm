@@ -44,13 +44,14 @@ support them as general attributes that customer code can use.
 template <typename name,
           typename dataT,
           typename property_listT = property_list<>>
-class pipe 
+class
 ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_global_variable_attributes(
     "sycl-host-access",
     "readwrite"
     )]]
 #endif
+pipe
 { 
   static const char __pipe;
   ...
@@ -94,7 +95,7 @@ using b_pipe = pipe<class some_other_pipe, ...>;
 ```
 
 The corresponding integration header defines a namespace scope variable of type
-`__sycl_host_pipe_registration` (referred to below as the __host pipe registrar__
+`__sycl_host_pipe_registration` (referred to below as the __host pipe registrar__)
 whose sole purpose is to run its constructor before the application's main() function:
 
 ```
