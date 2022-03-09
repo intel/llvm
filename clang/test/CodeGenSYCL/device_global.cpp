@@ -49,6 +49,17 @@ device_global<float> InlineNS;
 }
 // CHECK: @_ZN3Bar8InlineNSE = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #[[BAR_INLINENS_ATTRS:[0-9]+]]
 
+template <typename T> struct TS {
+public:
+  static device_global<T> d;
+};
+template<> device_global<int> TS<int>::d{};
+// CHECK: @_ZN2TSIiE1dE = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[TEMPLATED_WRAPPER_ATTRS:[0-9]+]]
+
+template <typename T>
+device_global<T> templ_dev_global;
+// CHECK: @[[TEMPL_DEV_GLOB:[a-zA-Z0-9_]+]] = linkonce_odr addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, comdat, align 8 #[[TEMPL_DEV_GLOB_ATTRS:[0-9]+]]
+
 void foo() {
   q.submit([&](handler &h) {
     h.single_task<class kernel_name_1>([=]() {
@@ -59,6 +70,8 @@ void foo() {
       (void)NS::same_name;
       (void)no_device_global;
       (void)Bar::InlineNS;
+      auto AA = TS<int>::d.get();
+      auto val = templ_dev_global<int>.get();
     });
   });
 }
@@ -76,10 +89,15 @@ void bar() {
 }
 } // namespace
 
+// CHECK: @llvm.global_ctors = appending global [2 x { i32, void ()*, i8 addrspace(4)* }] [{ i32, void ()*, i8 addrspace(4)* } { i32 65535, void ()* @__cxx_global_var_init{{.*}}, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::ext::oneapi::device_global" addrspace(1)* @[[TEMPL_DEV_GLOB]] to i8 addrspace(1)*) to i8 addrspace(4)*) }, { i32, void ()*, i8 addrspace(4)* } { i32 65535, void ()* @_GLOBAL__sub_I_device_global.cpp, i8 addrspace(4)* null }]
+// CHECK: @llvm.used = appending global [1 x i8 addrspace(4)*] [i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::ext::oneapi::device_global" addrspace(1)* @[[TEMPL_DEV_GLOB]] to i8 addrspace(1)*) to i8 addrspace(4)*)], section "llvm.metadata"
+
 // CHECK: attributes #[[A_ATTRS]] = { "sycl-unique-id"="_Z1A" }
 // CHECK: attributes #[[B_ATTRS]] = { "sycl-unique-id"="THE_PREFIX____ZL1B" }
 // CHECK: attributes #[[C_ATTRS]] = { "sycl-unique-id"="_ZN3Foo1CE" }
 // CHECK: attributes #[[SAME_NAME_ATTRS]] = { "sycl-unique-id"="_Z9same_name" }
 // CHECK: attributes #[[SAME_NAME_NS_ATTRS]] = { "sycl-unique-id"="_ZN2NS9same_nameE" }
 // CHECK: attributes #[[BAR_INLINENS_ATTRS]] = { "sycl-unique-id"="_ZN3Bar8InlineNSE" }
+// CHECK: attributes #[[TEMPLATED_WRAPPER_ATTRS]] = { "sycl-unique-id"="_ZN2TSIiE1dE" }
+// CHECK: attributes #[[TEMPL_DEV_GLOB_ATTRS]] = { "sycl-unique-id"="_Z16templ_dev_globalIiE" }
 // CHECK: attributes #[[SAME_NAME_ANON_NS_ATTRS]] = { "sycl-unique-id"="THE_PREFIX____ZN12_GLOBAL__N_19same_nameE" }

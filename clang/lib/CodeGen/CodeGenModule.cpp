@@ -1594,10 +1594,14 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
   llvm::FunctionType* CtorFTy = llvm::FunctionType::get(VoidTy, false);
   llvm::Type *CtorPFTy = llvm::PointerType::get(CtorFTy,
       TheModule.getDataLayout().getProgramAddressSpace());
+  llvm::PointerType *TargetType = VoidPtrTy;
+  if (getLangOpts().SYCLIsDevice)
+    TargetType = llvm::IntegerType::getInt8PtrTy(
+        getLLVMContext(), getContext().getTargetAddressSpace(LangAS::Default));
 
   // Get the type of a ctor entry, { i32, void ()*, i8* }.
   llvm::StructType *CtorStructTy = llvm::StructType::get(
-      Int32Ty, CtorPFTy, VoidPtrTy);
+      Int32Ty, CtorPFTy, TargetType);
 
   // Construct the constructor and destructor arrays.
   ConstantInitBuilder builder(*this);
@@ -1606,10 +1610,11 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
     auto ctor = ctors.beginStruct(CtorStructTy);
     ctor.addInt(Int32Ty, I.Priority);
     ctor.add(llvm::ConstantExpr::getBitCast(I.Initializer, CtorPFTy));
-    if (I.AssociatedData)
-      ctor.add(llvm::ConstantExpr::getBitCast(I.AssociatedData, VoidPtrTy));
-    else
-      ctor.addNullPointer(VoidPtrTy);
+    if (I.AssociatedData) {
+      ctor.add(llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+          I.AssociatedData, TargetType));
+    } else
+      ctor.addNullPointer(TargetType);
     ctor.finishAndAddTo(ctors);
   }
 
@@ -2429,18 +2434,24 @@ static void emitUsed(CodeGenModule &CGM, StringRef Name,
   if (List.empty())
     return;
 
+  llvm::PointerType *TargetType = CGM.Int8PtrTy;
+  if (CGM.getLangOpts().SYCLIsDevice)
+    TargetType = llvm::IntegerType::getInt8PtrTy(
+        CGM.getLLVMContext(),
+        CGM.getContext().getTargetAddressSpace(LangAS::Default));
+
   // Convert List to what ConstantArray needs.
   SmallVector<llvm::Constant*, 8> UsedArray;
   UsedArray.resize(List.size());
   for (unsigned i = 0, e = List.size(); i != e; ++i) {
     UsedArray[i] =
         llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
-            cast<llvm::Constant>(&*List[i]), CGM.Int8PtrTy);
+            cast<llvm::Constant>(&*List[i]), TargetType);
   }
 
   if (UsedArray.empty())
     return;
-  llvm::ArrayType *ATy = llvm::ArrayType::get(CGM.Int8PtrTy, UsedArray.size());
+  llvm::ArrayType *ATy = llvm::ArrayType::get(TargetType, UsedArray.size());
 
   auto *GV = new llvm::GlobalVariable(
       CGM.getModule(), ATy, false, llvm::GlobalValue::AppendingLinkage,
