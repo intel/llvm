@@ -1730,7 +1730,11 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
 
 ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
                              QueueImplPtr Queue)
-    : Command(CommandType::RUN_CG, std::move(Queue)),
+    // TODO: add HOST_TASK to XPTI instrumentation.
+    : Command(MCommandGroup->getType() == detail::CG::CodeplayHostTask
+                  ? CommandType::HOST_TASK
+                  : CommandType::RUN_CG,
+              std::move(Queue)),
       MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MSubmittedQueue =
