@@ -14,8 +14,8 @@ void f0(cl::sycl::queue &myQueue, cl::sycl::buffer<int, 1> &in_buf, cl::sycl::bu
 
 // CHECK: spir_kernel{{.*}}f1_kernel
 // CHECK-NOT: readonly
-// CHECK-SAME: %_arg_{{.*}}%_arg_1{{.*}}%_arg_2{{.*}}%_arg_3
-// CHECK-SAME:  readonly align 4 %_arg_4
+// CHECK-SAME: %_arg_write_acc{{.*}}%_arg_write_acc1{{.*}}%_arg_write_acc2{{.*}}%_arg_write_acc3
+// CHECK-SAME:  readonly align 4 %_arg_read_acc
 void f1(cl::sycl::queue &myQueue, cl::sycl::buffer<int, 1> &in_buf, cl::sycl::buffer<int, 1> &out_buf) {
   myQueue.submit([&](cl::sycl::handler &cgh) {
     auto write_acc = out_buf.get_access<cl::sycl::access::mode::write>(cgh);
@@ -25,9 +25,9 @@ void f1(cl::sycl::queue &myQueue, cl::sycl::buffer<int, 1> &in_buf, cl::sycl::bu
 }
 
 // CHECK: spir_kernel{{.*}}f2_kernel
-// CHECK-SAME: readonly align 4 %_arg_
+// CHECK-SAME: readonly align 4 %_arg_read_acc
 // CHECK-NOT: readonly
-// CHECK-SAME: %_arg_8
+// CHECK-SAME: %_arg_write_acc
 void f2(cl::sycl::queue &myQueue, cl::sycl::buffer<int, 1> &in_buf, cl::sycl::buffer<int, 1> &out_buf) {
   myQueue.submit([&](cl::sycl::handler &cgh) {
     auto read_acc = in_buf.get_access<cl::sycl::access::mode::read>(cgh);

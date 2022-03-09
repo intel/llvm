@@ -17,8 +17,8 @@
 // CHECK: [[ARG_LOAD:%[a-zA-Z0-9_]+]] = load i8 addrspace(1)*, i8 addrspace(1)* addrspace(4)* [[ARG]].addr.ascast, align 8,
 
 // Check __init and __finalize method calls
-// CHECK:  call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::stream" addrspace(4)* noundef align 4 dereferenceable_or_null(16) %4, i8 addrspace(1)* noundef [[ARG_LOAD]], %[[RANGE_TYPE]]* noundef byval(%[[RANGE_TYPE]]) {{.*}}%{{.*}}
-// CHECK:  call spir_func void @_ZN2cl4sycl6stream10__finalizeEv(%{{.*}}cl::sycl::stream" addrspace(4)* noundef align 4 dereferenceable_or_null(16) %{{[0-9]+}})
+// CHECK:  call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::stream" addrspace(4)* noundef align 4 dereferenceable_or_null(16) %{{[a-zA-Z0-9_]+}}, i8 addrspace(1)* noundef [[ARG_LOAD]], %[[RANGE_TYPE]]* noundef byval(%[[RANGE_TYPE]]) {{.*}}%{{.*}}
+// CHECK:  call spir_func void @_ZN2cl4sycl6stream10__finalizeEv(%{{.*}}cl::sycl::stream" addrspace(4)* noundef align 4 dereferenceable_or_null(16) %{{[a-zA-Z0-9_]+}})
 
 #include "Inputs/sycl.hpp"
 

@@ -20,7 +20,7 @@ int main() {
       accessorB;
 
   // Check that noalias parameter attribute is emitted when no_alias accessor property is used
-  // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE16kernel_function1({{.*}} noalias {{.*}} %_arg_, {{.*}})
+  // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE16kernel_function1({{.*}} noalias {{.*}} %_arg_accessorA, {{.*}})
   cl::sycl::kernel_single_task<class kernel_function1>(
       [=]() {
         accessorA.use();

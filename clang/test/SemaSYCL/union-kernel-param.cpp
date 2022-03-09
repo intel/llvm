@@ -25,7 +25,7 @@ int main() {
 
 // Check kernel parameters
 // CHECK: FunctionDecl {{.*}}kernel{{.*}} 'void (MyUnion)'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'MyUnion'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_accel 'MyUnion'
 
 // Check kernel inits
 // CHECK-NEXT: CompoundStmt
@@ -34,4 +34,4 @@ int main() {
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'MyUnion' 'void (const MyUnion &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyUnion'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'MyUnion' lvalue ParmVar {{.*}} '_arg_' 'MyUnion'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'MyUnion' lvalue ParmVar {{.*}} '_arg_accel' 'MyUnion'

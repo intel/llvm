@@ -8,27 +8,27 @@
 //
 // CHECK-1DRO: %opencl.image1d_ro_t = type opaque
 // CHECK-1DRO: define {{.*}}spir_kernel void @{{.*}}(%opencl.image1d_ro_t addrspace(1)* [[IMAGE_ARG:%[a-zA-Z0-9_]+]])
-// CHECK-1DRO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[0-9]+}}, %opencl.image1d_ro_t addrspace(1)* %{{[0-9]+}})
+// CHECK-1DRO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[a-zA-Z]+}}, %opencl.image1d_ro_t addrspace(1)* %{{[0-9]+}})
 //
 // CHECK-2DRO: %opencl.image2d_ro_t = type opaque
 // CHECK-2DRO: define {{.*}}spir_kernel void @{{.*}}(%opencl.image2d_ro_t addrspace(1)* [[IMAGE_ARG:%[a-zA-Z0-9_]+]])
-// CHECK-2DRO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[0-9]+}}, %opencl.image2d_ro_t addrspace(1)* %{{[0-9]+}})
+// CHECK-2DRO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[a-zA-Z]+}}, %opencl.image2d_ro_t addrspace(1)* %{{[0-9]+}})
 //
 // CHECK-3DRO: %opencl.image3d_ro_t = type opaque
 // CHECK-3DRO: define {{.*}}spir_kernel void @{{.*}}(%opencl.image3d_ro_t addrspace(1)* [[IMAGE_ARG:%[a-zA-Z0-9_]+]])
-// CHECK-3DRO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[0-9]+}}, %opencl.image3d_ro_t addrspace(1)* %{{[0-9]+}})
+// CHECK-3DRO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[a-zA-Z]+}}, %opencl.image3d_ro_t addrspace(1)* %{{[0-9]+}})
 //
 // CHECK-1DWO: %opencl.image1d_wo_t = type opaque
 // CHECK-1DWO: define {{.*}}spir_kernel void @{{.*}}(%opencl.image1d_wo_t addrspace(1)* [[IMAGE_ARG:%[a-zA-Z0-9_]+]])
-// CHECK-1DWO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[0-9]+}}, %opencl.image1d_wo_t addrspace(1)* %{{[0-9]+}})
+// CHECK-1DWO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[a-zA-Z]+}}, %opencl.image1d_wo_t addrspace(1)* %{{[0-9]+}})
 //
 // CHECK-2DWO: %opencl.image2d_wo_t = type opaque
 // CHECK-2DWO: define {{.*}}spir_kernel void @{{.*}}(%opencl.image2d_wo_t addrspace(1)* [[IMAGE_ARG:%[a-zA-Z0-9_]+]])
-// CHECK-2DWO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[0-9]+}}, %opencl.image2d_wo_t addrspace(1)* %{{[0-9]+}})
+// CHECK-2DWO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[a-zA-Z]+}}, %opencl.image2d_wo_t addrspace(1)* %{{[0-9]+}})
 //
 // CHECK-3DWO: %opencl.image3d_wo_t = type opaque
 // CHECK-3DWO: define {{.*}}spir_kernel void @{{.*}}(%opencl.image3d_wo_t addrspace(1)* [[IMAGE_ARG:%[a-zA-Z0-9_]+]])
-// CHECK-3DWO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[0-9]+}}, %opencl.image3d_wo_t addrspace(1)* %{{[0-9]+}})
+// CHECK-3DWO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[a-zA-Z]+}}, %opencl.image3d_wo_t addrspace(1)* %{{[0-9]+}})
 //
 // TODO: Add tests for the image_array opencl datatype support.
 #include "Inputs/sycl.hpp"

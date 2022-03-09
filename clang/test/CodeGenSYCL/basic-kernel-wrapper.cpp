@@ -21,8 +21,8 @@ int main() {
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_function
 // CHECK-SAME: i32 addrspace(1)* noundef align 4 [[MEM_ARG:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[ACC_RANGE:%[a-zA-Z0-9_]+_1]],
-// CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[MEM_RANGE:%[a-zA-Z0-9_]+_2]],
+// CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[ACC_RANGE:%[a-zA-Z0-9_]+1]],
+// CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[MEM_RANGE:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: %"struct.cl::sycl::id"* noundef byval{{.*}}align 4 [[OFFSET:%[a-zA-Z0-9_]+]])
 // Check alloca for pointer argument
 // CHECK: [[MEM_ARG]].addr = alloca i32 addrspace(1)*

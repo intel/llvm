@@ -23,7 +23,7 @@ void test(int val) {
 }
 
 // ALL: define dso_local{{ spir_kernel | }}void @{{.*}}test_kernel_handler{{[^(]*}}
-// ALL-SAME: (i32 noundef %_arg_, i8 addrspace(1)* noundef align 1 %_arg__specialization_constants_buffer)
+// ALL-SAME: (i32 noundef %_arg_a, i8 addrspace(1)* noundef align 1 %_arg__specialization_constants_buffer)
 // ALL: %kh = alloca %"class.cl::sycl::kernel_handler", align 1
 
 // NONATIVESUPPORT: %[[KH:[0-9]+]] = load i8 addrspace(1)*, i8 addrspace(1)** %_arg__specialization_constants_buffer.addr, align 8
