@@ -19,5 +19,6 @@ RUN usermod -aG video sycl
 COPY actions/cached_checkout /actions/cached_checkout
 COPY actions/cleanup /actions/cleanup
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
+COPY scripts/install_drivers.sh /opt/install_drivers.sh
 
 ENTRYPOINT ["/docker_entrypoint.sh"]
