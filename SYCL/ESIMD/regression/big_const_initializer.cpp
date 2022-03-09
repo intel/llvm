@@ -18,7 +18,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 
@@ -30,9 +30,8 @@
 #define VAL1 0x9E3779B9
 #define VAL2 0xBB67AE85
 
-inline void
-foo(sycl::ext::intel::experimental::esimd::simd<std::uint32_t, 16> &k) {
-  sycl::ext::intel::experimental::esimd::simd<std::uint32_t, 16> k_add(
+inline void foo(sycl::ext::intel::esimd::simd<std::uint32_t, 16> &k) {
+  sycl::ext::intel::esimd::simd<std::uint32_t, 16> k_add(
       {VAL1, VAL2, VAL1, VAL2, VAL1, VAL2, VAL1, VAL2, VAL1, VAL2, VAL1, VAL2,
        VAL1, VAL2, VAL1, VAL2});
   k += k_add;
@@ -59,7 +58,7 @@ int main(int argc, char **argv) {
           sycl::range<1>{nsamples / SIMD_WIDTH},
           [=](sycl::item<1> item) SYCL_ESIMD_KERNEL {
             size_t id = item.get_id(0);
-            sycl::ext::intel::experimental::esimd::simd<std::uint32_t, 16> key(
+            sycl::ext::intel::esimd::simd<std::uint32_t, 16> key(
                 {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1});
             foo(key);
             key.copy_to(r_acc, id * SIMD_WIDTH * sizeof(std::uint32_t));

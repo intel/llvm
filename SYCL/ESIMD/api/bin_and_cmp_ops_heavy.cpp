@@ -27,10 +27,10 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 template <class T1, class T2, int VL, class OpClass, class Ops> class TestID;
 
@@ -39,14 +39,14 @@ template <class T1, class T2, class OpClass>
 using scalar_comp_t =
     std::conditional_t<std::is_same_v<OpClass, esimd_test::CmpOp>,
                        typename simd_mask<8>::element_type,
-                       __SEIEED::computation_type_t<T1, T2>>;
+                       __ESIMD_DNS::computation_type_t<T1, T2>>;
 
 // Result type of a vector binary Op
 template <class T1, class T2, class OpClass, int N = 0>
 using comp_t = std::conditional_t<
     N == 0, scalar_comp_t<T1, T2, OpClass>,
     std::conditional_t<std::is_same_v<OpClass, esimd_test::CmpOp>, simd_mask<N>,
-                       simd<__SEIEED::computation_type_t<T1, T2>, N>>>;
+                       simd<__ESIMD_DNS::computation_type_t<T1, T2>, N>>>;
 
 // Helpers for printing
 template <class T> auto cast(T val) { return val; }

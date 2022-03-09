@@ -16,7 +16,7 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
 #include <array>
@@ -24,7 +24,7 @@
 #include <memory>
 
 using namespace sycl;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 #ifdef _SIM_MODE_
 #define CRUNCH 32

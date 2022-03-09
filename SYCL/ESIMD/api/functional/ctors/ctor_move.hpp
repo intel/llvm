@@ -20,7 +20,7 @@
 #include <algorithm>
 #include <cassert>
 
-namespace esimd = sycl::ext::intel::experimental::esimd;
+namespace esimd = sycl::ext::intel::esimd;
 
 namespace esimd_test::api::functional::ctors {
 

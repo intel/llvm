@@ -15,7 +15,7 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
 
@@ -50,7 +50,7 @@ int main(void) {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<class Test>(
           GroupRange * TaskRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::experimental::esimd;
+            using namespace sycl::ext::intel::esimd;
 
             simd<TYPE, VL> va;
             va.copy_from(A + i * VL);

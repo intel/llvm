@@ -10,20 +10,20 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
 
 constexpr int MASKED_LANE_NUM_REV = 1;
-constexpr int NUM_RGBA_CHANNELS = get_num_channels_enabled(
-    sycl::ext::intel::experimental::esimd::rgba_channel_mask::ABGR);
+constexpr int NUM_RGBA_CHANNELS =
+    get_num_channels_enabled(sycl::ext::intel::esimd::rgba_channel_mask::ABGR);
 
 template <typename T, unsigned VL, auto CH_MASK> struct Kernel {
   T *bufOut;
   Kernel(T *bufOut) : bufOut(bufOut) {}
 
   void operator()(sycl::nd_item<1> ndi) const SYCL_ESIMD_KERNEL {
-    using namespace sycl::ext::intel::experimental::esimd;
+    using namespace sycl::ext::intel::esimd;
     constexpr int numChannels = get_num_channels_enabled(CH_MASK);
     uint32_t i = ndi.get_global_id(0);
 
@@ -73,9 +73,8 @@ template <typename T, unsigned VL, auto CH_MASK> struct Kernel {
   }
 };
 
-std::string convertMaskToStr(
-    sycl::ext::intel::experimental::esimd::rgba_channel_mask mask) {
-  using namespace sycl::ext::intel::experimental::esimd;
+std::string convertMaskToStr(sycl::ext::intel::esimd::rgba_channel_mask mask) {
+  using namespace sycl::ext::intel::esimd;
   switch (mask) {
   case rgba_channel_mask::R:
     return "R";
@@ -90,7 +89,7 @@ std::string convertMaskToStr(
 }
 
 template <typename T, unsigned VL, auto CH_MASK> bool test(queue q) {
-  using namespace sycl::ext::intel::experimental::esimd;
+  using namespace sycl::ext::intel::esimd;
   constexpr int numChannels = get_num_channels_enabled(CH_MASK);
   constexpr size_t size = VL * numChannels;
 
@@ -161,7 +160,7 @@ template <typename T, unsigned VL, auto CH_MASK> bool test(queue q) {
 }
 
 template <typename T, unsigned VL> bool test(queue q) {
-  using namespace sycl::ext::intel::experimental::esimd;
+  using namespace sycl::ext::intel::esimd;
   bool passed = true;
   passed &= test<T, VL, rgba_channel_mask::R>(q);
   passed &= test<T, VL, rgba_channel_mask::GR>(q);

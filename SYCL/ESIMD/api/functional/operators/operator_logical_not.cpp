@@ -26,7 +26,7 @@
 #include "../shared_element.hpp"
 #include "common.hpp"
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 using namespace esimd_test::api::functional;
 
 // Descriptor class for the case of calling logical not operator.

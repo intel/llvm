@@ -21,14 +21,14 @@
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/builtins_esimd.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <cmath>
 #include <iostream>
 
 using namespace cl::sycl;
-using namespace sycl::ext::intel::experimental;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel;
+using namespace sycl::ext::intel::esimd;
 
 // --- Data initialization functions
 
@@ -155,6 +155,17 @@ DEFINE_HOST_BIN_OP(pow, std::pow(X, Y));
       return esimd::Op<T, N>(X);                                               \
     }                                                                          \
   };
+#define DEFINE_EXP_ESIMD_DEVICE_OP(Op)                                         \
+  template <class T, int N> struct ESIMDf<T, N, MathOp::Op, AllVec> {          \
+    simd<T, N> operator()(simd<T, N> X) const SYCL_ESIMD_FUNCTION {            \
+      return experimental::esimd::Op<T, N>(X);                                 \
+    }                                                                          \
+  };                                                                           \
+  template <class T, int N> struct ESIMDf<T, N, MathOp::Op, AllSca> {          \
+    simd<T, N> operator()(T X) const SYCL_ESIMD_FUNCTION {                     \
+      return experimental::esimd::Op<T, N>(X);                                 \
+    }                                                                          \
+  };
 
 DEFINE_ESIMD_DEVICE_OP(sin);
 DEFINE_ESIMD_DEVICE_OP(cos);
@@ -164,7 +175,7 @@ DEFINE_ESIMD_DEVICE_OP(inv);
 DEFINE_ESIMD_DEVICE_OP(sqrt);
 DEFINE_ESIMD_DEVICE_OP(sqrt_ieee);
 DEFINE_ESIMD_DEVICE_OP(rsqrt);
-DEFINE_ESIMD_DEVICE_OP(trunc);
+DEFINE_EXP_ESIMD_DEVICE_OP(trunc);
 DEFINE_ESIMD_DEVICE_OP(exp2);
 DEFINE_ESIMD_DEVICE_OP(log2);
 

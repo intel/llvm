@@ -15,7 +15,7 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
 
@@ -132,7 +132,7 @@ template <int CASE_NUM> int test() {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<KernelID<CASE_NUM>>(
           sycl::range<1>{1}, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::experimental::esimd;
+            using namespace sycl::ext::intel::esimd;
 
             int o[VL] = {0};
 

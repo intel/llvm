@@ -17,10 +17,10 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
-using namespace sycl::ext::intel::experimental::esimd;
-using namespace sycl::ext::intel::experimental;
+using namespace sycl::ext::intel::esimd;
+using namespace sycl::ext::intel;
 using namespace cl::sycl;
 
 template <class T> void prn(T *arr, int size, const char *title) {

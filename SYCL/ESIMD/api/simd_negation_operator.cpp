@@ -16,13 +16,13 @@
 #include "../esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 #include <limits>
 
 using namespace cl::sycl;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 constexpr unsigned VL = 8;
 
@@ -45,7 +45,7 @@ bool test(queue q, const std::array<T, VL> &input,
       auto PA = bufA.template get_access<access::mode::read>(cgh);
       auto PB = bufB.template get_access<access::mode::write>(cgh);
       cgh.parallel_for(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
-        using namespace sycl::ext::intel::experimental::esimd;
+        using namespace sycl::ext::intel::esimd;
         simd<T, VL> va;
         va.copy_from(PA, 0);
         auto mask = !va;

@@ -19,7 +19,7 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
 
@@ -31,7 +31,7 @@ template <typename T> struct Kernel {
   Kernel(Acc<T> acc) : acc(acc) {}
 
   void operator()(id<1> i) const SYCL_ESIMD_KERNEL {
-    using namespace sycl::ext::intel::experimental::esimd;
+    using namespace sycl::ext::intel::esimd;
     uint32_t ii = static_cast<uint32_t>(i.get(0));
     T v = scalar_load<T>(acc, ii * sizeof(T));
     v += ii;

@@ -18,12 +18,12 @@
 #include "../esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 
 using namespace cl::sycl;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 template <class T> bool test(queue &q) {
   std::cout << "Testing " << typeid(T).name() << "...\n";
@@ -51,7 +51,7 @@ template <class T> bool test(queue &q) {
       auto PA = bufA.template get_access<access::mode::read>(cgh);
       auto PB = bufB.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<T>(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
-        using namespace sycl::ext::intel::experimental::esimd;
+        using namespace sycl::ext::intel::esimd;
         unsigned int offset = i * VL * sizeof(T);
         simd<T, VL> va(PA, offset);
         simd<T, VL> vb(PB, offset);

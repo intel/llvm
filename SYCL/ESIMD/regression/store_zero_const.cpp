@@ -19,7 +19,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <cstdint>
 #include <iostream>
@@ -44,7 +44,7 @@ template <typename T> bool test(queue Q) {
   try {
     auto E = Q.submit([&](handler &CGH) {
       CGH.parallel_for<T>(Range, [=](nd_item<1> Ndi) SYCL_ESIMD_KERNEL {
-        using namespace sycl::ext::intel::experimental::esimd;
+        using namespace sycl::ext::intel::esimd;
         int I = Ndi.get_global_id(0);
         for (auto Ind = 0; Ind < VL; ++Ind) {
           A[I * VL + Ind] = static_cast<T>(GOLD_VAL);

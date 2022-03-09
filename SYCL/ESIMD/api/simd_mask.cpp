@@ -18,10 +18,10 @@
 #include <iostream>
 #include <limits>
 #include <memory>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 #include <utility>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 using namespace cl::sycl;
 
 template <int N> using value_type = typename simd_mask<N>::element_type;

@@ -17,13 +17,13 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
 
 constexpr int MASKED_LANE_NUM_REV = 1;
-constexpr int NUM_RGBA_CHANNELS = get_num_channels_enabled(
-    sycl::ext::intel::experimental::esimd::rgba_channel_mask::ABGR);
+constexpr int NUM_RGBA_CHANNELS =
+    get_num_channels_enabled(sycl::ext::intel::esimd::rgba_channel_mask::ABGR);
 
 template <typename T, unsigned VL, unsigned STRIDE, auto CH_MASK>
 struct Kernel {
@@ -32,7 +32,7 @@ struct Kernel {
   Kernel(T *bufIn, T *bufOut) : bufIn(bufIn), bufOut(bufOut) {}
 
   void operator()(id<1> i) const SYCL_ESIMD_KERNEL {
-    using namespace sycl::ext::intel::experimental::esimd;
+    using namespace sycl::ext::intel::esimd;
     constexpr int numChannels = get_num_channels_enabled(CH_MASK);
 
     // every workitem accesses contiguous block of VL * STRIDE elements,
@@ -50,9 +50,8 @@ struct Kernel {
   }
 };
 
-std::string convertMaskToStr(
-    sycl::ext::intel::experimental::esimd::rgba_channel_mask mask) {
-  using namespace sycl::ext::intel::experimental::esimd;
+std::string convertMaskToStr(sycl::ext::intel::esimd::rgba_channel_mask mask) {
+  using namespace sycl::ext::intel::esimd;
   switch (mask) {
   case rgba_channel_mask::R:
     return "R";
@@ -70,7 +69,7 @@ template <typename T, unsigned VL, unsigned STRIDE, auto CH_MASK>
 bool test(queue q) {
   size_t numWorkItems = 2;
   size_t size = VL * STRIDE * NUM_RGBA_CHANNELS * numWorkItems;
-  using namespace sycl::ext::intel::experimental::esimd;
+  using namespace sycl::ext::intel::esimd;
   constexpr int numChannels = get_num_channels_enabled(CH_MASK);
 
   std::cout << "Testing T=" << typeid(T).name() << " VL=" << VL
@@ -145,7 +144,7 @@ bool test(queue q) {
 }
 
 template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
-  using namespace sycl::ext::intel::experimental::esimd;
+  using namespace sycl::ext::intel::esimd;
   bool passed = true;
   passed &= test<T, VL, STRIDE, rgba_channel_mask::R>(q);
   passed &= test<T, VL, STRIDE, rgba_channel_mask::GR>(q);

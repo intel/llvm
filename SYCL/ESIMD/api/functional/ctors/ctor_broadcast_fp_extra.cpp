@@ -27,7 +27,7 @@
 
 #include "ctor_broadcast.hpp"
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 using namespace esimd_test::api::functional;
 
 int main(int, char **) {

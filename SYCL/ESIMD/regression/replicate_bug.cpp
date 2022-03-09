@@ -17,7 +17,7 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
 constexpr int VL = 8;
@@ -36,7 +36,7 @@ template <int Width> bool test(queue q, const std::vector<int> &gold) {
     range<1> glob_range{1};
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
-        using namespace sycl::ext::intel::experimental::esimd;
+        using namespace sycl::ext::intel::esimd;
         simd<int, VL> va;
         va.copy_from(A);
         simd<int, VL *Width> vb = va.replicate_w<VL, Width>(1);

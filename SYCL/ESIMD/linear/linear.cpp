@@ -16,7 +16,7 @@
 #include <CL/sycl.hpp>
 #include <array>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
 
@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
 
         cgh.parallel_for<class Test>(
             GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
-              using namespace sycl::ext::intel::experimental::esimd;
+              using namespace sycl::ext::intel::esimd;
 
               simd<unsigned char, 8 * 32> vin;
               auto in = vin.bit_cast_view<unsigned char, 8, 32>();

@@ -22,7 +22,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 #include <vector>
@@ -76,8 +76,8 @@ int main(int argc, char **argv) {
         auto acc = buf.get_access<sycl::access::mode::write>(cgh);
         cgh.single_task<KernelAAA>(
             program.get_kernel<KernelAAA>(), [=]() SYCL_ESIMD_KERNEL {
-              sycl::ext::intel::experimental::esimd::scalar_store(
-                  acc, i * sizeof(int), sc0.get() + sc1.get());
+              sycl::ext::intel::esimd::scalar_store(acc, i * sizeof(int),
+                                                    sc0.get() + sc1.get());
             });
       });
     } catch (sycl::exception &e) {

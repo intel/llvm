@@ -21,12 +21,12 @@
 #include "../esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 
 using namespace cl::sycl;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 template <unsigned VL, class T, class F>
 bool test(queue q, std::string str, F funcUnderTest) {
@@ -52,7 +52,7 @@ bool test(queue q, std::string str, F funcUnderTest) {
        auto PA = bufA.template get_access<access::mode::read_write>(cgh);
        auto PB = bufB.template get_access<access::mode::read>(cgh);
        cgh.parallel_for(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
-         using namespace sycl::ext::intel::experimental::esimd;
+         using namespace sycl::ext::intel::esimd;
          unsigned int offset = i * VL * sizeof(T);
          simd<T, VL> va;
          simd<T, VL> vb;

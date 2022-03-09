@@ -24,7 +24,7 @@
 
 #include "operator_assignment.hpp"
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 using namespace esimd_test::api::functional;
 
 // Descriptor class for the case of calling move assignment operator.

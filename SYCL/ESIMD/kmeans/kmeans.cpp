@@ -17,11 +17,11 @@
 #include <fstream>
 #include <iostream>
 #include <string.h>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 #include <vector>
 
 using namespace cl::sycl;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 using namespace std;
 
 inline float dist(Point p, Centroid c) {

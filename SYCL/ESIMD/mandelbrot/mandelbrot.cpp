@@ -18,10 +18,10 @@
 #include <array>
 #include <iostream>
 #include <memory>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 #ifdef _SIM_MODE_
 #define CRUNCH 32

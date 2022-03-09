@@ -19,7 +19,7 @@
 #include "../mutator.hpp"
 #include "common.hpp"
 
-namespace esimd = sycl::ext::intel::experimental::esimd;
+namespace esimd = sycl::ext::intel::esimd;
 namespace esimd_functional = esimd_test::api::functional;
 
 namespace esimd_test::api::functional::operators {

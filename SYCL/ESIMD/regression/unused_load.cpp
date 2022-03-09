@@ -14,7 +14,7 @@
 // copy_from invocation.
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 
@@ -39,12 +39,12 @@ int main() {
 
       auto acc0 = buf0.get_access<access::mode::read_write>(cgh);
 
-      cgh.parallel_for<class Test>(
-          range<1>(1), [=](sycl::id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::experimental::esimd;
-            simd<Ty, VL> var;
-            var.copy_from(acc0, 0);
-          });
+      cgh.parallel_for<class Test>(range<1>(1),
+                                   [=](sycl::id<1> i) SYCL_ESIMD_KERNEL {
+                                     using namespace sycl::ext::intel::esimd;
+                                     simd<Ty, VL> var;
+                                     var.copy_from(acc0, 0);
+                                   });
     });
     q.wait();
   } catch (cl::sycl::exception const &e) {

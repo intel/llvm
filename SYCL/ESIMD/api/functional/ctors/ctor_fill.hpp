@@ -20,7 +20,7 @@
 // For std::isnan
 #include <cmath>
 
-namespace esimd = sycl::ext::intel::experimental::esimd;
+namespace esimd = sycl::ext::intel::esimd;
 namespace esimd_functional = esimd_test::api::functional;
 
 namespace esimd_test::api::functional::ctors {

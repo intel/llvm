@@ -14,7 +14,7 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
 
@@ -55,7 +55,7 @@ int main(void) {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<class Test>(
           Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::experimental::esimd;
+            using namespace sycl::ext::intel::esimd;
 
             simd<DTYPE, SIZE> src0(0);
             src0.copy_from(S0);
@@ -66,8 +66,7 @@ int main(void) {
             simd<DTYPE, SIZE> src2(0);
             src2.copy_from(S2);
 
-            auto res =
-                esimd_dp4a<DTYPE, DTYPE, DTYPE, DTYPE, SIZE>(src0, src1, src2);
+            auto res = dp4a<DTYPE, DTYPE, DTYPE, DTYPE, SIZE>(src0, src1, src2);
             res.copy_to(RES);
           });
     });

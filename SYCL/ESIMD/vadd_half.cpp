@@ -19,7 +19,7 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
 using TstT = half;
@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
 
   TstT *A = malloc_shared<TstT>(Size, q);
   SrcT *B = malloc_shared<SrcT>(Size, q);
-  using DstT = __SEIEED::computation_type_t<TstT, SrcT>;
+  using DstT = __ESIMD_DNS::computation_type_t<TstT, SrcT>;
   std::cout << "Computed dst type = " << typeid(DstT).name() << "\n";
   DstT *C = malloc_shared<DstT>(Size, q);
 
@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
   try {
     auto e = q.submit([&](handler &cgh) {
       cgh.single_task<class Test>([=]() SYCL_ESIMD_KERNEL {
-        using namespace sycl::ext::intel::experimental::esimd;
+        using namespace sycl::ext::intel::esimd;
         simd<TstT, VL> va(A, vector_aligned_tag{});
         simd<SrcT, VL> vb(B, vector_aligned_tag{});
         simd<DstT, VL> vc = va + vb;

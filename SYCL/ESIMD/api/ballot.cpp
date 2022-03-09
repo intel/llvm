@@ -21,11 +21,11 @@
 #include <iostream>
 #include <random>
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
-using namespace sycl::ext::intel::experimental;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel;
+using namespace sycl::ext::intel::esimd;
 
 template <class T, int N> bool test(queue &Q) {
   std::cout << "  Running " << typeid(T).name() << " test, N=" << N << "...\n";

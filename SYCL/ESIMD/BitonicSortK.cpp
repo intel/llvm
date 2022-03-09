@@ -15,10 +15,10 @@
 #include <CL/sycl.hpp>
 #include <algorithm>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 using namespace std;
 
 #define LOG2_ELEMENTS 16 // 24
@@ -617,7 +617,7 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
         auto acco = bufo.get_access<access::mode::write>(cgh);
         cgh.parallel_for<class Sort256>(
             SortGlobalRange * SortLocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
-              using namespace sycl::ext::intel::experimental::esimd;
+              using namespace sycl::ext::intel::esimd;
               cmk_bitonic_sort_256(acci, acco, i);
             });
       });
@@ -660,7 +660,7 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
             cgh.parallel_for<class Merge>(
                 MergeGlobalRange * MergeLocalRange,
                 [=](id<1> tid) SYCL_ESIMD_KERNEL {
-                  using namespace sycl::ext::intel::experimental::esimd;
+                  using namespace sycl::ext::intel::esimd;
                   cmk_bitonic_merge(acc, j, i, tid);
                 });
           });

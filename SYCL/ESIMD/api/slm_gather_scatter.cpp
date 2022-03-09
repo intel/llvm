@@ -9,7 +9,7 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
 
@@ -18,12 +18,12 @@ template <typename T, unsigned VL, unsigned STRIDE> struct Kernel {
   Kernel(T *buf) : buf(buf) {}
 
   void operator()(id<1> i) const SYCL_ESIMD_KERNEL {
-    using namespace sycl::ext::intel::experimental::esimd;
+    using namespace sycl::ext::intel::esimd;
 
     // In this test, we have a single workitem. No barriers required.
-    slm_init(VL * STRIDE *
-             sizeof(typename sycl::ext::intel::experimental::esimd::detail::
-                        dword_type<T>::type));
+    slm_init(
+        VL * STRIDE *
+        sizeof(typename sycl::ext::intel::esimd::detail::dword_type<T>::type));
 
     simd<T, VL> valsIn;
     valsIn.copy_from(buf);
@@ -40,7 +40,7 @@ template <typename T, unsigned VL, unsigned STRIDE> struct Kernel {
 };
 
 template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
-  using namespace sycl::ext::intel::experimental::esimd;
+  using namespace sycl::ext::intel::esimd;
   constexpr size_t size = VL;
   constexpr int MASKED_LANE = VL - 1;
 

@@ -22,7 +22,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 
@@ -45,15 +45,15 @@ bool test(queue q, bool flag) {
     q.submit([&](handler &cgh) {
       auto acc = buf.get_access<access::mode::write>(cgh);
 
-      cgh.parallel_for<KernelID>(
-          sycl::range<1>{1}, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::experimental::esimd;
+      cgh.parallel_for<KernelID>(sycl::range<1>{1},
+                                 [=](id<1> i) SYCL_ESIMD_KERNEL {
+                                   using namespace sycl::ext::intel::esimd;
 
-            auto foo = flag ? &add : &sub;
-            auto res = foo(in1, in2);
+                                   auto foo = flag ? &add : &sub;
+                                   auto res = foo(in1, in2);
 
-            scalar_store(acc, 0, res);
-          });
+                                   scalar_store(acc, 0, res);
+                                 });
     });
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << std::endl;

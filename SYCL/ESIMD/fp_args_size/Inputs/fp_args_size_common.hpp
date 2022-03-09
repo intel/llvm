@@ -20,7 +20,7 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 static_assert(SIZE >= VL, "Size must greater than or equal to VL");
 static_assert(SIZE % VL == 0, "Size must be multiple of VL");
@@ -56,7 +56,7 @@ int main(void) {
     auto qq = q.submit([&](handler &cgh) {
       cgh.parallel_for<KernelID>(
           sycl::range<1>{1}, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::experimental::esimd;
+            using namespace sycl::ext::intel::esimd;
 
             simd<a_data_t, SIZE> va(0);
             simd<b_data_t, SIZE> vb(0);

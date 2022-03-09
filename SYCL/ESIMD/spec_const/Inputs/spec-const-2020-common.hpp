@@ -5,7 +5,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 #include <vector>
@@ -14,7 +14,7 @@ using namespace cl::sycl;
 
 template <typename AccessorTy>
 ESIMD_INLINE void do_store(AccessorTy acc, int i, spec_const_t val) {
-  using namespace sycl::ext::intel::experimental::esimd;
+  using namespace sycl::ext::intel::esimd;
   // scatter function, that is used in scalar_store, can only process types
   // whose size is no more than 4 bytes.
 #if (STORE == 0)

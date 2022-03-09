@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
 #include "../../esimd_test_utils.hpp"

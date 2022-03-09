@@ -14,7 +14,7 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
 
@@ -45,18 +45,18 @@ int main(void) {
 
   try {
     auto e = q.submit([&](handler &cgh) {
-      cgh.parallel_for<class Test>(
-          Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::experimental::esimd;
+      cgh.parallel_for<class Test>(Range,
+                                   [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+                                     using namespace sycl::ext::intel::esimd;
 
-            int i = ndi.get_global_id(0);
-            simd<float, VL> va;
-            va.copy_from(A + i * VL);
-            simd<float, VL> vb;
-            vb.copy_from(B + i * VL);
-            simd<float, VL> vc = va + vb;
-            vc.copy_to(C + i * VL);
-          });
+                                     int i = ndi.get_global_id(0);
+                                     simd<float, VL> va;
+                                     va.copy_from(A + i * VL);
+                                     simd<float, VL> vb;
+                                     vb.copy_from(B + i * VL);
+                                     simd<float, VL> vc = va + vb;
+                                     vc.copy_to(C + i * VL);
+                                   });
     });
     e.wait();
   } catch (sycl::exception const &e) {

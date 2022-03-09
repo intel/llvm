@@ -21,7 +21,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 
@@ -30,7 +30,7 @@ class KernelID;
 ESIMD_NOINLINE int add(int A, int B) { return A + B; }
 
 template <typename AccTy> ESIMD_NOINLINE void test(AccTy acc, int A, int B) {
-  using namespace sycl::ext::intel::experimental::esimd;
+  using namespace sycl::ext::intel::esimd;
 
   auto foo = &add;
   auto res = foo(A, B);

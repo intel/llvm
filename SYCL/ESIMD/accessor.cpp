@@ -15,7 +15,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 
@@ -48,20 +48,20 @@ int main() {
       auto acc0 = buf0.get_access<access::mode::read_write>(cgh);
       auto acc1 = buf1.get_access<access::mode::write>(cgh);
 
-      cgh.parallel_for<class Test>(
-          range<1>(1), [=](sycl::id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::experimental::esimd;
-            unsigned int offset = 0;
-            for (int k = 0; k < VL / 16; k++) {
-              simd<Ty, 16> var;
-              var.copy_from(acc0, offset);
-              var += VAL;
-              var.copy_to(acc0, offset);
-              var += 1;
-              var.copy_to(acc1, offset);
-              offset += 64;
-            }
-          });
+      cgh.parallel_for<class Test>(range<1>(1),
+                                   [=](sycl::id<1> i) SYCL_ESIMD_KERNEL {
+                                     using namespace sycl::ext::intel::esimd;
+                                     unsigned int offset = 0;
+                                     for (int k = 0; k < VL / 16; k++) {
+                                       simd<Ty, 16> var;
+                                       var.copy_from(acc0, offset);
+                                       var += VAL;
+                                       var.copy_to(acc0, offset);
+                                       var += 1;
+                                       var.copy_to(acc1, offset);
+                                       offset += 64;
+                                     }
+                                   });
     });
 
     q.wait();
