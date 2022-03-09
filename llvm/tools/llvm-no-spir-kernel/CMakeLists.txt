@@ -8,6 +8,7 @@ set(LLVM_LINK_COMPONENTS
 add_llvm_tool(llvm-no-spir-kernel
   llvm-no-spir-kernel.cpp
 
+  CUSTOM_WIN_VER
   DEPENDS
   intrinsics_gen
   )

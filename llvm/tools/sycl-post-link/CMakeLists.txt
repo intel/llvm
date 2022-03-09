@@ -31,6 +31,7 @@ add_llvm_tool(sycl-post-link
   DEPENDS
   intrinsics_gen
   LLVMGenXIntrinsics
+  CUSTOM_WIN_VER
   )
 
 target_link_libraries(sycl-post-link PRIVATE LLVMGenXIntrinsics)

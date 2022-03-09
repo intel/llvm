@@ -18,10 +18,10 @@ macro(add_sycl_unittest test_dirname link_variant)
 
   if ("${link_variant}" MATCHES "SHARED")
     set(SYCL_LINK_LIBS ${sycl_so_target})
-    add_unittest(SYCLUnitTests ${test_dirname} ${ARGN})
+    add_unittest(SYCLUnitTests ${test_dirname} CUSTOM_WIN_VER ${ARGN})
   else()
     add_unittest(SYCLUnitTests ${test_dirname}
-                $<TARGET_OBJECTS:${sycl_obj_target}> ${ARGN})
+                $<TARGET_OBJECTS:${sycl_obj_target}> CUSTOM_WIN_VER ${ARGN})
     target_compile_definitions(${test_dirname}
                                PRIVATE __SYCL_BUILD_SYCL_DLL)
 

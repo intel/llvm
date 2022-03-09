@@ -11,6 +11,7 @@ set(LLVM_LINK_COMPONENTS
 
 add_clang_tool(clang-offload-bundler
   ClangOffloadBundler.cpp
+  CUSTOM_WIN_VER
   
   DEPENDS
   intrinsics_gen

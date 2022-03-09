@@ -5,6 +5,7 @@ add_clang_tool(clang-offload-wrapper
 
   DEPENDS
   intrinsics_gen
+  CUSTOM_WIN_VER
   )
 
 set(CLANG_OFFLOAD_WRAPPER_LIB_DEPS

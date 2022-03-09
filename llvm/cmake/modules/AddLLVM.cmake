@@ -435,10 +435,12 @@ endfunction(set_windows_version_resource_properties)
 #      This is used to specify that this is a component library of
 #      LLVM which means that the source resides in llvm/lib/ and it is a
 #      candidate for inclusion into libLLVM.so.
+#   CUSTOM_WIN_VER
+#      Default LLVM versioning on windows is skipped when set
 #   )
 function(llvm_add_library name)
   cmake_parse_arguments(ARG
-    "MODULE;SHARED;STATIC;OBJECT;DISABLE_LLVM_LINK_LLVM_DYLIB;SONAME;NO_INSTALL_RPATH;COMPONENT_LIB"
+    "MODULE;SHARED;STATIC;OBJECT;DISABLE_LLVM_LINK_LLVM_DYLIB;SONAME;NO_INSTALL_RPATH;COMPONENT_LIB;CUSTOM_WIN_VER"
     "OUTPUT_NAME;PLUGIN_TOOL;ENTITLEMENTS;BUNDLE_PATH"
     "ADDITIONAL_HEADERS;DEPENDS;LINK_COMPONENTS;LINK_LIBS;OBJLIBS"
     ${ARGN})
@@ -545,7 +547,7 @@ function(llvm_add_library name)
 
   if(ARG_MODULE)
     add_library(${name} MODULE ${ALL_FILES})
-  elseif(ARG_SHARED)
+  elseif(ARG_SHARED AND NOT ARG_CUSTOM_WIN_VER)
     add_windows_version_resource_file(ALL_FILES ${ALL_FILES})
     add_library(${name} SHARED ${ALL_FILES})
   else()
@@ -859,7 +861,7 @@ endmacro(add_llvm_library name)
 
 macro(add_llvm_executable name)
   cmake_parse_arguments(ARG
-    "DISABLE_LLVM_LINK_LLVM_DYLIB;IGNORE_EXTERNALIZE_DEBUGINFO;NO_INSTALL_RPATH;SUPPORT_PLUGINS"
+    "DISABLE_LLVM_LINK_LLVM_DYLIB;IGNORE_EXTERNALIZE_DEBUGINFO;NO_INSTALL_RPATH;SUPPORT_PLUGINS;CUSTOM_WIN_VER"
     "ENTITLEMENTS;BUNDLE_PATH"
     "DEPENDS"
     ${ARGN})
@@ -881,7 +883,9 @@ macro(add_llvm_executable name)
     set_target_properties(${obj_name} PROPERTIES FOLDER "Object Libraries")
   endif()
 
-  add_windows_version_resource_file(ALL_FILES ${ALL_FILES})
+  if(NOT ARG_CUSTOM_WIN_VER)
+    add_windows_version_resource_file(ALL_FILES ${ALL_FILES})
+  endif()
 
   if(XCODE)
     # Note: the dummy.cpp source file provides no definitions. However,
