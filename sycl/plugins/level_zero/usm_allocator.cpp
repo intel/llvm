@@ -653,14 +653,11 @@ void *Slab::getEnd() const {
 
 bool Slab::hasAvail() { return NumAllocated != getNumChunks(); }
 
+// If a slab was available in the pool then note that the current pooled
+// size has reduced by the size of this slab.
 void Bucket::decrementPool(bool &FromPool) {
-  // If a slab was available in the pool then note that the current pooled
-  // size has reduced by the size of this slab.
   FromPool = true;
-  if (USMSettings.PoolTrace > 1) {
-    updateStats(1, -1);
-    USMSettings.CurPoolSizes[getMemType()] -= SlabAllocSize();
-  }
+  updateStats(1, -1);
   USMSettings.CurPoolSize -= SlabAllocSize();
 }
 
@@ -672,8 +669,7 @@ auto Bucket::getAvailFullSlab(bool &FromPool)
                                     std::make_unique<Slab>(*this));
     (*It)->setIterator(It);
     FromPool = false;
-    if (USMSettings.PoolTrace > 1)
-      updateStats(1, 0);
+    updateStats(1, 0);
   } else {
     decrementPool(FromPool);
   }
@@ -716,8 +712,7 @@ auto Bucket::getAvailSlab(bool &FromSlab, bool &FromPool)
                                     std::make_unique<Slab>(*this));
     (*It)->setIterator(It);
 
-    if (USMSettings.PoolTrace > 1)
-      updateStats(1, 0);
+    updateStats(1, 0);
     FromPool = false;
   } else {
     if ((*(AvailableSlabs.begin()))->getNumAllocated() == 0) {
@@ -780,6 +775,8 @@ void Bucket::onFreeChunk(Slab &Slab, bool &ToPool) {
   if (Slab.getNumAllocated() == 0) {
     // The slab is now empty.
     // If pool has capacity then put the slab in the pool.
+    // The ToPool parameter indicates whether the Slab will be put in the pool
+    // or freed from USM.
     if (!CanPool(ToPool)) {
       // Note: since the slab is stored as unique_ptr, just remove it from
       // the list to remove the list to destroy the object
@@ -800,25 +797,19 @@ bool Bucket::CanPool(bool &ToPool) {
   else
     NewFreeSlabsInBucket = AvailableSlabs.size() + 1;
   if (Capacity() >= NewFreeSlabsInBucket) {
-    auto SlabSize = SlabAllocSize();
-    size_t NewPoolSize = USMSettings.CurPoolSize + SlabSize;
+    size_t NewPoolSize = USMSettings.CurPoolSize + SlabAllocSize();
     if (USMSettings.MaxPoolSize >= NewPoolSize) {
       USMSettings.CurPoolSize = NewPoolSize;
-      USMSettings.CurPoolSizes[getMemType()] += SlabSize;
       if (chunkedBucket)
         ++chunkedSlabsInPool;
 
-      if (USMSettings.PoolTrace > 1) {
-        updateStats(-1, 1);
-        ToPool = true;
-      }
+      updateStats(-1, 1);
+      ToPool = true;
       return true;
     }
   }
-  if (USMSettings.PoolTrace > 1) {
-    updateStats(-1, 0);
-    ToPool = false;
-  }
+  updateStats(-1, 0);
+  ToPool = false;
   return false;
 }
 
@@ -856,10 +847,15 @@ void Bucket::countAlloc(bool FromPool) {
 void Bucket::countFree() { ++freeCount; }
 
 void Bucket::updateStats(int InUse, int InPool) {
+  if (USMSettings.PoolTrace == 0)
+    return;
   currSlabsInUse += InUse;
   maxSlabsInUse = std::max(currSlabsInUse, maxSlabsInUse);
   currSlabsInPool += InPool;
   maxSlabsInPool = std::max(currSlabsInPool, maxSlabsInPool);
+  // Increment or decrement current pool sizes based on whether
+  // slab was added to or removed from pool.
+  USMSettings.CurPoolSizes[getMemType()] += InPool * SlabAllocSize();
 }
 
 void Bucket::printStats(bool &TitlePrinted, SystemMemory::MemType MT) {
