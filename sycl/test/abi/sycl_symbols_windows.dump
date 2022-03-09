@@ -1094,6 +1094,7 @@
 ?acospi@__host_std@cl@@YAMM@Z
 ?acospi@__host_std@cl@@YANN@Z
 ?add@device_global_map@detail@sycl@cl@@YAXPEBXPEBD@Z
+?add@host_pipe_map@detail@sycl@cl@@YAXPEBXPEBD@Z
 ?addHostAccessorAndWait@detail@sycl@cl@@YAXPEAVAccessorImplHost@123@@Z
 ?addOrReplaceAccessorProperties@SYCLMemObjT@detail@sycl@cl@@QEAAXAEBVproperty_list@34@@Z
 ?addReduction@handler@sycl@cl@@AEAAXAEBV?$shared_ptr@$$CBX@std@@@Z

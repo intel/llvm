@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/device_binary_image.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/host_pipe_map.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/util.hpp>
@@ -17,6 +18,7 @@
 #include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/device_global_map_entry.hpp>
+#include <detail/host_pipe_map_entry.hpp>
 #include <detail/spec_constant_impl.hpp>
 
 #include <cstdint>
@@ -188,6 +190,18 @@ public:
   void addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
                                   const char *UniqueId);
 
+  // The function inserts or initializes a host_pipe entry into the
+  // host_pipe map.
+  void addOrInitHostPipeEntry(const void *HostPipePtr, const char *UniqueId);
+
+  // The function gets a host_pipe entry identified by the unique ID from
+  // the host_pipe map.
+  HostPipeMapEntry *getHostPipeEntry(const std::string &UniqueId);
+
+  // The function gets a host_pipe entry identified by the pointer to the
+  // host_pipe object from the host_pipe map.
+  HostPipeMapEntry *getHostPipeEntry(const void *HostPipePtr);
+  
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
   std::vector<device_image_plain> getSYCLDeviceImagesWithCompatibleState(
@@ -396,6 +410,14 @@ private:
 
   /// Protects m_DeviceGlobals and m_Ptr2DeviceGlobal.
   std::mutex m_DeviceGlobalsMutex;
+
+  // Maps between host_pipe identifiers and associated information.
+  std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
+      m_HostPipes;
+  std::unordered_map<const void *, HostPipeMapEntry *> m_Ptr2HostPipe;
+
+  /// Protects m_HostPipes and m_Ptr2HostPipe.
+  std::mutex m_HostPipesMutex;
 };
 } // namespace detail
 } // namespace sycl
