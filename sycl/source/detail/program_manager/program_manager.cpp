@@ -1220,6 +1220,40 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           Entry->second.initialize(TypeSize, DeviceImageScopeDecorated);
         }
       }
+      // ... and initialize associated host_pipe information
+      {
+        std::lock_guard HostPipesGuard(m_HostPipesMutex);
+
+        auto HostPipes = Img->getHostPipes();
+        for (const pi_device_binary_property &HostPipe : HostPipes) {
+          pi::ByteArray HostPipeInfo =
+              pi::DeviceBinaryProperty(HostPipe).asByteArray();
+
+          // The supplied host_pipe info property is expected to contain:
+          // * 8 bytes - Size of the property.
+          // * 4 bytes - Size of the underlying type in the host_pipe.
+          // Note: Property may be padded.
+          constexpr unsigned int NumPropertySizeBytes = 8;
+          constexpr unsigned int NumTypeBytes = 4;
+          assert(HostPipeInfo.size() >= NumPropertySizeBytes + NumTypeBytes &&
+                 "Unexpected property size");
+          auto TypeSize = *reinterpret_cast<const std::uint32_t *>(
+              &HostPipeInfo[NumPropertySizeBytes]);
+
+          auto ExistingHostPipe = m_HostPipes.find(HostPipe->Name);
+          if (ExistingHostPipe != m_HostPipes.end()) {
+            // If it has already been registered we update the information.
+            ExistingHostPipe->second->initialize(TypeSize);
+          } else {
+            // If it has not already been registered we create a new entry.
+            // Note: Pointer to the host pipe is not available here, so it
+            //       cannot be set until registration happens.
+            auto EntryUPtr =
+                std::make_unique<HostPipeMapEntry>(HostPipe->Name, TypeSize);
+            m_HostPipes.emplace(HostPipe->Name, std::move(EntryUPtr));
+          }
+        }
+      }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
 
       cacheKernelUsesAssertInfo(M, *Img);
@@ -1467,6 +1501,36 @@ kernel_id ProgramManager::getBuiltInKernelID(const std::string &KernelName) {
   }
 
   return KernelID->second;
+}
+
+void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
+                                            const char *UniqueId) {
+  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+
+  auto ExistingHostPipe = m_HostPipes.find(UniqueId);
+  if (ExistingHostPipe != m_HostPipes.end()) {
+    ExistingHostPipe->second->initialize(HostPipePtr);
+    m_Ptr2HostPipe.insert({HostPipePtr, ExistingHostPipe->second.get()});
+    return;
+  }
+  auto EntryUPtr = std::make_unique<HostPipeMapEntry>(UniqueId, HostPipePtr);
+  auto NewEntry = m_HostPipes.emplace(UniqueId, std::move(EntryUPtr));
+  m_Ptr2HostPipe.insert({HostPipePtr, NewEntry.first->second.get()});
+}
+
+HostPipeMapEntry *
+ProgramManager::getHostPipeEntry(const std::string &UniqueId) {
+  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+  auto Entry = m_HostPipes.find(UniqueId);
+  assert(Entry != m_HostPipes.end() && "Host pipe entry not found");
+  return Entry->second.get();
+}
+
+HostPipeMapEntry *ProgramManager::getHostPipeEntry(const void *HostPipePtr) {
+  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+  auto Entry = m_Ptr2HostPipe.find(HostPipePtr);
+  assert(Entry != m_Ptr2HostPipe.end() && "Host pipe entry not found");
+  return Entry->second;
 }
 
 void ProgramManager::addDeviceGlobalEntry(void *DeviceGlobalPtr,
