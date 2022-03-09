@@ -268,6 +268,31 @@ bool handleInvalidWorkItemSize(const device_impl &DeviceImpl,
   return 0;
 }
 
+bool handleInvalidValue(const device_impl &DeviceImpl,
+                        const NDRDescT &NDRDesc) {
+  const plugin &Plugin = DeviceImpl.getPlugin();
+  RT::PiDevice Device = DeviceImpl.getHandleRef();
+
+  size_t MaxNWGs[] = {0, 0, 0};
+  Plugin.call<PiApiKind::piDeviceGetInfo>(Device,
+                                          PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+                                          sizeof(MaxNWGs), &MaxNWGs, nullptr);
+  for (unsigned int I = 0; I < NDRDesc.Dims; I++) {
+    size_t n_wgs = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
+    if (n_wgs > MaxNWGs[I])
+      throw sycl::nd_range_error(
+          "Number of work-groups exceed limit for dimension " +
+              std::to_string(I) + " : " + std::to_string(n_wgs) + " > " +
+              std::to_string(MaxNWGs[I]),
+          PI_INVALID_VALUE);
+  }
+
+  // fallback
+  constexpr pi_result Error = PI_INVALID_VALUE;
+  throw runtime_error(
+      "Native API failed. Native API returns: " + codeToString(Error), Error);
+}
+
 bool handleError(pi_result Error, const device_impl &DeviceImpl,
                  pi_kernel Kernel, const NDRDescT &NDRDesc) {
   assert(Error != PI_SUCCESS &&
@@ -314,6 +339,9 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
         "dimensions (image width, height, specified or compute row and/or "
         "slice pitch) are not supported by device associated with queue",
         PI_INVALID_IMAGE_SIZE);
+
+  case PI_INVALID_VALUE:
+    return handleInvalidValue(DeviceImpl, NDRDesc);
 
     // TODO: Handle other error codes
 
