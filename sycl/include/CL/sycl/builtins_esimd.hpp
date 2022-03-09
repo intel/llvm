@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/types.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
+#include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/

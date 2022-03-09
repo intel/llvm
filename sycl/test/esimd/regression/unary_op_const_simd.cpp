@@ -5,10 +5,10 @@
 // simd_mask and simd_view objects, as well as to non-constant ones.
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 #include <type_traits>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 template <class T, int N> struct S {
   S() : val(T(0)) {}

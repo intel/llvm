@@ -668,6 +668,14 @@ constexpr uint16_t trace_edge_create =
     static_cast<uint16_t>(xpti::trace_point_type_t::edge_create);
 constexpr uint16_t trace_signal =
     static_cast<uint16_t>(xpti::trace_point_type_t::signal);
+constexpr uint16_t trace_function_begin =
+    static_cast<uint16_t>(xpti::trace_point_type_t::function_begin);
+constexpr uint16_t trace_function_end =
+    static_cast<uint16_t>(xpti::trace_point_type_t::function_end);
+constexpr uint16_t trace_function_with_args_begin =
+    static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_begin);
+constexpr uint16_t trace_function_with_args_end =
+    static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_end);
 constexpr uint16_t trace_offload_alloc_construct =
     static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_construct);
 constexpr uint16_t trace_offload_alloc_associate =
