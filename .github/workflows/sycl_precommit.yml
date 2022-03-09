@@ -10,7 +10,10 @@ on:
     - 'devops/scripts/install_drivers.sh'
     - 'devops/scripts/install_build_tools.sh'
     - 'sycl/doc/**'
+    - 'sycl/gdb/**'
     - 'clang/docs/**'
+    - '**.md'
+    - '**.rst'
 
 jobs:
   lint:
