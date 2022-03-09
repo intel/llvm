@@ -49,13 +49,9 @@ specification.*
 [NOTE]
 ====
 This extension is currently implemented in {dpcpp} only for NVIDIA GPU devices 
-Łwith Compute Capability of 8.0 or above and
-only when using the CUDA backend. Attempting to use this extension in
-kernels that run on other devices or backends may result in undefined behavior.
-Be aware that the compiler is not able to issue a diagnostic to warn you if
-this happens.
+with Compute Capability of 8.0 or above and
+only when using the CUDA backend.
 
-TODO: update this message
 ====
 
 == Introduction
@@ -108,20 +104,20 @@ kernel invocation command (e.g. parallel_for) to throw a synchronous exception
 with the errc::kernel_not_supported error code.
 
 [NOTE]
+====
 Currently the design for optional device features is not fully implemented, so 
 error handling explained in the paragraph above has certain limitations:
 
-[NOTE]
 Applications that target heterogeneous devices will need to be careful using 
 this extension if one of the devices does not support this CUDA feature. 
 Kernels using this extension may need to be split into a separate translation 
 unit or be linked with -fsycl-device-code-split=per_kernel in order to avoid 
 false compilation errors.
 
-[NOTE]
 If an application mistakenly submits a kernel using this extension to a 
 device that does not support it, they may not get a synchronous exception as 
 stated above (instead the error will be asynchronous).
+====
 
 ==== Cycle of arrivals and waits
 
