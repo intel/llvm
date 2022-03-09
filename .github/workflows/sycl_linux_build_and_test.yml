@@ -216,7 +216,7 @@ jobs:
       run: |
         if [ -e /opt/install_drivers.sh ]; then
           sudo /opt/install_drivers.sh --all
-        endif
+        fi
     # FIXME cached_checkout fails here, but works everywhere else
     - uses: actions/checkout@v2
       with:
