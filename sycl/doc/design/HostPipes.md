@@ -18,10 +18,12 @@ design is called out here.
 
 This issue relates to the mechanism for integrating host and device code.
 Like device global variables, host pipes are referenced in both
-host and device code, so they require some mechanism to correlate the variable
-instance in device code with the variable instance in host code. We will use
+host and device code, so they require some mechanism to correlate the pipe
+instance in device code with the pipe instance in host code. We will use
 a similar mechanism as the device global implementation that creates a map
 database in the integration headers and footers.
+
+[2]: <DeviceGlobal.md>
 
 ## Design
 
@@ -42,20 +44,26 @@ support them as general attributes that customer code can use.
 template <typename name,
           typename dataT,
           typename property_listT = property_list<>>
-class pipe {
+class pipe 
 ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_global_variable_attributes(
     "sycl-host-access",
     "readwrite"
     )]]
 #endif
+{ 
+  static const char __pipe;
   ...
 }
 ```
-The `[[__sycl_detail__::add_ir_global_variable_attributes()]]` attribute is 
+The `[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute is 
 described more fully by the [compile-time properties][3] design 
 document. This attribute is also used for other classes that have properties,
 so it is not specific to the `pipe` class.
+
+The address of `static const char` member `__pipe` will be used to identify the pipe
+in host code, and provide one half of the host-to-device mapping of the pipe 
+(see the section on __New content in the integration header and footer__ below).
 
 [3]: <CompileTimeProperties.md>
 
@@ -85,16 +93,9 @@ using b_pipe = pipe<class some_other_pipe, ...>;
 
 ```
 
-The front-end will generate a 'const char * ' for each pipe class
-
-```
-const char *a_pipe_var;
-const char *b_pipe_var;
-```
-
 The corresponding integration header defines a namespace scope variable of type
-`__sycl_host_pipe_registration` whose sole purpose is to run its
-constructor before the application's main() function:
+`__sycl_host_pipe_registration` (referred to below as the __host pipe registrar__
+whose sole purpose is to run its constructor before the application's main() function:
 
 ```
 namespace sycl::detail {
@@ -111,10 +112,10 @@ __sycl_host_pipe_registration __sycl_host_pipe_registrar;
 ```
 
 The integration footer contains the definition of the constructor, which calls
-a function in the DPC++ runtime with the following information for each device
-global variable that is defined in the translation unit:
+a function in the DPC++ runtime with the following information for each host
+pipe that is defined in the translation unit:
 
-* The (host) address of the variable.
+* The (host) address of the static member variable `__pipe`.
 * The variable's string from the `sycl-unique-id` attribute.
 
 ```
@@ -122,10 +123,10 @@ namespace sycl::detail {
 namespace {
 
 __sycl_host_pipe_registration::__sycl_host_pipe_registration() noexcept {
-  host_pipe_map::add(&::a_pipe_var,
-    /* same string returned from __builtin_sycl_unique_pipe_id(::a_pipe_var) */);
-  host_pipe_map::add(&::b_pipe_var,
-    /* same string returned from __builtin_sycl_unique_pipe_id(::b_pipe_var) */);
+  host_pipe_map::add(&a_pipe::__pipe,
+    /* same string returned from __builtin_sycl_unique_pipe_id(&a_pipe::__pipe) */);
+  host_pipe_map::add(&b_pipe::__pipe,
+    /* same string returned from __builtin_sycl_unique_pipe_id(&b_pipe::__pipe) */);
 }
 
 } // namespace (unnamed)
@@ -133,7 +134,7 @@ __sycl_host_pipe_registration::__sycl_host_pipe_registration() noexcept {
 ```
 
 Further details on adherence to C++ rules for unconstructed objects can be found
-in the [device_global][2] design.
+in the [device_global][3] design.
 
 [3]: <DeviceGlobal.md>
 
@@ -152,7 +153,10 @@ Several changes are needed to the DPC++ runtime
   - The string which uniquely identifies the variable.
 
 * The runtime implements the `read` and `write` functions of the pipe 
-  class. These will use this [host pipe API][4].
+  class. These will use this [host pipe API][4]. These functions will
+  need to retrieve the mapping added to the __host pipe registrar__
+  for the pipe being read or written to, and pass it to the corresponding
+  underlying OpenCL API call
   
 [4]: https://github.com/intel-sandbox/ip-authoring-specs/blob/MJ_ChangeDocs4/Pipe/Spec/cl_intel_host_pipe_symbol.asciidoc
 
