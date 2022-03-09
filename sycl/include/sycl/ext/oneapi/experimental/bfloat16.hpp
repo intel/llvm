@@ -17,7 +17,7 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-class bfloat16 {
+class [[sycl_detail::uses_aspects(ext_oneapi_bfloat16)]] bfloat16 {
   using storage_t = uint16_t;
   storage_t value;
 
@@ -29,29 +29,16 @@ public:
   // Explicit conversion functions
   static storage_t from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
-    return __nvvm_f2bf16_rn(a);
-#else
     return __spirv_ConvertFToBF16INTEL(a);
-#endif
 #else
-    (void)a;
     throw exception{errc::feature_not_supported,
                     "Bfloat16 conversion is not supported on host device"};
 #endif
   }
   static float to_float(const storage_t &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
-    uint32_t y = a;
-    y = y << 16;
-    float *res = reinterpret_cast<float *>(&y);
-    return *res;
-#else
     return __spirv_ConvertBF16ToFINTEL(a);
-#endif
 #else
-    (void)a;
     throw exception{errc::feature_not_supported,
                     "Bfloat16 conversion is not supported on host device"};
 #endif
@@ -83,17 +70,7 @@ public:
 
   // Unary minus operator overloading
   friend bfloat16 operator-(bfloat16 &lhs) {
-#if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
-    return from_bits(__nvvm_neg_bf16(lhs.value));
-#else
-    return bfloat16{-__spirv_ConvertBF16ToFINTEL(lhs.value)};
-#endif
-#else
-    (void)lhs;
-    throw exception{errc::feature_not_supported,
-                    "Bfloat16 unary minus is not supported on host device"};
-#endif
+    return bfloat16{-to_float(lhs.value)};
   }
 
 // Increment and decrement operators overloading
