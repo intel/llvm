@@ -1,1 +1,2 @@
-add_sycl_executable(simple-dpcpp-app SOURCES simple-dpcpp-app.cpp)
+file(COPY simple-dpcpp-app.cpp
+     DESTINATION ${LLVM_BINARY_DIR}/examples/)
