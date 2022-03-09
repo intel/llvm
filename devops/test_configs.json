@@ -41,7 +41,7 @@
       ],
       "image": "${{ inputs.intel_drivers_image }}",
       "container_options": "-u 1001",
-      "check_sycl_all": "ext_intel_esimd_emulator:gpu,host",
+      "check_sycl_all": "ext_intel_esimd_emulator:gpu",
       "cmake_args": ""
     },
     {
