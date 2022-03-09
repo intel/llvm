@@ -365,7 +365,7 @@ template <typename T, access::address_space AS> class multi_ptr {
   pointer_t m_Pointer;
 
 public:
-  multi_ptr(T *Ptr) : m_Pointer((pointer_t)(Ptr)) {}
+  multi_ptr(T *Ptr) : m_Pointer((pointer_t)(Ptr)) {} // #MultiPtrConstructor
   pointer_t get() { return m_Pointer; }
 };
 
