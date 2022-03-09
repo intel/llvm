@@ -19,31 +19,24 @@
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
 int __clc_nvvm_reflect_arch();
+#define __USE_HALF_EXP2_APPROX (__clc_nvvm_reflect_arch() >= 750)
 
 _CLC_DEF _CLC_OVERLOAD half __clc_native_exp2(half x) {
-  if (__clc_nvvm_reflect_arch() >= 750) {
-    return __nvvm_ex2_approx_f16(x);
-  } else {
-    float upcast = x;
-    return __spirv_ocl_native_exp2(upcast);
-  }
+  return (__USE_HALF_EXP2_APPROX) ? __nvvm_ex2_approx_f16(x)
+                                  : __spirv_ocl_native_exp2((float)x);
 }
 
 _CLC_DEF _CLC_OVERLOAD half2 __clc_native_exp2(half2 x) {
-  if (__clc_nvvm_reflect_arch() >= 750) {
-    return __nvvm_ex2_approx_f16x2(x);
-  } else {
-    float upcast0 = x[0];
-    float upcast1 = x[1];
-    half2 res;
-    res.s0 = __spirv_ocl_native_exp2(upcast0);
-    res.s1 = __spirv_ocl_native_exp2(upcast1);
-    return res;
-  }
+  return (__USE_HALF_EXP2_APPROX)
+             ? __nvvm_ex2_approx_f16x2(x)
+             : (half2)(__spirv_ocl_native_exp2((float)x.x),
+                       __spirv_ocl_native_exp2((float)x.y));
 }
 
-_CLC_UNARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half,
-                           __clc_native_exp2, half)
+_CLC_UNARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __clc_native_exp2,
+                           half)
+
+#undef __USE_HALF_EXP2_APPROX
 
 #endif // cl_khr_fp16
 
