@@ -290,8 +290,18 @@ public:
 
       EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-      Scheduler::enqueueUnlockedCommands(
-          EmptyCmd->getEvent(), EmptyCmd->getBlockedUsers(), ToCleanUp);
+      EventImplPtr EmptyCmdEvent = EmptyCmd->getEvent();
+      const std::unordered_set<EventImplPtr> &CmdsToEnqueue =
+          EmptyCmd->getBlockedUsers();
+      // If we have blocked users empty command will be enqueued as one of
+      // dependency otherwise we have to enqueue it manually
+      if (CmdsToEnqueue.empty())
+        Scheduler::enqueueUnblockedCommands(
+            EmptyCmdEvent, std::unordered_set<EventImplPtr>{EmptyCmdEvent},
+            ToCleanUp);
+      else
+        Scheduler::enqueueUnblockedCommands(EmptyCmdEvent, CmdsToEnqueue,
+                                            ToCleanUp);
 
       for (const DepDesc &Dep : Deps)
         Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
@@ -560,16 +570,18 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   if (DepCmd) {
     PiEventExpected &= DepCmd->producesPiEvent();
 
+    // MBlockingExplicitDeps used to avoid graph depth search for empty command
+    // to add new command as user to it. It is trade-off between average perf
+    // and scenario influence and memory usage. if
+    // BlockingCmdEvent->getCommand() returns nullptr - task is completed and
+    // event is signalled, not blocking any more so no copy.
     for (auto &BlockingCmdEvent : DepCmd->MBlockingExplicitDeps) {
-      MBlockingExplicitDeps.insert(BlockingCmdEvent);
-
-      EmptyCommand *BlockingCmd =
-          static_cast<EmptyCommand *>(BlockingCmdEvent->getCommand());
-      assert(BlockingCmd &&
-             "Blocking cmd after cleanup must be removed from deps");
-
-      BlockingCmd->removeBlockedUser(DepCmd->getEvent());
-      BlockingCmd->addBlockedUser(this->MEvent);
+      if (EmptyCommand *BlockingCmd =
+              static_cast<EmptyCommand *>(BlockingCmdEvent->getCommand())) {
+        MBlockingExplicitDeps.insert(BlockingCmdEvent);
+        BlockingCmd->removeBlockedUser(DepCmd->getEvent());
+        BlockingCmd->addBlockedUser(this->MEvent);
+      }
     }
   }
 

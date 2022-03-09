@@ -369,7 +369,7 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::enqueueUnlockedCommands(
+void Scheduler::enqueueUnblockedCommands(
     const EventImplPtr &UnblockedDep,
     const std::unordered_set<EventImplPtr> &ToEnqueue,
     std::vector<Command *> &ToCleanUp) {
