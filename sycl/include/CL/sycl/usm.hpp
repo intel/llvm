@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/usm/usm_allocator.hpp>
 #include <CL/sycl/usm/usm_enums.hpp>
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
 
 #include <cstddef>
 

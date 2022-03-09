@@ -4,6 +4,16 @@ on:
   pull_request:
     branches:
     - sycl
+    # Do not run builds if changes are only in the following locations
+    paths-ignore:
+    - 'devops/containers/**'
+    - 'devops/scripts/install_drivers.sh'
+    - 'devops/scripts/install_build_tools.sh'
+    - 'sycl/doc/**'
+    - 'sycl/gdb/**'
+    - 'clang/docs/**'
+    - '**.md'
+    - '**.rst'
 
 jobs:
   lint:

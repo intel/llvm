@@ -93,11 +93,13 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
 
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind,
-                   const detail::code_location &CL) {
+                   const detail::code_location &CL,
+                   const property_list &PropList = {}) {
   XPTI_CREATE_TRACEPOINT(CL);
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
+
   if (Ctxt.is_host()) {
     if (Kind == alloc::unknown) {
       RetVal = nullptr;
@@ -125,8 +127,25 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     switch (Kind) {
     case alloc::device: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
-          &RetVal, C, Id, nullptr, Size, Alignment);
+      // Parse out buffer location property
+      // Buffer location is only supported on FPGA devices
+      bool IsBufferLocSupported =
+          Dev.has_extension("cl_intel_mem_alloc_buffer_location");
+      if (IsBufferLocSupported &&
+          PropList.has_property<cl::sycl::ext::intel::experimental::property::
+                                    usm::buffer_location>()) {
+        auto location = PropList
+                            .get_property<cl::sycl::ext::intel::experimental::
+                                              property::usm::buffer_location>()
+                            .get_buffer_location();
+        pi_usm_mem_properties props[3] = {PI_MEM_USM_ALLOC_BUFFER_LOCATION,
+                                          location, 0};
+        Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
+            &RetVal, C, Id, props, Size, Alignment);
+      } else {
+        Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
+            &RetVal, C, Id, nullptr, Size, Alignment);
+      }
       break;
     }
     case alloc::shared: {
@@ -193,8 +212,10 @@ void *malloc_device(size_t Size, const device &Dev, const context &Ctxt,
 }
 
 void *malloc_device(size_t Size, const device &Dev, const context &Ctxt,
-                    const property_list &, const detail::code_location CL) {
-  return malloc_device(Size, Dev, Ctxt, CL);
+                    const property_list &PropList,
+                    const detail::code_location CL) {
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::device, CL,
+                                   PropList);
 }
 
 void *malloc_device(size_t Size, const queue &Q,
