@@ -1,8 +1,8 @@
 {
   "linux": {
     "compute_runtime": {
-      "github_tag": "22.09.22577",
-      "version": "22.09.22577",
+      "github_tag": "22.08.22549",
+      "version": "22.08.22549",
       "url": "https://github.com/intel/compute-runtime/releases/tag/22.09.22577",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
