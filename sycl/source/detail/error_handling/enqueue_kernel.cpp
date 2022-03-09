@@ -274,9 +274,9 @@ bool handleInvalidValue(const device_impl &DeviceImpl,
   RT::PiDevice Device = DeviceImpl.getHandleRef();
 
   size_t MaxNWGs[] = {0, 0, 0};
-  Plugin.call<PiApiKind::piDeviceGetInfo>(Device,
-                                          PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-                                          sizeof(MaxNWGs), &MaxNWGs, nullptr);
+  Plugin.call<PiApiKind::piDeviceGetInfo>(
+      Device, PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(MaxNWGs),
+      &MaxNWGs, nullptr);
   for (unsigned int I = 0; I < NDRDesc.Dims; I++) {
     size_t n_wgs = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     if (n_wgs > MaxNWGs[I])
