@@ -15,6 +15,8 @@ RUN /install.sh
 RUN groupadd -g 1001 sycl && useradd sycl -u 1001 -g 1001 -m -s /bin/bash
 # Add sycl user to video group so that it can access GPU
 RUN usermod -aG video sycl
+# Allow sycl user to run as sudo
+RUN echo "sycl  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 COPY actions/cached_checkout /actions/cached_checkout
 COPY actions/cleanup /actions/cleanup
