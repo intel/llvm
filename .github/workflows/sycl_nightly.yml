@@ -64,7 +64,6 @@ jobs:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
-      build_runs_on: build
       build_cache_root: "/__w/"
       build_cache_suffix: new_pm
       build_artifact_suffix: new_pm

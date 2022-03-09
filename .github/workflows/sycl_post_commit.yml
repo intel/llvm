@@ -15,14 +15,12 @@ jobs:
     name: Linux Default
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
-      build_runs_on: build
       build_cache_root: "/__w/llvm"
       build_artifact_suffix: default
   linux_no_assert:
     name: Linux (no assert)
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
-      build_runs_on: build
       build_cache_root: "/__w/llvm"
       build_cache_suffix: gcc_no_assertions
       build_artifact_suffix: gcc_no_assertions

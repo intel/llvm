@@ -25,7 +25,6 @@ jobs:
     if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
-      build_runs_on: "build"
       build_cache_root: "/__w/"
       build_cache_size: "8G"
       build_artifact_suffix: "default"
