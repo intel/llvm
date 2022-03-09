@@ -8,9 +8,6 @@
 // RUN: env ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out s 2> %t1.out; cat %t1.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-SMALL-BUF
 // RUN: env ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out l 2> %t1.out; cat %t1.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-LARGE-BUF
 
-// This test is expected to fail until new pooling is enabled
-// UNSUPPORTED: level_zero
-
 #include <CL/sycl.hpp>
 using namespace sycl;
 
@@ -21,6 +18,9 @@ void direct_usm(queue &Q) {
   auto p1 = malloc_shared(1024, Q);
   auto p2 = malloc_host(1024, Q);
   auto p3 = malloc_device(1024, Q);
+  // Host and Device allocations, pooled by default will be automatically freed
+  // Shared is not pooled by default, so it needs to be explicitly freed
+  free(p1, Q.get_context());
 }
 
 template <typename T> class K;
