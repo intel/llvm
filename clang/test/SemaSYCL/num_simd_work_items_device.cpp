@@ -175,14 +175,16 @@ struct TRIFuncObjBad12 {
 
 struct TRIFuncObjBad13 {
   [[sycl::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
-  [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
-  void operator()() const {}
+  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad14 {
-  [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   [[sycl::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
-  void operator()() const {}
+  void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad15 {
@@ -204,9 +206,10 @@ struct TRIFuncObjBad17 {
 };
 
 struct TRIFuncObjBad18 {
-  [[intel::num_simd_work_items(-1)]]  // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
-  [[sycl::reqd_work_group_size(-1)]]  // expected-error{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
-  void operator()() const {}
+  [[intel::num_simd_work_items(-1)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  [[sycl::reqd_work_group_size(-1)]] // expected-error{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
+  void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad19 {
@@ -215,7 +218,8 @@ struct TRIFuncObjBad19 {
 };
 
 [[sycl::reqd_work_group_size(10, 5, 9)]] // expected-note{{conflicting attribute is here}}
-void TRIFuncObjBad19::operator()() const {}
+void
+TRIFuncObjBad19::operator()() const {}
 
 struct TRIFuncObjBad20 {
   [[sycl::reqd_work_group_size(10, 5, 9)]] void // expected-note{{conflicting attribute is here}}
@@ -223,7 +227,8 @@ struct TRIFuncObjBad20 {
 };
 
 [[intel::num_simd_work_items(5)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-void TRIFuncObjBad20::operator()() const {}
+void
+TRIFuncObjBad20::operator()() const {}
 #endif // TRIGGER_ERROR
 // If the declaration has a [[sycl::reqd_work_group_size()]]
 // or [[cl::reqd_work_group_size()]] or
@@ -260,7 +265,7 @@ struct TRIFuncObjGood5 {
 };
 
 [[sycl::reqd_work_group_size(3, 10, 5)]]
-void TRIFuncObjGood5::operator()() const {}
+[[sycl::reqd_work_group_size(3, 10, 5)]] void TRIFuncObjGood5::operator()() const {}
 
 struct TRIFuncObjGood6 {
   [[sycl::reqd_work_group_size(3, 10, 5)]] void
@@ -268,7 +273,7 @@ struct TRIFuncObjGood6 {
 };
 
 [[intel::num_simd_work_items(5)]]
-void TRIFuncObjGood6::operator()() const {}
+[[intel::num_simd_work_items(5)]] void TRIFuncObjGood6::operator()() const {}
 
 [[intel::num_simd_work_items(2)]]
 __attribute__((reqd_work_group_size(3, 2, 6))) void func6(); // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
@@ -413,8 +418,8 @@ int main() {
     h.single_task<class test_kernel27>(TRIFuncObjBad18());
 
     h.single_task<class test_kernel28>(
-        []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]]{}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different arguments}}  // expected-note {{previous attribute is here}}
-    
+        []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]] {}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different arguments}}  // expected-note {{previous attribute is here}}
+
     h.single_task<class test_kernel29>(TRIFuncObjBad19());
 
     h.single_task<class test_kernel30>(TRIFuncObjBad20());

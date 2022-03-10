@@ -48,7 +48,7 @@ public:
 #ifdef TRIGGER_ERROR
 class Functor32 {
 public:
-  [[sycl::reqd_work_group_size(32, 1, 1)]] // expected-note {{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(32, 1, 1)]]      // expected-note {{conflicting attribute is here}}
   [[sycl::reqd_work_group_size(1, 1, 32)]] void // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
   operator()() const {}
 };

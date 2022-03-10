@@ -39,7 +39,8 @@ struct TRIFuncObjGood3 {
 };
 
 [[sycl::reqd_work_group_size(4, 4)]] // expected-warning {{attribute 'reqd_work_group_size' is already applied with different arguments}}
-void TRIFuncObjGood3::operator()() const {}
+void
+TRIFuncObjGood3::operator()() const {}
 
 // Show that the attribute works on member functions.
 class Functor {
@@ -90,8 +91,9 @@ void instantiate() {
 // equal or greater than values coming from reqd_work_group_size attribute.
 [[sycl::reqd_work_group_size(1, 2, 3)]] [[sycl::reqd_work_group_size(1, 2, 3)]] void f10() {} // OK
 
-[[sycl::reqd_work_group_size(8)]]                      // expected-note {{conflicting attribute is here}}
-[[sycl::reqd_work_group_size(1, 1, 8)]] void f11() {}; // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+[[sycl::reqd_work_group_size(8)]] // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(1, 1, 8)]] void
+f11(){}; // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
 
 [[sycl::reqd_work_group_size(32, 32, 1)]] [[sycl::reqd_work_group_size(32, 32)]] void f12() {} // OK
 
@@ -115,4 +117,5 @@ struct TRIFuncObjBad {
 };
 
 [[sycl::reqd_work_group_size(1, 1, 32)]] // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
-void TRIFuncObjBad::operator()() const {}
+void
+TRIFuncObjBad::operator()() const {}

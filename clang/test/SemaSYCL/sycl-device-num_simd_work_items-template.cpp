@@ -188,11 +188,11 @@ int check1() {
   func15<3>(); // OK
   func16<6, 3, 5, 3>(); // expected-note {{in instantiation of function template specialization 'func16<6, 3, 5, 3>' requested here}}
   func16<9, 6, 3, 3>(); // OK
-  func17<6, 3, 5>(); // expected-note {{in instantiation of function template specialization 'func17<6, 3, 5>' requested here}}
-  func17<9, 6, 3>(); // OK
-  func18<6, 4, 5>(); // expected-note {{in instantiation of function template specialization 'func18<6, 4, 5>' requested here}}
-  func18<8, 6, 2>(); // OK
-  func19<3>(); // expected-note {{in instantiation of function template specialization 'func19<3>' requested here}}
-  func19<2>(); // OK
+  func17<6, 3, 5>();    // expected-note {{in instantiation of function template specialization 'func17<6, 3, 5>' requested here}}
+  func17<9, 6, 3>();    // OK
+  func18<6, 4, 5>();    // expected-note {{in instantiation of function template specialization 'func18<6, 4, 5>' requested here}}
+  func18<8, 6, 2>();    // OK
+  func19<3>();          // expected-note {{in instantiation of function template specialization 'func19<3>' requested here}}
+  func19<2>();          // OK
   return 0;
 }

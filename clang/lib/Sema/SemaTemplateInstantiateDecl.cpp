@@ -846,7 +846,7 @@ static void instantiateReqdWorkGroupSizeAttr(
     return;
 
   S.AddReqdWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
-                                     ZResult.get());
+                             ZResult.get());
 }
 
 // This doesn't take any template parameters, but we have a custom action that
@@ -1074,8 +1074,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *ReqdWorkGroupSize =
             dyn_cast<ReqdWorkGroupSizeAttr>(TmplAttr)) {
-      instantiateReqdWorkGroupSizeAttr(
-	  *this, TemplateArgs, ReqdWorkGroupSize, New);
+      instantiateReqdWorkGroupSizeAttr(*this, TemplateArgs, ReqdWorkGroupSize,
+                                       New);
       continue;
     }
     if (const auto *SYCLIntelMaxWorkGroupSize =

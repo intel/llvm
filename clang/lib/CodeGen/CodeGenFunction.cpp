@@ -637,23 +637,13 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   if (const ReqdWorkGroupSizeAttr *A = FD->getAttr<ReqdWorkGroupSizeAttr>()) {
     // Attributes arguments (first and third) are reversed on SYCLDevice.
-    /*if (getLangOpts().SYCLIsDevice) {
-      llvm::Metadata *AttrMDArgs[] = {
-          llvm::ConstantAsMetadata::get(Builder.getInt(*A->getZDimVal())),
-          llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
-          llvm::ConstantAsMetadata::get(Builder.getInt(*A->getXDimVal()))};
-      Fn->setMetadata("reqd_work_group_size",
-                      llvm::MDNode::get(Context, AttrMDArgs));
-    }*/
     llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt(getLangOpts().SYCLIsDevice
-				                     ? *A->getZDimVal()
-						     : *A->getXDimVal())),
-        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
-        llvm::ConstantAsMetadata::get(Builder.getInt(getLangOpts().SYCLIsDevice
-				                     ? *A->getXDimVal()
-						     : *A->getZDimVal()))};
-    Fn->setMetadata("reqd_work_group_size",
+	llvm::ConstantAsMetadata::get(Builder.getInt(
+            getLangOpts().SYCLIsDevice ? *A->getZDimVal() : *A->getXDimVal())),
+         llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
+        llvm::ConstantAsMetadata::get(Builder.getInt(
+            getLangOpts().SYCLIsDevice ? *A->getXDimVal() : *A->getZDimVal()))};
+     Fn->setMetadata("reqd_work_group_size",
                      llvm::MDNode::get(Context, AttrMDArgs));
   }
 

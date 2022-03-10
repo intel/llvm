@@ -3411,12 +3411,9 @@ static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
 // a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
 // attribute, check to see if values of reqd_work_group_size arguments are
 // equal or less than values of max_work_group_size attribute arguments.
-static bool checkWorkGroupSizeAttrValues(Sema &S, const Expr *RWGSXDim,
-		                         const Expr *RWGSYDim,
-					 const Expr *RWGSZDim,
-		                         const Expr *MWGSXDim,
-					 const Expr *MWGSYDim,
-					 const Expr *MWGSZDim) {
+static bool checkWorkGroupSizeAttrValues(
+    Sema &S, const Expr *RWGSXDim, const Expr *RWGSYDim, const Expr *RWGSZDim,
+    const Expr *MWGSXDim, const Expr *MWGSYDim, const Expr *MWGSZDim) {
   // If any of the operand is still value dependent, we can't test anything.
   const auto *RWGSXDimExpr = dyn_cast<ConstantExpr>(RWGSXDim);
   const auto *RWGSYDimExpr = dyn_cast<ConstantExpr>(RWGSYDim);
@@ -3424,21 +3421,27 @@ static bool checkWorkGroupSizeAttrValues(Sema &S, const Expr *RWGSXDim,
   const auto *MWGSXDimExpr = dyn_cast<ConstantExpr>(MWGSXDim);
   const auto *MWGSYDimExpr = dyn_cast<ConstantExpr>(MWGSYDim);
   const auto *MWGSZDimExpr = dyn_cast<ConstantExpr>(MWGSZDim);
-  if (!RWGSXDimExpr || !RWGSYDimExpr || !RWGSZDimExpr || !MWGSXDimExpr || !MWGSYDimExpr ||
-      !MWGSZDimExpr)
+
+  if (!RWGSXDimExpr || !RWGSYDimExpr || !RWGSZDimExpr || !MWGSXDimExpr ||
+      !MWGSYDimExpr || !MWGSZDimExpr)
     return false;
 
   // Otherwise, check if value of reqd_work_group_size argument is
   // greater than value of max_work_group_size attribute argument.
-  bool CheckFirstArgument =
-      S.getLangOpts().OpenCL
-            ? RWGSXDimExpr->getResultAsAPSInt() > MWGSZDimExpr->getResultAsAPSInt()
-            : RWGSXDimExpr->getResultAsAPSInt() > MWGSXDimExpr->getResultAsAPSInt();
-  bool CheckSecondArgument = RWGSYDimExpr->getResultAsAPSInt() > MWGSYDimExpr->getResultAsAPSInt();
-  bool CheckThirdArgument =
-     S.getLangOpts().OpenCL
-            ? RWGSZDimExpr->getResultAsAPSInt() > MWGSXDimExpr->getResultAsAPSInt()
-	    : RWGSZDimExpr->getResultAsAPSInt() > MWGSZDimExpr->getResultAsAPSInt();
+  bool CheckFirstArgument = S.getLangOpts().OpenCL
+                                ? RWGSXDimExpr->getResultAsAPSInt() >
+                                      MWGSZDimExpr->getResultAsAPSInt()
+                                : RWGSXDimExpr->getResultAsAPSInt() >
+                                      MWGSXDimExpr->getResultAsAPSInt();
+
+  bool CheckSecondArgument =
+      RWGSYDimExpr->getResultAsAPSInt() > MWGSYDimExpr->getResultAsAPSInt();
+
+  bool CheckThirdArgument = S.getLangOpts().OpenCL
+                                ? RWGSZDimExpr->getResultAsAPSInt() >
+                                      MWGSXDimExpr->getResultAsAPSInt()
+                                : RWGSZDimExpr->getResultAsAPSInt() >
+                                      MWGSZDimExpr->getResultAsAPSInt();
 
   return CheckFirstArgument || CheckSecondArgument || CheckThirdArgument;
 }
@@ -3491,8 +3494,9 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
   // and follows the OpenCL rules.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues(*this, DeclAttr->getXDim(), DeclAttr->getYDim(),
-			             DeclAttr->getZDim(), XDim, YDim, ZDim)) {
+    if (checkWorkGroupSizeAttrValues(*this, DeclAttr->getXDim(),
+                                     DeclAttr->getYDim(), DeclAttr->getZDim(),
+                                     XDim, YDim, ZDim)) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << CI << DeclAttr;
       Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
@@ -3575,9 +3579,9 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
   // and follows the OpenCL rules.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues(*this, DeclAttr->getXDim(), DeclAttr->getYDim(),
-                                     DeclAttr->getZDim(), A.getXDim(),
-                                      A.getYDim(), A.getZDim())) {
+    if (checkWorkGroupSizeAttrValues(*this, DeclAttr->getXDim(),
+                                     DeclAttr->getYDim(), DeclAttr->getZDim(),
+                                     A.getXDim(), A.getYDim(), A.getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
           << DeclAttr << &A;
       Diag(A.getLoc(), diag::note_conflicting_attribute);
@@ -3613,12 +3617,9 @@ static void handleSYCLIntelMaxWorkGroupSize(Sema &S, Decl *D,
 // a declaration along with reqd_work_group_size attribute,
 // check to see if values of reqd_work_group_size arguments are
 // equal or greater than values of reqd_work_group_size attribute arguments.
-static bool checkReqdWorkGroupSizeAttrValues(Sema &S, const Expr *RWGSXDim,
-                                             const Expr *RWGSYDim,
-                                             const Expr *RWGSZDim,
-                                             const Expr *R1WGSXDim,
-                                             const Expr *R1WGSYDim,
-                                             const Expr *R1WGSZDim) {
+static bool checkReqdWorkGroupSizeAttrValues(
+    Sema &S, const Expr *RWGSXDim, const Expr *RWGSYDim, const Expr *RWGSZDim,
+    const Expr *R1WGSXDim, const Expr *R1WGSYDim, const Expr *R1WGSZDim) {
   // If any of the operand is still value dependent, we can't test anything.
   const auto *RWGSXDimExpr = dyn_cast<ConstantExpr>(RWGSXDim);
   const auto *RWGSYDimExpr = dyn_cast<ConstantExpr>(RWGSYDim);
@@ -3626,21 +3627,27 @@ static bool checkReqdWorkGroupSizeAttrValues(Sema &S, const Expr *RWGSXDim,
   const auto *R1WGSXDimExpr = dyn_cast<ConstantExpr>(R1WGSXDim);
   const auto *R1WGSYDimExpr = dyn_cast<ConstantExpr>(R1WGSYDim);
   const auto *R1WGSZDimExpr = dyn_cast<ConstantExpr>(R1WGSZDim);
-  if (!RWGSXDimExpr || !RWGSYDimExpr || !RWGSZDimExpr || !R1WGSXDimExpr || !R1WGSYDimExpr ||
-      !R1WGSZDimExpr)
+
+  if (!RWGSXDimExpr || !RWGSYDimExpr || !RWGSZDimExpr || !R1WGSXDimExpr ||
+      !R1WGSYDimExpr || !R1WGSZDimExpr)
     return false;
 
   // Otherwise, check if value of reqd_work_group_size argument is
   // less than value of reqd_work_group_size attribute argument.
-  bool CheckFirstArgument =
-      S.getLangOpts().OpenCL
-            ? RWGSXDimExpr->getResultAsAPSInt() < R1WGSZDimExpr->getResultAsAPSInt()
-            : RWGSXDimExpr->getResultAsAPSInt() < R1WGSXDimExpr->getResultAsAPSInt();
-  bool CheckSecondArgument = RWGSYDimExpr->getResultAsAPSInt() < R1WGSYDimExpr->getResultAsAPSInt();
-  bool CheckThirdArgument =
-     S.getLangOpts().OpenCL
-            ? RWGSZDimExpr->getResultAsAPSInt() < R1WGSXDimExpr->getResultAsAPSInt()
-            : RWGSZDimExpr->getResultAsAPSInt() < R1WGSZDimExpr->getResultAsAPSInt();
+  bool CheckFirstArgument = S.getLangOpts().OpenCL
+                                ? RWGSXDimExpr->getResultAsAPSInt() <
+                                      R1WGSZDimExpr->getResultAsAPSInt()
+                                : RWGSXDimExpr->getResultAsAPSInt() <
+                                      R1WGSXDimExpr->getResultAsAPSInt();
+
+  bool CheckSecondArgument =
+      RWGSYDimExpr->getResultAsAPSInt() < R1WGSYDimExpr->getResultAsAPSInt();
+
+  bool CheckThirdArgument = S.getLangOpts().OpenCL
+                                ? RWGSZDimExpr->getResultAsAPSInt() <
+                                      R1WGSXDimExpr->getResultAsAPSInt()
+                                : RWGSZDimExpr->getResultAsAPSInt() <
+                                      R1WGSZDimExpr->getResultAsAPSInt();
 
   return CheckFirstArgument || CheckSecondArgument || CheckThirdArgument;
 }
@@ -3655,8 +3662,7 @@ static bool checkReqdWorkGroupSizeAttrValues(Sema &S, const Expr *RWGSXDim,
 // increments the fastest, and in SYCL, the last argument is the index that
 // increments the fastest.
 static bool CheckWorkGroupSize(Sema &S, const Expr *NSWIValue,
-                               const Expr *RWGSXDim,
-                               const Expr *RWGSZDim) {
+                               const Expr *RWGSXDim, const Expr *RWGSZDim) {
   // If any of the operand is still value dependent, we can't test anything.
   const auto *NSWIValueExpr = dyn_cast<ConstantExpr>(NSWIValue);
   const auto *RWGSXDimExpr = dyn_cast<ConstantExpr>(RWGSXDim);
@@ -3667,20 +3673,20 @@ static bool CheckWorkGroupSize(Sema &S, const Expr *NSWIValue,
 
   // Otherwise, check which argument increments the fastest
   // in OpenCL vs SYCL mode.
-  unsigned WorkGroupSize = S.getLangOpts().OpenCL
-                           ? (RWGSXDimExpr->getResultAsAPSInt()).getZExtValue()
-                           : (RWGSZDimExpr->getResultAsAPSInt()).getZExtValue();
+  unsigned WorkGroupSize =
+      S.getLangOpts().OpenCL
+          ? (RWGSXDimExpr->getResultAsAPSInt()).getZExtValue()
+          : (RWGSZDimExpr->getResultAsAPSInt()).getZExtValue();
 
   // Check if the required work group size specified by num_simd_work_items
   // attribute must evenly divide the index that increments fastest in the
   // reqd_work_group_size attribute.
-  return WorkGroupSize % (NSWIValueExpr->getResultAsAPSInt()).getSExtValue() != 0;
+  return WorkGroupSize % (NSWIValueExpr->getResultAsAPSInt()).getSExtValue() !=
+         0;
 }
 
-void Sema::AddReqdWorkGroupSizeAttr(Decl *D,
-                                    const AttributeCommonInfo &CI,
-                                    Expr *XDim, Expr *YDim,
-                                    Expr *ZDim) {
+void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *XDim, Expr *YDim, Expr *ZDim) {
   // Returns nullptr if diagnosing, otherwise returns the original expression
   // or the original expression converted to a constant expression.
   auto CheckAndConvertArg = [&](Expr *E) -> Expr * {
@@ -3734,8 +3740,8 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D,
   // mode. All spellings of reqd_work_group_size attribute
   // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues(*this, XDim, YDim, ZDim, 
-			             DeclAttr->getXDim(), DeclAttr->getYDim(),
+    if (checkWorkGroupSizeAttrValues(*this, XDim, YDim, ZDim,
+                                     DeclAttr->getXDim(), DeclAttr->getYDim(),
                                      DeclAttr->getZDim())) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << CI << DeclAttr;
@@ -3759,9 +3765,9 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D,
   // mode. All spellings of reqd_work_group_size attribute
   // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (checkReqdWorkGroupSizeAttrValues(*this, XDim, YDim, ZDim,
-                                         DeclAttr->getXDim(), DeclAttr->getYDim(),
-                                         DeclAttr->getZDim())) {
+    if (checkReqdWorkGroupSizeAttrValues(
+            *this, XDim, YDim, ZDim, DeclAttr->getXDim(), DeclAttr->getYDim(),
+            DeclAttr->getZDim())) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << CI << DeclAttr;
       Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
@@ -3811,14 +3817,13 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D,
                      [](DupArgResult V) { return V == DupArgResult::Same; }))
       return;
   }
-  
 
   D->addAttr(::new (Context)
                  ReqdWorkGroupSizeAttr(Context, CI, XDim, YDim, ZDim));
 }
 
-ReqdWorkGroupSizeAttr *Sema::MergeReqdWorkGroupSizeAttr(
-    Decl *D, const ReqdWorkGroupSizeAttr &A) {
+ReqdWorkGroupSizeAttr *
+Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
   // If the declaration has a ReqdWorkGroupSizeAttr,
   // check to see if the attribute holds equal values to
   // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
@@ -3846,10 +3851,9 @@ ReqdWorkGroupSizeAttr *Sema::MergeReqdWorkGroupSizeAttr(
   // mode. All spellings of reqd_work_group_size attribute
   // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues(*this, A.getXDim(),
-                                      A.getYDim(), A.getZDim(),
-				      DeclAttr->getXDim(), DeclAttr->getYDim(),
-                                      DeclAttr->getZDim())) {
+    if (checkWorkGroupSizeAttrValues(
+            *this, A.getXDim(), A.getYDim(), A.getZDim(), DeclAttr->getXDim(),
+            DeclAttr->getYDim(), DeclAttr->getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
           << DeclAttr << &A;
       Diag(A.getLoc(), diag::note_conflicting_attribute);
@@ -3871,9 +3875,9 @@ ReqdWorkGroupSizeAttr *Sema::MergeReqdWorkGroupSizeAttr(
   // mode. All spellings of reqd_work_group_size attribute
   // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (checkReqdWorkGroupSizeAttrValues(*this, A.getXDim(), A.getYDim(), A.getZDim(),
-                                         DeclAttr->getXDim(), DeclAttr->getYDim(),
-                                         DeclAttr->getZDim())) {
+    if (checkReqdWorkGroupSizeAttrValues(
+            *this, A.getXDim(), A.getYDim(), A.getZDim(), DeclAttr->getXDim(),
+            DeclAttr->getYDim(), DeclAttr->getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
           << DeclAttr << &A;
       Diag(A.getLoc(), diag::note_conflicting_attribute);
@@ -3895,7 +3899,8 @@ ReqdWorkGroupSizeAttr *Sema::MergeReqdWorkGroupSizeAttr(
   // mode. All spellings of reqd_work_group_size attribute
   // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
-    if (CheckWorkGroupSize(*this, DeclAttr->getValue(), A.getXDim(), A.getZDim())) {
+    if (CheckWorkGroupSize(*this, DeclAttr->getValue(), A.getXDim(),
+                           A.getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
           << DeclAttr << &A;
       Diag(A.getLoc(), diag::note_conflicting_attribute);
@@ -3926,8 +3931,8 @@ ReqdWorkGroupSizeAttr *Sema::MergeReqdWorkGroupSizeAttr(
       return nullptr;
   }
 
-  return ::new (Context) ReqdWorkGroupSizeAttr(
-      Context, A, A.getXDim(), A.getYDim(), A.getZDim());
+  return ::new (Context)
+      ReqdWorkGroupSizeAttr(Context, A, A.getXDim(), A.getYDim(), A.getZDim());
 }
 
 static void handleReqdWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -4118,9 +4123,10 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
     // mode. All spellings of reqd_work_group_size attribute
     // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-      if (CheckWorkGroupSize(*this, E, DeclAttr->getXDim(), DeclAttr->getZDim())) {
+      if (CheckWorkGroupSize(*this, E, DeclAttr->getXDim(),
+                             DeclAttr->getZDim())) {
         Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
-           << CI << DeclAttr;
+            << CI << DeclAttr;
         Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
         return;
       }
@@ -4161,13 +4167,14 @@ SYCLIntelNumSimdWorkItemsAttr *Sema::MergeSYCLIntelNumSimdWorkItemsAttr(
   // mode. All spellings of reqd_work_group_size attribute
   // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (CheckWorkGroupSize(*this, A.getValue(), DeclAttr->getXDim(), DeclAttr->getZDim())) {
-       Diag(A.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+    if (CheckWorkGroupSize(*this, A.getValue(), DeclAttr->getXDim(),
+                           DeclAttr->getZDim())) {
+      Diag(A.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
           << &A << DeclAttr;
-       Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
-       return nullptr;
-     }
-   }
+      Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
+      return nullptr;
+    }
+  }
 
   return ::new (Context)
       SYCLIntelNumSimdWorkItemsAttr(Context, A, A.getValue());

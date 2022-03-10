@@ -27,8 +27,7 @@ class Functor32 {
 public:
   // expected-note@+2{{conflicting attribute is here}}
   // expected-error@+2{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
-  [[sycl::reqd_work_group_size(32, 1, 1)]]
-  [[sycl::reqd_work_group_size(1, 1, 32)]] void
+  [[sycl::reqd_work_group_size(32, 1, 1)]] [[sycl::reqd_work_group_size(1, 1, 32)]] void
   operator()() const {}
 };
 #endif // TRIGGER_ERROR
@@ -49,8 +48,7 @@ struct TRIFuncObjGood {
   operator()() const;
 };
 
-[[sycl::reqd_work_group_size(1, 2, 3)]]
-void TRIFuncObjGood::operator()() const {}
+[[sycl::reqd_work_group_size(1, 2, 3)]] void TRIFuncObjGood::operator()() const {}
 
 int main() {
   q.submit([&](handler &h) {
