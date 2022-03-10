@@ -1269,5 +1269,3 @@ template <> struct hash<cl::sycl::queue> {
   }
 };
 } // namespace std
-
-#undef __SYCL_USE_FALLBACK_ASSERT
