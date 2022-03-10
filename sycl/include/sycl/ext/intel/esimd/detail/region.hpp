@@ -21,7 +21,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace intel {
-namespace experimental {
 namespace esimd {
 
 /// @cond ESIMD_DETAIL
@@ -137,7 +136,6 @@ template <typename T, typename U> T getBaseRegion(std::pair<T, U> Reg) {
 /// @endcond ESIMD_DETAIL
 
 } // namespace esimd
-} // namespace experimental
 } // namespace intel
 } // namespace ext
 } // namespace sycl
