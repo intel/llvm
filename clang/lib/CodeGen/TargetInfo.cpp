@@ -8372,10 +8372,15 @@ void TCETargetCodeGenInfo::setTargetAttributes(
 
         SmallVector<llvm::Metadata *, 5> Operands;
         Operands.push_back(llvm::ConstantAsMetadata::get(F));
-        ASTContext &Ctx = M.getContext();
-        unsigned XDim = Attr->getXDimVal(Ctx)->getZExtValue();
-        unsigned YDim = Attr->getYDimVal(Ctx)->getZExtValue();
-        unsigned ZDim = Attr->getZDimVal(Ctx)->getZExtValue();
+        const auto *XDimExpr = cast<ConstantExpr>(Attr->getXDim());
+        const auto *YDimExpr = cast<ConstantExpr>(Attr->getYDim());
+        const auto *ZDimExpr = cast<ConstantExpr>(Attr->getZDim());
+        Optional<llvm::APSInt> XDimVal = XDimExpr->getResultAsAPSInt();
+        Optional<llvm::APSInt> YDimVal = YDimExpr->getResultAsAPSInt();
+        Optional<llvm::APSInt> ZDimVal = ZDimExpr->getResultAsAPSInt();
+        unsigned XDim = XDimVal->getZExtValue();
+        unsigned YDim = YDimVal->getZExtValue();
+        unsigned ZDim = ZDimVal->getZExtValue();
 
         Operands.push_back(llvm::ConstantAsMetadata::get(
             llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, XDim))));
@@ -9255,9 +9260,15 @@ void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
       Max = FlatWGS->getMax()->EvaluateKnownConstInt(Ctx).getExtValue();
     }
     if (ReqdWGS) {
-      XDim = ReqdWGS->getXDimVal(Ctx)->getZExtValue();
-      YDim = ReqdWGS->getYDimVal(Ctx)->getZExtValue();
-      ZDim = ReqdWGS->getZDimVal(Ctx)->getZExtValue();
+      const auto *XDimExpr = cast<ConstantExpr>(ReqdWGS->getXDim());
+      const auto *YDimExpr = cast<ConstantExpr>(ReqdWGS->getYDim());
+      const auto *ZDimExpr = cast<ConstantExpr>(ReqdWGS->getZDim());
+      Optional<llvm::APSInt> XDimVal = XDimExpr->getResultAsAPSInt();
+      Optional<llvm::APSInt> YDimVal = YDimExpr->getResultAsAPSInt();
+      Optional<llvm::APSInt> ZDimVal = ZDimExpr->getResultAsAPSInt();
+      XDim = XDimVal->getZExtValue();
+      YDim = YDimVal->getZExtValue();
+      ZDim = ZDimVal->getZExtValue();
     }
     if (ReqdWGS && Min == 0 && Max == 0)
       Min = Max = XDim * YDim * ZDim;

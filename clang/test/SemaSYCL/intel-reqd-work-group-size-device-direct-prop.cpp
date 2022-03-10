@@ -30,19 +30,19 @@ public:
                                                               // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
                                                               // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 };
-#endif // TRIGGER_ERROR
 
 class Functor33 {
 public:
-  // expected-warning@+1{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
+  // expected-error@+1{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
   [[sycl::reqd_work_group_size(32, -4)]] void operator()() const {}
 };
 
 class Functor30 {
 public:
-  // expected-warning@+1 2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
+  // expected-error@+1 2{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
   [[sycl::reqd_work_group_size(30, -30, -30)]] void operator()() const {}
 };
+#endif // TRIGGER_ERROR
 
 class Functor16 {
 public:
@@ -109,35 +109,13 @@ int main() {
     FunctorAttr fattr;
     h.single_task<class kernel_name3>(fattr);
 
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
-    // CHECK: ReqdWorkGroupSizeAttr
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 32
-    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 32
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int -4
-    // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 4
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 1
+#ifdef TRIGGER_ERROR
     Functor33 f33;
     h.single_task<class kernel_name4>(f33);
 
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
-    // CHECK: ReqdWorkGroupSizeAttr
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 30
-    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 30
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int -30
-    // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 30
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int -30
-    // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
     Functor30 f30;
     h.single_task<class kernel_name5>(f30);
+#endif // TRIGGER_ERROR
   });
   return 0;
 }

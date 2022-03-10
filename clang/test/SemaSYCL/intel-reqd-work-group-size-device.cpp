@@ -32,9 +32,10 @@ void bar() {
 [[sycl::reqd_work_group_size(32, 32)]] void f32x32x1() {}      // expected-note {{conflicting attribute is here}}
 [[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
+#ifdef TRIGGER_ERROR
 class Functor33 {
 public:
-  // expected-warning@+1{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
+  // expected-error@+1{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
   [[sycl::reqd_work_group_size(32, -4)]] void operator()() const {}
 };
 
@@ -42,9 +43,10 @@ public:
 
 class Functor30 {
 public:
-  // expected-warning@+1 2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
+  // expected-error@+1 2{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
   [[sycl::reqd_work_group_size(30, -30, -30)]] void operator()() const {}
 };
+#endif // TRIGGER_ERROR
 
 class Functor16 {
 public:
@@ -94,11 +96,13 @@ int main() {
     FunctorAttr fattr;
     h.single_task<class kernel_name4>(fattr);
 
+#ifdef TRIGGER_ERROR
     Functor33 f33;
     h.single_task<class kernel_name5>(f33);
 
     Functor30 f30;
     h.single_task<class kernel_name6>(f30);
+#endif // TRIGGER_ERROR
 
     h.single_task<class kernel_name7>([]() [[sycl::reqd_work_group_size(32, 32, 32)]] {
       f32x32x32();
@@ -176,31 +180,6 @@ int main() {
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 128
 // CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 32
-// CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int -4
-// CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-// CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 1
-// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name6
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 30
-// CHECK-NEXT:  IntegerLiteral{{.*}}30{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int -30
-// CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-// CHECK-NEXT:  IntegerLiteral{{.*}}30{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int -30
-// CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-// CHECK-NEXT:  IntegerLiteral{{.*}}30{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name7
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'

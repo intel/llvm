@@ -25,10 +25,9 @@ __attribute__((reqd_work_group_size(4))) void four_yet_again(); // expected-erro
                                                                // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 class Functor32 {
 public:
-  // expected-note@+3{{conflicting attribute is here}}
-  // expected-warning@+3{{attribute 'reqd_work_group_size' is already applied with different arguments}}
+  // expected-note@+2{{conflicting attribute is here}}
   // expected-error@+2{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
-  [[sycl::reqd_work_group_size(32, 1, 1)]] // expected-note {{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(32, 1, 1)]]
   [[sycl::reqd_work_group_size(1, 1, 32)]] void
   operator()() const {}
 };
@@ -44,6 +43,14 @@ public:
   __attribute__((reqd_work_group_size(128, 128, 128))) void operator()() const {} // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
                                                                                   // expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
 };
+
+struct TRIFuncObjGood {
+  [[sycl::reqd_work_group_size(1, 2, 3)]] void
+  operator()() const;
+};
+
+[[sycl::reqd_work_group_size(1, 2, 3)]]
+void TRIFuncObjGood::operator()() const {}
 
 int main() {
   q.submit([&](handler &h) {
@@ -74,6 +81,19 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 128
     FunctorAttr fattr;
     h.single_task<class kernel_name2>(fattr);
+
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
+    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 2
+    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 3
+    // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
+    h.single_task<class test_kernel3>(TRIFuncObjGood());
   });
   return 0;
 }

@@ -110,31 +110,23 @@ struct TRIFuncObjGood9 {
 
 [[intel::max_global_work_dim(1)]] void TRIFuncObjGood9::operator()() const {}
 
-// FIXME: We do not have support yet for checking
-// reqd_work_group_size and max_global_work_dim
-// attributes when merging, so the test compiles without
-// any diagnostic when it shouldn't.
+#ifdef TRIGGER_ERROR
 struct TRIFuncObjBad1 {
-  [[sycl::reqd_work_group_size(4, 4, 4)]] void
+  [[sycl::reqd_work_group_size(4, 4, 4)]] void // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
   operator()() const;
 };
 
 [[intel::max_global_work_dim(0)]]
 void TRIFuncObjBad1::operator()() const {}
 
-// FIXME: We do not have support yet for checking
-// reqd_work_group_size and max_global_work_dim
-// attributes when merging, so the test compiles without
-// any diagnostic when it shouldn't.
 struct TRIFuncObjBad2 {
-  [[sycl::reqd_work_group_size(4, 4, 4)]] void
+  [[sycl::reqd_work_group_size(4, 4, 4)]] void // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
   operator()() const;
 };
 
 [[intel::max_global_work_dim(0)]]
 void TRIFuncObjBad2::operator()() const {}
 
-#ifdef TRIGGER_ERROR
 // Checks correctness of mutual usage of different work_group_size attributes:
 // reqd_work_group_size, max_work_group_size and max_global_work_dim.
 // In case the value of 'max_global_work_dim' attribute equals to 0 we shall
@@ -195,8 +187,7 @@ void TRIFuncObjBad9::operator()() const {}
 // reqd_work_group_size, max_work_group_size and max_global_work_dim.
 
 struct TRIFuncObjBad10 {
-  // expected-error@+2{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
-  // expected-warning@+1{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
+  // expected-error@+1{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
   [[sycl::reqd_work_group_size(-4, 1)]]
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
@@ -209,7 +200,7 @@ struct TRIFuncObjBad11 {
 };
 
 struct TRIFuncObjBad12 {
-  [[sycl::reqd_work_group_size(0, 4, 4)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
+  [[sycl::reqd_work_group_size(0, 4, 4)]] // expected-error{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
@@ -432,39 +423,10 @@ int main() {
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 
+#ifdef TRIGGER_ERROR
     h.single_task<class test_kernel12>(TRIFuncObjBad1());
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel12
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 0
-    // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
-
     h.single_task<class test_kernel13>(TRIFuncObjBad2());
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel13
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 0
-    // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
+#endif // TRIGGER_ERROR
 
     // Ignore duplicate attribute with same argument value.
     h.single_task<class test_kernell4>(
