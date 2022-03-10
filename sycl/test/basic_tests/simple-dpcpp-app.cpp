@@ -1,3 +1,7 @@
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %RUN_ON_HOST %t.out
+
+// Simple DPCPP application example
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
