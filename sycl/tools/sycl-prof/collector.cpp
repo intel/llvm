@@ -10,6 +10,7 @@
 #include "xpti/xpti_data_types.h"
 
 #include <cstdint>
+#include <cstdlib>
 #include <xpti/xpti_trace_framework.h>
 
 #include <chrono>
@@ -62,7 +63,11 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      const char * /*version_str*/,
                                      const char *StreamName) {
   if (GWriter == nullptr) {
-    GWriter = new JSONWriter(std::getenv("SYCL_PROF_OUT_FILE"));
+    const char *ProfOutFile = std::getenv("SYCL_PROF_OUT_FILE");
+    if (!ProfOutFile)
+      throw std::runtime_error(
+          "SYCL_PROF_OUT_FILE environment variable is not specified");
+    GWriter = new JSONWriter(ProfOutFile);
     GWriter->init();
   }
 
