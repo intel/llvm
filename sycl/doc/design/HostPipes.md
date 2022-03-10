@@ -55,7 +55,7 @@ class pipe
 #endif
   __pipeType { const char __p };
   
-  __pipeType __pipe;
+  static __pipeType __pipe;
   ...
 }
 ```
