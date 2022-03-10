@@ -4015,7 +4015,7 @@ static const ExprEvalResult *evaluateExpr(Expr *expr, CXCursor C) {
   }
 
   if (expr->getStmtClass() == Stmt::ImplicitCastExprClass) {
-    const ImplicitCastExpr *I = dyn_cast<ImplicitCastExpr>(expr);
+    const auto *I = cast<ImplicitCastExpr>(expr);
     auto *subExpr = I->getSubExprAsWritten();
     if (subExpr->getStmtClass() == Stmt::StringLiteralClass ||
         subExpr->getStmtClass() == Stmt::ObjCStringLiteralClass) {
@@ -6745,8 +6745,8 @@ void clang_getDefinitionSpellingAndExtent(
     CXCursor C, const char **startBuf, const char **endBuf, unsigned *startLine,
     unsigned *startColumn, unsigned *endLine, unsigned *endColumn) {
   assert(getCursorDecl(C) && "CXCursor has null decl");
-  const FunctionDecl *FD = dyn_cast<FunctionDecl>(getCursorDecl(C));
-  CompoundStmt *Body = dyn_cast<CompoundStmt>(FD->getBody());
+  const auto *FD = cast<FunctionDecl>(getCursorDecl(C));
+  const auto *Body = cast<CompoundStmt>(FD->getBody());
 
   SourceManager &SM = FD->getASTContext().getSourceManager();
   *startBuf = SM.getCharacterData(Body->getLBracLoc());
@@ -8294,7 +8294,7 @@ unsigned clang_Cursor_getObjCPropertyAttributes(CXCursor C, unsigned reserved) {
     return CXObjCPropertyAttr_noattr;
 
   unsigned Result = CXObjCPropertyAttr_noattr;
-  const ObjCPropertyDecl *PD = dyn_cast<ObjCPropertyDecl>(getCursorDecl(C));
+  const auto *PD = cast<ObjCPropertyDecl>(getCursorDecl(C));
   ObjCPropertyAttribute::Kind Attr = PD->getPropertyAttributesAsWritten();
 
 #define SET_CXOBJCPROP_ATTR(A)                                                 \
@@ -8322,7 +8322,7 @@ CXString clang_Cursor_getObjCPropertyGetterName(CXCursor C) {
   if (C.kind != CXCursor_ObjCPropertyDecl)
     return cxstring::createNull();
 
-  const ObjCPropertyDecl *PD = dyn_cast<ObjCPropertyDecl>(getCursorDecl(C));
+  const auto *PD = cast<ObjCPropertyDecl>(getCursorDecl(C));
   Selector sel = PD->getGetterName();
   if (sel.isNull())
     return cxstring::createNull();
@@ -8334,7 +8334,7 @@ CXString clang_Cursor_getObjCPropertySetterName(CXCursor C) {
   if (C.kind != CXCursor_ObjCPropertyDecl)
     return cxstring::createNull();
 
-  const ObjCPropertyDecl *PD = dyn_cast<ObjCPropertyDecl>(getCursorDecl(C));
+  const auto *PD = cast<ObjCPropertyDecl>(getCursorDecl(C));
   Selector sel = PD->getSetterName();
   if (sel.isNull())
     return cxstring::createNull();

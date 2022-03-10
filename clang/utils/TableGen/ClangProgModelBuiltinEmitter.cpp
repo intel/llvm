@@ -762,6 +762,20 @@ void BuiltinNameEmitter::EmitStringMatcher() {
   OS << "} // isBuiltin\n";
 }
 
+// Emit an if-statement with an isMacroDefined call for each extension in
+// the space-separated list of extensions.
+static void EmitMacroChecks(raw_ostream &OS, StringRef Extensions) {
+  SmallVector<StringRef, 2> ExtVec;
+  Extensions.split(ExtVec, " ");
+  OS << "      if (";
+  for (StringRef Ext : ExtVec) {
+    if (Ext != ExtVec.front())
+      OS << " && ";
+    OS << "S.getPreprocessor().isMacroDefined(\"" << Ext << "\")";
+  }
+  OS << ") {\n  ";
+}
+
 void BuiltinNameEmitter::EmitQualTypeFinder() {
   OS << R"(
 
@@ -860,11 +874,10 @@ static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name);
     // Collect all QualTypes for a single vector size into TypeList.
     OS << "      SmallVector<QualType, " << BaseTypes.size() << "> TypeList;\n";
     for (const auto *T : BaseTypes) {
-      StringRef Ext =
+      StringRef Exts =
           T->getValueAsDef("Extension")->getValueAsString("ExtName");
-      if (!Ext.empty()) {
-        OS << "      if (S.getPreprocessor().isMacroDefined(\"" << Ext
-           << "\")) {\n  ";
+      if (!Exts.empty()) {
+        EmitMacroChecks(OS, Exts);
       }
       if (T->getValueAsDef("QTExpr")->isSubClassOf("QualTypeFromFunction"))
         OS << "      TypeList.push_back("
@@ -874,7 +887,7 @@ static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name);
         OS << "      TypeList.push_back("
            << T->getValueAsDef("QTExpr")->getValueAsString("TypeExpr")
            << ");\n";
-      if (!Ext.empty()) {
+      if (!Exts.empty()) {
         OS << "      }\n";
       }
     }
@@ -918,19 +931,18 @@ static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name);
     // Emit the cases for non generic, non image types.
     OS << "    case TID_" << T->getValueAsString("Name") << ":\n";
 
-    StringRef Ext = T->getValueAsDef("Extension")->getValueAsString("ExtName");
-    // If this type depends on an extension, ensure the extension macro is
+    StringRef Exts = T->getValueAsDef("Extension")->getValueAsString("ExtName");
+    // If this type depends on an extension, ensure the extension macros are
     // defined.
-    if (!Ext.empty()) {
-      OS << "      if (S.getPreprocessor().isMacroDefined(\"" << Ext
-         << "\")) {\n  ";
+    if (!Exts.empty()) {
+      EmitMacroChecks(OS, Exts);
     }
     if (QT->isSubClassOf("QualTypeFromFunction"))
       OS << "      QT.push_back(" << QT->getValueAsString("TypeExpr")
          << "(Context));\n";
     else
       OS << "      QT.push_back(" << QT->getValueAsString("TypeExpr") << ");\n";
-    if (!Ext.empty()) {
+    if (!Exts.empty()) {
       OS << "      }\n";
     }
     OS << "      break;\n";
