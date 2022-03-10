@@ -7472,8 +7472,7 @@ static bool checkAddIRAttributesValueExpr(Expr *ValArg, Sema &S,
                                           const AttributeCommonInfo &CI) {
   QualType ValType = ValArg->getType();
   if (isAddIRAttributesValidStringType(ValType) || ValType->isNullPtrType() ||
-      ValType->isIntegerType() || ValType->isFloatingType() ||
-      ValType->isCharType() || ValType->isEnumeralType())
+      ValType->isIntegralOrEnumerationType() || ValType->isFloatingType())
     return false;
 
   return S.Diag(ValArg->getBeginLoc(),
@@ -7528,11 +7527,13 @@ static bool evaluateAddIRAttributesArgs(Expr **Args, size_t ArgsSize, Sema &S,
   // If there are no dependent expressions, check argument types.
   // First half of the arguments are names, the second half are values.
   unsigned MidArg = (ArgsSize - HasFilter) / 2 + HasFilter;
-  if (!HasDependentArg)
-    for (unsigned I = HasFilter; I < ArgsSize; ++I)
+  if (!HasDependentArg) {
+    for (unsigned I = HasFilter; I < ArgsSize; ++I) {
       if ((I < MidArg && checkAddIRAttributesNameExpr(Args[I], S, CI)) ||
           (I >= MidArg && checkAddIRAttributesValueExpr(Args[I], S, CI)))
         return true;
+    }
+  }
   return false;
 }
 
@@ -7552,22 +7553,31 @@ static bool hasSameSYCLAddIRAttributes(
   return LNameValSet == RNameValSet;
 }
 
+template <typename AddIRAttrT>
+static bool checkSYCLAddIRAttributesMergability(const AddIRAttrT &NewAttr,
+                                                const AddIRAttrT &ExistingAttr,
+                                                Sema &S) {
+  ASTContext &Context = S.getASTContext();
+  // If there are no dependent argument expressions and the filters or the
+  // attributes are different, then fail due to differing duplicates.
+  if (!hasDependentExpr(NewAttr.args_begin(), NewAttr.args_size()) &&
+      !hasDependentExpr(ExistingAttr.args_begin(), ExistingAttr.args_size()) &&
+      (NewAttr.getAttributeFilter() != ExistingAttr.getAttributeFilter() ||
+       !hasSameSYCLAddIRAttributes(
+           NewAttr.getAttributeNameValuePairs(Context),
+           ExistingAttr.getAttributeNameValuePairs(Context)))) {
+    S.Diag(ExistingAttr.getLoc(), diag::err_duplicate_attribute) << &NewAttr;
+    S.Diag(NewAttr.getLoc(), diag::note_conflicting_attribute);
+    return true;
+  }
+  return false;
+}
+
 SYCLAddIRAttributesFunctionAttr *Sema::MergeSYCLAddIRAttributesFunctionAttr(
     Decl *D, const SYCLAddIRAttributesFunctionAttr &A) {
   if (const auto *ExistingAttr =
           D->getAttr<SYCLAddIRAttributesFunctionAttr>()) {
-    // If there are no dependent argument expressions and the filters or the
-    // attributes are different, then fail due to differing duplicates.
-    if (!hasDependentExpr(A.args_begin(), A.args_size()) &&
-        !hasDependentExpr(ExistingAttr->args_begin(),
-                          ExistingAttr->args_size()) &&
-        (A.getAttributeFilter() != ExistingAttr->getAttributeFilter() ||
-         !hasSameSYCLAddIRAttributes(
-             A.getAttributeNameValuePairs(Context),
-             ExistingAttr->getAttributeNameValuePairs(Context)))) {
-      Diag(ExistingAttr->getLoc(), diag::err_duplicate_attribute) << &A;
-      Diag(A.getLoc(), diag::note_conflicting_attribute);
-    }
+    checkSYCLAddIRAttributesMergability(A, *ExistingAttr, *this);
     return nullptr;
   }
   return A.clone(Context);
@@ -7578,11 +7588,13 @@ void Sema::AddSYCLAddIRAttributesFunctionAttr(Decl *D,
                                               MutableArrayRef<Expr *> Args) {
   if (const auto *FuncD = dyn_cast<FunctionDecl>(D)) {
     if (FuncD->isDefaulted()) {
-      Diag(CI.getLoc(), diag::err_disallow_attribute_on_default) << CI;
+      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func)
+          << CI << 1;
       return;
     }
     if (FuncD->isDeleted()) {
-      Diag(CI.getLoc(), diag::err_disallow_attribute_on_delete) << CI;
+      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func)
+          << CI << 2;
       return;
     }
   }
@@ -7600,7 +7612,7 @@ static void handleSYCLAddIRAttributesFunctionAttr(Sema &S, Decl *D,
   llvm::SmallVector<Expr *, 4> Args;
   Args.reserve(A.getNumArgs() - 1);
   for (unsigned I = 0; I < A.getNumArgs(); I++) {
-    assert(!A.isArgIdent(I));
+    assert(A.isArgExpr(I));
     Args.push_back(A.getArgAsExpr(I));
   }
 
@@ -7612,18 +7624,7 @@ Sema::MergeSYCLAddIRAttributesKernelParameterAttr(
     Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A) {
   if (const auto *ExistingAttr =
           D->getAttr<SYCLAddIRAttributesKernelParameterAttr>()) {
-    // If there are no dependent argument expressions and the filters or the
-    // attributes are different, then fail due to differing duplicates.
-    if (!hasDependentExpr(A.args_begin(), A.args_size()) &&
-        !hasDependentExpr(ExistingAttr->args_begin(),
-                          ExistingAttr->args_size()) &&
-        (A.getAttributeFilter() != ExistingAttr->getAttributeFilter() ||
-         !hasSameSYCLAddIRAttributes(
-             A.getAttributeNameValuePairs(Context),
-             ExistingAttr->getAttributeNameValuePairs(Context)))) {
-      Diag(ExistingAttr->getLoc(), diag::err_duplicate_attribute) << &A;
-      Diag(A.getLoc(), diag::note_conflicting_attribute);
-    }
+    checkSYCLAddIRAttributesMergability(A, *ExistingAttr, *this);
     return nullptr;
   }
   return A.clone(Context);
@@ -7644,7 +7645,7 @@ static void handleSYCLAddIRAttributesKernelParameterAttr(Sema &S, Decl *D,
   llvm::SmallVector<Expr *, 4> Args;
   Args.reserve(A.getNumArgs() - 1);
   for (unsigned I = 0; I < A.getNumArgs(); I++) {
-    assert(!A.isArgIdent(I));
+    assert(A.getArgAsExpr(I));
     Args.push_back(A.getArgAsExpr(I));
   }
 
@@ -7656,18 +7657,7 @@ Sema::MergeSYCLAddIRAttributesGlobalVariableAttr(
     Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A) {
   if (const auto *ExistingAttr =
           D->getAttr<SYCLAddIRAttributesGlobalVariableAttr>()) {
-    // If there are no dependent argument expressions and the filters or the
-    // attributes are different, then fail due to differing duplicates.
-    if (!hasDependentExpr(A.args_begin(), A.args_size()) &&
-        !hasDependentExpr(ExistingAttr->args_begin(),
-                          ExistingAttr->args_size()) &&
-        (A.getAttributeFilter() != ExistingAttr->getAttributeFilter() ||
-         !hasSameSYCLAddIRAttributes(
-             A.getAttributeNameValuePairs(Context),
-             ExistingAttr->getAttributeNameValuePairs(Context)))) {
-      Diag(ExistingAttr->getLoc(), diag::err_duplicate_attribute) << &A;
-      Diag(A.getLoc(), diag::note_conflicting_attribute);
-    }
+    checkSYCLAddIRAttributesMergability(A, *ExistingAttr, *this);
     return nullptr;
   }
   return A.clone(Context);
@@ -7688,7 +7678,7 @@ static void handleSYCLAddIRAttributesGlobalVariableAttr(Sema &S, Decl *D,
   llvm::SmallVector<Expr *, 4> Args;
   Args.reserve(A.getNumArgs() - 1);
   for (unsigned I = 0; I < A.getNumArgs(); I++) {
-    assert(!A.isArgIdent(I));
+    assert(A.getArgAsExpr(I));
     Args.push_back(A.getArgAsExpr(I));
   }
 

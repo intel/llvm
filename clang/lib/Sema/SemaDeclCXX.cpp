@@ -3101,7 +3101,7 @@ void Sema::CheckOverrideControl(NamedDecl *D) {
 
 // Check and diagnose if a SYCLAddIRAttributesFunctionAttr is attached to a
 // virtual member function.
-void Sema::CheckVirtualSYCLAddIRAttributesFunctionAttr(NamedDecl *D) {
+void Sema::CheckVirtualSYCLAddIRAttributesFunctionAttr(const NamedDecl *D) {
   const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(D);
   if (!MD)
     return;
@@ -3110,8 +3110,8 @@ void Sema::CheckVirtualSYCLAddIRAttributesFunctionAttr(NamedDecl *D) {
   // functions.
   if (const auto *AddIRAttr = MD->getAttr<SYCLAddIRAttributesFunctionAttr>()) {
     if (MD->isVirtual()) {
-      Diag(AddIRAttr->getLoc(), diag::err_disallow_attribute_on_virtual)
-          << AddIRAttr;
+      Diag(AddIRAttr->getLoc(), diag::err_disallow_attribute_on_func)
+          << AddIRAttr << 0;
       return;
     }
   }

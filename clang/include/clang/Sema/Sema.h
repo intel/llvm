@@ -7630,7 +7630,7 @@ public:
 
   /// CheckVirtualSYCLAddIRAttributesFunctionAttr - Check and diagnose if a
   /// SYCLAddIRAttributesFunctionAttr is attached to a virtual member function.
-  void CheckVirtualSYCLAddIRAttributesFunctionAttr(NamedDecl *D);
+  void CheckVirtualSYCLAddIRAttributesFunctionAttr(const NamedDecl *D);
 
   /// DiagnoseAbsenceOfOverrideControl - Diagnose if 'override' keyword was
   /// not used in the declaration of an overriding method.

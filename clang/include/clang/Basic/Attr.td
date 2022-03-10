@@ -1633,7 +1633,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
   getAttributeNameValuePairs(const ASTContext &Context) const {
     return getFilteredAttributeNameValuePairs(None, Context);
   }
-}]> {}
+}]>;
 
 def SYCLAddIRAttributesFunction : InheritableAttr {
   let Spellings = [CXX11<"__sycl_detail__", "add_ir_attributes_function">];
