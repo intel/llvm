@@ -18,15 +18,6 @@ jobs:
       with:
         path: src
         fetch-depth: 1
-    - name: Install dependencies
-      shell: cmd
-      run: |
-        choco install -y ninja
-        choco install -y sccache --version 0.2.15
-        refreshenv
-    - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
-      with:
-        arch: amd64
     - name: Build
       shell: cmd
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
@@ -38,6 +29,7 @@ jobs:
         IF NOT EXIST D:\github\_work\cache\sycl_${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         set SCCACHE_DIR=D:\github\_work\cache
         set PATH=C:\ProgramData\chocolatey\lib\sccache\tools\sccache-v0.2.15-x86_64-pc-windows-msvc;%PATH%
+        "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat" amd64
         python.exe src/buildbot/configure.py -o build ^
           --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
