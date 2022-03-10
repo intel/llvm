@@ -190,7 +190,7 @@ static void zePrint(const char *Format, ...) {
 
 // Controls whether device-scope events are used, and how.
 static const enum EventsScope {
-  // All events are created host-visible (the default mode)
+  // All events are created host-visible.
   AllHostVisible,
   // All events are created with device-scope and only when
   // host waits them or queries their status that a proxy
@@ -200,19 +200,22 @@ static const enum EventsScope {
   // All events are created with device-scope and only
   // when a batch of commands is submitted for execution a
   // last command in that batch is added to signal host-visible
-  // completion of each command in this batch.
+  // completion of each command in this batch (the default mode).
   LastCommandInBatchHostVisible
 } EventsScope = [] {
   const auto DeviceEventsStr =
       std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
 
-  switch (DeviceEventsStr ? std::atoi(DeviceEventsStr) : 0) {
+  auto Default = LastCommandInBatchHostVisible;
+  switch (DeviceEventsStr ? std::atoi(DeviceEventsStr) : Default) {
+  case 0:
+    return AllHostVisible;
   case 1:
     return OnDemandHostVisibleProxy;
   case 2:
     return LastCommandInBatchHostVisible;
   }
-  return AllHostVisible;
+  return Default;
 }();
 
 // Maximum number of events that can be present in an event ZePool is captured
@@ -849,6 +852,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   // synchronized above already does that.
   auto &EventList = CommandList->second.EventList;
   for (auto &Event : EventList) {
+    Event->Completed = true;
     // All events in this loop are in the same command list which has been just
     // reset above. We don't want cleanup() to reset same command list again for
     // all events in the loop so set it to nullptr.
@@ -1366,15 +1370,17 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // Update each command's event in the command-list to "see" this
     // proxy event as a host-visible counterpart.
     for (auto &Event : CommandList->second.EventList) {
-      Event->HostVisibleEvent = HostVisibleEvent;
-      PI_CALL(piEventRetain(HostVisibleEvent));
+      if (!Event->HostVisibleEvent) {
+        Event->HostVisibleEvent = HostVisibleEvent;
+        PI_CALL(piEventRetain(HostVisibleEvent));
+      }
     }
 
     // Decrement the reference count of the event such that all the remaining
     // references are from the other commands in this batch. This host-visible
     // event will not be waited/release by SYCL RT, so it must be destroyed
     // after all events in the batch are gone.
-    PI_CALL(piEventRelease(HostVisibleEvent));
+    // PI_CALL(piEventRelease(HostVisibleEvent));
     PI_CALL(piEventRelease(HostVisibleEvent));
     PI_CALL(piEventRelease(HostVisibleEvent));
 
@@ -1529,7 +1535,8 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     if (EventListLength > 0) {
       for (pi_uint32 I = 0; I < EventListLength; I++) {
         PI_ASSERT(EventList[I] != nullptr, PI_INVALID_VALUE);
-        auto ZeEvent = EventList[I]->ZeEvent;
+        if (EventList[I]->Completed)
+          continue;
 
         // Poll of the host-visible events.
         auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
@@ -1558,7 +1565,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
             return Res;
         }
 
-        this->ZeEventList[TmpListLength] = ZeEvent;
+        this->ZeEventList[TmpListLength] = EventList[I]->ZeEvent;
         this->PiEventList[TmpListLength] = EventList[I];
         TmpListLength += 1;
       }
@@ -5042,25 +5049,26 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
       Event->Queue->executeOpenCommandListWithEvent(Event);
     }
 
+    // TODO: We don't know if the status is queued, submitted or running.
+    //       For now return "running", as others are unlikely to be of
+    //       interest.
+    pi_int32 Result = CL_RUNNING;
+
     // Make sure that we query a host-visible event only.
     // If one wasn't yet created then don't create it here as well, and
     // just conservatively return that event is not yet completed.
     auto HostVisibleEvent = Event->HostVisibleEvent;
-    if (HostVisibleEvent) {
+    if (Event->Completed) {
+      Result = CL_COMPLETE;
+    } else if (HostVisibleEvent) {
       ze_result_t ZeResult;
       ZeResult =
           ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
       if (ZeResult == ZE_RESULT_SUCCESS) {
-        return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet,
-                       pi_int32{CL_COMPLETE}); // Untie from OpenCL
+        Result = CL_COMPLETE;
       }
     }
-
-    // TODO: We don't know if the status is queued, submitted or running.
-    //       For now return "running", as others are unlikely to be of
-    //       interest.
-    return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet,
-                   pi_int32{CL_RUNNING});
+    return ReturnValue(pi_cast<pi_int32>(Result));
   }
   case PI_EVENT_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Event->RefCount});
@@ -5285,14 +5293,15 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     }
   }
   for (uint32_t I = 0; I < NumEvents; I++) {
-    auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
-    if (!HostVisibleEvent)
-      die("The host-visible proxy event missing");
+    if (!EventList[I]->Completed) {
+      auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
+      if (!HostVisibleEvent)
+        die("The host-visible proxy event missing");
 
-    ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
-    zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
-    ZE_CALL(zeHostSynchronize, (ZeEvent));
-
+      ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
+      zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
+      ZE_CALL(zeHostSynchronize, (ZeEvent));
+    }
     // NOTE: we are cleaning up after the event here to free resources
     // sooner in case run-time is not calling piEventRelease soon enough.
     EventList[I]->cleanup();
@@ -5643,6 +5652,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   Queue->LastCommandEvent = *Event;
 
   ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+  (*Event)->Completed = true;
   return PI_SUCCESS;
 }
 
@@ -6183,9 +6193,6 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
     }
 
-    // Signal this event
-    ZE_CALL(zeEventHostSignal, (ZeEvent));
-
     auto Res = Buffer->Mappings.insert({*RetMap, {Offset, Size}});
     // False as the second value in pair means that mapping was not inserted
     // because mapping already exists.
@@ -6194,6 +6201,10 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
       return PI_INVALID_VALUE;
     }
     return PI_SUCCESS;
+
+    // Signal this event
+    ZE_CALL(zeEventHostSignal, (ZeEvent));
+    (*Event)->Completed = true;
   }
 
   // Lock automatically releases when this goes out of scope.
@@ -6322,7 +6333,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
-
+    (*Event)->Completed = true;
     return PI_SUCCESS;
   }
 
