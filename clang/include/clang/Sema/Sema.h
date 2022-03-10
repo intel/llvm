@@ -13163,7 +13163,8 @@ public:
                                    SourceLocation BuiltinLoc,
                                    SourceLocation RParenLoc);
 
-  template <typename AttrTy> bool isDecoratedWithSyclAttribute(QualType Ty) {
+  template <typename AttrTy>
+  bool isTypeDecoratedWithDeclAttribute(QualType Ty) {
     const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
     if (!RecTy)
       return false;

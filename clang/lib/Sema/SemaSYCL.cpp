@@ -4892,7 +4892,8 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
     return;
   // Step 1: ensure that this is of the correct type template specialization.
   if (!Util::isSyclSpecIdType(VD->getType()) &&
-      !S.isDecoratedWithSyclAttribute<SYCLDeviceGlobalAttr>(VD->getType())) {
+      !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+          VD->getType())) {
     // Handle the case where this could be a deduced type, such as a deduction
     // guide. We have to do this here since this function, unlike most of the
     // rest of this file, is called during Sema instead of after it. We will
@@ -5072,7 +5073,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     // Skip if this isn't a SpecIdType or DeviceGlobal.  This can happen if it
     // was a deduced type.
     if (!Util::isSyclSpecIdType(VD->getType()) &&
-        !S.isDecoratedWithSyclAttribute<SYCLDeviceGlobalAttr>(VD->getType()))
+        !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            VD->getType()))
       continue;
 
     // Skip if we've already visited this.
@@ -5086,7 +5088,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     Visited.insert(VD);
     std::string TopShim = EmitShims(OS, ShimCounter, Policy, VD);
-    if (S.isDecoratedWithSyclAttribute<SYCLDeviceGlobalAttr>(VD->getType())) {
+    if (S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            VD->getType())) {
       DeviceGlobalsEmitted = true;
       DeviceGlobOS << "device_global_map::add(";
       DeviceGlobOS << "(void *)&";

@@ -231,7 +231,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
       if (IsRuntimeEvaluated && !IsEsimdPrivateGlobal && !IsConst &&
           VD->getStorageClass() == SC_Static &&
           !VD->hasAttr<SYCLGlobalVarAttr>() &&
-          !isDecoratedWithSyclAttribute<SYCLGlobalVariableAllowedAttr>(
+          !isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
               VD->getType()))
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelNonConstStaticDataVariable;
@@ -239,7 +239,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
       // SYCLGlobalVar or SYCLGlobalVariableAllowed attribute.
       else if (IsRuntimeEvaluated && !IsEsimdPrivateGlobal && !IsConst &&
                VD->hasGlobalStorage() && !VD->hasAttr<SYCLGlobalVarAttr>() &&
-               !isDecoratedWithSyclAttribute<SYCLGlobalVariableAllowedAttr>(
+               !isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
                    VD->getType()))
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelGlobalVariable;

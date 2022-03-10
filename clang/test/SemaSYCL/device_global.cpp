@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -std=c++17 -sycl-std=2020 -ast-dump -verify %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -std=c++17 -sycl-std=2020 -verify %s
 #include "Inputs/sycl.hpp"
 
 // Test cases below check for valid usage of device_global and
@@ -51,11 +51,3 @@ int main() {
     static device_global<int> non_const_static;
   });
 }
-//
-// CHECK: ClassTemplateDecl {{.*}} device_global
-// CHECK: CXXRecordDecl {{.*}} struct device_global definition
-// CHECK: SYCLDeviceGlobalAttr {{.*}}
-// CHECK: SYCLGlobalVariableAllowedAttr {{.*}}
-// CHECK: ClassTemplateSpecializationDecl {{.*}} struct device_global definition
-// CHECK: SYCLDeviceGlobalAttr {{.*}}
-// CHECK: SYCLGlobalVariableAllowedAttr {{.*}}
