@@ -1377,10 +1377,10 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     }
 
     // Decrement the reference count of the event such that all the remaining
-    // references are from the other commands in this batch. This host-visible
-    // event will not be waited/release by SYCL RT, so it must be destroyed
-    // after all events in the batch are gone.
-    // PI_CALL(piEventRelease(HostVisibleEvent));
+    // references are from the other commands in this batch and from the
+    // command-list itself. This host-visible event will not be waited/released
+    // by SYCL RT, so it must be destroyed after all events in the batch are
+    // gone.
     PI_CALL(piEventRelease(HostVisibleEvent));
     PI_CALL(piEventRelease(HostVisibleEvent));
 
