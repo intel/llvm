@@ -668,7 +668,8 @@ private:
       KernelType MKernelFunc;
       NormalizedKernelType(const KernelType &KernelFunc)
           : MKernelFunc(KernelFunc) {}
-      void operator()([[maybe_unused]] const nd_item<Dims> &Arg) {
+      void operator()(const nd_item<Dims> &Arg) {
+        (void)Arg;
         detail::runKernelWithoutArg(MKernelFunc);
       }
     };
