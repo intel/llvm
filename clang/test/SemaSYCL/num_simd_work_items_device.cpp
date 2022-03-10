@@ -264,7 +264,6 @@ struct TRIFuncObjGood5 {
   operator()() const;
 };
 
-[[sycl::reqd_work_group_size(3, 10, 5)]]
 [[sycl::reqd_work_group_size(3, 10, 5)]] void TRIFuncObjGood5::operator()() const {}
 
 struct TRIFuncObjGood6 {
@@ -272,7 +271,6 @@ struct TRIFuncObjGood6 {
   operator()() const;
 };
 
-[[intel::num_simd_work_items(5)]]
 [[intel::num_simd_work_items(5)]] void TRIFuncObjGood6::operator()() const {}
 
 [[intel::num_simd_work_items(2)]]

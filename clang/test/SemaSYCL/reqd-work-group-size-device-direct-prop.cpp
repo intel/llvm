@@ -26,7 +26,7 @@ __attribute__((reqd_work_group_size(4))) void four_yet_again(); // expected-erro
 class Functor32 {
 public:
   // expected-note@+2{{conflicting attribute is here}}
-  // expected-error@+2{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+  // expected-error@+1{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
   [[sycl::reqd_work_group_size(32, 1, 1)]] [[sycl::reqd_work_group_size(1, 1, 32)]] void
   operator()() const {}
 };

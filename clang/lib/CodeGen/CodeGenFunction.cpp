@@ -638,13 +638,13 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   if (const ReqdWorkGroupSizeAttr *A = FD->getAttr<ReqdWorkGroupSizeAttr>()) {
     // Attributes arguments (first and third) are reversed on SYCLDevice.
     llvm::Metadata *AttrMDArgs[] = {
-	llvm::ConstantAsMetadata::get(Builder.getInt(
+        llvm::ConstantAsMetadata::get(Builder.getInt(
             getLangOpts().SYCLIsDevice ? *A->getZDimVal() : *A->getXDimVal())),
-         llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
+        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
         llvm::ConstantAsMetadata::get(Builder.getInt(
             getLangOpts().SYCLIsDevice ? *A->getXDimVal() : *A->getZDimVal()))};
-     Fn->setMetadata("reqd_work_group_size",
-                     llvm::MDNode::get(Context, AttrMDArgs));
+    Fn->setMetadata("reqd_work_group_size",
+                    llvm::MDNode::get(Context, AttrMDArgs));
   }
 
   bool IsKernelOrDevice =

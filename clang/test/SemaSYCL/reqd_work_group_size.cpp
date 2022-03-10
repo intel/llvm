@@ -91,9 +91,9 @@ void instantiate() {
 // equal or greater than values coming from reqd_work_group_size attribute.
 [[sycl::reqd_work_group_size(1, 2, 3)]] [[sycl::reqd_work_group_size(1, 2, 3)]] void f10() {} // OK
 
-[[sycl::reqd_work_group_size(8)]] // expected-note {{conflicting attribute is here}}
-[[sycl::reqd_work_group_size(1, 1, 8)]] void
-f11(){}; // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+[[sycl::reqd_work_group_size(8)]]            // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(1, 1, 8)]] void // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+f11(){};
 
 [[sycl::reqd_work_group_size(32, 32, 1)]] [[sycl::reqd_work_group_size(32, 32)]] void f12() {} // OK
 

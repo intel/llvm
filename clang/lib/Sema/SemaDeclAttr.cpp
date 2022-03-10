@@ -3865,12 +3865,12 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
   // a declaration along with reqd_work_group_size attribute,
   // check to see if values of reqd_work_group_size arguments are
   // equal or greater than values of reqd_work_group_size attribute arguments.
-  // 
+  //
   // The arguments to reqd_work_group_size are ordered based on which index
   // increments the fastest. In OpenCL, the first argument is the index that
   // increments the fastest, and in SYCL, the last argument is the index that
   // increments the fastest.
-  // 
+  //
   // __attribute__((reqd_work_group_size)) follows the OpenCL rules in OpenCL
   // mode. All spellings of reqd_work_group_size attribute
   // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
