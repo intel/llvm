@@ -49,14 +49,12 @@ class Pattern;
 class Region;
 class ResultRange;
 class RewritePattern;
+class RewritePatternSet;
 class Type;
 class Value;
 class ValueRange;
 template <typename ValueRangeT>
 class ValueTypeRange;
-
-class RewritePatternSet;
-using OwningRewritePatternList = RewritePatternSet;
 
 //===----------------------------------------------------------------------===//
 // OperationName
@@ -468,7 +466,10 @@ public:
   }
 
   /// Add a range of named attributes.
-  template <typename IteratorT>
+  template <typename IteratorT,
+            typename = std::enable_if_t<std::is_convertible<
+                typename std::iterator_traits<IteratorT>::iterator_category,
+                std::input_iterator_tag>::value>>
   void append(IteratorT in_start, IteratorT in_end) {
     // TODO: expand to handle case where values appended are in order & after
     // end of current list.
@@ -666,7 +667,7 @@ public:
 
   /// Erase the operands held by the storage that have their corresponding bit
   /// set in `eraseIndices`.
-  void eraseOperands(const llvm::BitVector &eraseIndices);
+  void eraseOperands(const BitVector &eraseIndices);
 
   /// Get the operation operands held by the storage.
   MutableArrayRef<OpOperand> getOperands() { return {operandStorage, size()}; }

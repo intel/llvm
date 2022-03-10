@@ -46,9 +46,9 @@ class Value;
 /// instruction. If \p Updates is specified, collect all necessary DT updates
 /// into this vector. If \p KeepOneInputPHIs is true, one-input Phis in
 /// successors of blocks being deleted will be preserved.
-void DetatchDeadBlocks(ArrayRef <BasicBlock *> BBs,
-                       SmallVectorImpl<DominatorTree::UpdateType> *Updates,
-                       bool KeepOneInputPHIs = false);
+void detachDeadBlocks(ArrayRef <BasicBlock *> BBs,
+                      SmallVectorImpl<DominatorTree::UpdateType> *Updates,
+                      bool KeepOneInputPHIs = false);
 
 /// Delete the specified block, which must have no predecessors.
 void DeleteDeadBlock(BasicBlock *BB, DomTreeUpdater *DTU = nullptr,
@@ -500,7 +500,9 @@ BranchInst *GetIfCondition(BasicBlock *BB, BasicBlock *&IfTrue,
 // create the following structure:
 // A -> D0A, B -> D0A, I -> D0B, D0A -> D1, D0B -> D1
 // If BPI and BFI aren't non-null, BPI/BFI will be updated accordingly.
-bool SplitIndirectBrCriticalEdges(Function &F,
+// When `IgnoreBlocksWithoutPHI` is set to `true` critical edges leading to a
+// block without phi-instructions will not be split.
+bool SplitIndirectBrCriticalEdges(Function &F, bool IgnoreBlocksWithoutPHI,
                                   BranchProbabilityInfo *BPI = nullptr,
                                   BlockFrequencyInfo *BFI = nullptr);
 

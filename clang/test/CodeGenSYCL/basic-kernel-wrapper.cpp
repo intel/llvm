@@ -20,7 +20,7 @@ int main() {
 }
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_function
-// CHECK-SAME: i32 addrspace(1)* noundef [[MEM_ARG:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i32 addrspace(1)* noundef align 4 [[MEM_ARG:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[ACC_RANGE:%[a-zA-Z0-9_]+_1]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[MEM_RANGE:%[a-zA-Z0-9_]+_2]],
 // CHECK-SAME: %"struct.cl::sycl::id"* noundef byval{{.*}}align 4 [[OFFSET:%[a-zA-Z0-9_]+]])

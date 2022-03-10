@@ -30,9 +30,18 @@
 /// Check that -fcoverage-mapping is disabled for device
 // RUN: %clang -### -fsycl -fprofile-instr-generate -fcoverage-mapping -target x86_64-unknown-linux-gnu -c %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_COVERAGE_MAPPING %s
-// CHECK_COVERAGE_MAPPING: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fprofile-instrument=clang"
+// CHECK_COVERAGE_MAPPING: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}}
+// CHECK_COVERAGE_MAPPING-NOT: "-fprofile-instrument=clang"
 // CHECK_COVERAGE_MAPPING-NOT: "-fcoverage-mapping"
 // CHECK_COVERAGE_MAPPING: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-fprofile-instrument=clang"{{.*}} "-fcoverage-mapping"{{.*}}
+
+/// Check that -fprofile-arcs -ftest-coverage is disabled for device
+// RUN: %clang -### -fsycl -fprofile-arcs -ftest-coverage -target x86_64-unknown-linux-gnu -c %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHECK_TEST_COVERAGE %s
+// CHECK_TEST_COVERAGE: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}}
+// CHECK_TEST_COVERAGE-NOT: "-ftest-coverage"
+// CHECK_TEST_COVERAGE-NOT: "-fprofile-arcs"
+// CHECK_TEST_COVERAGE: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-ftest-coverage" "-fprofile-arcs"
 
 /// check for PIC for device wrap compilation when using -shared or -fPIC
 // RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -shared %s 2>&1 \
@@ -132,3 +141,17 @@
 // RUN:  %clangxx -### -Wl,-rpath,%S -fsycl -fintelfpga %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
 // NO_DIR_CHECK-NOT: clang-offload-bundler: error: '{{.*}}': Is a directory
+
+// Device section checking only occur when offloading is enabled
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl %S/Inputs/SYCL/liblin64.a %s 2>&1 \
+// RUN:    | FileCheck -check-prefix CHECK_SECTION %s
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu %S/Inputs/SYCL/liblin64.a %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_CHECK_SECTION %s
+// CHECK_SECTION: clang-offload-bundler{{.*}} "-type=ao" "-targets=host-x86_64-unknown-linux-gnu"{{.*}} "-check-section"
+// CHECK_SECTION: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr-intel-unknown"{{.*}} "-check-section"
+// CHECK_SECTION: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown"{{.*}} "-check-section"
+// CHECK_SECTION: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr_emu-intel-unknown"{{.*}} "-check-section"
+// NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=host-x86_64-unknown-linux-gnu"{{.*}} "-check-section"
+// NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr-intel-unknown"{{.*}} "-check-section"
+// NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown"{{.*}} "-check-section"
+// NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr_emu-intel-unknown"{{.*}} "-check-section"

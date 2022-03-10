@@ -12,6 +12,7 @@
 
 #include "LinkerScript.h"
 #include "Config.h"
+#include "InputFiles.h"
 #include "InputSection.h"
 #include "OutputSections.h"
 #include "SymbolTable.h"
@@ -19,7 +20,7 @@
 #include "SyntheticSections.h"
 #include "Target.h"
 #include "Writer.h"
-#include "lld/Common/Memory.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Strings.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -27,15 +28,11 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Parallel.h"
-#include "llvm/Support/Path.h"
 #include "llvm/Support/TimeProfiler.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <limits>
 #include <string>
 #include <vector>
@@ -64,8 +61,8 @@ static StringRef getOutputSectionName(const InputSectionBase *s) {
     if (InputSectionBase *rel = isec->getRelocatedSection()) {
       OutputSection *out = rel->getOutputSection();
       if (s->type == SHT_RELA)
-        return saver.save(".rela" + out->name);
-      return saver.save(".rel" + out->name);
+        return saver().save(".rela" + out->name);
+      return saver().save(".rel" + out->name);
     }
   }
 
@@ -207,7 +204,7 @@ static bool shouldDefineSym(SymbolAssignment *cmd) {
   // If a symbol was in PROVIDE(), we need to define it only
   // when it is a referenced undefined symbol.
   Symbol *b = symtab->find(cmd->name);
-  if (b && !b->isDefined())
+  if (b && !b->isDefined() && !b->isCommon())
     return true;
   return false;
 }
@@ -310,7 +307,7 @@ void LinkerScript::processInsertCommands() {
   for (const InsertCommand &cmd : insertCommands) {
     for (StringRef name : cmd.names) {
       // If base is empty, it may have been discarded by
-      // adjustSectionsBeforeSorting(). We do not handle such output sections.
+      // adjustOutputSections(). We do not handle such output sections.
       auto from = llvm::find_if(sectionCommands, [&](SectionCommand *subCmd) {
         return isa<OutputSection>(subCmd) &&
                cast<OutputSection>(subCmd)->name == name;
@@ -1114,7 +1111,7 @@ static void maybePropagatePhdrs(OutputSection &sec,
   }
 }
 
-void LinkerScript::adjustSectionsBeforeSorting() {
+void LinkerScript::adjustOutputSections() {
   // If the output section contains only symbol assignments, create a
   // corresponding output section. The issue is what to do with linker script
   // like ".foo : { symbol = 42; }". One option would be to convert it to
@@ -1148,14 +1145,16 @@ void LinkerScript::adjustSectionsBeforeSorting() {
       sec->alignment =
           std::max<uint32_t>(sec->alignment, sec->alignExpr().getValue());
 
-    // The input section might have been removed (if it was an empty synthetic
-    // section), but we at least know the flags.
-    if (sec->hasInputSections)
+    bool isEmpty = (getFirstInputSection(sec) == nullptr);
+    bool discardable = isEmpty && isDiscardable(*sec);
+    // If sec has at least one input section and not discarded, remember its
+    // flags to be inherited by subsequent output sections. (sec may contain
+    // just one empty synthetic section.)
+    if (sec->hasInputSections && !discardable)
       flags = sec->flags;
 
     // We do not want to keep any special flags for output section
     // in case it is empty.
-    bool isEmpty = (getFirstInputSection(sec) == nullptr);
     if (isEmpty)
       sec->flags = flags & ((sec->nonAlloc ? 0 : (uint64_t)SHF_ALLOC) |
                             SHF_WRITE | SHF_EXECINSTR);
@@ -1172,7 +1171,7 @@ void LinkerScript::adjustSectionsBeforeSorting() {
     if (sec->sectionIndex != UINT32_MAX)
       maybePropagatePhdrs(*sec, defPhdrs);
 
-    if (isEmpty && isDiscardable(*sec)) {
+    if (discardable) {
       sec->markDead();
       cmd = nullptr;
     }

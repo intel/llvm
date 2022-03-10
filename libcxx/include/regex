@@ -762,8 +762,9 @@ typedef regex_token_iterator<wstring::const_iterator> wsregex_token_iterator;
 } // std
 */
 
+#include <__algorithm/find.h>
+#include <__assert>
 #include <__config>
-#include <__debug>
 #include <__iterator/wrap_iter.h>
 #include <__locale>
 #include <compare>
@@ -778,7 +779,7 @@ typedef regex_token_iterator<wstring::const_iterator> wsregex_token_iterator;
 #include <version>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_PUSH_MACROS

@@ -360,6 +360,8 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::CONCAT_VECTORS, MVT::v8f32, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2f16, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2i16, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v4f16, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v4i16, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2f32, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2i32, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v3f32, Custom);
@@ -1406,6 +1408,11 @@ SDValue AMDGPUTargetLowering::LowerEXTRACT_SUBVECTOR(SDValue Op,
   if (((SrcVT == MVT::v4f16 && VT == MVT::v2f16) ||
        (SrcVT == MVT::v4i16 && VT == MVT::v2i16)) &&
       Start != 1)
+    return Op;
+
+  if (((SrcVT == MVT::v8f16 && VT == MVT::v4f16) ||
+       (SrcVT == MVT::v8i16 && VT == MVT::v4i16)) &&
+      (Start == 0 || Start == 4))
     return Op;
 
   DAG.ExtractVectorElements(Op.getOperand(0), Args, Start,
@@ -3274,8 +3281,9 @@ SDValue AMDGPUTargetLowering::performSrlCombine(SDNode *N,
   // this improves the ability to match BFE patterns in isel.
   if (LHS.getOpcode() == ISD::AND) {
     if (auto *Mask = dyn_cast<ConstantSDNode>(LHS.getOperand(1))) {
-      if (Mask->getAPIntValue().isShiftedMask() &&
-          Mask->getAPIntValue().countTrailingZeros() == ShiftAmt) {
+      unsigned MaskIdx, MaskLen;
+      if (Mask->getAPIntValue().isShiftedMask(MaskIdx, MaskLen) &&
+          MaskIdx == ShiftAmt) {
         return DAG.getNode(
             ISD::AND, SL, VT,
             DAG.getNode(ISD::SRL, SL, VT, LHS.getOperand(0), N->getOperand(1)),
@@ -4478,6 +4486,8 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(CONST_DATA_PTR)
   NODE_NAME_CASE(PC_ADD_REL_OFFSET)
   NODE_NAME_CASE(LDS)
+  NODE_NAME_CASE(FPTRUNC_ROUND_UPWARD)
+  NODE_NAME_CASE(FPTRUNC_ROUND_DOWNWARD)
   NODE_NAME_CASE(DUMMY_CHAIN)
   case AMDGPUISD::FIRST_MEM_OPCODE_NUMBER: break;
   NODE_NAME_CASE(LOAD_D16_HI)

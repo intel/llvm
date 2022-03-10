@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -disable-noundef-analysis -emit-llvm -triple spir64 -verify -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -no-enable-noundef-analysis -emit-llvm -triple spir64 -verify -emit-llvm %s -o - | FileCheck %s
 
 // expected-no-diagnostics
 

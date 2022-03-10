@@ -37,12 +37,19 @@ enum EdgeKind_riscv : Edge::Kind {
   ///
   R_RISCV_64,
 
-  /// Low 12 bits of PC-relative branch pointer value relocation
+  /// PC-relative branch pointer value relocation
   ///
   /// Fixup expression:
-  ///   Fixup <- (Target - Fixup + Addend) & 0xFFF
+  ///   Fixup <- (Target - Fixup + Addend)
   ///
   R_RISCV_BRANCH,
+
+  /// High 20 bits of PC-relative jump pointer value relocation
+  ///
+  /// Fixup expression:
+  ///   Fixup <- Target - Fixup + Addend
+  ///
+  R_RISCV_JAL,
 
   /// High 20 bits of 32-bit pointer value relocation
   ///
@@ -78,6 +85,12 @@ enum EdgeKind_riscv : Edge::Kind {
   /// Fixup expression:
   ///   Fixup <- (Target - Fixup + Addend)
   R_RISCV_CALL,
+
+  /// 32 bits PC relative relocation
+  ///
+  /// Fixup expression:
+  ///   Fixup <- (Target - Fixup + Addend)
+  R_RISCV_32_PCREL,
 
   /// PC relative GOT offset
   ///
@@ -137,7 +150,31 @@ enum EdgeKind_riscv : Edge::Kind {
   ///
   /// Fixup expression
   ///   Fixup <- (Target - *{1}Fixup - Addend)
-  R_RISCV_SUB8
+  R_RISCV_SUB8,
+
+  /// Local label assignment
+  ///
+  /// Fixup expression:
+  ///   Fixup <- (Target + Addend)
+  R_RISCV_SET6,
+
+  /// Local label assignment
+  ///
+  /// Fixup expression:
+  ///   Fixup <- (Target + Addend)
+  R_RISCV_SET8,
+
+  /// Local label assignment
+  ///
+  /// Fixup expression:
+  ///   Fixup <- (Target + Addend)
+  R_RISCV_SET16,
+
+  /// Local label assignment
+  ///
+  /// Fixup expression:
+  ///   Fixup <- (Target + Addend)
+  R_RISCV_SET32,
 };
 
 /// Returns a string name for the given riscv edge. For debugging purposes

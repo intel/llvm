@@ -1176,6 +1176,8 @@ llvm.func @alloca(%size : i64) {
   llvm.alloca %size x i32 {alignment = 0} : (i64) -> (!llvm.ptr<i32>)
   // CHECK-NEXT: alloca {{.*}} align 8
   llvm.alloca %size x i32 {alignment = 8} : (i64) -> (!llvm.ptr<i32>)
+  // CHECK-NEXT: alloca {{.*}} addrspace(3)
+  llvm.alloca %size x i32 {alignment = 0} : (i64) -> (!llvm.ptr<i32, 3>)
   llvm.return
 }
 
@@ -1377,6 +1379,12 @@ llvm.func @invoke_phis() -> i32 attributes { personality = @__gxx_personality_v0
 }
 
 // -----
+
+// CHECK-LABEL: @hasGCFunction
+// CHECK-SAME: gc "statepoint-example"
+llvm.func @hasGCFunction() attributes { garbageCollector = "statepoint-example" } {
+    llvm.return
+}
 
 // CHECK-LABEL: @callFreezeOp
 llvm.func @callFreezeOp(%x : i32) {

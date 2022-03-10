@@ -3,7 +3,7 @@
 ; RUN: llc -mtriple=nvptx64-nvidia-cuda -sycl-enable-local-accessor < %s | FileCheck --check-prefix=CHECK-VALID %s
 ; RUN: llc -mtriple=nvptx64-nvidia-nvcl -sycl-enable-local-accessor < %s | FileCheck --check-prefix=CHECK-INVALID %s
 ; CHECK-VALID: .param .u32 _ZTS14example_kernel_param_0
-; CHECK-INVALID: .param .u64 .ptr .shared .align 4 _ZTS14example_kernel_param_0
+; CHECK-INVALID: .param .u64 .ptr .shared .align 1 _ZTS14example_kernel_param_0
 
 ; ModuleID = 'local-accessor-to-shared-memory-valid-triple.ll'
 source_filename = "local-accessor-to-shared-memory-valid-triple.ll"

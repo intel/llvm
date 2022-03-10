@@ -92,11 +92,11 @@ int main() {
 
 // Check kernel_A parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_A
-// CHECK-SAME: i32 addrspace(1)* noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i32 addrspace(1)* noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+_1]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+_2]],
 // CHECK-SAME: %"struct.cl::sycl::id"* noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_3]],
-// CHECK-SAME: i32 addrspace(1)* noundef [[MEM_ARG2:%[a-zA-Z0-9_]+_4]],
+// CHECK-SAME: i32 addrspace(1)* noundef align 4 [[MEM_ARG2:%[a-zA-Z0-9_]+_4]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[ACC_RANGE2:%[a-zA-Z0-9_]+_6]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[MEM_RANGE2:%[a-zA-Z0-9_]+_7]],
 // CHECK-SAME: %"struct.cl::sycl::id"* noundef byval{{.*}}align 4 [[OFFSET2:%[a-zA-Z0-9_]+_8]])
@@ -104,7 +104,7 @@ int main() {
 
 // Check kernel_readOnlyAcc parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_readOnlyAcc
-// CHECK-SAME: i32 addrspace(1)* noundef readonly [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i32 addrspace(1)* noundef readonly align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+_1]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+_2]],
 // CHECK-SAME: %"struct.cl::sycl::id"* noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_3]]
@@ -121,12 +121,12 @@ int main() {
 
 // Check usm_ptr parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}usm_ptr
-// CHECK-SAME: i32 addrspace(1)* noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: float addrspace(1)* noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]]
+// CHECK-SAME: i32 addrspace(1)* noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: float addrspace(1)* noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]]
 // CHECK-NOT: kernel_arg_runtime_aligned
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}localAccessor
-// CHECK-SAME: float addrspace(1)* noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: float addrspace(1)* noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %"struct.cl::sycl::range.5"* noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+_1]],
 // CHECK-SAME: %"struct.cl::sycl::range.5"* noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+_2]],
 // CHECK-SAME: %"struct.cl::sycl::id.6"* noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_3]]
@@ -134,11 +134,11 @@ int main() {
 
 // Check kernel_acc_raw_ptr parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_acc_raw_ptr
-// CHECK-SAME: i32 addrspace(1)* noundef readonly [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i32 addrspace(1)* noundef readonly align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+_1]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+_2]],
 // CHECK-SAME: %"struct.cl::sycl::id"* noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_3]]
-// CHECK-SAME: i32 addrspace(1)* noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]]
+// CHECK-SAME: i32 addrspace(1)* noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]]
 // CHECK-SAME: !kernel_arg_runtime_aligned !26
 
 // Check esimd_kernel_with_acc parameters

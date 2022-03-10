@@ -156,6 +156,11 @@ public:
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &OutEventToWait) override;
   void constructorNotification(const detail::code_location &CodeLoc,
+                               void *UserObj, const void *HostObj,
+                               const void *Type, uint32_t Dim,
+                               uint32_t ElemType, size_t Range[3]);
+  // TODO: remove once ABI break is allowed
+  void constructorNotification(const detail::code_location &CodeLoc,
                                void *UserObj);
   void destructorNotification(void *UserObj);
 

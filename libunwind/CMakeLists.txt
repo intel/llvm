@@ -8,8 +8,6 @@ endif()
 
 cmake_minimum_required(VERSION 3.13.4)
 
-include(GNUInstallDirs)
-
 set(LLVM_COMMON_CMAKE_UTILS "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 # Add path for custom modules
@@ -26,25 +24,36 @@ set(LIBUNWIND_LIBCXX_PATH "${CMAKE_CURRENT_LIST_DIR}/../libcxx" CACHE PATH
         "Specify path to libc++ source.")
 
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBUNWIND_STANDALONE_BUILD)
+  message(FATAL_ERROR "The Standalone build has been deprecated since LLVM 14, and it is not supported anymore. "
+                      "Please use one of the ways described at https://libcxx.llvm.org/BuildingLibcxx.html for "
+                      "building libunwind.")
+
   # We may have an incomplete toolchain - do language support tests without
   # linking.
   include(EnableLanguageNolink)
   project(libunwind LANGUAGES NONE)
-  llvm_enable_language_nolink(C CXX ASM)
 
   set(PACKAGE_NAME libunwind)
-  set(PACKAGE_VERSION 14.0.0git)
+  set(PACKAGE_VERSION 15.0.0git)
   set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
   set(PACKAGE_BUGREPORT "llvm-bugs@lists.llvm.org")
+
+  set(LIBUNWIND_STANDALONE_BUILD TRUE)
+endif()
+
+# Must go below project(..)
+include(GNUInstallDirs)
+
+if(LIBUNWIND_STANDALONE_BUILD)
+  llvm_enable_language_nolink(C CXX ASM)
+
+  # Find the LLVM sources and simulate LLVM CMake options.
+  include(HandleOutOfTreeLLVM)
 
   # In a standalone build, we don't have llvm to automatically generate the
   # llvm-lit script for us.  So we need to provide an explicit directory that
   # the configurator should write the script into.
-  set(LIBUNWIND_STANDALONE_BUILD 1)
   set(LLVM_LIT_OUTPUT_DIR "${LIBUNWIND_BINARY_DIR}/bin")
-
-  # Find the LLVM sources and simulate LLVM CMake options.
-  include(HandleOutOfTreeLLVM)
 else()
   set(LLVM_LIT "${CMAKE_SOURCE_DIR}/utils/lit/lit.py")
 endif()
@@ -78,6 +87,16 @@ option(LIBUNWIND_IS_BAREMETAL "Build libunwind for baremetal targets." OFF)
 option(LIBUNWIND_USE_FRAME_HEADER_CACHE "Cache frame headers for unwinding. Requires locking dl_iterate_phdr." OFF)
 option(LIBUNWIND_REMEMBER_HEAP_ALLOC "Use heap instead of the stack for .cfi_remember_state." OFF)
 option(LIBUNWIND_INSTALL_HEADERS "Install the libunwind headers." OFF)
+
+if(NOT CMAKE_SYSROOT AND LIBUNWIND_SYSROOT)
+  message(WARNING "LIBUNWIND_SYSROOT is deprecated, please use CMAKE_SYSROOT instead")
+endif()
+if(NOT CMAKE_CXX_COMPILER_TARGET AND LIBUNWIND_TARGET_TRIPLE)
+  message(WARNING "LIBUNWIND_TARGET_TRIPLE is deprecated, please use CMAKE_CXX_COMPILER_TARGET instead")
+endif()
+if(NOT CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN AND LIBUNWIND_GCC_TOOLCHAIN)
+  message(WARNING "LIBUNWIND_GCC_TOOLCHAIN is deprecated, please use CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN instead")
+endif()
 
 set(LIBUNWIND_LIBDIR_SUFFIX "${LLVM_LIBDIR_SUFFIX}" CACHE STRING
     "Define suffix of library directory name (32/64)")

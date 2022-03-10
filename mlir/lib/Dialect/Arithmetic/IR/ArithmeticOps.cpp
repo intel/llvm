@@ -107,19 +107,19 @@ void arith::ConstantOp::getAsmResultNames(
 
 /// TODO: disallow arith.constant to return anything other than signless integer
 /// or float like.
-static LogicalResult verify(arith::ConstantOp op) {
-  auto type = op.getType();
+LogicalResult arith::ConstantOp::verify() {
+  auto type = getType();
   // The value's type must match the return type.
-  if (op.getValue().getType() != type) {
-    return op.emitOpError() << "value type " << op.getValue().getType()
-                            << " must match return type: " << type;
+  if (getValue().getType() != type) {
+    return emitOpError() << "value type " << getValue().getType()
+                         << " must match return type: " << type;
   }
   // Integer values must be signless.
   if (type.isa<IntegerType>() && !type.cast<IntegerType>().isSignless())
-    return op.emitOpError("integer return type must be signless");
+    return emitOpError("integer return type must be signless");
   // Any float or elements attribute are acceptable.
-  if (!op.getValue().isa<IntegerAttr, FloatAttr, ElementsAttr>()) {
-    return op.emitOpError(
+  if (!getValue().isa<IntegerAttr, FloatAttr, ElementsAttr>()) {
+    return emitOpError(
         "value must be an integer, float, or elements attribute");
   }
   return success();
@@ -194,12 +194,12 @@ OpFoldResult arith::AddIOp::fold(ArrayRef<Attribute> operands) {
   if (matchPattern(getRhs(), m_Zero()))
     return getLhs();
 
-  // add(sub(a, b), b) -> a
+  // addi(subi(a, b), b) -> a
   if (auto sub = getLhs().getDefiningOp<SubIOp>())
     if (getRhs() == sub.getRhs())
       return sub.getLhs();
 
-  // add(b, sub(a, b)) -> a
+  // addi(b, subi(a, b)) -> a
   if (auto sub = getRhs().getDefiningOp<SubIOp>())
     if (getLhs() == sub.getRhs())
       return sub.getLhs();
@@ -209,8 +209,8 @@ OpFoldResult arith::AddIOp::fold(ArrayRef<Attribute> operands) {
 }
 
 void arith::AddIOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<AddIAddConstant, AddISubConstantRHS, AddISubConstantLHS>(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add<AddIAddConstant, AddISubConstantRHS, AddISubConstantLHS>(
       context);
 }
 
@@ -231,10 +231,11 @@ OpFoldResult arith::SubIOp::fold(ArrayRef<Attribute> operands) {
 }
 
 void arith::SubIOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<SubIRHSAddConstant, SubILHSAddConstant, SubIRHSSubConstantRHS,
-                  SubIRHSSubConstantLHS, SubILHSSubConstantRHS,
-                  SubILHSSubConstantLHS>(context);
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns
+      .add<SubIRHSAddConstant, SubILHSAddConstant, SubIRHSSubConstantRHS,
+           SubIRHSSubConstantLHS, SubILHSSubConstantRHS, SubILHSSubConstantLHS>(
+          context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -567,8 +568,8 @@ OpFoldResult arith::XOrIOp::fold(ArrayRef<Attribute> operands) {
 }
 
 void arith::XOrIOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<XOrINotCmpI>(context);
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add<XOrINotCmpI>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -576,6 +577,10 @@ void arith::XOrIOp::getCanonicalizationPatterns(
 //===----------------------------------------------------------------------===//
 
 OpFoldResult arith::AddFOp::fold(ArrayRef<Attribute> operands) {
+  // addf(x, -0) -> x
+  if (matchPattern(getRhs(), m_NegZeroFloat()))
+    return getLhs();
+
   return constFoldBinaryOp<FloatAttr>(
       operands, [](const APFloat &a, const APFloat &b) { return a + b; });
 }
@@ -585,8 +590,32 @@ OpFoldResult arith::AddFOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult arith::SubFOp::fold(ArrayRef<Attribute> operands) {
+  // subf(x, +0) -> x
+  if (matchPattern(getRhs(), m_PosZeroFloat()))
+    return getLhs();
+
   return constFoldBinaryOp<FloatAttr>(
       operands, [](const APFloat &a, const APFloat &b) { return a - b; });
+}
+
+//===----------------------------------------------------------------------===//
+// MaxFOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult arith::MaxFOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 2 && "maxf takes two operands");
+
+  // maxf(x,x) -> x
+  if (getLhs() == getRhs())
+    return getRhs();
+
+  // maxf(x, -inf) -> x
+  if (matchPattern(getRhs(), m_NegInfFloat()))
+    return getLhs();
+
+  return constFoldBinaryOp<FloatAttr>(
+      operands,
+      [](const APFloat &a, const APFloat &b) { return llvm::maximum(a, b); });
 }
 
 //===----------------------------------------------------------------------===//
@@ -641,6 +670,26 @@ OpFoldResult MaxUIOp::fold(ArrayRef<Attribute> operands) {
                                         [](const APInt &a, const APInt &b) {
                                           return llvm::APIntOps::umax(a, b);
                                         });
+}
+
+//===----------------------------------------------------------------------===//
+// MinFOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult arith::MinFOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 2 && "minf takes two operands");
+
+  // minf(x,x) -> x
+  if (getLhs() == getRhs())
+    return getRhs();
+
+  // minf(x, +inf) -> x
+  if (matchPattern(getRhs(), m_PosInfFloat()))
+    return getLhs();
+
+  return constFoldBinaryOp<FloatAttr>(
+      operands,
+      [](const APFloat &a, const APFloat &b) { return llvm::minimum(a, b); });
 }
 
 //===----------------------------------------------------------------------===//
@@ -702,6 +751,15 @@ OpFoldResult MinUIOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult arith::MulFOp::fold(ArrayRef<Attribute> operands) {
+  APFloat floatValue(0.0f), inverseValue(0.0f);
+  // mulf(x, 1) -> x
+  if (matchPattern(getRhs(), m_OneFloat()))
+    return getLhs();
+
+  // mulf(1, x) -> x
+  if (matchPattern(getLhs(), m_OneFloat()))
+    return getRhs();
+
   return constFoldBinaryOp<FloatAttr>(
       operands, [](const APFloat &a, const APFloat &b) { return a * b; });
 }
@@ -711,6 +769,11 @@ OpFoldResult arith::MulFOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult arith::DivFOp::fold(ArrayRef<Attribute> operands) {
+  APFloat floatValue(0.0f), inverseValue(0.0f);
+  // divf(x, 1) -> x
+  if (matchPattern(getRhs(), m_OneFloat()))
+    return getLhs();
+
   return constFoldBinaryOp<FloatAttr>(
       operands, [](const APFloat &a, const APFloat &b) { return a / b; });
 }
@@ -824,6 +887,10 @@ bool arith::ExtUIOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   return checkWidthChangeCast<std::greater, IntegerType>(inputs, outputs);
 }
 
+LogicalResult arith::ExtUIOp::verify() {
+  return verifyExtOp<IntegerType>(*this);
+}
+
 //===----------------------------------------------------------------------===//
 // ExtSIOp
 //===----------------------------------------------------------------------===//
@@ -846,8 +913,12 @@ bool arith::ExtSIOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
 }
 
 void arith::ExtSIOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<ExtSIOfExtUI>(context);
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add<ExtSIOfExtUI>(context);
+}
+
+LogicalResult arith::ExtSIOp::verify() {
+  return verifyExtOp<IntegerType>(*this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -857,6 +928,8 @@ void arith::ExtSIOp::getCanonicalizationPatterns(
 bool arith::ExtFOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   return checkWidthChangeCast<std::greater, FloatType>(inputs, outputs);
 }
+
+LogicalResult arith::ExtFOp::verify() { return verifyExtOp<FloatType>(*this); }
 
 //===----------------------------------------------------------------------===//
 // TruncIOp
@@ -892,6 +965,10 @@ bool arith::TruncIOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   return checkWidthChangeCast<std::less, IntegerType>(inputs, outputs);
 }
 
+LogicalResult arith::TruncIOp::verify() {
+  return verifyTruncateOp<IntegerType>(*this);
+}
+
 //===----------------------------------------------------------------------===//
 // TruncFOp
 //===----------------------------------------------------------------------===//
@@ -921,13 +998,17 @@ bool arith::TruncFOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   return checkWidthChangeCast<std::less, FloatType>(inputs, outputs);
 }
 
+LogicalResult arith::TruncFOp::verify() {
+  return verifyTruncateOp<FloatType>(*this);
+}
+
 //===----------------------------------------------------------------------===//
 // AndIOp
 //===----------------------------------------------------------------------===//
 
 void arith::AndIOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<AndOfExtUI, AndOfExtSI>(context);
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add<AndOfExtUI, AndOfExtSI>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -935,8 +1016,8 @@ void arith::AndIOp::getCanonicalizationPatterns(
 //===----------------------------------------------------------------------===//
 
 void arith::OrIOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<OrOfExtUI, OrOfExtSI>(context);
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add<OrOfExtUI, OrOfExtSI>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1074,8 +1155,8 @@ OpFoldResult arith::IndexCastOp::fold(ArrayRef<Attribute> operands) {
 }
 
 void arith::IndexCastOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<IndexCastOfIndexCast, IndexCastOfExtSI>(context);
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add<IndexCastOfIndexCast, IndexCastOfExtSI>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1123,8 +1204,8 @@ OpFoldResult arith::BitcastOp::fold(ArrayRef<Attribute> operands) {
 }
 
 void arith::BitcastOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<BitcastOfBitcast>(context);
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add<BitcastOfBitcast>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1310,6 +1391,466 @@ OpFoldResult arith::CmpFOp::fold(ArrayRef<Attribute> operands) {
 
   auto val = applyCmpPredicate(getPredicate(), lhs.getValue(), rhs.getValue());
   return BoolAttr::get(getContext(), val);
+}
+
+class CmpFIntToFPConst final : public OpRewritePattern<CmpFOp> {
+public:
+  using OpRewritePattern<CmpFOp>::OpRewritePattern;
+
+  static CmpIPredicate convertToIntegerPredicate(CmpFPredicate pred,
+                                                 bool isUnsigned) {
+    using namespace arith;
+    switch (pred) {
+    case CmpFPredicate::UEQ:
+    case CmpFPredicate::OEQ:
+      return CmpIPredicate::eq;
+    case CmpFPredicate::UGT:
+    case CmpFPredicate::OGT:
+      return isUnsigned ? CmpIPredicate::ugt : CmpIPredicate::sgt;
+    case CmpFPredicate::UGE:
+    case CmpFPredicate::OGE:
+      return isUnsigned ? CmpIPredicate::uge : CmpIPredicate::sge;
+    case CmpFPredicate::ULT:
+    case CmpFPredicate::OLT:
+      return isUnsigned ? CmpIPredicate::ult : CmpIPredicate::slt;
+    case CmpFPredicate::ULE:
+    case CmpFPredicate::OLE:
+      return isUnsigned ? CmpIPredicate::ule : CmpIPredicate::sle;
+    case CmpFPredicate::UNE:
+    case CmpFPredicate::ONE:
+      return CmpIPredicate::ne;
+    default:
+      llvm_unreachable("Unexpected predicate!");
+    }
+  }
+
+  LogicalResult matchAndRewrite(CmpFOp op,
+                                PatternRewriter &rewriter) const override {
+    FloatAttr flt;
+    if (!matchPattern(op.getRhs(), m_Constant(&flt)))
+      return failure();
+
+    const APFloat &rhs = flt.getValue();
+
+    // Don't attempt to fold a nan.
+    if (rhs.isNaN())
+      return failure();
+
+    // Get the width of the mantissa.  We don't want to hack on conversions that
+    // might lose information from the integer, e.g. "i64 -> float"
+    FloatType floatTy = op.getRhs().getType().cast<FloatType>();
+    int mantissaWidth = floatTy.getFPMantissaWidth();
+    if (mantissaWidth <= 0)
+      return failure();
+
+    bool isUnsigned;
+    Value intVal;
+
+    if (auto si = op.getLhs().getDefiningOp<SIToFPOp>()) {
+      isUnsigned = false;
+      intVal = si.getIn();
+    } else if (auto ui = op.getLhs().getDefiningOp<UIToFPOp>()) {
+      isUnsigned = true;
+      intVal = ui.getIn();
+    } else {
+      return failure();
+    }
+
+    // Check to see that the input is converted from an integer type that is
+    // small enough that preserves all bits.
+    auto intTy = intVal.getType().cast<IntegerType>();
+    auto intWidth = intTy.getWidth();
+
+    // Number of bits representing values, as opposed to the sign
+    auto valueBits = isUnsigned ? intWidth : (intWidth - 1);
+
+    // Following test does NOT adjust intWidth downwards for signed inputs,
+    // because the most negative value still requires all the mantissa bits
+    // to distinguish it from one less than that value.
+    if ((int)intWidth > mantissaWidth) {
+      // Conversion would lose accuracy. Check if loss can impact comparison.
+      int exponent = ilogb(rhs);
+      if (exponent == APFloat::IEK_Inf) {
+        int maxExponent = ilogb(APFloat::getLargest(rhs.getSemantics()));
+        if (maxExponent < (int)valueBits) {
+          // Conversion could create infinity.
+          return failure();
+        }
+      } else {
+        // Note that if rhs is zero or NaN, then Exp is negative
+        // and first condition is trivially false.
+        if (mantissaWidth <= exponent && exponent <= (int)valueBits) {
+          // Conversion could affect comparison.
+          return failure();
+        }
+      }
+    }
+
+    // Convert to equivalent cmpi predicate
+    CmpIPredicate pred;
+    switch (op.getPredicate()) {
+    case CmpFPredicate::ORD:
+      // Int to fp conversion doesn't create a nan (ord checks neither is a nan)
+      rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/true,
+                                                 /*width=*/1);
+      return success();
+    case CmpFPredicate::UNO:
+      // Int to fp conversion doesn't create a nan (uno checks either is a nan)
+      rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/false,
+                                                 /*width=*/1);
+      return success();
+    default:
+      pred = convertToIntegerPredicate(op.getPredicate(), isUnsigned);
+      break;
+    }
+
+    if (!isUnsigned) {
+      // If the rhs value is > SignedMax, fold the comparison.  This handles
+      // +INF and large values.
+      APFloat signedMax(rhs.getSemantics());
+      signedMax.convertFromAPInt(APInt::getSignedMaxValue(intWidth), true,
+                                 APFloat::rmNearestTiesToEven);
+      if (signedMax < rhs) { // smax < 13123.0
+        if (pred == CmpIPredicate::ne || pred == CmpIPredicate::slt ||
+            pred == CmpIPredicate::sle)
+          rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/true,
+                                                     /*width=*/1);
+        else
+          rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/false,
+                                                     /*width=*/1);
+        return success();
+      }
+    } else {
+      // If the rhs value is > UnsignedMax, fold the comparison. This handles
+      // +INF and large values.
+      APFloat unsignedMax(rhs.getSemantics());
+      unsignedMax.convertFromAPInt(APInt::getMaxValue(intWidth), false,
+                                   APFloat::rmNearestTiesToEven);
+      if (unsignedMax < rhs) { // umax < 13123.0
+        if (pred == CmpIPredicate::ne || pred == CmpIPredicate::ult ||
+            pred == CmpIPredicate::ule)
+          rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/true,
+                                                     /*width=*/1);
+        else
+          rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/false,
+                                                     /*width=*/1);
+        return success();
+      }
+    }
+
+    if (!isUnsigned) {
+      // See if the rhs value is < SignedMin.
+      APFloat signedMin(rhs.getSemantics());
+      signedMin.convertFromAPInt(APInt::getSignedMinValue(intWidth), true,
+                                 APFloat::rmNearestTiesToEven);
+      if (signedMin > rhs) { // smin > 12312.0
+        if (pred == CmpIPredicate::ne || pred == CmpIPredicate::sgt ||
+            pred == CmpIPredicate::sge)
+          rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/true,
+                                                     /*width=*/1);
+        else
+          rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/false,
+                                                     /*width=*/1);
+        return success();
+      }
+    } else {
+      // See if the rhs value is < UnsignedMin.
+      APFloat unsignedMin(rhs.getSemantics());
+      unsignedMin.convertFromAPInt(APInt::getMinValue(intWidth), false,
+                                   APFloat::rmNearestTiesToEven);
+      if (unsignedMin > rhs) { // umin > 12312.0
+        if (pred == CmpIPredicate::ne || pred == CmpIPredicate::ugt ||
+            pred == CmpIPredicate::uge)
+          rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/true,
+                                                     /*width=*/1);
+        else
+          rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/false,
+                                                     /*width=*/1);
+        return success();
+      }
+    }
+
+    // Okay, now we know that the FP constant fits in the range [SMIN, SMAX] or
+    // [0, UMAX], but it may still be fractional.  See if it is fractional by
+    // casting the FP value to the integer value and back, checking for
+    // equality. Don't do this for zero, because -0.0 is not fractional.
+    bool ignored;
+    APSInt rhsInt(intWidth, isUnsigned);
+    if (APFloat::opInvalidOp ==
+        rhs.convertToInteger(rhsInt, APFloat::rmTowardZero, &ignored)) {
+      // Undefined behavior invoked - the destination type can't represent
+      // the input constant.
+      return failure();
+    }
+
+    if (!rhs.isZero()) {
+      APFloat apf(floatTy.getFloatSemantics(),
+                  APInt::getZero(floatTy.getWidth()));
+      apf.convertFromAPInt(rhsInt, !isUnsigned, APFloat::rmNearestTiesToEven);
+
+      bool equal = apf == rhs;
+      if (!equal) {
+        // If we had a comparison against a fractional value, we have to adjust
+        // the compare predicate and sometimes the value.  rhsInt is rounded
+        // towards zero at this point.
+        switch (pred) {
+        default:
+          llvm_unreachable("Unexpected integer comparison!");
+        case CmpIPredicate::ne: // (float)int != 4.4   --> true
+          rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/true,
+                                                     /*width=*/1);
+          return success();
+        case CmpIPredicate::eq: // (float)int == 4.4   --> false
+          rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/false,
+                                                     /*width=*/1);
+          return success();
+        case CmpIPredicate::ule:
+          // (float)int <= 4.4   --> int <= 4
+          // (float)int <= -4.4  --> false
+          if (rhs.isNegative()) {
+            rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/false,
+                                                       /*width=*/1);
+            return success();
+          }
+          break;
+        case CmpIPredicate::sle:
+          // (float)int <= 4.4   --> int <= 4
+          // (float)int <= -4.4  --> int < -4
+          if (rhs.isNegative())
+            pred = CmpIPredicate::slt;
+          break;
+        case CmpIPredicate::ult:
+          // (float)int < -4.4   --> false
+          // (float)int < 4.4    --> int <= 4
+          if (rhs.isNegative()) {
+            rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/false,
+                                                       /*width=*/1);
+            return success();
+          }
+          pred = CmpIPredicate::ule;
+          break;
+        case CmpIPredicate::slt:
+          // (float)int < -4.4   --> int < -4
+          // (float)int < 4.4    --> int <= 4
+          if (!rhs.isNegative())
+            pred = CmpIPredicate::sle;
+          break;
+        case CmpIPredicate::ugt:
+          // (float)int > 4.4    --> int > 4
+          // (float)int > -4.4   --> true
+          if (rhs.isNegative()) {
+            rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/true,
+                                                       /*width=*/1);
+            return success();
+          }
+          break;
+        case CmpIPredicate::sgt:
+          // (float)int > 4.4    --> int > 4
+          // (float)int > -4.4   --> int >= -4
+          if (rhs.isNegative())
+            pred = CmpIPredicate::sge;
+          break;
+        case CmpIPredicate::uge:
+          // (float)int >= -4.4   --> true
+          // (float)int >= 4.4    --> int > 4
+          if (rhs.isNegative()) {
+            rewriter.replaceOpWithNewOp<ConstantIntOp>(op, /*value=*/true,
+                                                       /*width=*/1);
+            return success();
+          }
+          pred = CmpIPredicate::ugt;
+          break;
+        case CmpIPredicate::sge:
+          // (float)int >= -4.4   --> int >= -4
+          // (float)int >= 4.4    --> int > 4
+          if (!rhs.isNegative())
+            pred = CmpIPredicate::sgt;
+          break;
+        }
+      }
+    }
+
+    // Lower this FP comparison into an appropriate integer version of the
+    // comparison.
+    rewriter.replaceOpWithNewOp<CmpIOp>(
+        op, pred, intVal,
+        rewriter.create<ConstantOp>(
+            op.getLoc(), intVal.getType(),
+            rewriter.getIntegerAttr(intVal.getType(), rhsInt)));
+    return success();
+  }
+};
+
+void arith::CmpFOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                MLIRContext *context) {
+  patterns.insert<CmpFIntToFPConst>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// SelectOp
+//===----------------------------------------------------------------------===//
+
+// Transforms a select of a boolean to arithmetic operations
+//
+//  arith.select %arg, %x, %y : i1
+//
+//  becomes
+//
+//  and(%arg, %x) or and(!%arg, %y)
+struct SelectI1Simplify : public OpRewritePattern<arith::SelectOp> {
+  using OpRewritePattern<arith::SelectOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(arith::SelectOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.getType().isInteger(1))
+      return failure();
+
+    Value falseConstant =
+        rewriter.create<arith::ConstantIntOp>(op.getLoc(), true, 1);
+    Value notCondition = rewriter.create<arith::XOrIOp>(
+        op.getLoc(), op.getCondition(), falseConstant);
+
+    Value trueVal = rewriter.create<arith::AndIOp>(
+        op.getLoc(), op.getCondition(), op.getTrueValue());
+    Value falseVal = rewriter.create<arith::AndIOp>(op.getLoc(), notCondition,
+                                                    op.getFalseValue());
+    rewriter.replaceOpWithNewOp<arith::OrIOp>(op, trueVal, falseVal);
+    return success();
+  }
+};
+
+//  select %arg, %c1, %c0 => extui %arg
+struct SelectToExtUI : public OpRewritePattern<arith::SelectOp> {
+  using OpRewritePattern<arith::SelectOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(arith::SelectOp op,
+                                PatternRewriter &rewriter) const override {
+    // Cannot extui i1 to i1, or i1 to f32
+    if (!op.getType().isa<IntegerType>() || op.getType().isInteger(1))
+      return failure();
+
+    // select %x, c1, %c0 => extui %arg
+    if (matchPattern(op.getTrueValue(), m_One()))
+      if (matchPattern(op.getFalseValue(), m_Zero())) {
+        rewriter.replaceOpWithNewOp<arith::ExtUIOp>(op, op.getType(),
+                                                    op.getCondition());
+        return success();
+      }
+
+    // select %x, c0, %c1 => extui (xor %arg, true)
+    if (matchPattern(op.getTrueValue(), m_Zero()))
+      if (matchPattern(op.getFalseValue(), m_One())) {
+        rewriter.replaceOpWithNewOp<arith::ExtUIOp>(
+            op, op.getType(),
+            rewriter.create<arith::XOrIOp>(
+                op.getLoc(), op.getCondition(),
+                rewriter.create<arith::ConstantIntOp>(
+                    op.getLoc(), 1, op.getCondition().getType())));
+        return success();
+      }
+
+    return failure();
+  }
+};
+
+void arith::SelectOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                  MLIRContext *context) {
+  results.add<SelectI1Simplify, SelectToExtUI>(context);
+}
+
+OpFoldResult arith::SelectOp::fold(ArrayRef<Attribute> operands) {
+  Value trueVal = getTrueValue();
+  Value falseVal = getFalseValue();
+  if (trueVal == falseVal)
+    return trueVal;
+
+  Value condition = getCondition();
+
+  // select true, %0, %1 => %0
+  if (matchPattern(condition, m_One()))
+    return trueVal;
+
+  // select false, %0, %1 => %1
+  if (matchPattern(condition, m_Zero()))
+    return falseVal;
+
+  // select %x, true, false => %x
+  if (getType().isInteger(1))
+    if (matchPattern(getTrueValue(), m_One()))
+      if (matchPattern(getFalseValue(), m_Zero()))
+        return condition;
+
+  if (auto cmp = dyn_cast_or_null<arith::CmpIOp>(condition.getDefiningOp())) {
+    auto pred = cmp.getPredicate();
+    if (pred == arith::CmpIPredicate::eq || pred == arith::CmpIPredicate::ne) {
+      auto cmpLhs = cmp.getLhs();
+      auto cmpRhs = cmp.getRhs();
+
+      // %0 = arith.cmpi eq, %arg0, %arg1
+      // %1 = arith.select %0, %arg0, %arg1 => %arg1
+
+      // %0 = arith.cmpi ne, %arg0, %arg1
+      // %1 = arith.select %0, %arg0, %arg1 => %arg0
+
+      if ((cmpLhs == trueVal && cmpRhs == falseVal) ||
+          (cmpRhs == trueVal && cmpLhs == falseVal))
+        return pred == arith::CmpIPredicate::ne ? trueVal : falseVal;
+    }
+  }
+  return nullptr;
+}
+
+ParseResult SelectOp::parse(OpAsmParser &parser, OperationState &result) {
+  Type conditionType, resultType;
+  SmallVector<OpAsmParser::OperandType, 3> operands;
+  if (parser.parseOperandList(operands, /*requiredOperandCount=*/3) ||
+      parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseColonType(resultType))
+    return failure();
+
+  // Check for the explicit condition type if this is a masked tensor or vector.
+  if (succeeded(parser.parseOptionalComma())) {
+    conditionType = resultType;
+    if (parser.parseType(resultType))
+      return failure();
+  } else {
+    conditionType = parser.getBuilder().getI1Type();
+  }
+
+  result.addTypes(resultType);
+  return parser.resolveOperands(operands,
+                                {conditionType, resultType, resultType},
+                                parser.getNameLoc(), result.operands);
+}
+
+void arith::SelectOp::print(OpAsmPrinter &p) {
+  p << " " << getOperands();
+  p.printOptionalAttrDict((*this)->getAttrs());
+  p << " : ";
+  if (ShapedType condType = getCondition().getType().dyn_cast<ShapedType>())
+    p << condType << ", ";
+  p << getType();
+}
+
+LogicalResult arith::SelectOp::verify() {
+  Type conditionType = getCondition().getType();
+  if (conditionType.isSignlessInteger(1))
+    return success();
+
+  // If the result type is a vector or tensor, the type can be a mask with the
+  // same elements.
+  Type resultType = getType();
+  if (!resultType.isa<TensorType, VectorType>())
+    return emitOpError() << "expected condition to be a signless i1, but got "
+                         << conditionType;
+  Type shapedConditionType = getI1SameShape(resultType);
+  if (conditionType != shapedConditionType) {
+    return emitOpError() << "expected condition type to have the same shape "
+                            "as the result type, expected "
+                         << shapedConditionType << ", but got "
+                         << conditionType;
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

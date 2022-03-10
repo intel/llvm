@@ -113,7 +113,8 @@ Type *ESIMDLowerVecArgPass::getSimdArgPtrTyOrNull(Value *arg) {
   if (!ArgType)
     return nullptr;
   Type *Res = nullptr;
-  StructType *ST = dyn_cast_or_null<StructType>(ArgType->getElementType());
+  StructType *ST =
+      dyn_cast_or_null<StructType>(ArgType->getPointerElementType());
 
   while (ST && (ST->getStructNumElements() == 1)) {
     Res = ST->getStructElementType(0);

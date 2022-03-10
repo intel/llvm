@@ -125,6 +125,14 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
   for (auto Input : Inputs)
     LldArgs.push_back(Input.getFilename());
 
+  // Look for archive of bundled bitcode in arguments, and add temporary files
+  // for the extracted archive of bitcode to inputs.
+  auto TargetID = Args.getLastArgValue(options::OPT_mcpu_EQ);
+  AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, LldArgs, "amdgcn",
+                             TargetID,
+                             /*IsBitCodeSDL=*/true,
+                             /*PostClangLink=*/false);
+
   const char *Lld = Args.MakeArgString(getToolChain().GetProgramPath("lld"));
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                          Lld, LldArgs, Inputs, Output));
@@ -260,11 +268,12 @@ void HIPAMDToolChain::addClangTargetOptions(
     CC1Args.push_back(DriverArgs.MakeArgString(LibSpirvFile));
   }
 
-  llvm::for_each(getHIPDeviceLibs(DriverArgs), [&](auto BCFile) {
-    CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
-                                               : "-mlink-bitcode-file");
-    CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
-  });
+  llvm::for_each(
+      getHIPDeviceLibs(DriverArgs, DeviceOffloadingKind), [&](auto BCFile) {
+        CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
+                                                   : "-mlink-bitcode-file");
+        CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
+      });
 }
 
 llvm::opt::DerivedArgList *
@@ -359,7 +368,9 @@ VersionTuple HIPAMDToolChain::computeMSVCVersion(const Driver *D,
 }
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
-HIPAMDToolChain::getHIPDeviceLibs(const llvm::opt::ArgList &DriverArgs) const {
+HIPAMDToolChain::getHIPDeviceLibs(
+    const llvm::opt::ArgList &DriverArgs,
+    const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
   if (DriverArgs.hasArg(options::OPT_nogpulib))
     return {};
@@ -416,7 +427,8 @@ HIPAMDToolChain::getHIPDeviceLibs(const llvm::opt::ArgList &DriverArgs) const {
     BCLibs.push_back(RocmInstallation.getHIPPath());
 
     // Add common device libraries like ocml etc.
-    for (auto N : getCommonDeviceLibNames(DriverArgs, GpuArch.str()))
+    for (auto N : getCommonDeviceLibNames(DriverArgs, GpuArch.str(),
+                                          DeviceOffloadingKind))
       BCLibs.push_back(StringRef(N));
 
     // Add instrument lib.

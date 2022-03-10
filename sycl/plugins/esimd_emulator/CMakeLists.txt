@@ -69,7 +69,7 @@ else ()
       set (replacing_pattern s/{\ ?GFX_EMU_WITH_FLAGS_.*//g)
       ExternalProject_Add(cm-emu
         GIT_REPOSITORY    https://github.com/intel/cm-cpu-emulation.git
-        GIT_TAG           c19234cea13bdfc32b5ed9
+        GIT_TAG           f9d167edbcb995e713d5a8
         BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
         INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
         PATCH_COMMAND     perl -pi.back -e ${replacing_pattern} ${CMAKE_CURRENT_BINARY_DIR}/cm-emu-prefix/src/cm-emu/common/emu_log.h

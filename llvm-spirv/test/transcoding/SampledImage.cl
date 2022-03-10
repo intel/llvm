@@ -40,7 +40,7 @@ void sample_kernel_int(image2d_t input, float2 coords, global int4 *results, sam
 // CHECK-SPIRV: Function {{.*}} [[sample_kernel_float]]
 // CHECK-SPIRV: FunctionParameter {{.*}} [[InputImage:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter [[TypeSampler]] [[argSampl:[0-9]+]]
-// CHECK-LLVM: define spir_kernel void @sample_kernel_float(%opencl.image2d_ro_t addrspace(1)* %input, <2 x float> %coords, <4 x float> addrspace(1)* nocapture %results, %opencl.sampler_t addrspace(2)* %argSampl)
+// CHECK-LLVM: define spir_kernel void @sample_kernel_float(%opencl.image2d_ro_t addrspace(1)* %input, <2 x float> %coords, <4 x float> addrspace(1)* nocapture align 16 %results, %opencl.sampler_t addrspace(2)* %argSampl)
 
 // CHECK-SPIRV: SampledImage [[SampledImageTy]] [[SampledImage1:[0-9]+]] [[InputImage]] [[ConstSampler1]]
 // CHECK-SPIRV: ImageSampleExplicitLod {{.*}} [[SampledImage1]]
@@ -63,7 +63,7 @@ void sample_kernel_int(image2d_t input, float2 coords, global int4 *results, sam
 // CHECK-SPIRV: Function {{.*}} [[sample_kernel_int]]
 // CHECK-SPIRV: FunctionParameter {{.*}} [[InputImage:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter [[TypeSampler]] [[argSampl:[0-9]+]]
-// CHECK-LLVM: define spir_kernel void @sample_kernel_int(%opencl.image2d_ro_t addrspace(1)* %input, <2 x float> %coords, <4 x i32> addrspace(1)* nocapture %results, %opencl.sampler_t addrspace(2)* %argSampl)
+// CHECK-LLVM: define spir_kernel void @sample_kernel_int(%opencl.image2d_ro_t addrspace(1)* %input, <2 x float> %coords, <4 x i32> addrspace(1)* nocapture align 16 %results, %opencl.sampler_t addrspace(2)* %argSampl)
 
 // CHECK-SPIRV: SampledImage [[SampledImageTy]] [[SampledImage4:[0-9]+]] [[InputImage]] [[ConstSampler3]]
 // CHECK-SPIRV: ImageSampleExplicitLod {{.*}} [[SampledImage4]]

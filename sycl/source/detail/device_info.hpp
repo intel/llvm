@@ -249,6 +249,21 @@ struct get_device_info<std::vector<memory_order>,
   }
 };
 
+// Specialization for atomic_memory_scope_capabilities, PI returns a bitfield
+template <>
+struct get_device_info<std::vector<memory_scope>,
+                       info::device::atomic_memory_scope_capabilities> {
+  static std::vector<memory_scope> get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_memory_scope_capabilities result;
+    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev,
+        pi::cast<RT::PiDeviceInfo>(
+            info::device::atomic_memory_scope_capabilities),
+        sizeof(pi_memory_scope_capabilities), &result, nullptr);
+    return readMemoryScopeBitfield(result);
+  }
+};
+
 // Specialization for exec_capabilities, OpenCL returns a bitfield
 template <>
 struct get_device_info<std::vector<info::execution_capability>,
@@ -748,6 +763,13 @@ get_device_info_host<info::device::atomic_memory_order_capabilities>() {
 }
 
 template <>
+inline std::vector<memory_scope>
+get_device_info_host<info::device::atomic_memory_scope_capabilities>() {
+  return {memory_scope::work_item, memory_scope::sub_group,
+          memory_scope::work_group, memory_scope::device, memory_scope::system};
+}
+
+template <>
 inline cl_uint get_device_info_host<info::device::max_read_image_args>() {
   // current value is the required minimum
   return 128;
@@ -1044,7 +1066,7 @@ inline bool get_device_info_host<info::device::preferred_interop_user_sync>() {
 
 template <> inline device get_device_info_host<info::device::parent_device>() {
   // TODO: implement host device partitioning
-  throw runtime_error(
+  throw invalid_object_error(
       "Partitioning to subdevices of the host device is not implemented yet",
       PI_INVALID_DEVICE);
 }

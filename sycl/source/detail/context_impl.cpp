@@ -163,6 +163,24 @@ context_impl::get_info<info::context::atomic_memory_order_capabilities>()
       sizeof(Result), &Result, nullptr);
   return readMemoryOrderBitfield(Result);
 }
+template <>
+std::vector<cl::sycl::memory_scope>
+context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
+    const {
+  if (is_host())
+    return {cl::sycl::memory_scope::work_item,
+            cl::sycl::memory_scope::sub_group,
+            cl::sycl::memory_scope::work_group, cl::sycl::memory_scope::device,
+            cl::sycl::memory_scope::system};
+
+  pi_memory_scope_capabilities Result;
+  getPlugin().call<PiApiKind::piContextGetInfo>(
+      MContext,
+      pi::cast<pi_context_info>(
+          info::context::atomic_memory_scope_capabilities),
+      sizeof(Result), &Result, nullptr);
+  return readMemoryScopeBitfield(Result);
+}
 
 RT::PiContext &context_impl::getHandleRef() { return MContext; }
 const RT::PiContext &context_impl::getHandleRef() const { return MContext; }

@@ -8,6 +8,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
+// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // ranges::prev(it, n, bound)
 
@@ -28,9 +29,7 @@ constexpr void check(int* first, int* last, std::iter_difference_t<It> n, int* e
   assert(base(result) == expected);
 }
 
-// TODO: Re-enable once we fix the bug in ranges::advance
 constexpr bool test() {
-#if 0
   int range[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
   for (int size = 0; size != 10; ++size) {
@@ -42,7 +41,6 @@ constexpr bool test() {
       check<int*>(                        range, range+size, n, expected);
     }
   }
-#endif
 
   return true;
 }

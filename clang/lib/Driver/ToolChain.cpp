@@ -110,6 +110,10 @@ bool ToolChain::useRelaxRelocations() const {
   return ENABLE_X86_RELAX_RELOCATIONS;
 }
 
+bool ToolChain::defaultToIEEELongDouble() const {
+  return PPC_LINUX_DEFAULT_IEEELONGDOUBLE && getTriple().isOSLinux();
+}
+
 SanitizerArgs
 ToolChain::getSanitizerArgs(const llvm::opt::ArgList &JobArgs) const {
   SanitizerArgs SanArgs(*this, JobArgs, !SanitizerArgsChecked);
@@ -376,6 +380,12 @@ Tool *ToolChain::getSpirvToIrWrapper() const {
   return SpirvToIrWrapper.get();
 }
 
+Tool *ToolChain::getLinkerWrapper() const {
+  if (!LinkerWrapper)
+    LinkerWrapper.reset(new tools::LinkerWrapper(*this, getLink()));
+  return LinkerWrapper.get();
+}
+
 Tool *ToolChain::getTool(Action::ActionClass AC) const {
   switch (AC) {
   case Action::AssembleJobClass:
@@ -439,6 +449,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::SpirvToIrWrapperJobClass:
     return getSpirvToIrWrapper();
+
+  case Action::LinkerWrapperJobClass:
+    return getLinkerWrapper();
   }
 
   llvm_unreachable("Invalid tool kind.");
@@ -1115,7 +1128,9 @@ void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
-ToolChain::getHIPDeviceLibs(const ArgList &DriverArgs) const {
+ToolChain::getHIPDeviceLibs(
+    const ArgList &DriverArgs,
+    const Action::OffloadKind DeviceOffloadingKind) const {
   return {};
 }
 
@@ -1220,8 +1235,10 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       XOffloadTargetNoTriple =
         A->getOption().matches(options::OPT_Xopenmp_target);
       if (A->getOption().matches(options::OPT_Xopenmp_target_EQ)) {
+        llvm::Triple TT(getOpenMPTriple(A->getValue(0)));
+
         // Passing device args: -Xopenmp-target=<triple> -opt=val.
-        if (A->getValue(0) == getTripleString())
+        if (TT.getTriple() == getTripleString())
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;

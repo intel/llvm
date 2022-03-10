@@ -19,7 +19,7 @@ static bool EditBOZInput(IoStatementState &io, const DataEdit &edit, void *n,
   std::optional<int> remaining;
   std::optional<char32_t> next{io.PrepareInput(edit, remaining)};
   common::UnsignedInt128 value{0};
-  for (; next; next = io.NextInField(remaining)) {
+  for (; next; next = io.NextInField(remaining, edit)) {
     char32_t ch{*next};
     if (ch == ' ' || ch == '\t') {
       continue;
@@ -48,6 +48,10 @@ static bool EditBOZInput(IoStatementState &io, const DataEdit &edit, void *n,
   return true;
 }
 
+static inline char32_t GetDecimalPoint(const DataEdit &edit) {
+  return edit.modes.editingFlags & decimalComma ? char32_t{','} : char32_t{'.'};
+}
+
 // Prepares input from a field, and consumes the sign, if any.
 // Returns true if there's a '-' sign.
 static bool ScanNumericPrefix(IoStatementState &io, const DataEdit &edit,
@@ -59,7 +63,7 @@ static bool ScanNumericPrefix(IoStatementState &io, const DataEdit &edit,
     if (negative || *next == '+') {
       io.GotChar();
       io.SkipSpaces(remaining);
-      next = io.NextInField(remaining);
+      next = io.NextInField(remaining, edit);
     }
   }
   return negative;
@@ -95,9 +99,9 @@ bool EditIntegerInput(
   std::optional<int> remaining;
   std::optional<char32_t> next;
   bool negate{ScanNumericPrefix(io, edit, next, remaining)};
-  common::UnsignedInt128 value;
-  bool any{false};
-  for (; next; next = io.NextInField(remaining)) {
+  common::UnsignedInt128 value{0};
+  bool any{negate};
+  for (; next; next = io.NextInField(remaining, edit)) {
     char32_t ch{*next};
     if (ch == ' ' || ch == '\t') {
       if (edit.modes.editingFlags & blankZero) {
@@ -118,11 +122,11 @@ bool EditIntegerInput(
     value += digit;
     any = true;
   }
-  if (any) {
-    if (negate) {
-      value = -value;
-    }
-    std::memcpy(n, &value, kind);
+  if (negate) {
+    value = -value;
+  }
+  if (any || !io.GetConnectionState().IsAtEOF()) {
+    std::memcpy(n, &value, kind); // a blank field means zero
   }
   return any;
 }
@@ -151,17 +155,19 @@ static int ScanRealInput(char *buffer, int bufferSize, IoStatementState &io,
   }
   if (next.value_or(' ') == ' ') { // empty/blank field means zero
     remaining.reset();
-    Put('0');
+    if (!io.GetConnectionState().IsAtEOF()) {
+      Put('0');
+    }
     return got;
   }
-  char32_t decimal = edit.modes.editingFlags & decimalComma ? ',' : '.';
+  char32_t decimal{GetDecimalPoint(edit)};
   char32_t first{*next >= 'a' && *next <= 'z' ? *next + 'A' - 'a' : *next};
   if (first == 'N' || first == 'I') {
     // NaN or infinity - convert to upper case
     // Subtle: a blank field of digits could be followed by 'E' or 'D',
     for (; next &&
          ((*next >= 'a' && *next <= 'z') || (*next >= 'A' && *next <= 'Z'));
-         next = io.NextInField(remaining)) {
+         next = io.NextInField(remaining, edit)) {
       if (*next >= 'a' && *next <= 'z') {
         Put(*next - 'a' + 'A');
       } else {
@@ -170,7 +176,7 @@ static int ScanRealInput(char *buffer, int bufferSize, IoStatementState &io,
     }
     if (next && *next == '(') { // NaN(...)
       while (next && *next != ')') {
-        next = io.NextInField(remaining);
+        next = io.NextInField(remaining, edit);
       }
     }
     exponent = 0;
@@ -179,7 +185,7 @@ static int ScanRealInput(char *buffer, int bufferSize, IoStatementState &io,
     Put('.'); // input field is normalized to a fraction
     auto start{got};
     bool bzMode{(edit.modes.editingFlags & blankZero) != 0};
-    for (; next; next = io.NextInField(remaining)) {
+    for (; next; next = io.NextInField(remaining, edit)) {
       char32_t ch{*next};
       if (ch == ' ' || ch == '\t') {
         if (bzMode) {
@@ -208,7 +214,7 @@ static int ScanRealInput(char *buffer, int bufferSize, IoStatementState &io,
       // Optional exponent letter.  Blanks are allowed between the
       // optional exponent letter and the exponent value.
       io.SkipSpaces(remaining);
-      next = io.NextInField(remaining);
+      next = io.NextInField(remaining, edit);
     }
     // The default exponent is -kP, but the scale factor doesn't affect
     // an explicit exponent.
@@ -218,9 +224,9 @@ static int ScanRealInput(char *buffer, int bufferSize, IoStatementState &io,
             (bzMode && (*next == ' ' || *next == '\t')))) {
       bool negExpo{*next == '-'};
       if (negExpo || *next == '+') {
-        next = io.NextInField(remaining);
+        next = io.NextInField(remaining, edit);
       }
-      for (exponent = 0; next; next = io.NextInField(remaining)) {
+      for (exponent = 0; next; next = io.NextInField(remaining, edit)) {
         if (*next >= '0' && *next <= '9') {
           exponent = 10 * exponent + *next - '0';
         } else if (bzMode && (*next == ' ' || *next == '\t')) {
@@ -251,7 +257,7 @@ static int ScanRealInput(char *buffer, int bufferSize, IoStatementState &io,
   // input value.
   if (edit.descriptor == DataEdit::ListDirectedImaginaryPart) {
     if (next && (*next == ' ' || *next == '\t')) {
-      next = io.NextInField(remaining);
+      next = io.NextInField(remaining, edit);
     }
     if (!next) { // NextInField fails on separators like ')'
       next = io.GetCurrentChar();
@@ -261,7 +267,7 @@ static int ScanRealInput(char *buffer, int bufferSize, IoStatementState &io,
     }
   } else if (remaining) {
     while (next && (*next == ' ' || *next == '\t')) {
-      next = io.NextInField(remaining);
+      next = io.NextInField(remaining, edit);
     }
     if (next) {
       return 0; // error: unused nonblank character in fixed-width field
@@ -451,7 +457,7 @@ bool EditLogicalInput(IoStatementState &io, const DataEdit &edit, bool &x) {
   std::optional<int> remaining;
   std::optional<char32_t> next{io.PrepareInput(edit, remaining)};
   if (next && *next == '.') { // skip optional period
-    next = io.NextInField(remaining);
+    next = io.NextInField(remaining, edit);
   }
   if (!next) {
     io.GetIoErrorHandler().SignalError("Empty LOGICAL input field");
@@ -474,7 +480,7 @@ bool EditLogicalInput(IoStatementState &io, const DataEdit &edit, bool &x) {
   if (remaining) { // ignore the rest of the field
     io.HandleRelativePosition(*remaining);
   } else if (edit.descriptor == DataEdit::ListDirected) {
-    while (io.NextInField(remaining)) { // discard rest of field
+    while (io.NextInField(remaining, edit)) { // discard rest of field
     }
   }
   return true;
@@ -514,20 +520,19 @@ static bool EditDelimitedCharacterInput(
 }
 
 static bool EditListDirectedDefaultCharacterInput(
-    IoStatementState &io, char *x, std::size_t length) {
+    IoStatementState &io, char *x, std::size_t length, const DataEdit &edit) {
   auto ch{io.GetCurrentChar()};
   if (ch && (*ch == '\'' || *ch == '"')) {
     io.HandleRelativePosition(1);
     return EditDelimitedCharacterInput(io, x, length, *ch);
   }
-  if (IsNamelistName(io)) {
+  if (IsNamelistName(io) || io.GetConnectionState().IsAtEOF()) {
     return false;
   }
   // Undelimited list-directed character input: stop at a value separator
   // or the end of the current record.
   std::optional<int> remaining{length};
-  for (std::optional<char32_t> next{io.NextInField(remaining)}; next;
-       next = io.NextInField(remaining)) {
+  while (std::optional<char32_t> next{io.NextInField(remaining, edit)}) {
     switch (*next) {
     case ' ':
     case '\t':
@@ -549,7 +554,7 @@ bool EditDefaultCharacterInput(
     IoStatementState &io, const DataEdit &edit, char *x, std::size_t length) {
   switch (edit.descriptor) {
   case DataEdit::ListDirected:
-    return EditListDirectedDefaultCharacterInput(io, x, length);
+    return EditListDirectedDefaultCharacterInput(io, x, length, edit);
   case 'A':
   case 'G':
     break;
@@ -557,6 +562,9 @@ bool EditDefaultCharacterInput(
     io.GetIoErrorHandler().SignalError(IostatErrorInFormat,
         "Data edit descriptor '%c' may not be used with a CHARACTER data item",
         edit.descriptor);
+    return false;
+  }
+  if (io.GetConnectionState().IsAtEOF()) {
     return false;
   }
   std::optional<int> remaining{length};
@@ -567,8 +575,7 @@ bool EditDefaultCharacterInput(
   // characters.  When the variable is wider than the field, there's
   // trailing padding.
   std::int64_t skip{*remaining - static_cast<std::int64_t>(length)};
-  for (std::optional<char32_t> next{io.NextInField(remaining)}; next;
-       next = io.NextInField(remaining)) {
+  while (std::optional<char32_t> next{io.NextInField(remaining, edit)}) {
     if (skip > 0) {
       --skip;
       io.GotChar(-1);

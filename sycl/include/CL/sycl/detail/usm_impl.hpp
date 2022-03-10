@@ -7,6 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/usm/usm_enums.hpp>
 
@@ -17,13 +18,16 @@ namespace usm {
 
 __SYCL_EXPORT void *alignedAlloc(size_t Alignment, size_t Bytes,
                                  const context &Ctxt, const device &Dev,
-                                 cl::sycl::usm::alloc Kind);
+                                 cl::sycl::usm::alloc Kind,
+                                 const code_location &CL);
 
 __SYCL_EXPORT void *alignedAllocHost(size_t Alignment, size_t Bytes,
                                      const context &Ctxt,
-                                     cl::sycl::usm::alloc Kind);
+                                     cl::sycl::usm::alloc Kind,
+                                     const code_location &CL);
 
-__SYCL_EXPORT void free(void *Ptr, const context &Ctxt);
+__SYCL_EXPORT void free(void *Ptr, const context &Ctxt,
+                        const code_location &CL);
 
 } // namespace usm
 } // namespace detail

@@ -533,9 +533,9 @@ DeduceTemplateArguments(Sema &S,
 ///
 /// \param TemplateParams the template parameters that we are deducing
 ///
-/// \param Param the parameter type
+/// \param P the parameter type
 ///
-/// \param Arg the argument type
+/// \param A the argument type
 ///
 /// \param Info information about the template argument deduction itself
 ///
@@ -1199,11 +1199,11 @@ static CXXRecordDecl *getCanonicalRD(QualType T) {
 ///
 /// \param S the semantic analysis object within which we are deducing.
 ///
-/// \param RecordT the top level record object we are deducing against.
+/// \param RD the top level record object we are deducing against.
 ///
 /// \param TemplateParams the template parameters that we are deducing.
 ///
-/// \param SpecParam the template specialization parameter type.
+/// \param P the template specialization parameter type.
 ///
 /// \param Info information about the template argument deduction itself.
 ///
@@ -1315,9 +1315,9 @@ DeduceTemplateBases(Sema &S, const CXXRecordDecl *RD,
 ///
 /// \param TemplateParams the template parameters that we are deducing
 ///
-/// \param ParamIn the parameter type
+/// \param P the parameter type
 ///
-/// \param ArgIn the argument type
+/// \param A the argument type
 ///
 /// \param Info information about the template argument deduction itself
 ///
@@ -5355,7 +5355,7 @@ static bool isAtLeastAsSpecializedAs(Sema &S, QualType T1, QualType T2,
   bool AtLeastAsSpecialized;
   S.runWithSufficientStackSpace(Info.getLocation(), [&] {
     AtLeastAsSpecialized = !FinishTemplateArgumentDeduction(
-        S, P2, /*PartialOrdering=*/true,
+        S, P2, /*IsPartialOrdering=*/true,
         TemplateArgumentList(TemplateArgumentList::OnStack,
                              TST1->template_arguments()),
         Deduced, Info);

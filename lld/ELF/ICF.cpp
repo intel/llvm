@@ -74,14 +74,12 @@
 
 #include "ICF.h"
 #include "Config.h"
-#include "EhFrame.h"
+#include "InputFiles.h"
 #include "LinkerScript.h"
 #include "OutputSections.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
-#include "Writer.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Support/Parallel.h"
@@ -122,7 +120,7 @@ private:
 
   void forEachClass(llvm::function_ref<void(size_t, size_t)> fn);
 
-  std::vector<InputSection *> sections;
+  SmallVector<InputSection *, 0> sections;
 
   // We repeat the main loop while `Repeat` is true.
   std::atomic<bool> repeat;
@@ -315,7 +313,7 @@ bool ICF<ELFT>::constantEq(const InputSection *secA, ArrayRef<RelTy> ra,
 template <class ELFT>
 bool ICF<ELFT>::equalsConstant(const InputSection *a, const InputSection *b) {
   if (a->flags != b->flags || a->getSize() != b->getSize() ||
-      a->data() != b->data())
+      a->rawData != b->rawData)
     return false;
 
   // If two sections have different output sections, we cannot merge them.
@@ -494,7 +492,7 @@ template <class ELFT> void ICF<ELFT>::run() {
   // Initially, we use hash values to partition sections.
   parallelForEach(sections, [&](InputSection *s) {
     // Set MSB to 1 to avoid collisions with unique IDs.
-    s->eqClass[0] = xxHash64(s->data()) | (1U << 31);
+    s->eqClass[0] = xxHash64(s->rawData) | (1U << 31);
   });
 
   // Perform 2 rounds of relocation hash propagation. 2 is an empirical value to

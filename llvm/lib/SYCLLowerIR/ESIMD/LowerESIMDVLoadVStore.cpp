@@ -103,7 +103,7 @@ PreservedAnalyses ESIMDLowerLoadStorePass::run(Function &F,
         IRBuilder<> Builder(&Inst);
         if (GenXIntrinsic::isVStore(&Inst)) {
           auto PtrTy = cast<PointerType>(Inst.getOperand(1)->getType());
-          PtrTy = PointerType::get(PtrTy->getElementType(), AS1);
+          PtrTy = PointerType::get(PtrTy->getPointerElementType(), AS1);
           auto PtrCast = Builder.CreateAddrSpaceCast(Inst.getOperand(1), PtrTy);
           Type *Tys[] = {Inst.getOperand(0)->getType(), PtrCast->getType()};
           Value *Args[] = {Inst.getOperand(0), PtrCast};
@@ -112,7 +112,7 @@ PreservedAnalyses ESIMDLowerLoadStorePass::run(Function &F,
           Builder.CreateCall(Fn, Args, Inst.getName());
         } else {
           auto PtrTy = cast<PointerType>(Inst.getOperand(0)->getType());
-          PtrTy = PointerType::get(PtrTy->getElementType(), AS1);
+          PtrTy = PointerType::get(PtrTy->getPointerElementType(), AS1);
           auto PtrCast = Builder.CreateAddrSpaceCast(Inst.getOperand(0), PtrTy);
           Type *Tys[] = {Inst.getType(), PtrCast->getType()};
           Function *Fn = GenXIntrinsic::getGenXDeclaration(

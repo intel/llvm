@@ -275,8 +275,8 @@ void SPIRVEntry::addDecorate(Decoration Kind) {
 
 void SPIRVEntry::addDecorate(Decoration Kind, SPIRVWord Literal) {
   switch (static_cast<int>(Kind)) {
-  case internal::DecorationAliasScopeINTEL:
-  case internal::DecorationNoAliasINTEL:
+  case DecorationAliasScopeINTEL:
+  case DecorationNoAliasINTEL:
     addDecorate(new SPIRVDecorateId(Kind, this, Literal));
     return;
   default:
@@ -438,6 +438,14 @@ SPIRVEntry::getDecorations(Decoration Kind) const {
   for (auto I = Range.first, E = Range.second; I != E; ++I) {
     Decors.push_back(I->second);
   }
+  return Decors;
+}
+
+std::vector<SPIRVDecorate const *> SPIRVEntry::getDecorations() const {
+  std::vector<SPIRVDecorate const *> Decors;
+  Decors.reserve(Decorates.size());
+  for (auto &DecoPair : Decorates)
+    Decors.push_back(DecoPair.second);
   return Decors;
 }
 

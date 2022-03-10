@@ -21,6 +21,7 @@
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/host_profiling_info.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/spinlock.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
@@ -28,7 +29,6 @@
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
 
-// TODO : Rename esimdcpu to esimdemu for next CM_EMU release
 #include <esimdemu_support.h>
 
 #include <cstdarg>
@@ -116,6 +116,19 @@ static bool PrintPiTrace = false;
 // Sycl RT calls piTearDown().
 static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 
+// Single-entry cache for piPlatformsGet call.
+static pi_platform PiPlatformCache;
+// TODO/FIXME : Memory leak. Handle with 'piTearDown'.
+static sycl::detail::SpinLock *PiPlatformCacheMutex =
+    new sycl::detail::SpinLock;
+
+// Mapping between surface index and CM-managed surface
+static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap =
+    new std::unordered_map<unsigned int, _pi_mem *>;
+// TODO/FIXME : Memory leak. Handle with 'piTearDown'.
+static sycl::detail::SpinLock *PiESimdSurfaceMapLock =
+    new sycl::detail::SpinLock;
+
 // To be compared with ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION in device
 // interface header file
 #define ESIMDEmuPluginDataVersion 0
@@ -127,9 +140,6 @@ static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 // For PI_DEVICE_INFO_DRIVER_VERSION info
 static char ESimdEmuVersionString[32];
 
-// For PI_DEVICE_INFO_VERSION info
-static char CmEmuDeviceVersionString[32];
-
 using IDBuilder = sycl::detail::Builder;
 
 template <int NDims>
@@ -137,32 +147,14 @@ using KernelFunc = std::function<void(const sycl::nd_item<NDims> &)>;
 
 // Struct to wrap dimension info and lambda function to be invoked by
 // CM Kernel launcher that only accepts raw function pointer for
-// kernel execution. Function instances of 'InvokeLambda' un-wrap this
-// struct instance and invoke lambda function ('Func')
-template <int NDims> struct LambdaWrapper {
+// kernel execution. Function instances of 'InvokeKernel' un-wrap
+// this struct instance and invoke lambda function ('Func')
+template <int NDims> struct KernelInvocationContext {
   KernelFunc<NDims> Func;
   const sycl::range<NDims> &LocalSize;
   const sycl::range<NDims> &GlobalSize;
   const sycl::id<NDims> &GlobalOffset;
-  LambdaWrapper(KernelFunc<NDims> ArgFunc,
-                const sycl::range<NDims> &ArgLocalSize,
-                const sycl::range<NDims> &ArgGlobalSize,
-                const sycl::id<NDims> &ArgGlobalOffset)
-      : Func(ArgFunc), LocalSize(ArgLocalSize), GlobalSize(ArgGlobalSize),
-        GlobalOffset(ArgGlobalOffset) {}
 };
-
-// Function to generate a lambda wrapper object above
-template <int NDims>
-auto MakeLambdaWrapper(KernelFunc<NDims> ArgFunc,
-                       const sycl::range<NDims> &LocalSize,
-                       const sycl::range<NDims> &GlobalSize,
-                       const sycl::id<NDims> &GlobalOffset) {
-  std::unique_ptr<LambdaWrapper<NDims>> Wrapper =
-      std::make_unique<LambdaWrapper<NDims>>(LambdaWrapper<NDims>(
-          KernelFunc<NDims>(ArgFunc), LocalSize, GlobalSize, GlobalOffset));
-  return Wrapper;
-}
 
 // A helper structure to create multi-dimensional range when
 // dimensionality is given as a template parameter. `create` function
@@ -189,69 +181,65 @@ template <> struct RangeBuilder<3> {
 // Function template to generate entry point of kernel execution as
 // raw function pointer. CM kernel launcher executes one instance of
 // this function per 'NDims'
-template <int NDims> void InvokeLambda(void *Wrapper) {
-  auto *WrappedLambda = reinterpret_cast<LambdaWrapper<NDims> *>(Wrapper);
-  sycl::range<NDims> GroupSize(
-      sycl::detail::InitializedVal<NDims, sycl::range>::template get<0>());
+template <int NDims> void InvokeKernel(KernelInvocationContext<NDims> *ctx) {
 
-  for (int I = 0; I < NDims /*Dims*/; ++I) {
-    GroupSize[I] = WrappedLambda->GlobalSize[I] / WrappedLambda->LocalSize[I];
+  sycl::range<NDims> GroupSize{
+      sycl::detail::InitializedVal<NDims, sycl::range>::template get<0>()};
+
+  for (int i = 0; i < NDims; ++i) {
+    GroupSize[i] = ctx->GlobalSize[i] / ctx->LocalSize[i];
   }
 
   const sycl::id<NDims> LocalID = RangeBuilder<NDims>::create(
       [](int i) { return cm_support::get_thread_idx(i); });
 
   const sycl::id<NDims> GroupID = RangeBuilder<NDims>::create(
-      [](int Id) { return cm_support::get_group_idx(Id); });
+      [](int i) { return cm_support::get_group_idx(i); });
 
   const sycl::group<NDims> Group = IDBuilder::createGroup<NDims>(
-      WrappedLambda->GlobalSize, WrappedLambda->LocalSize, GroupSize, GroupID);
+      ctx->GlobalSize, ctx->LocalSize, GroupSize, GroupID);
 
-  const sycl::id<NDims> GlobalID = GroupID * WrappedLambda->LocalSize +
-                                   LocalID + WrappedLambda->GlobalOffset;
+  const sycl::id<NDims> GlobalID =
+      GroupID * ctx->LocalSize + LocalID + ctx->GlobalOffset;
+
   const sycl::item<NDims, /*Offset=*/true> GlobalItem =
-      IDBuilder::createItem<NDims, true>(WrappedLambda->GlobalSize, GlobalID,
-                                         WrappedLambda->GlobalOffset);
+      IDBuilder::createItem<NDims, true>(ctx->GlobalSize, GlobalID,
+                                         ctx->GlobalOffset);
+
   const sycl::item<NDims, /*Offset=*/false> LocalItem =
-      IDBuilder::createItem<NDims, false>(WrappedLambda->LocalSize, LocalID);
+      IDBuilder::createItem<NDims, false>(ctx->LocalSize, LocalID);
 
   const sycl::nd_item<NDims> NDItem =
       IDBuilder::createNDItem<NDims>(GlobalItem, LocalItem, Group);
 
-  WrappedLambda->Func(NDItem);
+  ctx->Func(NDItem);
 }
 
-// libCMBatch class defines interface for lauching kernels with
-// software multi-threads
+// Interface for lauching kernels using libcm from CM EMU project.
 template <int DIMS> class libCMBatch {
 private:
-  // Kernel function
-  KernelFunc<DIMS> MKernel;
-
-  // Space-dimension info
-  std::vector<uint32_t> GroupDim;
-  std::vector<uint32_t> SpaceDim;
+  const KernelFunc<DIMS> &MKernel;
+  std::vector<uint32_t> GroupDim, SpaceDim;
 
 public:
-  libCMBatch(KernelFunc<DIMS> Kernel)
+  libCMBatch(const KernelFunc<DIMS> &Kernel)
       : MKernel(Kernel), GroupDim{1, 1, 1}, SpaceDim{1, 1, 1} {}
 
-  /// Invoking kernel lambda function wrapped by 'LambdaWrapper' using
-  /// 'InvokeLambda' function.
   void runIterationSpace(const sycl::range<DIMS> &LocalSize,
                          const sycl::range<DIMS> &GlobalSize,
                          const sycl::id<DIMS> &GlobalOffset) {
-    auto WrappedLambda =
-        MakeLambdaWrapper<DIMS>(MKernel, LocalSize, GlobalSize, GlobalOffset);
 
     for (int I = 0; I < DIMS; I++) {
       SpaceDim[I] = (uint32_t)LocalSize[I];
       GroupDim[I] = (uint32_t)(GlobalSize[I] / LocalSize[I]);
     }
 
-    EsimdemuKernel Esimdemu((fptrVoid)InvokeLambda<DIMS>, GroupDim, SpaceDim);
+    const auto InvokeKernelArg = KernelInvocationContext<DIMS>{
+        MKernel, LocalSize, GlobalSize, GlobalOffset};
 
-    Esimdemu.launchMT(sizeof(struct LambdaWrapper<DIMS>), WrappedLambda.get());
+    EsimdemuKernel{reinterpret_cast<fptrVoid>(InvokeKernel<DIMS>), GroupDim,
+                   SpaceDim}
+        .launchMT(sizeof(InvokeKernelArg), &InvokeKernelArg);
   }
 };
 
@@ -283,6 +271,51 @@ void sycl_get_cm_image_params(void *PtrInput, char **BaseAddr, uint32_t *Width,
   *MtxLock = &(Img->mutexLock);
 }
 
+// Function to provide image info for kernel compilation without
+// dependency on '_pi_mem' definition
+unsigned int sycl_get_cm_surface_index(void *PtrInput) {
+  _pi_mem *Surface = static_cast<_pi_mem *>(PtrInput);
+
+  return (unsigned int)(Surface->SurfaceIndex);
+}
+
+// Function to provide image info for kernel compilation using surface
+// index without dependency on '_pi_image' definition
+void sycl_get_cm_buffer_params_index(unsigned int IndexInput, char **BaseAddr,
+                                     uint32_t *Width, std::mutex **MtxLock) {
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  auto MemIter = PiESimdSurfaceMap->find(IndexInput);
+
+  assert(MemIter != PiESimdSurfaceMap->end() && "Invalid Surface Index");
+
+  _pi_buffer *Buf = static_cast<_pi_buffer *>(MemIter->second);
+
+  *BaseAddr = cm_support::get_surface_base_addr(Buf->SurfaceIndex);
+  *Width = static_cast<uint32_t>(Buf->Size);
+
+  *MtxLock = &(Buf->mutexLock);
+}
+
+// Function to provide image info for kernel compilation using surface
+// index without dependency on '_pi_image' definition
+void sycl_get_cm_image_params_index(unsigned int IndexInput, char **BaseAddr,
+                                    uint32_t *Width, uint32_t *Height,
+                                    uint32_t *Bpp, std::mutex **MtxLock) {
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  auto MemIter = PiESimdSurfaceMap->find(IndexInput);
+  assert(MemIter != PiESimdSurfaceMap->end() && "Invalid Surface Index");
+
+  _pi_image *Img = static_cast<_pi_image *>(MemIter->second);
+
+  *BaseAddr = cm_support::get_surface_base_addr(Img->SurfaceIndex);
+
+  *Bpp = static_cast<uint32_t>(Img->BytesPerPixel);
+  *Width = static_cast<uint32_t>(Img->Width) * (*Bpp);
+  *Height = static_cast<uint32_t>(Img->Height);
+
+  *MtxLock = &(Img->mutexLock);
+}
+
 /// Implementation for ESIMD_EMULATOR device interface accessing ESIMD
 /// intrinsics and LibCM functionalties requred by intrinsics
 sycl::detail::ESIMDDeviceInterface::ESIMDDeviceInterface() {
@@ -300,6 +333,11 @@ sycl::detail::ESIMDDeviceInterface::ESIMDDeviceInterface() {
 
   sycl_get_cm_buffer_params_ptr = sycl_get_cm_buffer_params;
   sycl_get_cm_image_params_ptr = sycl_get_cm_image_params;
+
+  sycl_get_cm_surface_index_ptr = sycl_get_cm_surface_index;
+  sycl_get_cm_buffer_params_index_ptr = sycl_get_cm_buffer_params_index;
+  sycl_get_cm_image_params_index_ptr = sycl_get_cm_image_params_index;
+
   /* From 'esimd_emulator_functions_v1.h' : End */
 }
 
@@ -329,17 +367,12 @@ template <int NDims> struct InvokeImpl {
       return sycl::range<NDims>{Array[0], Array[1], Array[2]};
   }
 
-  static void invoke(void *Fptr, const size_t *GlobalWorkOffset,
+  static void invoke(pi_kernel Kernel, const size_t *GlobalWorkOffset,
                      const size_t *GlobalWorkSize,
                      const size_t *LocalWorkSize) {
-    auto GlobalSize = get_range(GlobalWorkSize);
-    auto LocalSize = get_range(LocalWorkSize);
-    sycl::id<NDims> GlobalOffset = get_range(GlobalWorkOffset);
-
-    auto KFunc = reinterpret_cast<KernelFunc<NDims> *>(Fptr);
-    libCMBatch<NDims> CmThreading(*KFunc);
-
-    CmThreading.runIterationSpace(LocalSize, GlobalSize, GlobalOffset);
+    libCMBatch<NDims>{*reinterpret_cast<KernelFunc<NDims> *>(Kernel)}
+        .runIterationSpace(get_range(LocalWorkSize), get_range(GlobalWorkSize),
+                           sycl::id<NDims>{get_range(GlobalWorkOffset)});
   }
 };
 
@@ -373,9 +406,10 @@ extern "C" {
 
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
-
+  static bool PiPlatformCachePopulated = false;
   static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
   static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
+
   if (PiTraceValue == -1) { // Means print all PI traces
     PrintPiTrace = true;
   }
@@ -401,9 +435,15 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiPlatformCacheMutex};
+  if (!PiPlatformCachePopulated) {
+    PiPlatformCache = new _pi_platform();
+    PiPlatformCache->CmEmuVersion = std::string("0.0.1");
+    PiPlatformCachePopulated = true;
+  }
+
   if (Platforms && NumEntries > 0) {
-    *Platforms = new _pi_platform();
-    Platforms[0]->CmEmuVersion = std::string("0.0.1");
+    *Platforms = PiPlatformCache;
   }
 
   return PI_SUCCESS;
@@ -456,6 +496,11 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_INVALID_PLATFORM;
   }
 
+  pi_result Res = Platform->populateDeviceCacheIfNeeded();
+  if (Res != PI_SUCCESS) {
+    return Res;
+  }
+
   // CM has single-root-GPU-device without sub-device support.
   pi_uint32 DeviceCount = (DeviceType & PI_DEVICE_TYPE_GPU) ? 1 : 0;
 
@@ -477,10 +522,23 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   }
 
   if (DeviceCount == 0) {
-    /// No GPU entry to fill 'Device' array
+    /// No GPU entry to fill 'Devices' array
     return PI_SUCCESS;
   }
 
+  if (Devices) {
+    *Devices = Platform->PiDeviceCache.get();
+  }
+  return PI_SUCCESS;
+}
+
+// Check the device cache and load it if necessary.
+pi_result _pi_platform::populateDeviceCacheIfNeeded() {
+  std::lock_guard<std::mutex> Lock(PiDeviceCacheMutex);
+
+  if (DeviceCachePopulated) {
+    return PI_SUCCESS;
+  }
   cm_support::CmDevice *CmDevice = nullptr;
   // TODO FIXME Implement proper version checking and reporting:
   // - version passed to cm_support::CreateCmDevice
@@ -493,6 +551,10 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   unsigned int Version = 0;
 
   int Result = cm_support::CreateCmDevice(CmDevice, Version);
+
+  if (Result != cm_support::CM_SUCCESS) {
+    return PI_INVALID_DEVICE;
+  }
 
   // CM Device version info consists of two decimal numbers - major
   // and minor. Minor is single-digit. Version info is encoded into a
@@ -509,21 +571,13 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_INVALID_DEVICE;
   }
 
-  sprintf(CmEmuDeviceVersionString, "%d.%d", (int)(Version / 100),
-          (int)(Version % 10));
+  std::ostringstream StrFormat;
+  StrFormat << (int)(Version / 100) << "." << (int)(Version % 10);
 
-  if (Result != cm_support::CM_SUCCESS) {
-    return PI_INVALID_DEVICE;
-  }
-
-  // FIXME / TODO : piDevicesGet always must return same pointer for
-  // 'Devices[0]' from cached entry. Reference : level-zero
-  // platform/device implementation with PiDevicesCache and
-  // PiDevicesCache
-  if (Devices) {
-    Devices[0] = new _pi_device(Platform, CmDevice);
-  }
-
+  std::unique_ptr<_pi_device> Device(
+      new _pi_device(this, CmDevice, StrFormat.str()));
+  PiDeviceCache = std::move(Device);
+  DeviceCachePopulated = true;
   return PI_SUCCESS;
 }
 
@@ -585,7 +639,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // cl_khr_int64_extended_atomics
     return ReturnValue("");
   case PI_DEVICE_INFO_VERSION:
-    return ReturnValue(CmEmuDeviceVersionString);
+    return ReturnValue(Device->VersionStr.c_str());
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: // emulator doesn't support partition
+    return ReturnValue(pi_bool{true});
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
     return ReturnValue(pi_bool{false});
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
@@ -957,6 +1013,10 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   }
 
   Status = CmBuf->GetIndex(CmIndex);
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  assert(PiESimdSurfaceMap->find((unsigned int)CmIndex->get_data()) ==
+             PiESimdSurfaceMap->end() &&
+         "Failure from CM-managed buffer creation");
 
   // Initialize the buffer with user data provided with 'HostPtr'
   if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
@@ -979,6 +1039,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+
+  (*PiESimdSurfaceMap)[(unsigned int)CmIndex->get_data()] = *RetMem;
 
   return PI_SUCCESS;
 }
@@ -1019,6 +1081,19 @@ pi_result piMemRelease(pi_mem Mem) {
         return PI_INVALID_MEM_OBJECT;
       }
     } else {
+      return PI_INVALID_MEM_OBJECT;
+    }
+
+    // Removing Surface-map entry
+    const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+    auto MapEntryIt = PiESimdSurfaceMap->find(Mem->SurfaceIndex);
+    if (MapEntryIt != PiESimdSurfaceMap->end()) {
+      PiESimdSurfaceMap->erase(MapEntryIt);
+    } else {
+      if (PrintPiTrace) {
+        std::cerr << "Failure from CM-managed buffer/image deletion"
+                  << std::endl;
+      }
       return PI_INVALID_MEM_OBJECT;
     }
 
@@ -1126,6 +1201,15 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
   Status = CmSurface->GetIndex(CmIndex);
 
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  if (PiESimdSurfaceMap->find((unsigned int)CmIndex->get_data()) !=
+      PiESimdSurfaceMap->end()) {
+    if (PrintPiTrace) {
+      std::cerr << "Failure from CM-managed image creation" << std::endl;
+    }
+    return PI_INVALID_MEM_OBJECT;
+  }
+
   // Initialize the buffer with user data provided with 'HostPtr'
   if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
     if (HostPtr != nullptr) {
@@ -1149,6 +1233,8 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+
+  (*PiESimdSurfaceMap)[(unsigned int)CmIndex->get_data()] = *RetImage;
 
   return PI_SUCCESS;
 }
@@ -1523,15 +1609,14 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
                       const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
                       pi_uint32 NumEventsInWaitList,
                       const pi_event *EventWaitList, pi_event *Event) {
+
   const size_t LocalWorkSz[] = {1, 1, 1};
 
   if (Kernel == nullptr) {
     return PI_INVALID_KERNEL;
   }
 
-  // WorkDim == 0 is reserved for 'single_task()' kernel with no
-  // argument
-  if (WorkDim > 3) {
+  if (WorkDim > 3 || WorkDim == 0) {
     return PI_INVALID_WORK_GROUP_SIZE;
   }
 
@@ -1553,27 +1638,18 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   }
 
   switch (WorkDim) {
-  case 0:
-    // TODO : intel/llvm_test_suite
-    // single_task() support - void(*)(void)
-    DIE_NO_IMPLEMENTATION;
-    break;
-
   case 1:
     InvokeImpl<1>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
     break;
-
   case 2:
     InvokeImpl<2>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
     break;
-
   case 3:
     InvokeImpl<3>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
     break;
-
   default:
     DIE_NO_IMPLEMENTATION;
     break;
@@ -1733,6 +1809,11 @@ pi_result piTearDown(void *) {
   delete reinterpret_cast<sycl::detail::ESIMDEmuPluginOpaqueData *>(
       PiESimdDeviceAccess->data);
   delete PiESimdDeviceAccess;
+
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  for (auto it = PiESimdSurfaceMap->begin(); it != PiESimdSurfaceMap->end();) {
+    it = PiESimdSurfaceMap->erase(it);
+  }
   return PI_SUCCESS;
 }
 

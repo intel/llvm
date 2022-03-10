@@ -201,6 +201,7 @@ constexpr char PropertySetRegistry::SYCL_PROGRAM_METADATA[];
 constexpr char PropertySetRegistry::SYCL_MISC_PROP[];
 constexpr char PropertySetRegistry::SYCL_ASSERT_USED[];
 constexpr char PropertySetRegistry::SYCL_EXPORTED_SYMBOLS[];
+constexpr char PropertySetRegistry::SYCL_DEVICE_GLOBALS[];
 
 } // namespace util
 } // namespace llvm

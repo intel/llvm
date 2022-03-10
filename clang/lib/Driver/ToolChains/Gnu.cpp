@@ -489,11 +489,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("--fix-cortex-a53-843419");
   }
 
-  // Android does not allow shared text relocations. Emit a warning if the
-  // user's code contains any.
-  if (isAndroid)
-      CmdArgs.push_back("--warn-shared-textrel");
-
   ToolChain.addExtraOpts(CmdArgs);
 
   CmdArgs.push_back("--eh-frame-hdr");
@@ -636,6 +631,14 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back("-lm");
   }
+
+  // If we are linking for the device all symbols should be bound locally. The
+  // symbols are already protected which makes this redundant. This is only
+  // necessary to work around a problem in bfd.
+  // TODO: Remove this once 'lld' becomes the only linker for offloading.
+  if (JA.isDeviceOffloading(Action::OFK_OpenMP))
+    CmdArgs.push_back("-Bsymbolic");
+
   // Silence warnings when linking C code with a C++ '-stdlib' argument.
   Args.ClaimAllArgs(options::OPT_stdlib_EQ);
 
@@ -762,7 +765,7 @@ void tools::gnutools::Assembler::ConstructJob(Compilation &C,
       CmdArgs.push_back("--compress-debug-sections");
     } else {
       StringRef Value = A->getValue();
-      if (Value == "none" || Value == "zlib" || Value == "zlib-gnu") {
+      if (Value == "none" || Value == "zlib") {
         CmdArgs.push_back(
             Args.MakeArgString("--compress-debug-sections=" + Twine(Value)));
       } else {

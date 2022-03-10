@@ -17,5 +17,8 @@ add_sycl_unittest(SchedulerTests OBJECT
     RequiredWGSize.cpp
     QueueFlushing.cpp
     PostEnqueueCleanup.cpp
+    Regression.cpp
     utils.cpp
+    LeafLimitDiffContexts.cpp
+    InOrderQueueSyncCheck.cpp
 )

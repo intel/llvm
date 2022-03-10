@@ -153,8 +153,8 @@ func @max_pool(%arg0: tensor<1x6x34x62xf32>) -> () {
 // CHECK-LABEL: @max_pool_padded
 func @max_pool_padded(%arg0: tensor<1x6x34x62xf32>) -> () {
   // CHECK-DAG: [[CONST:%.+]] = arith.constant -3.40282347E+38 : f32
-  // CHECK-DAG: [[PAD:%.+]] = linalg.pad_tensor %arg0 low[0, 0, 0, 0] high[0, 0, 1, 0]
-  // CHECK-DAG:   linalg.yield [[CONST]]
+  // CHECK-DAG: [[PAD:%.+]] = tensor.pad %arg0 low[0, 0, 0, 0] high[0, 0, 1, 0]
+  // CHECK-DAG:   tensor.yield [[CONST]]
   // CHECK-DAG: [[INITVAL:%.+]] = arith.constant -3.40282347E+38 : f32
   // CHECK-DAG: [[INIT:%.+]] = linalg.init_tensor [1, 4, 33, 62]
   // CHECK-DAG: [[FILL:%.+]] = linalg.fill([[INITVAL]], [[INIT]])
@@ -206,7 +206,7 @@ func @max_pool_i32(%arg0: tensor<1x6x34x62xi32>) -> () {
 func @avg_pool(%arg0: tensor<1x6x34x62xf32>) -> (tensor<1x5x33x62xf32>) {
   // Initial piece computes the sum of the pooling region, with appropriate padding.
   // CHECK: [[CONST:%.+]] = arith.constant 0
-  // CHECK: [[PAD:%.+]] = linalg.pad_tensor %arg0 low[0, 1, 1, 0] high[0, 1, 1, 0]
+  // CHECK: [[PAD:%.+]] = tensor.pad %arg0 low[0, 1, 1, 0] high[0, 1, 1, 0]
   // CHECK: [[CONST:%.+]] = arith.constant 0
   // CHECK: [[POOLINIT:%.+]] = linalg.init_tensor [1, 5, 33, 62]
   // CHECK: [[FILL:%.+]] = linalg.fill([[CONST]], [[POOLINIT]])
@@ -228,28 +228,28 @@ func @avg_pool(%arg0: tensor<1x6x34x62xf32>) -> (tensor<1x5x33x62xf32>) {
   // CHECK:   [[PAD0:%.+]] = arith.constant 1
   // CHECK:   [[SUBP0:%.+]] = arith.subi [[IDX1]], [[PAD0]]
   // CHECK:   [[P0CMP:%.+]] = arith.cmpi slt, [[SUBP0]], [[ZERO]]
-  // CHECK:   [[SELP0:%.+]] = select [[P0CMP]], [[SUBP0]], [[ZERO]]
+  // CHECK:   [[SELP0:%.+]] = arith.select [[P0CMP]], [[SUBP0]], [[ZERO]]
   // CHECK:   [[ADDP0:%.+]] = arith.addi [[KH]], [[SELP0]]
   // CHECK:   [[PAD1:%.+]] = arith.constant 1
   // CHECK:   [[SUBP1:%.+]] = arith.subi [[NY]], [[PAD1]]
   // CHECK:   [[P1CMP:%.+]] = arith.cmpi slt, [[SUBP1]], [[ZERO]]
-  // CHECK:   [[SELP1:%.+]] = select [[P1CMP]], [[SUBP1]], [[ZERO]]
+  // CHECK:   [[SELP1:%.+]] = arith.select [[P1CMP]], [[SUBP1]], [[ZERO]]
   // CHECK:   [[ADDP1:%.+]] = arith.addi [[ADDP0]], [[SELP1]]
   // CHECK:   [[YCMP:%.+]] = arith.cmpi slt, [[ADDP1]], [[ONE]]
-  // CHECK:   [[YSEL:%.+]] = select [[YCMP]], [[ONE]], [[ADDP1]]
+  // CHECK:   [[YSEL:%.+]] = arith.select [[YCMP]], [[ONE]], [[ADDP1]]
   // CHECK:   [[KW:%.+]] = arith.constant 4 : index
   // CHECK:   [[PAD2:%.+]] = arith.constant 1 : index
   // CHECK:   [[SUBP2:%.+]] = arith.subi [[IDX2]], [[PAD2]]
   // CHECK:   [[P2CMP:%.+]] = arith.cmpi slt, [[SUBP2]], [[ZERO]]
-  // CHECK:   [[SELP2:%.+]] = select [[P2CMP]], [[SUBP2]], [[ZERO]]
+  // CHECK:   [[SELP2:%.+]] = arith.select [[P2CMP]], [[SUBP2]], [[ZERO]]
   // CHECK:   [[ADDP2:%.+]] = arith.addi [[KW]], [[SELP2]]
   // CHECK:   [[PAD3:%.+]] = arith.constant 1 : index
   // CHECK:   [[SUBP3:%.+]] = arith.subi [[NX]], [[PAD3]]
   // CHECK:   [[P3CMP:%.+]] = arith.cmpi slt, [[SUBP3]], [[ZERO]]
-  // CHECK:   [[SELP3:%.+]] = select [[P3CMP]], [[SUBP3]], [[ZERO]]
+  // CHECK:   [[SELP3:%.+]] = arith.select [[P3CMP]], [[SUBP3]], [[ZERO]]
   // CHECK:   [[ADDP3:%.+]] = arith.addi [[ADDP2]], [[SELP3]]
   // CHECK:   [[XCMP:%.+]] = arith.cmpi slt, [[ADDP3]], [[ONE]]
-  // CHECK:   [[XSEL:%.+]] = select [[XCMP]], [[ONE]], [[ADDP3]]
+  // CHECK:   [[XSEL:%.+]] = arith.select [[XCMP]], [[ONE]], [[ADDP3]]
 
   // Given the valid coverage of the pooling region, normalize the summation.
   // CHECK:   [[C:%.+]] = arith.muli [[YSEL]], [[XSEL]]
@@ -268,7 +268,7 @@ func @avg_pool_dyn(%arg0: tensor<?x6x34x62xf32>) -> (tensor<?x5x33x62xf32>) {
   // The calculations remain the same as above, only testing for dyn behavior
   // CHECK: %[[C0:.+]] = arith.constant 0
   // CHECK: %[[BATCH:.+]] = tensor.dim %arg0, %[[C0]]
-  // CHECK: %[[PAD:.+]] = linalg.pad_tensor %arg0 low[0, 1, 1, 0] high[0, 1, 1, 0]
+  // CHECK: %[[PAD:.+]] = tensor.pad %arg0 low[0, 1, 1, 0] high[0, 1, 1, 0]
   // CHECK: %[[POOLINIT:.+]] = linalg.init_tensor [%[[BATCH]], 5, 33, 62]
   // CHECK: %[[FILL:.+]] = linalg.fill
   // CHECK: %[[KERNEL:.+]] = linalg.init_tensor [4, 4]
@@ -299,9 +299,9 @@ func @avg_pool_i8(%arg0 : tensor<1x128x128x2xi8>) -> () {
   // CHECK: %[[MIN:.+]] = arith.constant -128
   // CHECK: %[[MAX:.+]] = arith.constant 127
   // CHECK: %[[CMP_MIN:.+]] = arith.cmpi slt, %[[OUT]], %[[MIN]]
-  // CHECK: %[[CLMP_MIN:.+]] = select %[[CMP_MIN]], %[[MIN]], %[[OUT]]
+  // CHECK: %[[CLMP_MIN:.+]] = arith.select %[[CMP_MIN]], %[[MIN]], %[[OUT]]
   // CHECK: %[[CMP_MAX:.+]] = arith.cmpi slt, %[[MAX]], %[[OUT]]
-  // CHECK: %[[CLMP_MAX:.+]] = select %[[CMP_MAX]], %[[MAX]], %[[CLMP_MIN]]
+  // CHECK: %[[CLMP_MAX:.+]] = arith.select %[[CMP_MAX]], %[[MAX]], %[[CLMP_MIN]]
   // CHECK: %[[TRUNC:.+]] = arith.trunci %[[CLMP_MAX]]
   // CHECK: linalg.yield %[[TRUNC]]
   %0 = "tosa.avg_pool2d"(%arg0) {kernel = [4, 4], pad = [0, 0, 0, 0], quantization_info = {input_zp = -128 : i32, output_zp = -128 : i32}, stride = [4, 4]} : (tensor<1x128x128x2xi8>) -> tensor<1x32x32x2xi8>
@@ -328,9 +328,9 @@ func @avg_pool_i16(%arg0 : tensor<1x128x128x2xi16>) -> () {
   // CHECK: %[[MIN:.+]] = arith.constant -32768
   // CHECK: %[[MAX:.+]] = arith.constant 32767
   // CHECK: %[[CMP_MIN:.+]] = arith.cmpi slt, %[[OUT]], %[[MIN]]
-  // CHECK: %[[CLMP_MIN:.+]] = select %[[CMP_MIN]], %[[MIN]], %[[OUT]]
+  // CHECK: %[[CLMP_MIN:.+]] = arith.select %[[CMP_MIN]], %[[MIN]], %[[OUT]]
   // CHECK: %[[CMP_MAX:.+]] = arith.cmpi slt, %[[MAX]], %[[OUT]]
-  // CHECK: %[[CLMP_MAX:.+]] = select %[[CMP_MAX]], %[[MAX]], %[[CLMP_MIN]]
+  // CHECK: %[[CLMP_MAX:.+]] = arith.select %[[CMP_MAX]], %[[MAX]], %[[CLMP_MIN]]
   // CHECK: %[[TRUNC:.+]] = arith.trunci %[[CLMP_MAX]]
   // CHECK: linalg.yield %[[TRUNC]]
   %0 = "tosa.avg_pool2d"(%arg0) {kernel = [4, 4], pad = [0, 0, 0, 0], quantization_info = {input_zp = -128 : i32, output_zp = -128 : i32}, stride = [4, 4]} : (tensor<1x128x128x2xi16>) -> tensor<1x32x32x2xi16>
@@ -386,8 +386,8 @@ func @conv2d_dyn(%input: tensor<?x49x42x27xf32>, %weights: tensor<28x3x3x27xf32>
 // CHECK-LABEL: @conv2d_padded_f32
 func @conv2d_padded_f32(%input: tensor<1x47x40x28xf32>, %weights: tensor<28x3x3x28xf32>, %bias: tensor<28xf32>) -> () {
   // CHECK: %[[C0:.+]] = arith.constant 0
-  // CHECK: linalg.pad_tensor %arg0 low[0, 1, 1, 0] high[0, 1, 1, 0]
-  // CHECK:   linalg.yield %[[C0]]
+  // CHECK: tensor.pad %arg0 low[0, 1, 1, 0] high[0, 1, 1, 0]
+  // CHECK:   tensor.yield %[[C0]]
   // CHECK: linalg.conv_2d_nhwc_hwcf
   %0 = "tosa.conv2d"(%input, %weights, %bias) {pad = [1, 1, 1, 1], stride = [1, 1], dilation = [2, 1]} : (tensor<1x47x40x28xf32>, tensor<28x3x3x28xf32>, tensor<28xf32>)  -> (tensor<1x45x40x28xf32>)
   return
@@ -398,8 +398,8 @@ func @conv2d_padded_f32(%input: tensor<1x47x40x28xf32>, %weights: tensor<28x3x3x
 // CHECK-LABEL: @conv2d_quant
 func @conv2d_quant(%arg0 : tensor<1x12x12x1xi8>, %arg1 : tensor<1024x3x3x1xi8>, %arg2 : tensor<1024xi32>) -> () {
   // CHECK:   %[[C22:.+]] = arith.constant -22
-  // CHECK: linalg.pad_tensor %arg0 low[0, 1, 1, 0] high[0, 1, 1, 0]
-  // CHECK:   linalg.yield %[[C22]]
+  // CHECK: tensor.pad %arg0 low[0, 1, 1, 0] high[0, 1, 1, 0]
+  // CHECK:   tensor.yield %[[C22]]
   // CHECK: linalg.conv_2d_nhwc_hwcf_q
   %0 = "tosa.conv2d"(%arg0, %arg1, %arg2) {dilation = [1, 1], pad = [1, 1, 1, 1], quantization_info = {input_zp = -22 : i32, weight_zp = 42 : i32}, stride = [1, 1]} : (tensor<1x12x12x1xi8>, tensor<1024x3x3x1xi8>, tensor<1024xi32>) -> tensor<1x12x12x1024xi32>
   return
@@ -481,8 +481,8 @@ func @depthwise_conv_strides(%arg0 : tensor<1x11x9x3xf32>, %arg1 : tensor<3x1x3x
 // CHECK-LABEL: @depthwise_conv_quant
 func @depthwise_conv_quant(%arg0 : tensor<1x12x12x4xi8>, %arg1 : tensor<3x3x4x128xi8>, %arg2 : tensor<512xi32>) -> () {
   // CHECK: [[PADV:%.+]] = arith.constant -128
-  // CHECK: [[PAD:%.+]] = linalg.pad_tensor %arg0 low[0, 1, 1, 0] high[0, 1, 1, 0]
-  // CHECK:   linalg.yield [[PADV]]
+  // CHECK: [[PAD:%.+]] = tensor.pad %arg0 low[0, 1, 1, 0] high[0, 1, 1, 0]
+  // CHECK:   tensor.yield [[PADV]]
 
   // CHECK: [[INIT:%.+]] = linalg.init_tensor [1, 12, 12, 4, 128]
   // CHECK: [[CST0:%.+]] = arith.constant 0
