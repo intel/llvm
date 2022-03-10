@@ -64,7 +64,7 @@ described more fully by the [compile-time properties][3] design
 document. This attribute is also used for other classes that have properties,
 so it is not specific to the `pipe` class. 
 
-The address of `static const char` member `__pipe` will be used to identify the pipe
+The address of `static const __pipeType` member `__pipe` will be used to identify the pipe
 in host code, and provide one half of the host-to-device mapping of the pipe 
 (see the section on __New content in the integration header and footer__ below).
 
