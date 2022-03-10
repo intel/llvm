@@ -7588,13 +7588,11 @@ void Sema::AddSYCLAddIRAttributesFunctionAttr(Decl *D,
                                               MutableArrayRef<Expr *> Args) {
   if (const auto *FuncD = dyn_cast<FunctionDecl>(D)) {
     if (FuncD->isDefaulted()) {
-      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func)
-          << CI << 1;
+      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func) << CI << 1;
       return;
     }
     if (FuncD->isDeleted()) {
-      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func)
-          << CI << 2;
+      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func) << CI << 2;
       return;
     }
   }
