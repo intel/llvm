@@ -7576,6 +7576,17 @@ SYCLAddIRAttributesFunctionAttr *Sema::MergeSYCLAddIRAttributesFunctionAttr(
 void Sema::AddSYCLAddIRAttributesFunctionAttr(Decl *D,
                                               const AttributeCommonInfo &CI,
                                               MutableArrayRef<Expr *> Args) {
+  if (const auto *FuncD = dyn_cast<FunctionDecl>(D)) {
+    if (FuncD->isDefaulted()) {
+      Diag(CI.getLoc(), diag::err_disallow_attribute_on_default) << CI;
+      return;
+    }
+    if (FuncD->isDeleted()) {
+      Diag(CI.getLoc(), diag::err_disallow_attribute_on_delete) << CI;
+      return;
+    }
+  }
+
   auto *Attr = SYCLAddIRAttributesFunctionAttr::Create(Context, Args.data(),
                                                        Args.size(), CI);
   if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), *this,

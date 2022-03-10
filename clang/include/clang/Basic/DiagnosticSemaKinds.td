@@ -9958,6 +9958,10 @@ def err_disallowed_duplicate_attribute : Error<
 
 def err_disallow_attribute_on_virtual : Error<
   "attribute %0 cannot be applied to a virtual, overridden, or final function">;
+def err_disallow_attribute_on_default : Error<
+  "attribute %0 cannot be applied to a defaulted function">;
+def err_disallow_attribute_on_delete : Error<
+  "attribute %0 cannot be applied to a deleted function">;
 
 def warn_sync_fetch_and_nand_semantics_change : Warning<
   "the semantics of this intrinsic changed with GCC "

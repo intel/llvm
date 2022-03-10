@@ -219,27 +219,32 @@ void InstantiateFunctionTemplates() {
 [[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", "Attr3", 1, &CEInt, CEInt)]] void InvalidFunction32() {}                                                                            // expected-error {{each attribute argument in 'add_ir_attributes_function' must be an integer, a floating point, a character, a boolean, 'const char *', or an enumerator usable as a constant expression}}
 
 class ClassWithVirtual1 {
-  [[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] virtual void InvalidVirtualFunction() {}; // expected-error {{attribute 'add_ir_attributes_function' cannot be applied to a virtual, overridden, or final function}}
+  [[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] virtual void InvalidVirtualFunction(){}; // expected-error {{attribute 'add_ir_attributes_function' cannot be applied to a virtual, overridden, or final function}}
 };
 
 class ClassWithVirtual2 {
-  virtual void InvalidVirtualFunction() {};
+  virtual void InvalidVirtualFunction(){};
 };
 
 class ClassWithVirtual3 : ClassWithVirtual2 {
-  [[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] void InvalidVirtualFunction() {}; // expected-error {{attribute 'add_ir_attributes_function' cannot be applied to a virtual, overridden, or final function}}
+  [[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] void InvalidVirtualFunction(){}; // expected-error {{attribute 'add_ir_attributes_function' cannot be applied to a virtual, overridden, or final function}}
 };
 
 class ClassWithVirtual4 {
-  virtual void ValidVirtualFunction() {};
+  virtual void ValidVirtualFunction(){};
 };
 
 class ClassWithOverride1 : ClassWithVirtual4 {
-  [[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] void ValidVirtualFunction() override {}; // expected-error {{attribute 'add_ir_attributes_function' cannot be applied to a virtual, overridden, or final function}}
+  [[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] void ValidVirtualFunction() override{}; // expected-error {{attribute 'add_ir_attributes_function' cannot be applied to a virtual, overridden, or final function}}
 };
 
 class ClassWithOverride2 : ClassWithVirtual4 {
-  [[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] void ValidVirtualFunction() final {}; // expected-error {{attribute 'add_ir_attributes_function' cannot be applied to a virtual, overridden, or final function}}
+  [[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] void ValidVirtualFunction() final{}; // expected-error {{attribute 'add_ir_attributes_function' cannot be applied to a virtual, overridden, or final function}}
+};
+
+class ClassWithDeletedAndDeleted {
+  [[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] ClassWithDeletedAndDeleted() = default;                                  // expected-error {{attribute 'add_ir_attributes_function' cannot be applied to a defaulted function}}
+  [[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] ClassWithDeletedAndDeleted(const ClassWithDeletedAndDeleted &) = delete; // expected-error {{attribute 'add_ir_attributes_function' cannot be applied to a deleted function}}
 };
 
 struct [[__sycl_detail__::add_ir_attributes_function("Attr1", 1)]] InvalidFunctionSubjectStruct;                   // expected-error {{'add_ir_attributes_function' attribute only applies to functions}}
