@@ -76,6 +76,11 @@ TEST_F(EventDestructionTest, EventDestruction) {
       });
       E1.wait();
     }
+    // When a command is cleared we clear now only dependencies of the
+    // dependencies of the associated event. So, when the command
+    // associated with E0 event is destroyed, this event is still in 
+    // E1 dependencies, which will not be cleared.
+    // Therefore no event release should be called until here.
     EXPECT_EQ(ReleaseCounter, 0);
 
     sycl::event E2 = Queue.submit([&](cl::sycl::handler &cgh) {
@@ -83,6 +88,7 @@ TEST_F(EventDestructionTest, EventDestruction) {
       cgh.single_task<TestKernel>([]() {});
     });
     E2.wait();
+    // Dependencies of E1 should be cleared here. It depends on E0.
     EXPECT_EQ(ReleaseCounter, 1);
 
     sycl::event E3 = Queue.submit([&](cl::sycl::handler &cgh) {
@@ -90,6 +96,8 @@ TEST_F(EventDestructionTest, EventDestruction) {
       cgh.single_task<TestKernel>([]() {});
     });
     E3.wait();
+    // Dependency of E1 has already cleared. E2 depends on E1 that
+    // can't be cleared yet.
     EXPECT_EQ(ReleaseCounter, 1);
   }
 
@@ -115,6 +123,11 @@ TEST_F(EventDestructionTest, EventDestruction) {
       cgh.single_task<TestKernel>([=]() {});
     });
     E2.wait();
+    // Dependencies are deleted through one level of dependencies. When 
+    // fourth command group is submitted the destructor of third command
+    // is called. It depends on second command, so dependencies of second
+    // command will be cleared. It leads to release event associated with 
+    // first command 
     EXPECT_EQ(ReleaseCounter, 1);
   }
 }
@@ -137,7 +150,7 @@ TEST_F(EventDestructionTest, GetWaitList) {
     });
 
     auto wait_list = eB.get_wait_list();
-    assert(wait_list.size() == 1);
+    ASSERT_EQ(wait_list.size(), (size_t)1);
     ASSERT_EQ(wait_list[0], eA);
 
     sycl::event eC = Queue.submit([&](sycl::handler &cgh) {
@@ -146,7 +159,7 @@ TEST_F(EventDestructionTest, GetWaitList) {
     });
 
     wait_list = eC.get_wait_list();
-    assert(wait_list.size() == 2);
+    ASSERT_EQ(wait_list.size(), (size_t)2);
     ASSERT_EQ(wait_list[0], eA);
     ASSERT_EQ(wait_list[1], eB);
 

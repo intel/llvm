@@ -1,3 +1,3 @@
-add_sycl_unittest(EventDestructionTests OBJECT
+add_sycl_unittest(EventTests OBJECT
   EventDestruction.cpp
 )
