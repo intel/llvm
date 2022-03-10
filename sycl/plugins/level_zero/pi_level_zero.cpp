@@ -6200,11 +6200,11 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
       zePrint("piEnqueueMemBufferMap: duplicate mapping detected\n");
       return PI_INVALID_VALUE;
     }
-    return PI_SUCCESS;
 
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
     (*Event)->Completed = true;
+    return PI_SUCCESS;
   }
 
   // Lock automatically releases when this goes out of scope.
