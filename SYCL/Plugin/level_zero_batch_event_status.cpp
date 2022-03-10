@@ -1,4 +1,5 @@
-// REQUIRES: gpu, level_zero
+// See https://github.com/intel/llvm-test-suite/issues/906
+// REQUIRES: gpu, level_zero, TEMPORARY_DISABLE
 
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple  %s -o %t.out
 
