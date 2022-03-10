@@ -2,10 +2,11 @@ name: SYCL Windows Test
 
 on:
   workflow_call:
-    build_cache_suffix:
-      type: string
-      required: false
-      default: "default"
+    inputs:
+      build_cache_suffix:
+        type: string
+        required: false
+        default: "default"
 
 jobs:
   build:
