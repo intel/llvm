@@ -313,7 +313,7 @@ behavior is undefined.
  +
 Return number of components owned by the current work-item in a joint matrix. +
  +
-'Result Type' must be an unsigned integer type. +
+'Result Type' must be an 32-bit unsigned integer type scalar. +
  +
 'Matrix' is the <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> to query the
 number of the components. +
