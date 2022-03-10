@@ -7,7 +7,6 @@
 #include <vector>
 
 using namespace sycl;
-using namespace sycl::ext::oneapi;
 
 template <template <typename, memory_order, memory_scope, access::address_space>
           class AtomicRef,
@@ -41,9 +40,12 @@ void store_test(queue q, size_t N) {
 }
 
 template <typename T> void store_test(queue q, size_t N) {
+#ifdef RUN_DEPRECATED
   store_test<::sycl::ext::oneapi::atomic_ref,
              access::address_space::global_space, T>(q, N);
+#else
   store_test<::sycl::atomic_ref, access::address_space::global_space, T>(q, N);
+#endif
 }
 
 template <typename T> void store_generic_test(queue q, size_t N) {

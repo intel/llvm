@@ -110,18 +110,24 @@ void xor_test(queue q) {
       (space == access::address_space::generic_space && !TEST_GENERIC_IN_LOCAL);
   constexpr bool do_ext_tests = space != access::address_space::generic_space;
   if constexpr (do_local_tests) {
+#ifdef RUN_DEPRECATED
     if constexpr (do_ext_tests) {
       xor_local_test<::sycl::ext::oneapi::atomic_ref, space, T, order, scope>(
           q);
     }
+#else
     xor_local_test<::sycl::atomic_ref, space, T, order, scope>(q);
+#endif
   }
   if constexpr (do_global_tests) {
+#ifdef RUN_DEPRECATED
     if constexpr (do_ext_tests) {
       xor_global_test<::sycl::ext::oneapi::atomic_ref, space, T, order, scope>(
           q);
     }
+#else
     xor_global_test<::sycl::atomic_ref, space, T, order, scope>(q);
+#endif
   }
 }
 
@@ -130,72 +136,45 @@ template <access::address_space space, typename T,
 void xor_test_scopes(queue q) {
   std::vector<memory_scope> scopes =
       q.get_device().get_info<info::device::atomic_memory_scope_capabilities>();
-#if defined(SYSTEM)
-  if (std::find(scopes.begin(), scopes.end(), memory_scope::system) ==
+  if (std::find(scopes.begin(), scopes.end(), memory_scope::system) !=
       scopes.end()) {
-    std::cout << "Skipping test\n";
-    return;
+    xor_test<space, T, order, memory_scope::system>(q);
   }
-  xor_test<space, T, order, memory_scope::system>(q);
-#elif defined(WORK_GROUP)
-  if (std::find(scopes.begin(), scopes.end(), memory_scope::system) ==
+  if (std::find(scopes.begin(), scopes.end(), memory_scope::work_group) !=
       scopes.end()) {
-    std::cout << "Skipping test\n";
-    return;
+    xor_test<space, T, order, memory_scope::work_group>(q);
   }
-  xor_test<space, T, order, memory_scope::work_group>(q);
-#elif defined(SUB_GROUP)
-  if (std::find(scopes.begin(), scopes.end(), memory_scope::system) ==
+  if (std::find(scopes.begin(), scopes.end(), memory_scope::sub_group) !=
       scopes.end()) {
-    std::cout << "Skipping test\n";
-    return;
+    xor_test<space, T, order, memory_scope::sub_group>(q);
   }
-  xor_test<space, T, order, memory_scope::sub_group>(q);
-#else
   xor_test<space, T, order, memory_scope::device>(q);
-#endif
 }
 
 template <access::address_space space, typename T>
 void xor_test_orders_scopes(queue q) {
   std::vector<memory_order> orders =
       q.get_device().get_info<info::device::atomic_memory_order_capabilities>();
-#if defined(ACQ_REL)
-  if (std::find(orders.begin(), orders.end(), memory_order::acq_rel) ==
+  if (std::find(orders.begin(), orders.end(), memory_order::acq_rel) !=
       orders.end()) {
-    std::cout << "Skipping test\n";
-    return;
+    xor_test_scopes<space, T, memory_order::acq_rel>(q);
   }
-  xor_test_scopes<space, T, memory_order::acq_rel>(q);
-#elif defined(ACQUIRE)
-  if (std::find(orders.begin(), orders.end(), memory_order::acquire) ==
+  if (std::find(orders.begin(), orders.end(), memory_order::acquire) !=
       orders.end()) {
-    std::cout << "Skipping test\n";
-    return;
+    xor_test_scopes<space, T, memory_order::acquire>(q);
   }
-  xor_test_scopes<space, T, memory_order::acquire>(q);
-#elif defined(RELEASE)
-  if (std::find(orders.begin(), orders.end(), memory_order::release) ==
+  if (std::find(orders.begin(), orders.end(), memory_order::release) !=
       orders.end()) {
-    std::cout << "Skipping test\n";
-    return;
+    xor_test_scopes<space, T, memory_order::release>(q);
   }
-  xor_test_scopes<space, T, memory_order::release>(q);
-#else
   xor_test_scopes<space, T, memory_order::relaxed>(q);
-#endif
 }
 
 template <access::address_space space> void xor_test_all() {
   queue q;
 
   constexpr int N = 32;
-#ifdef ATOMIC64
-  if (!q.get_device().has(aspect::atomic64)) {
-    std::cout << "Skipping test\n";
-    return;
-  }
-
+#ifdef FULL_ATOMIC64_COVERAGE
   if constexpr (sizeof(long) == 8) {
     xor_test_orders_scopes<space, long>(q);
     xor_test_orders_scopes<space, unsigned long>(q);
@@ -204,8 +183,9 @@ template <access::address_space space> void xor_test_all() {
     xor_test_orders_scopes<space, long long>(q);
     xor_test_orders_scopes<space, unsigned long long>(q);
   }
-#else
+#endif
   xor_test_orders_scopes<space, int>(q);
+#ifdef FULL_ATOMIC32_COVERAGE
   xor_test_orders_scopes<space, unsigned int>(q);
   if constexpr (sizeof(long) == 4) {
     xor_test_orders_scopes<space, long>(q);
