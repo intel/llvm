@@ -18,12 +18,13 @@ jobs:
       with:
         path: src
         fetch-depth: 1
+    - run: refreshenv
+      shell: cmd
     - name: Build
       shell: cmd
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
       # TODO enable sccache, when problems with PDB are resolved
       run: |
-        refreshenv
         mkdir build
         mkdir install
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
