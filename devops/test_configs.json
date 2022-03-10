@@ -40,6 +40,7 @@
       "config": "esimd_emu",
       "name": "ESIMD Emu LLVM Test Suite",
       "runs-on": [
+        "Linux",
         "x64"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
