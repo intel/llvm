@@ -14,4 +14,3 @@ device_global<int> glob;
 // CHECK: ClassTemplateSpecializationDecl {{.*}} struct device_global definition
 // CHECK: SYCLDeviceGlobalAttr {{.*}}
 // CHECK: SYCLGlobalVariableAllowedAttr {{.*}}
-
