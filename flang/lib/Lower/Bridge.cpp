@@ -12,6 +12,7 @@
 
 #include "flang/Lower/Bridge.h"
 #include "flang/Evaluate/tools.h"
+#include "flang/Lower/Allocatable.h"
 #include "flang/Lower/CallInterface.h"
 #include "flang/Lower/ConvertExpr.h"
 #include "flang/Lower/ConvertType.h"
@@ -27,6 +28,7 @@
 #include "flang/Optimizer/Builder/BoxValue.h"
 #include "flang/Optimizer/Builder/Character.h"
 #include "flang/Optimizer/Builder/MutableBox.h"
+#include "flang/Optimizer/Dialect/FIRAttr.h"
 #include "flang/Optimizer/Support/FIRContext.h"
 #include "flang/Optimizer/Support/InternalNames.h"
 #include "flang/Runtime/iostat.h"
@@ -38,6 +40,8 @@
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "flang-lower-bridge"
+
+using namespace mlir;
 
 static llvm::cl::opt<bool> dumpBeforeFir(
     "fdebug-dump-pre-fir", llvm::cl::init(false),
@@ -117,9 +121,55 @@ public:
     }
     funit.setActiveEntry(0);
 
+    // Compute the set of host associated entities from the nested functions.
+    llvm::SetVector<const Fortran::semantics::Symbol *> escapeHost;
+    for (Fortran::lower::pft::FunctionLikeUnit &f : funit.nestedFunctions)
+      collectHostAssociatedVariables(f, escapeHost);
+    funit.setHostAssociatedSymbols(escapeHost);
+
     // Declare internal procedures
     for (Fortran::lower::pft::FunctionLikeUnit &f : funit.nestedFunctions)
       declareFunction(f);
+  }
+
+  /// Collects the canonical list of all host associated symbols. These bindings
+  /// must be aggregated into a tuple which can then be added to each of the
+  /// internal procedure declarations and passed at each call site.
+  void collectHostAssociatedVariables(
+      Fortran::lower::pft::FunctionLikeUnit &funit,
+      llvm::SetVector<const Fortran::semantics::Symbol *> &escapees) {
+    const Fortran::semantics::Scope *internalScope =
+        funit.getSubprogramSymbol().scope();
+    assert(internalScope && "internal procedures symbol must create a scope");
+    auto addToListIfEscapee = [&](const Fortran::semantics::Symbol &sym) {
+      const Fortran::semantics::Symbol &ultimate = sym.GetUltimate();
+      const auto *namelistDetails =
+          ultimate.detailsIf<Fortran::semantics::NamelistDetails>();
+      if (ultimate.has<Fortran::semantics::ObjectEntityDetails>() ||
+          Fortran::semantics::IsProcedurePointer(ultimate) ||
+          Fortran::semantics::IsDummy(sym) || namelistDetails) {
+        const Fortran::semantics::Scope &ultimateScope = ultimate.owner();
+        if (ultimateScope.kind() ==
+                Fortran::semantics::Scope::Kind::MainProgram ||
+            ultimateScope.kind() == Fortran::semantics::Scope::Kind::Subprogram)
+          if (ultimateScope != *internalScope &&
+              ultimateScope.Contains(*internalScope)) {
+            if (namelistDetails) {
+              // So far, namelist symbols are processed on the fly in IO and
+              // the related namelist data structure is not added to the symbol
+              // map, so it cannot be passed to the internal procedures.
+              // Instead, all the symbols of the host namelist used in the
+              // internal procedure must be considered as host associated so
+              // that IO lowering can find them when needed.
+              for (const auto &namelistObject : namelistDetails->objects())
+                escapees.insert(&*namelistObject);
+            } else {
+              escapees.insert(&ultimate);
+            }
+          }
+      }
+    };
+    Fortran::lower::pft::visitAllSymbols(funit, addToListIfEscapee);
   }
 
   //===--------------------------------------------------------------------===//
@@ -128,6 +178,13 @@ public:
 
   mlir::Value getSymbolAddress(Fortran::lower::SymbolRef sym) override final {
     return lookupSymbol(sym).getAddr();
+  }
+
+  mlir::Value impliedDoBinding(llvm::StringRef name) override final {
+    mlir::Value val = localSymbols.lookupImpliedDo(name);
+    if (!val)
+      fir::emitFatalError(toLocation(), "ac-do-variable has no binding");
+    return val;
   }
 
   bool lookupLabelSet(Fortran::lower::SymbolRef sym,
@@ -342,9 +399,9 @@ public:
         if (arg.entity.has_value()) {
           addSymbol(arg.entity->get(), arg.firArgument);
         } else {
-          // assert(funit.parentHasHostAssoc());
-          // funit.parentHostAssoc().internalProcedureBindings(*this,
-          //                                                   localSymbols);
+          assert(funit.parentHasHostAssoc());
+          funit.parentHostAssoc().internalProcedureBindings(*this,
+                                                            localSymbols);
         }
       }
     };
@@ -394,15 +451,79 @@ public:
 
     mapDummiesAndResults(funit, callee);
 
+    // Note: not storing Variable references because getOrderedSymbolTable
+    // below returns a temporary.
+    llvm::SmallVector<Fortran::lower::pft::Variable> deferredFuncResultList;
+
+    // Backup actual argument for entry character results
+    // with different lengths. It needs to be added to the non
+    // primary results symbol before mapSymbolAttributes is called.
+    Fortran::lower::SymbolBox resultArg;
+    if (std::optional<Fortran::lower::CalleeInterface::PassedEntity>
+            passedResult = callee.getPassedResult())
+      resultArg = lookupSymbol(passedResult->entity->get());
+
     Fortran::lower::AggregateStoreMap storeMap;
+    // The front-end is currently not adding module variables referenced
+    // in a module procedure as host associated. As a result we need to
+    // instantiate all module variables here if this is a module procedure.
+    // It is likely that the front-end behavior should change here.
+    // This also applies to internal procedures inside module procedures.
+    if (auto *module = Fortran::lower::pft::getAncestor<
+            Fortran::lower::pft::ModuleLikeUnit>(funit))
+      for (const Fortran::lower::pft::Variable &var :
+           module->getOrderedSymbolTable())
+        instantiateVar(var, storeMap);
+
+    mlir::Value primaryFuncResultStorage;
     for (const Fortran::lower::pft::Variable &var :
          funit.getOrderedSymbolTable()) {
+      // Always instantiate aggregate storage blocks.
+      if (var.isAggregateStore()) {
+        instantiateVar(var, storeMap);
+        continue;
+      }
       const Fortran::semantics::Symbol &sym = var.getSymbol();
+      if (funit.parentHasHostAssoc()) {
+        // Never instantitate host associated variables, as they are already
+        // instantiated from an argument tuple. Instead, just bind the symbol to
+        // the reference to the host variable, which must be in the map.
+        const Fortran::semantics::Symbol &ultimate = sym.GetUltimate();
+        if (funit.parentHostAssoc().isAssociated(ultimate)) {
+          Fortran::lower::SymbolBox hostBox =
+              localSymbols.lookupSymbol(ultimate);
+          assert(hostBox && "host association is not in map");
+          localSymbols.addSymbol(sym, hostBox.toExtendedValue());
+          continue;
+        }
+      }
       if (!sym.IsFuncResult() || !funit.primaryResult) {
         instantiateVar(var, storeMap);
       } else if (&sym == funit.primaryResult) {
         instantiateVar(var, storeMap);
+        primaryFuncResultStorage = getSymbolAddress(sym);
+      } else {
+        deferredFuncResultList.push_back(var);
       }
+    }
+
+    // If this is a host procedure with host associations, then create the tuple
+    // of pointers for passing to the internal procedures.
+    if (!funit.getHostAssoc().empty())
+      funit.getHostAssoc().hostProcedureBindings(*this, localSymbols);
+
+    /// TODO: should use same mechanism as equivalence?
+    /// One blocking point is character entry returns that need special handling
+    /// since they are not locally allocated but come as argument. CHARACTER(*)
+    /// is not something that fit wells with equivalence lowering.
+    for (const Fortran::lower::pft::Variable &altResult :
+         deferredFuncResultList) {
+      if (std::optional<Fortran::lower::CalleeInterface::PassedEntity>
+              passedResult = callee.getPassedResult())
+        addSymbol(altResult.getSymbol(), resultArg.getAddr());
+      Fortran::lower::StatementContext stmtCtx;
+      Fortran::lower::mapSymbolAttributes(*this, altResult, localSymbols,
+                                          stmtCtx, primaryFuncResultStorage);
     }
 
     // Create most function blocks in advance.
@@ -410,6 +531,25 @@ public:
 
     // Reinstate entry block as the current insertion point.
     builder->setInsertionPointToEnd(&func.front());
+
+    if (callee.hasAlternateReturns()) {
+      // Create a local temp to hold the alternate return index.
+      // Give it an integer index type and the subroutine name (for dumps).
+      // Attach it to the subroutine symbol in the localSymbols map.
+      // Initialize it to zero, the "fallthrough" alternate return value.
+      const Fortran::semantics::Symbol &symbol = funit.getSubprogramSymbol();
+      mlir::Location loc = toLocation();
+      mlir::Type idxTy = builder->getIndexType();
+      mlir::Value altResult =
+          builder->createTemporary(loc, idxTy, toStringRef(symbol.name()));
+      addSymbol(symbol, altResult);
+      mlir::Value zero = builder->createIntegerConstant(loc, idxTy, 0);
+      builder->create<fir::StoreOp>(loc, zero, altResult);
+    }
+
+    if (Fortran::lower::pft::Evaluation *alternateEntryEval =
+            funit.getEntryEval())
+      genFIRBranch(alternateEntryEval->lexicalSuccessor->block);
   }
 
   /// Create global blocks for the current function.  This eliminates the
@@ -432,7 +572,11 @@ public:
         if (eval.lowerAsUnstructured()) {
           createEmptyGlobalBlocks(eval.getNestedEvaluations());
         } else if (eval.hasNestedEvaluations()) {
-          TODO(toLocation(), "Constructs with nested evaluations");
+          // A structured construct that is a target starts a new block.
+          Fortran::lower::pft::Evaluation &constructStmt =
+              eval.getFirstNestedEvaluation();
+          if (constructStmt.isNewBlock)
+            constructStmt.block = builder->createBlock(region);
         }
       }
     }
@@ -440,6 +584,14 @@ public:
 
   /// Lower a procedure (nest).
   void lowerFunc(Fortran::lower::pft::FunctionLikeUnit &funit) {
+    if (!funit.isMainProgram()) {
+      const Fortran::semantics::Symbol &procSymbol =
+          funit.getSubprogramSymbol();
+      if (procSymbol.owner().IsSubmodule()) {
+        TODO(toLocation(), "support submodules");
+        return;
+      }
+    }
     setCurrentPosition(funit.getStartingSourceLoc());
     for (int entryIndex = 0, last = funit.entryPointList.size();
          entryIndex < last; ++entryIndex) {
@@ -491,6 +643,12 @@ public:
 
   mlir::Value hostAssocTupleValue() override final { return hostAssocTuple; }
 
+  /// Record a binding for the ssa-value of the tuple for this function.
+  void bindHostAssocTuple(mlir::Value val) override final {
+    assert(!hostAssocTuple && val);
+    hostAssocTuple = val;
+  }
+
 private:
   FirConverter() = delete;
   FirConverter(const FirConverter &) = delete;
@@ -499,6 +657,12 @@ private:
   //===--------------------------------------------------------------------===//
   // Helper member functions
   //===--------------------------------------------------------------------===//
+
+  mlir::Value createFIRExpr(mlir::Location loc,
+                            const Fortran::lower::SomeExpr *expr,
+                            Fortran::lower::StatementContext &stmtCtx) {
+    return fir::getBase(genExprValue(*expr, stmtCtx, &loc));
+  }
 
   /// Find the symbol in the local map or return null.
   Fortran::lower::SymbolBox
@@ -546,6 +710,39 @@ private:
   void genFIRBranch(mlir::Block *targetBlock) {
     assert(targetBlock && "missing unconditional target block");
     builder->create<cf::BranchOp>(toLocation(), targetBlock);
+  }
+
+  void genFIRConditionalBranch(mlir::Value cond, mlir::Block *trueTarget,
+                               mlir::Block *falseTarget) {
+    assert(trueTarget && "missing conditional branch true block");
+    assert(falseTarget && "missing conditional branch false block");
+    mlir::Location loc = toLocation();
+    mlir::Value bcc = builder->createConvert(loc, builder->getI1Type(), cond);
+    builder->create<mlir::cf::CondBranchOp>(loc, bcc, trueTarget, llvm::None,
+                                            falseTarget, llvm::None);
+  }
+  void genFIRConditionalBranch(mlir::Value cond,
+                               Fortran::lower::pft::Evaluation *trueTarget,
+                               Fortran::lower::pft::Evaluation *falseTarget) {
+    genFIRConditionalBranch(cond, trueTarget->block, falseTarget->block);
+  }
+  void genFIRConditionalBranch(const Fortran::parser::ScalarLogicalExpr &expr,
+                               mlir::Block *trueTarget,
+                               mlir::Block *falseTarget) {
+    Fortran::lower::StatementContext stmtCtx;
+    mlir::Value cond =
+        createFIRExpr(toLocation(), Fortran::semantics::GetExpr(expr), stmtCtx);
+    stmtCtx.finalize();
+    genFIRConditionalBranch(cond, trueTarget, falseTarget);
+  }
+  void genFIRConditionalBranch(const Fortran::parser::ScalarLogicalExpr &expr,
+                               Fortran::lower::pft::Evaluation *trueTarget,
+                               Fortran::lower::pft::Evaluation *falseTarget) {
+    Fortran::lower::StatementContext stmtCtx;
+    mlir::Value cond =
+        createFIRExpr(toLocation(), Fortran::semantics::GetExpr(expr), stmtCtx);
+    stmtCtx.finalize();
+    genFIRConditionalBranch(cond, trueTarget->block, falseTarget->block);
   }
 
   //===--------------------------------------------------------------------===//
@@ -606,6 +803,36 @@ private:
     } else {
       genExitRoutine();
     }
+  }
+
+  //
+  // Statements that have control-flow semantics
+  //
+
+  /// Generate an If[Then]Stmt condition or its negation.
+  template <typename A>
+  mlir::Value genIfCondition(const A *stmt, bool negate = false) {
+    mlir::Location loc = toLocation();
+    Fortran::lower::StatementContext stmtCtx;
+    mlir::Value condExpr = createFIRExpr(
+        loc,
+        Fortran::semantics::GetExpr(
+            std::get<Fortran::parser::ScalarLogicalExpr>(stmt->t)),
+        stmtCtx);
+    stmtCtx.finalize();
+    mlir::Value cond =
+        builder->createConvert(loc, builder->getI1Type(), condExpr);
+    if (negate)
+      cond = builder->create<mlir::arith::XOrIOp>(
+          loc, cond, builder->createIntegerConstant(loc, cond.getType(), 1));
+    return cond;
+  }
+
+  static bool
+  isArraySectionWithoutVectorSubscript(const Fortran::lower::SomeExpr &expr) {
+    return expr.Rank() > 0 && Fortran::evaluate::IsVariable(expr) &&
+           !Fortran::evaluate::UnwrapWholeSymbolDataRef(expr) &&
+           !Fortran::evaluate::HasVectorSubscript(expr);
   }
 
   [[maybe_unused]] static bool
@@ -753,15 +980,124 @@ private:
   }
 
   void genFIR(const Fortran::parser::ComputedGotoStmt &stmt) {
-    TODO(toLocation(), "ComputedGotoStmt lowering");
+    Fortran::lower::StatementContext stmtCtx;
+    Fortran::lower::pft::Evaluation &eval = getEval();
+    mlir::Value selectExpr =
+        createFIRExpr(toLocation(),
+                      Fortran::semantics::GetExpr(
+                          std::get<Fortran::parser::ScalarIntExpr>(stmt.t)),
+                      stmtCtx);
+    stmtCtx.finalize();
+    llvm::SmallVector<int64_t> indexList;
+    llvm::SmallVector<mlir::Block *> blockList;
+    int64_t index = 0;
+    for (Fortran::parser::Label label :
+         std::get<std::list<Fortran::parser::Label>>(stmt.t)) {
+      indexList.push_back(++index);
+      blockList.push_back(blockOfLabel(eval, label));
+    }
+    blockList.push_back(eval.nonNopSuccessor().block); // default
+    builder->create<fir::SelectOp>(toLocation(), selectExpr, indexList,
+                                   blockList);
   }
 
   void genFIR(const Fortran::parser::ArithmeticIfStmt &stmt) {
-    TODO(toLocation(), "ArithmeticIfStmt lowering");
+    Fortran::lower::StatementContext stmtCtx;
+    Fortran::lower::pft::Evaluation &eval = getEval();
+    mlir::Value expr = createFIRExpr(
+        toLocation(),
+        Fortran::semantics::GetExpr(std::get<Fortran::parser::Expr>(stmt.t)),
+        stmtCtx);
+    stmtCtx.finalize();
+    mlir::Type exprType = expr.getType();
+    mlir::Location loc = toLocation();
+    if (exprType.isSignlessInteger()) {
+      // Arithmetic expression has Integer type.  Generate a SelectCaseOp
+      // with ranges {(-inf:-1], 0=default, [1:inf)}.
+      MLIRContext *context = builder->getContext();
+      llvm::SmallVector<mlir::Attribute> attrList;
+      llvm::SmallVector<mlir::Value> valueList;
+      llvm::SmallVector<mlir::Block *> blockList;
+      attrList.push_back(fir::UpperBoundAttr::get(context));
+      valueList.push_back(builder->createIntegerConstant(loc, exprType, -1));
+      blockList.push_back(blockOfLabel(eval, std::get<1>(stmt.t)));
+      attrList.push_back(fir::LowerBoundAttr::get(context));
+      valueList.push_back(builder->createIntegerConstant(loc, exprType, 1));
+      blockList.push_back(blockOfLabel(eval, std::get<3>(stmt.t)));
+      attrList.push_back(mlir::UnitAttr::get(context)); // 0 is the "default"
+      blockList.push_back(blockOfLabel(eval, std::get<2>(stmt.t)));
+      builder->create<fir::SelectCaseOp>(loc, expr, attrList, valueList,
+                                         blockList);
+      return;
+    }
+    // Arithmetic expression has Real type.  Generate
+    //   sum = expr + expr  [ raise an exception if expr is a NaN ]
+    //   if (sum < 0.0) goto L1 else if (sum > 0.0) goto L3 else goto L2
+    auto sum = builder->create<mlir::arith::AddFOp>(loc, expr, expr);
+    auto zero = builder->create<mlir::arith::ConstantOp>(
+        loc, exprType, builder->getFloatAttr(exprType, 0.0));
+    auto cond1 = builder->create<mlir::arith::CmpFOp>(
+        loc, mlir::arith::CmpFPredicate::OLT, sum, zero);
+    mlir::Block *elseIfBlock =
+        builder->getBlock()->splitBlock(builder->getInsertionPoint());
+    genFIRConditionalBranch(cond1, blockOfLabel(eval, std::get<1>(stmt.t)),
+                            elseIfBlock);
+    startBlock(elseIfBlock);
+    auto cond2 = builder->create<mlir::arith::CmpFOp>(
+        loc, mlir::arith::CmpFPredicate::OGT, sum, zero);
+    genFIRConditionalBranch(cond2, blockOfLabel(eval, std::get<3>(stmt.t)),
+                            blockOfLabel(eval, std::get<2>(stmt.t)));
   }
 
   void genFIR(const Fortran::parser::AssignedGotoStmt &stmt) {
-    TODO(toLocation(), "AssignedGotoStmt lowering");
+    // Program requirement 1990 8.2.4 -
+    //
+    //   At the time of execution of an assigned GOTO statement, the integer
+    //   variable must be defined with the value of a statement label of a
+    //   branch target statement that appears in the same scoping unit.
+    //   Note that the variable may be defined with a statement label value
+    //   only by an ASSIGN statement in the same scoping unit as the assigned
+    //   GOTO statement.
+
+    mlir::Location loc = toLocation();
+    Fortran::lower::pft::Evaluation &eval = getEval();
+    const Fortran::lower::pft::SymbolLabelMap &symbolLabelMap =
+        eval.getOwningProcedure()->assignSymbolLabelMap;
+    const Fortran::semantics::Symbol &symbol =
+        *std::get<Fortran::parser::Name>(stmt.t).symbol;
+    auto selectExpr =
+        builder->create<fir::LoadOp>(loc, getSymbolAddress(symbol));
+    auto iter = symbolLabelMap.find(symbol);
+    if (iter == symbolLabelMap.end()) {
+      // Fail for a nonconforming program unit that does not have any ASSIGN
+      // statements.  The front end should check for this.
+      mlir::emitError(loc, "(semantics issue) no assigned goto targets");
+      exit(1);
+    }
+    auto labelSet = iter->second;
+    llvm::SmallVector<int64_t> indexList;
+    llvm::SmallVector<mlir::Block *> blockList;
+    auto addLabel = [&](Fortran::parser::Label label) {
+      indexList.push_back(label);
+      blockList.push_back(blockOfLabel(eval, label));
+    };
+    // Add labels from an explicit list.  The list may have duplicates.
+    for (Fortran::parser::Label label :
+         std::get<std::list<Fortran::parser::Label>>(stmt.t)) {
+      if (labelSet.count(label) &&
+          std::find(indexList.begin(), indexList.end(), label) ==
+              indexList.end()) { // ignore duplicates
+        addLabel(label);
+      }
+    }
+    // Absent an explicit list, add all possible label targets.
+    if (indexList.empty())
+      for (auto &label : labelSet)
+        addLabel(label);
+    // Add a nop/fallthrough branch to the switch for a nonconforming program
+    // unit that violates the program requirement above.
+    blockList.push_back(eval.nonNopSuccessor().block); // default
+    builder->create<fir::SelectOp>(loc, selectExpr, indexList, blockList);
   }
 
   void genFIR(const Fortran::parser::DoConstruct &doConstruct) {
@@ -769,7 +1105,59 @@ private:
   }
 
   void genFIR(const Fortran::parser::IfConstruct &) {
-    TODO(toLocation(), "IfConstruct lowering");
+    mlir::Location loc = toLocation();
+    Fortran::lower::pft::Evaluation &eval = getEval();
+    if (eval.lowerAsStructured()) {
+      // Structured fir.if nest.
+      fir::IfOp topIfOp, currentIfOp;
+      for (Fortran::lower::pft::Evaluation &e : eval.getNestedEvaluations()) {
+        auto genIfOp = [&](mlir::Value cond) {
+          auto ifOp = builder->create<fir::IfOp>(loc, cond, /*withElse=*/true);
+          builder->setInsertionPointToStart(&ifOp.getThenRegion().front());
+          return ifOp;
+        };
+        if (auto *s = e.getIf<Fortran::parser::IfThenStmt>()) {
+          topIfOp = currentIfOp = genIfOp(genIfCondition(s, e.negateCondition));
+        } else if (auto *s = e.getIf<Fortran::parser::IfStmt>()) {
+          topIfOp = currentIfOp = genIfOp(genIfCondition(s, e.negateCondition));
+        } else if (auto *s = e.getIf<Fortran::parser::ElseIfStmt>()) {
+          builder->setInsertionPointToStart(
+              &currentIfOp.getElseRegion().front());
+          currentIfOp = genIfOp(genIfCondition(s));
+        } else if (e.isA<Fortran::parser::ElseStmt>()) {
+          builder->setInsertionPointToStart(
+              &currentIfOp.getElseRegion().front());
+        } else if (e.isA<Fortran::parser::EndIfStmt>()) {
+          builder->setInsertionPointAfter(topIfOp);
+        } else {
+          genFIR(e, /*unstructuredContext=*/false);
+        }
+      }
+      return;
+    }
+
+    // Unstructured branch sequence.
+    for (Fortran::lower::pft::Evaluation &e : eval.getNestedEvaluations()) {
+      auto genIfBranch = [&](mlir::Value cond) {
+        if (e.lexicalSuccessor == e.controlSuccessor) // empty block -> exit
+          genFIRConditionalBranch(cond, e.parentConstruct->constructExit,
+                                  e.controlSuccessor);
+        else // non-empty block
+          genFIRConditionalBranch(cond, e.lexicalSuccessor, e.controlSuccessor);
+      };
+      if (auto *s = e.getIf<Fortran::parser::IfThenStmt>()) {
+        maybeStartBlock(e.block);
+        genIfBranch(genIfCondition(s, e.negateCondition));
+      } else if (auto *s = e.getIf<Fortran::parser::IfStmt>()) {
+        maybeStartBlock(e.block);
+        genIfBranch(genIfCondition(s, e.negateCondition));
+      } else if (auto *s = e.getIf<Fortran::parser::ElseIfStmt>()) {
+        startBlock(e.block);
+        genIfBranch(genIfCondition(s));
+      } else {
+        genFIR(e);
+      }
+    }
   }
 
   void genFIR(const Fortran::parser::CaseConstruct &) {
@@ -824,8 +1212,40 @@ private:
     TODO(toLocation(), "SelectCaseStmt lowering");
   }
 
+  fir::ExtendedValue
+  genAssociateSelector(const Fortran::lower::SomeExpr &selector,
+                       Fortran::lower::StatementContext &stmtCtx) {
+    return isArraySectionWithoutVectorSubscript(selector)
+               ? Fortran::lower::createSomeArrayBox(*this, selector,
+                                                    localSymbols, stmtCtx)
+               : genExprAddr(selector, stmtCtx);
+  }
+
   void genFIR(const Fortran::parser::AssociateConstruct &) {
-    TODO(toLocation(), "AssociateConstruct lowering");
+    Fortran::lower::StatementContext stmtCtx;
+    Fortran::lower::pft::Evaluation &eval = getEval();
+    for (Fortran::lower::pft::Evaluation &e : eval.getNestedEvaluations()) {
+      if (auto *stmt = e.getIf<Fortran::parser::AssociateStmt>()) {
+        if (eval.lowerAsUnstructured())
+          maybeStartBlock(e.block);
+        localSymbols.pushScope();
+        for (const Fortran::parser::Association &assoc :
+             std::get<std::list<Fortran::parser::Association>>(stmt->t)) {
+          Fortran::semantics::Symbol &sym =
+              *std::get<Fortran::parser::Name>(assoc.t).symbol;
+          const Fortran::lower::SomeExpr &selector =
+              *sym.get<Fortran::semantics::AssocEntityDetails>().expr();
+          localSymbols.addSymbol(sym, genAssociateSelector(selector, stmtCtx));
+        }
+      } else if (e.getIf<Fortran::parser::EndAssociateStmt>()) {
+        if (eval.lowerAsUnstructured())
+          maybeStartBlock(e.block);
+        stmtCtx.finalize();
+        localSymbols.popScope();
+      } else {
+        genFIR(e);
+      }
+    }
   }
 
   void genFIR(const Fortran::parser::BlockConstruct &blockConstruct) {
@@ -1004,11 +1424,11 @@ private:
   //===--------------------------------------------------------------------===//
 
   void genFIR(const Fortran::parser::AllocateStmt &stmt) {
-    TODO(toLocation(), "AllocateStmt lowering");
+    Fortran::lower::genAllocateStmt(*this, stmt, toLocation());
   }
 
   void genFIR(const Fortran::parser::DeallocateStmt &stmt) {
-    TODO(toLocation(), "DeallocateStmt lowering");
+    Fortran::lower::genDeallocateStmt(*this, stmt, toLocation());
   }
 
   void genFIR(const Fortran::parser::NullifyStmt &stmt) {
@@ -1118,7 +1538,12 @@ private:
   }
 
   void genFIR(const Fortran::parser::AssignStmt &stmt) {
-    TODO(toLocation(), "AssignStmt lowering");
+    const Fortran::semantics::Symbol &symbol =
+        *std::get<Fortran::parser::Name>(stmt.t).symbol;
+    mlir::Location loc = toLocation();
+    mlir::Value labelValue = builder->createIntegerConstant(
+        loc, genType(symbol), std::get<Fortran::parser::Label>(stmt.t));
+    builder->create<fir::StoreOp>(loc, labelValue, getSymbolAddress(symbol));
   }
 
   void genFIR(const Fortran::parser::FormatStmt &) {
@@ -1171,10 +1596,6 @@ private:
     genFIRBranch(getEval().controlSuccessor->block);
   }
 
-  void genFIR(const Fortran::parser::AssociateStmt &) {
-    TODO(toLocation(), "AssociateStmt lowering");
-  }
-
   void genFIR(const Fortran::parser::CaseStmt &) {
     TODO(toLocation(), "CaseStmt lowering");
   }
@@ -1187,16 +1608,8 @@ private:
     TODO(toLocation(), "ElseStmt lowering");
   }
 
-  void genFIR(const Fortran::parser::EndAssociateStmt &) {
-    TODO(toLocation(), "EndAssociateStmt lowering");
-  }
-
   void genFIR(const Fortran::parser::EndDoStmt &) {
     TODO(toLocation(), "EndDoStmt lowering");
-  }
-
-  void genFIR(const Fortran::parser::EndIfStmt &) {
-    TODO(toLocation(), "EndIfStmt lowering");
   }
 
   void genFIR(const Fortran::parser::EndMpSubprogramStmt &) {
@@ -1208,8 +1621,11 @@ private:
   }
 
   // Nop statements - No code, or code is generated at the construct level.
+  void genFIR(const Fortran::parser::AssociateStmt &) {}     // nop
   void genFIR(const Fortran::parser::ContinueStmt &) {}      // nop
+  void genFIR(const Fortran::parser::EndAssociateStmt &) {}  // nop
   void genFIR(const Fortran::parser::EndFunctionStmt &) {}   // nop
+  void genFIR(const Fortran::parser::EndIfStmt &) {}         // nop
   void genFIR(const Fortran::parser::EndSubroutineStmt &) {} // nop
 
   void genFIR(const Fortran::parser::EntryStmt &) {

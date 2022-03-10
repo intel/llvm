@@ -153,9 +153,9 @@ decompose(Value *V, SmallVector<PreconditionTy, 4> &Preconditions,
   }
 
   if (auto *CI = dyn_cast<ConstantInt>(V)) {
-    if (CI->isNegative() || CI->uge(MaxConstraintValue))
+    if (CI->uge(MaxConstraintValue))
       return {};
-    return {{CI->getSExtValue(), nullptr}};
+    return {{CI->getZExtValue(), nullptr}};
   }
   auto *GEP = dyn_cast<GetElementPtrInst>(V);
   if (GEP && GEP->getNumOperands() == 2 && GEP->isInBounds()) {
@@ -208,8 +208,9 @@ decompose(Value *V, SmallVector<PreconditionTy, 4> &Preconditions,
 
   Value *Op1;
   ConstantInt *CI;
-  if (match(V, m_NUWAdd(m_Value(Op0), m_ConstantInt(CI))))
-    return {{CI->getSExtValue(), nullptr}, {1, Op0}};
+  if (match(V, m_NUWAdd(m_Value(Op0), m_ConstantInt(CI))) &&
+      !CI->uge(MaxConstraintValue))
+    return {{CI->getZExtValue(), nullptr}, {1, Op0}};
   if (match(V, m_Add(m_Value(Op0), m_ConstantInt(CI))) && CI->isNegative()) {
     Preconditions.emplace_back(
         CmpInst::ICMP_UGE, Op0,
@@ -413,6 +414,18 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
       continue;
     WorkList.emplace_back(DT.getNode(&BB));
 
+    // Returns true if we can add a known condition from BB to its successor
+    // block Succ. Each predecessor of Succ can either be BB or be dominated by
+    // Succ (e.g. the case when adding a condition from a pre-header to a loop
+    // header).
+    auto CanAdd = [&BB, &DT](BasicBlock *Succ) {
+      return any_of(successors(&BB),
+                    [Succ](const BasicBlock *S) { return S != Succ; }) &&
+             all_of(predecessors(Succ), [&BB, &DT, Succ](BasicBlock *Pred) {
+               return Pred == &BB || DT.dominates(Succ, Pred);
+             });
+    };
+
     // True as long as long as the current instruction is guaranteed to execute.
     bool GuaranteedToExecute = true;
     // Scan BB for assume calls.
@@ -431,9 +444,12 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
           WorkList.emplace_back(DT.getNode(&BB), cast<ICmpInst>(Cond), false);
         } else {
           // Otherwise the condition only holds in the successors.
-          for (BasicBlock *Succ : successors(&BB))
+          for (BasicBlock *Succ : successors(&BB)) {
+            if (!CanAdd(Succ))
+              continue;
             WorkList.emplace_back(DT.getNode(Succ), cast<ICmpInst>(Cond),
                                   false);
+          }
         }
       }
       GuaranteedToExecute &= isGuaranteedToTransferExecutionToSuccessor(&I);
@@ -443,18 +459,6 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
     if (!Br || !Br->isConditional())
       continue;
 
-    // Returns true if we can add a known condition from BB to its successor
-    // block Succ. Each predecessor of Succ can either be BB or be dominated by
-    // Succ (e.g. the case when adding a condition from a pre-header to a loop
-    // header).
-    auto CanAdd = [&BB, &DT](BasicBlock *Succ) {
-      assert(isa<BranchInst>(BB.getTerminator()));
-      return any_of(successors(&BB),
-                    [Succ](const BasicBlock *S) { return S != Succ; }) &&
-             all_of(predecessors(Succ), [&BB, &DT, Succ](BasicBlock *Pred) {
-               return Pred == &BB || DT.dominates(Succ, Pred);
-             });
-    };
     // If the condition is an OR of 2 compares and the false successor only has
     // the current block as predecessor, queue both negated conditions for the
     // false successor.

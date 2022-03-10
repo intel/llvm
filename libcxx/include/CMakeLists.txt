@@ -66,7 +66,9 @@ set(files
   __algorithm/pop_heap.h
   __algorithm/prev_permutation.h
   __algorithm/push_heap.h
+  __algorithm/ranges_max_element.h
   __algorithm/ranges_min_element.h
+  __algorithm/ranges_mismatch.h
   __algorithm/ranges_swap_ranges.h
   __algorithm/remove.h
   __algorithm/remove_copy.h
@@ -448,6 +450,7 @@ set(files
   ctgmath
   ctime
   ctype.h
+  cuchar
   cwchar
   cwctype
   deque
@@ -541,6 +544,7 @@ set(files
   type_traits
   typeindex
   typeinfo
+  uchar.h
   unordered_map
   unordered_set
   utility

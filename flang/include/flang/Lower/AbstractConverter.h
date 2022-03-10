@@ -76,6 +76,9 @@ public:
   /// Get the mlir instance of a symbol.
   virtual mlir::Value getSymbolAddress(SymbolRef sym) = 0;
 
+  /// Get the binding of an implied do variable by name.
+  virtual mlir::Value impliedDoBinding(llvm::StringRef name) = 0;
+
   /// Get the label set associated with a symbol.
   virtual bool lookupLabelSet(SymbolRef sym, pft::LabelSet &labelSet) = 0;
 
@@ -125,6 +128,10 @@ public:
   /// Host associated variables are grouped as a tuple. This returns that value,
   /// which is itself a reference. Use bindTuple() to set this value.
   virtual mlir::Value hostAssocTupleValue() = 0;
+
+  /// Record a binding for the ssa-value of the host assoications tuple for this
+  /// function.
+  virtual void bindHostAssocTuple(mlir::Value val) = 0;
 
   //===--------------------------------------------------------------------===//
   // Types
