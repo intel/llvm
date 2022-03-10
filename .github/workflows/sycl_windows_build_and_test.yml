@@ -20,15 +20,14 @@ jobs:
         fetch-depth: 1
     - run: refreshenv
       shell: cmd
+    - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
+      with:
+        arch: amd64
     - name: Set env
       shell: cmd
       run: |
         set PATH=C:\ProgramData\chocolatey\lib\sccache\tools\sccache-v0.2.15-x86_64-pc-windows-msvc;C:\Python310;%PATH%
-        call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat"
         echo "%PATH%" >> %GITHUB_PATH%
-        echo "LIB=%LIB%" >> %GITHUB_ENV%
-        echo "LIBPATH=%LIBPATH%" >> %GITHUB_ENV%
-        echo "INCLUDE=%INCLUDE%" >> %GITHUB_ENV%
     - name: Build
       id: build
       shell: cmd
@@ -40,8 +39,6 @@ jobs:
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
         IF NOT EXIST D:\github\_work\cache\sycl_${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         set SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}
-        set PATH="C:\ProgramData\chocolatey\lib\sccache\tools\sccache-v0.2.15-x86_64-pc-windows-msvc;C:\Python310;%PATH%"
-        call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat"
         python.exe src/buildbot/configure.py -o build ^
           --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
