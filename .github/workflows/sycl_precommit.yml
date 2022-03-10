@@ -7,8 +7,7 @@ on:
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - 'devops/containers/**'
-    - 'devops/scripts/install_drivers.sh'
-    - 'devops/scripts/install_build_tools.sh'
+    - 'devops/scripts/**'
     - 'sycl/doc/**'
     - 'sycl/gdb/**'
     - 'clang/docs/**'

@@ -5,8 +5,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 USER root
 
 # Install SYCL prerequisites
-COPY scripts/install_build_tools.sh /install.sh
-RUN /install.sh
+ADD scripts /opt/scripts
+RUN /opt/scripts/install_build_tools.sh
 
 # Install AMD ROCm
 RUN apt install -yqq libnuma-dev wget gnupg2 && \
@@ -24,10 +24,12 @@ RUN apt install -yqq libnuma-dev wget gnupg2 && \
 RUN groupadd -g 1001 sycl && useradd sycl -u 1001 -g 1001 -m -s /bin/bash
 # Add sycl user to video group so that it can access GPU
 RUN usermod -aG video sycl
+# Allow sycl user to run as sudo
+RUN echo "sycl  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 COPY actions/cached_checkout /actions/cached_checkout
 COPY actions/cleanup /actions/cleanup
-COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
+COPY containers/ubuntu_entrypoint.sh /docker_entrypoint.sh
 
 ENTRYPOINT ["/docker_entrypoint.sh"]
 

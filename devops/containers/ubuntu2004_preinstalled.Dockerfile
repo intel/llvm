@@ -3,7 +3,6 @@ ARG base_image=ghcr.io/intel/llvm/ubuntu2004_intel_drivers
 
 FROM $base_image:$base_tag
 
-COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 RUN mkdir -p /opt/sycl
 ADD llvm_sycl.tar.xz /opt/sycl
 

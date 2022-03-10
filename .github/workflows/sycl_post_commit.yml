@@ -4,6 +4,14 @@ on:
   push:
     branches:
     - sycl
+    paths-ignore:
+    - 'devops/containers/**'
+    - 'devops/scripts/**'
+    - 'sycl/doc/**'
+    - 'sycl/gdb/**'
+    - 'clang/docs/**'
+    - '**.md'
+    - '**.rst'
   pull_request:
     branches:
     - sycl
