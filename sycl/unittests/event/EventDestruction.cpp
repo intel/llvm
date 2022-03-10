@@ -78,7 +78,7 @@ TEST_F(EventDestructionTest, EventDestruction) {
     }
     // When a command is cleared we clear now only dependencies of the
     // dependencies of the associated event. So, when the command
-    // associated with E0 event is destroyed, this event is still in 
+    // associated with E0 event is destroyed, this event is still in
     // E1 dependencies, which will not be cleared.
     // Therefore no event release should be called until here.
     EXPECT_EQ(ReleaseCounter, 0);
@@ -123,11 +123,11 @@ TEST_F(EventDestructionTest, EventDestruction) {
       cgh.single_task<TestKernel>([=]() {});
     });
     E2.wait();
-    // Dependencies are deleted through one level of dependencies. When 
+    // Dependencies are deleted through one level of dependencies. When
     // fourth command group is submitted the destructor of third command
     // is called. It depends on second command, so dependencies of second
-    // command will be cleared. It leads to release event associated with 
-    // first command 
+    // command will be cleared. It leads to release event associated with
+    // first command
     EXPECT_EQ(ReleaseCounter, 1);
   }
 }
@@ -187,7 +187,6 @@ TEST_F(EventDestructionTest, GetWaitList) {
     auto wait_list = E1.get_wait_list();
     ASSERT_EQ(wait_list.size(), (size_t)1);
     EXPECT_EQ(ReleaseCounter, 0);
-    wait_list.clear();
 
     sycl::event E2 = Queue.submit([&](cl::sycl::handler &cgh) {
       cgh.depends_on(E1);
