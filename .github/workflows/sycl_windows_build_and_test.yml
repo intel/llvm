@@ -2,11 +2,16 @@ name: SYCL Windows Test
 
 on:
   workflow_call:
+    build_cache_suffix:
+      type: string
+      required: false
+      default: "default"
 
 jobs:
   build:
     name: Build
-    runs-on: windows-2022
+    runs-on: [Windows, build]
+    # TODO use cached checkout
     steps:
     - uses: actions/checkout@v2
       with:
@@ -21,15 +26,6 @@ jobs:
     - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
       with:
         arch: amd64
-    - name: Setup Cache
-      uses: actions/cache@v2
-      if: ${{ github.event_name != 'pull_request' }}
-      id: cache
-      with:
-        path: cache
-        key: sycl-win-build-${{ github.sha }}
-        restore-keys: |
-          sycl-win-build-
     - name: Build
       shell: cmd
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
@@ -37,8 +33,9 @@ jobs:
       run: |
         mkdir build
         mkdir install
-        IF NOT EXIST cache MKDIR cache
-        set SCCACHE_DIR=%GITHUB_WORKSPACE%\cache
+        IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
+        IF NOT EXIST D:\github\_work\cache\sycl_${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
+        set SCCACHE_DIR=D:\github\_work\cache
         set PATH=C:\ProgramData\chocolatey\lib\sccache\tools\sccache-v0.2.15-x86_64-pc-windows-msvc;%PATH%
         python.exe src/buildbot/configure.py -o build ^
           --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
@@ -48,6 +45,36 @@ jobs:
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache"
         cmake --build build --target sycl-toolchain
         sccache --show-stats
+    - name: check-llvm
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      shell: cmd
+      run: |
+        cmake --build %GITHUB_WORKSPACE%\build --target check-llvm
+    - name: check-clang
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      shell: cmd
+      run: |
+        cmake --build %GITHUB_WORKSPACE%\build --target check-clang
+    - name: check-sycl
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      shell: cmd
+      run: |
+        cmake --build %GITHUB_WORKSPACE%\build --target check-sycl
+    - name: check-llvm-spirv
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      shell: cmd
+      run: |
+        cmake --build %GITHUB_WORKSPACE%\build --target check-llvm-spirv
+    - name: check-xptifw
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      shell: cmd
+      run: |
+        cmake --build %GITHUB_WORKSPACE%\build --target check-xptifw
+    - name: check-libclc
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      shell: cmd
+      run: |
+        cmake --build %GITHUB_WORKSPACE%\build --target check-libclc
     - name: Install
       shell: cmd
       run: cmake --build build --target deploy-sycl-toolchain
