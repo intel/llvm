@@ -36,7 +36,7 @@ int main() {
   sycl::queue q;
   auto f = [=]() {};
   q.submit([&](sycl::handler &h) {
-    KernelFunctor<prop5, prop1, prop3, prop4> f{};
+    KernelFunctor<prop5, prop7, prop1, prop3, prop4> f{};
     h.single_task<class test_kernel>(f);
   });
 }
@@ -50,6 +50,7 @@ int main() {
 // CHECK-NOT:  "Prop4"
 // CHECK-SAME: "Prop5"
 // CHECK-NOT:  "Prop6"
+// CHECK-NOT:  "Prop7"
 // CHECK: attributes #[[FuncAttrs]] = {
 // CHECK-NOT:  "Prop1"
 // CHECK-NOT:  "Prop2"
@@ -57,3 +58,4 @@ int main() {
 // CHECK-SAME: "Prop4"
 // CHECK-NOT:  "Prop5"
 // CHECK-NOT:  "Prop6"
+// CHECK-NOT:  "Prop7"

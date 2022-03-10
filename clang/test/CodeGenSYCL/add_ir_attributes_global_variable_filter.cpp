@@ -21,7 +21,7 @@ template <typename... NameValues> struct
   constexpr g(int _x) : x(_x) {}
 };
 
-constexpr g<prop1, prop2, prop3, prop4> g_v;
+constexpr g<prop1, prop2, prop3, prop4, prop7> g_v;
 
 int main() {
   sycl::queue q;
@@ -39,3 +39,4 @@ int main() {
 // CHECK: "Prop4"="2"
 // CHECK-NOT: "Prop5"
 // CHECK-NOT: "Prop6"
+// CHECK-NOT: "Prop7"="1"

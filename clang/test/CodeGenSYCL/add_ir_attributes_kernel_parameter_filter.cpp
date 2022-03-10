@@ -20,7 +20,7 @@ public:
   void __init(
 #ifdef __SYCL_DEVICE_ONLY__
       [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          {"Prop1", "Prop6", "Prop4", "Prop2"},
+          {"Prop1", "Prop6", "Prop4", "Prop7", "Prop2"},
           Properties::name..., Properties::value...)]]
 #endif
       int *_x) {
@@ -31,7 +31,7 @@ public:
 
 int main() {
   sycl::queue q;
-  g<prop2, prop3, prop1, prop6> a;
+  g<prop2, prop3, prop1, prop6, prop7> a;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel>(
         [=]() {
@@ -46,3 +46,4 @@ int main() {
 // CHECK-NOT: "Prop4"="2"
 // CHECK-NOT: "Prop5"
 // CHECK: "Prop6"
+// CHECK: "Prop7"="1"

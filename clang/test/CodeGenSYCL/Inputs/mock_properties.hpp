@@ -5,6 +5,11 @@ enum TestEnum {
   Enum2 = 2
 };
 
+enum class ScopedTestEnum : short {
+  ScopedEnum1 = 1,
+  ScopedEnum2 = 2
+};
+
 template <const char *Name, const char *Value> struct StringProperty {
   static constexpr const char *name = Name;
   static constexpr const char *value = Value;
@@ -25,6 +30,12 @@ template <const char *Name, TestEnum Value> struct TestEnumProperty {
   static constexpr TestEnum value = Value;
 };
 
+template <const char *Name, ScopedTestEnum Value>
+struct ScopedTestEnumProperty {
+  static constexpr const char *name = Name;
+  static constexpr ScopedTestEnum value = Value;
+};
+
 template <const char *Name, decltype(nullptr) Value> struct NullptrProperty {
   static constexpr const char *name = Name;
   static constexpr decltype(nullptr) value = Value;
@@ -42,6 +53,8 @@ const char PropertyName5[] = "Prop5";
 constexpr decltype(nullptr) PropertyValue5 = nullptr;
 const char PropertyName6[] = "Prop6";
 constexpr decltype(nullptr) PropertyValue6 = nullptr;
+const char PropertyName7[] = "Prop7";
+constexpr ScopedTestEnum PropertyValue7 = ScopedTestEnum::ScopedEnum1;
 
 using prop1 = StringProperty<PropertyName1, PropertyValue1>;
 using prop2 = IntProperty<PropertyName2, PropertyValue2>;
@@ -49,3 +62,4 @@ using prop3 = BoolProperty<PropertyName3, PropertyValue3>;
 using prop4 = TestEnumProperty<PropertyName4, PropertyValue4>;
 using prop5 = StringProperty<PropertyName5, PropertyValue5>;
 using prop6 = NullptrProperty<PropertyName6, PropertyValue6>;
+using prop7 = ScopedTestEnumProperty<PropertyName7, PropertyValue7>;

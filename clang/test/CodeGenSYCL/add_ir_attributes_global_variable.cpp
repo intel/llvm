@@ -23,8 +23,8 @@ template <typename... NameValues> struct
 struct
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::add_ir_attributes_global_variable(
-        "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16",
-        "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr)]]
+        "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
+        "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
 #endif
     h {
   int x;
@@ -36,8 +36,8 @@ struct
 template <typename... NameValues> struct
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::add_ir_attributes_global_variable(
-        NameValues::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16",
-        NameValues::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr)]]
+        NameValues::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
+        NameValues::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
 #endif
     gh {
   int x;
@@ -49,8 +49,8 @@ template <typename... NameValues> struct
 template <typename... NameValues> struct
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::add_ir_attributes_global_variable(
-        "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", NameValues::name...,
-        "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, NameValues::value...)]]
+        "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", NameValues::name...,
+        "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, NameValues::value...)]]
 #endif
     hg {
   int x;
@@ -59,10 +59,10 @@ template <typename... NameValues> struct
   constexpr hg(int _x) : x(_x) {}
 };
 
-constexpr g<prop1, prop2, prop3, prop4, prop5, prop6> g_v;
+constexpr g<prop1, prop2, prop3, prop4, prop5, prop6, prop7> g_v;
 constexpr h h_v;
-constexpr gh<prop1, prop2, prop3, prop4, prop5, prop6> gh_v;
-constexpr hg<prop1, prop2, prop3, prop4, prop5, prop6> hg_v;
+constexpr gh<prop1, prop2, prop3, prop4, prop5, prop6, prop7> gh_v;
+constexpr hg<prop1, prop2, prop3, prop4, prop5, prop6, prop7> hg_v;
 
 int main() {
   sycl::queue q;
@@ -81,6 +81,6 @@ int main() {
 // CHECK-DAG: @_ZL3h_v = internal addrspace(1) constant %struct.h { {{.*}} }, {{.*}} #[[GlobalVarHAttrs:[0-9]+]]
 // CHECK-DAG: @_ZL4gh_v = internal addrspace(1) constant %struct.gh { {{.*}} }, {{.*}} #[[GlobalVarHGAndGHAttrs:[0-9]+]]
 // CHECK-DAG: @_ZL4hg_v = internal addrspace(1) constant %struct.hg { {{.*}} }, {{.*}} #[[GlobalVarHGAndGHAttrs]]
-// CHECK-DAG: attributes #[[GlobalVarGAttrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}} }
-// CHECK-DAG: attributes #[[GlobalVarHAttrs]] = { {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}} }
-// CHECK-DAG: attributes #[[GlobalVarHGAndGHAttrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}} }
+// CHECK-DAG: attributes #[[GlobalVarGAttrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
+// CHECK-DAG: attributes #[[GlobalVarHAttrs]] = { {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} }
+// CHECK-DAG: attributes #[[GlobalVarHGAndGHAttrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
