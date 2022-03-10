@@ -81,7 +81,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, a, 16, 16, int32_t, 2)
 __SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, b, 16, 16, int32_t, 2)
 __SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 16, 16, int32_t, 8)
 
-// m16n16k8 fp19
+// m16n16k8 tf32
 __SYCL_JOINT_MATRIX_OVERLOAD(uint32_t, a, 16, 8, int32_t, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD(uint32_t, b, 8, 16, int32_t, 4)
 
