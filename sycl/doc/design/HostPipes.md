@@ -53,11 +53,11 @@ class pipe
     "readwrite"
     )]]
 #endif
-  __pipeType { const char __p };
+  __pipeType { const char __p; };
   
-  static __pipeType __pipe;
+  static const __pipeType __pipe;
   ...
-}
+};
 ```
 The `[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute is 
 described more fully by the [compile-time properties][3] design 
