@@ -24,13 +24,12 @@ jobs:
       with:
         arch: amd64
     - name: Set env
-      shell: cmd
       run: |
-        echo "C:\Program Files\Git\usr\bin" >> %GITHUB_PATH%
-        echo "C:\ProgramData\chocolatey\lib\sccache\tools\sccache-v0.2.15-x86_64-pc-windows-msvc" >> %GITHUB_PATH%
-        echo "C:\Python310" >> %GITHUB_PATH%
-    - name: Build
-      id: build
+        echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "C:\Python310" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "C:\ProgramData\chocolatey\lib\sccache\tools\sccache-v0.2.15-x86_64-pc-windows-msvc" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - name: Configure
       shell: cmd
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
       # TODO enable sccache, when problems with PDB are resolved
@@ -39,20 +38,21 @@ jobs:
         mkdir install
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
         IF NOT EXIST D:\github\_work\cache\sycl_${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
-        set SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}
         python.exe src/buildbot/configure.py -o build ^
           --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache"
+    - name: Build
+      id: build
+      run: |
         cmake --build build --target sycl-toolchain
         sccache --show-stats
     - name: check-llvm
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: cmd
       run: |
-        cmake --build %GITHUB_WORKSPACE%\build --target check-llvm
+        cmake --build $Env:GITHUB_WORKSPACE\build --target check-llvm
     - name: check-clang
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: cmd
@@ -73,11 +73,6 @@ jobs:
       shell: cmd
       run: |
         cmake --build %GITHUB_WORKSPACE%\build --target check-xptifw
-    - name: check-libclc
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: cmd
-      run: |
-        cmake --build %GITHUB_WORKSPACE%\build --target check-libclc
     - name: Install
       shell: cmd
       run: cmake --build build --target deploy-sycl-toolchain
