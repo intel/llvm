@@ -50,29 +50,30 @@ jobs:
         cmake --build build --target sycl-toolchain
         sccache --show-stats
     - name: check-llvm
+      shell: bash
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
-        cmake --build $Env:GITHUB_WORKSPACE\build --target check-llvm
+        cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: cmd
       run: |
-        cmake --build %GITHUB_WORKSPACE%\build --target check-clang
+        cmake --build $GITHUB_WORKSPACE/build --target check-clang
     - name: check-sycl
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: cmd
       run: |
-        cmake --build %GITHUB_WORKSPACE%\build --target check-sycl
+        cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-llvm-spirv
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: cmd
       run: |
-        cmake --build %GITHUB_WORKSPACE%\build --target check-llvm-spirv
+        cmake --build $GITHUB_WORKSPACE/build --target check-llvm-spirv
     - name: check-xptifw
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: cmd
       run: |
-        cmake --build %GITHUB_WORKSPACE%\build --target check-xptifw
+        cmake --build $GITHUB_WORKSPACE/build --target check-xptifw
     - name: Install
       shell: cmd
       run: cmake --build build --target deploy-sycl-toolchain
