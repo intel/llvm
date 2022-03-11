@@ -26,8 +26,9 @@ jobs:
     - name: Set env
       shell: cmd
       run: |
-        set PATH="C:\Program Files\Git\usr\bin";C:\ProgramData\chocolatey\lib\sccache\tools\sccache-v0.2.15-x86_64-pc-windows-msvc;C:\Python310;%PATH%
-        echo "%PATH%" >> %GITHUB_PATH%
+        echo "C:\Program Files\Git\usr\bin" >> %GITHUB_PATH%
+        echo "C:\ProgramData\chocolatey\lib\sccache\tools\sccache-v0.2.15-x86_64-pc-windows-msvc" >> %GITHUB_PATH%
+        echo "C:\Python310" >> %GITHUB_PATH%
     - name: Build
       id: build
       shell: cmd
