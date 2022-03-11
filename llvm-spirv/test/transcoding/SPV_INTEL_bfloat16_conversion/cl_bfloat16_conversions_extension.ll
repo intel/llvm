@@ -35,18 +35,18 @@
 ; CHECK-REGULARIZED: call spir_func <8 x float> @_Z27__spirv_ConvertBF16ToFINTELDv8_s(<8 x i16> zeroinitializer)
 ; CHECK-REGULARIZED: call spir_func <16 x float> @_Z27__spirv_ConvertBF16ToFINTELDv16_s(<16 x i16> zeroinitializer)
 
-; CHECK-SPIRV: TypeInt [[#Int16Ty:]] 16 0
-; CHECK-SPIRV: TypeFloat [[#FloatTy:]] 32
-; CHECK-SPIRV: TypeVector [[#VecFloat2:]] [[#FloatTy]] 2
-; CHECK-SPIRV: TypeVector [[#VecInt162:]] [[#Int16Ty]] 2
-; CHECK-SPIRV: TypeVector [[#VecFloat3:]] [[#FloatTy]] 3
-; CHECK-SPIRV: TypeVector [[#VecInt163:]] [[#Int16Ty]] 3
-; CHECK-SPIRV: TypeVector [[#VecFloat4:]] [[#FloatTy]] 4
-; CHECK-SPIRV: TypeVector [[#VecInt164:]] [[#Int16Ty]] 4
-; CHECK-SPIRV: TypeVector [[#VecFloat8:]] [[#FloatTy]] 8
-; CHECK-SPIRV: TypeVector [[#VecInt168:]] [[#Int16Ty]] 8
-; CHECK-SPIRV: TypeVector [[#VecFloat16:]] [[#FloatTy]] 16
-; CHECK-SPIRV: TypeVector [[#VecInt1616:]] [[#Int16Ty]] 16
+; CHECK-SPIRV-DAG: TypeInt [[#Int16Ty:]] 16 0
+; CHECK-SPIRV-DAG: TypeFloat [[#FloatTy:]] 32
+; CHECK-SPIRV-DAG: TypeVector [[#VecFloat2:]] [[#FloatTy]] 2
+; CHECK-SPIRV-DAG: TypeVector [[#VecInt162:]] [[#Int16Ty]] 2
+; CHECK-SPIRV-DAG: TypeVector [[#VecFloat3:]] [[#FloatTy]] 3
+; CHECK-SPIRV-DAG: TypeVector [[#VecInt163:]] [[#Int16Ty]] 3
+; CHECK-SPIRV-DAG: TypeVector [[#VecFloat4:]] [[#FloatTy]] 4
+; CHECK-SPIRV-DAG: TypeVector [[#VecInt164:]] [[#Int16Ty]] 4
+; CHECK-SPIRV-DAG: TypeVector [[#VecFloat8:]] [[#FloatTy]] 8
+; CHECK-SPIRV-DAG: TypeVector [[#VecInt168:]] [[#Int16Ty]] 8
+; CHECK-SPIRV-DAG: TypeVector [[#VecFloat16:]] [[#FloatTy]] 16
+; CHECK-SPIRV-DAG: TypeVector [[#VecInt1616:]] [[#Int16Ty]] 16
 
 ; CHECK-SPIRV: ConvertFToBF16INTEL [[#Int16Ty]]
 ; CHECK-SPIRV: ConvertFToBF16INTEL [[#VecInt162]]
