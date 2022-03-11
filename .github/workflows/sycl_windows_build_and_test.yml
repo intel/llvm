@@ -19,9 +19,11 @@ jobs:
         arch: amd64
     - name: Set env
       run: |
-        git config --global core.autocrlf true
+        git config --system core.longpaths true
+        git config --global core.autocrlf false
         echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         echo "SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "LIT_OPTS=-j 24" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - uses: actions/checkout@v2
       with:
         path: src
@@ -49,14 +51,10 @@ jobs:
         sccache --show-stats
     - name: check-llvm
       shell: bash
-      env:
-        LIT_OPTS: -j 16 --time-tests
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build build --target check-llvm
     - name: check-clang
-      env:
-        LIT_OPTS: -j 16 --time-tests
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: bash
       run: |
