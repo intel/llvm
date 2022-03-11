@@ -8331,7 +8331,6 @@ bool clang::driver::isStaticArchiveFile(const StringRef &FileName) {
   if (!llvm::sys::path::has_extension(FileName))
     // Any file with no extension should not be considered an Archive.
     return false;
-  StringRef Ext(llvm::sys::path::extension(FileName).drop_front());
   llvm::file_magic Magic;
   llvm::identify_magic(FileName, Magic);
   // Only .lib and archive files are to be considered.
