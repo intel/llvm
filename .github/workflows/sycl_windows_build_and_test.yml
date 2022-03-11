@@ -26,6 +26,8 @@ jobs:
       with:
         path: src
         fetch-depth: 1
+    - name: Register cleanup after job is finished
+      uses: ./src/devops/actions/cleanup
     - name: Configure
       shell: cmd
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
