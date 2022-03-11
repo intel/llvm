@@ -806,6 +806,44 @@ extern SYCL_EXTERNAL __ocl_vec_t<uint32_t, 16>
     __clc_fma_relu(__ocl_vec_t<uint32_t, 16>, __ocl_vec_t<uint32_t, 16>,
                    __ocl_vec_t<uint32_t, 16>);
 
+// Native builtin extension
+
+extern SYCL_EXTERNAL float __clc_native_tanh(float);
+extern SYCL_EXTERNAL __ocl_vec_t<float, 2>
+    __clc_native_tanh(__ocl_vec_t<float, 2>);
+extern SYCL_EXTERNAL __ocl_vec_t<float, 3>
+    __clc_native_tanh(__ocl_vec_t<float, 3>);
+extern SYCL_EXTERNAL __ocl_vec_t<float, 4>
+    __clc_native_tanh(__ocl_vec_t<float, 4>);
+extern SYCL_EXTERNAL __ocl_vec_t<float, 8>
+    __clc_native_tanh(__ocl_vec_t<float, 8>);
+extern SYCL_EXTERNAL __ocl_vec_t<float, 16>
+    __clc_native_tanh(__ocl_vec_t<float, 16>);
+
+extern SYCL_EXTERNAL _Float16 __clc_native_tanh(_Float16);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 2>
+    __clc_native_tanh(__ocl_vec_t<_Float16, 2>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 3>
+    __clc_native_tanh(__ocl_vec_t<_Float16, 3>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 4>
+    __clc_native_tanh(__ocl_vec_t<_Float16, 4>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 8>
+    __clc_native_tanh(__ocl_vec_t<_Float16, 8>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 16>
+    __clc_native_tanh(__ocl_vec_t<_Float16, 16>);
+
+extern SYCL_EXTERNAL _Float16 __clc_native_exp2(_Float16);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 2>
+    __clc_native_exp2(__ocl_vec_t<_Float16, 2>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 3>
+    __clc_native_exp2(__ocl_vec_t<_Float16, 3>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 4>
+    __clc_native_exp2(__ocl_vec_t<_Float16, 4>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 8>
+    __clc_native_exp2(__ocl_vec_t<_Float16, 8>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 16>
+    __clc_native_exp2(__ocl_vec_t<_Float16, 16>);
+
 #else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>

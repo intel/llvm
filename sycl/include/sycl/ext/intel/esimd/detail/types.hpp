@@ -13,8 +13,8 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp> // to define C++14,17 extensions
 #include <CL/sycl/half_type.hpp>
-#include <sycl/ext/intel/experimental/esimd/common.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/region.hpp>
+#include <sycl/ext/intel/esimd/common.hpp>
+#include <sycl/ext/intel/esimd/detail/region.hpp>
 
 #if defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)
 #define __esimd_dbg_print(a) std::cout << ">>> " << #a << "\n"
@@ -24,16 +24,8 @@
 
 #include <cstdint>
 
-#define __SEIEED sycl::ext::intel::experimental::esimd::detail
-#define __SEIEE sycl::ext::intel::experimental::esimd
-#define __SEIEEED sycl::ext::intel::experimental::esimd::emu::detail
-
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
-namespace esimd {
+namespace __ESIMD_NS {
 
 // simd and simd_view_impl forward declarations
 template <typename Ty, int N> class simd;
@@ -92,7 +84,9 @@ template <typename T>
 using remove_cvref_t = csd::remove_cv_t<csd::remove_reference_t<T>>;
 
 // is_esimd_arithmetic_type
-template <class...> struct make_esimd_void { using type = void; };
+template <class...> struct make_esimd_void {
+  using type = void;
+};
 template <class... Tys>
 using __esimd_void_t = typename make_esimd_void<Tys...>::type;
 
@@ -152,9 +146,9 @@ struct is_simd_obj_impl_derivative<simd_obj_impl<RawT, N, Derived>>
 
 template <class T, class SFINAE = void> struct element_type_traits;
 template <class T>
-using __raw_t = typename __SEIEED::element_type_traits<T>::RawT;
+using __raw_t = typename __ESIMD_DNS::element_type_traits<T>::RawT;
 template <class T>
-using __cpp_t = typename __SEIEED::element_type_traits<T>::EnclosingCppT;
+using __cpp_t = typename __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
 
 // Specialization for all other types.
 template <typename T, int N, template <typename, int> class Derived>
@@ -404,9 +398,5 @@ bitcast(vector_type_t<FromEltTy, FromN> Val) {
 // Alias for backward compatibility.
 template <int N> using mask_type_t = detail::simd_mask_storage_t<N>;
 
-} // namespace esimd
-} // namespace experimental
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __ESIMD_NS
 } // __SYCL_INLINE_NAMESPACE(cl)

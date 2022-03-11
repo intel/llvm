@@ -11,7 +11,7 @@
 // LowerESIMD.cpp)
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
