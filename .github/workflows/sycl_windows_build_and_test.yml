@@ -14,10 +14,6 @@ jobs:
     runs-on: [Windows, build]
     # TODO use cached checkout
     steps:
-    - uses: actions/checkout@v2
-      with:
-        path: src
-        fetch-depth: 1
     - run: refreshenv
       shell: cmd
     - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
@@ -25,14 +21,15 @@ jobs:
         arch: amd64
     - name: Set env
       run: |
-        echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        echo "C:\Python310" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        echo "C:\ProgramData\chocolatey\lib\sccache\tools\sccache-v0.2.15-x86_64-pc-windows-msvc" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        git config --global core.autocrlf true
         echo "SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - uses: actions/checkout@v2
+      with:
+        path: src
+        fetch-depth: 1
     - name: Configure
       shell: cmd
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
-      # TODO enable sccache, when problems with PDB are resolved
       run: |
         mkdir build
         mkdir install
