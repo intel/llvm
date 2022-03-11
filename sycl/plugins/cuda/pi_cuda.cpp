@@ -13,8 +13,8 @@
 
 #include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/spinlock.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/spinlock.hpp>
 #include <pi_cuda.hpp>
 
 #include <algorithm>
