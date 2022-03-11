@@ -2992,9 +2992,10 @@ static SmallVector<const char *, 16>
 getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
   SmallVector<const char *, 16> LibArgs;
   SmallVector<std::string, 8> LibPaths;
-  // Add search directories from LIBRARY_PATH env variable
+  bool IsMSVC = C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  // Add search directories from LIBRARY_PATH/LIB env variable
   llvm::Optional<std::string> LibPath =
-      llvm::sys::Process::GetEnv("LIBRARY_PATH");
+      llvm::sys::Process::GetEnv(IsMSVC ? "LIB" : "LIBRARY_PATH");
   if (LibPath) {
     SmallVector<StringRef, 8> SplitPaths;
     const char EnvPathSeparatorStr[] = {llvm::sys::EnvPathSeparator, '\0'};
@@ -3028,12 +3029,36 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
   };
   for (const auto *A : Args) {
     std::string FileName = A->getAsString(Args);
+    auto addLibArg = [&](StringRef LibName) -> bool {
+      if (isStaticArchiveFile(LibName) ||
+          (IncludeObj && isObjectFile(LibName.str()))) {
+        LibArgs.push_back(Args.MakeArgString(LibName));
+        return true;
+      }
+      return false;
+    };
     if (A->getOption().getKind() == Option::InputClass) {
-      StringRef Value(A->getValue());
-      if (isStaticArchiveFile(Value) ||
-          (IncludeObj && isObjectFile(Value.str()))) {
-        LibArgs.push_back(Args.MakeArgString(FileName));
+      if (addLibArg(FileName))
         continue;
+    }
+    // Evaluate any libraries passed along after /link. These are typically
+    // ignored by the driver and sent directly to the linker. When performing
+    // offload, we should evaluate them at the driver level.
+    if (A->getOption().matches(options::OPT__SLASH_link)) {
+      for (const std::string &Value : A->getValues()) {
+        // Add any libpath values.
+        StringRef OptCheck(Value);
+        if (OptCheck.startswith_insensitive("-libpath:") ||
+            OptCheck.startswith_insensitive("/libpath:"))
+          LibPaths.emplace_back(Value.substr(std::string("-libpath:").size()));
+        if (addLibArg(Value))
+          continue;
+        for (auto LPath : LibPaths) {
+          SmallString<128> FullLib(LPath);
+          llvm::sys::path::append(FullLib, Value);
+          if (addLibArg(FullLib))
+            continue;
+        }
       }
     }
     if (A->getOption().matches(options::OPT_Wl_COMMA) ||
@@ -3075,9 +3100,8 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
           llvm::StringSaver S(A);
           llvm::cl::ExpandResponseFiles(
               S,
-              C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()
-                  ? llvm::cl::TokenizeWindowsCommandLine
-                  : llvm::cl::TokenizeGNUCommandLine,
+              IsMSVC ? llvm::cl::TokenizeWindowsCommandLine
+                     : llvm::cl::TokenizeGNUCommandLine,
               ExpandArgs);
           for (StringRef EA : ExpandArgs)
             addKnownValues(EA);
@@ -8311,7 +8335,7 @@ bool clang::driver::isStaticArchiveFile(const StringRef &FileName) {
   llvm::file_magic Magic;
   llvm::identify_magic(FileName, Magic);
   // Only .lib and archive files are to be considered.
-  return (Ext == "lib" || Magic == llvm::file_magic::archive);
+  return (Magic == llvm::file_magic::archive);
 }
 
 bool clang::driver::willEmitRemarks(const ArgList &Args) {

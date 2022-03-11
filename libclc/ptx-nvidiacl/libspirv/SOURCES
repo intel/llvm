@@ -53,6 +53,7 @@ math/native_rsqrt.cl
 math/native_sin.cl
 math/native_sqrt.cl
 math/native_tan.cl
+math/native_tanh.cl
 math/nextafter.cl
 math/pow.cl
 math/remainder.cl

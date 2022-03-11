@@ -19,7 +19,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace intel {
-namespace experimental {
 namespace esimd {
 namespace detail {
 
@@ -85,7 +84,6 @@ using EnableIfAccessor = sycl::detail::enable_if_t<
 
 } // namespace detail
 } // namespace esimd
-} // namespace experimental
 } // namespace intel
 } // namespace ext
 } // namespace sycl

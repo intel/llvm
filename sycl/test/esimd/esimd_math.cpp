@@ -2,11 +2,11 @@
 // expected-no-diagnostics
 
 #include <limits>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 #include <utility>
 
-using namespace sycl::ext::intel::experimental;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel;
+using namespace sycl::ext::intel::esimd;
 
 bool test_esimd_mask() __attribute__((sycl_device)) {
   simd_mask<16> a(0);
@@ -38,38 +38,38 @@ bool test_esimd_div() __attribute__((sycl_device)) {
 
 bool test_esimd_atan() __attribute__((sycl_device)) {
   simd<float, 16> v(0.f, 1.f);
-  auto c = esimd::atan(v);
+  auto c = experimental::esimd::atan(v);
   return (c[0] == 0.f);
 }
 
 bool test_esimd_sin_emu() __attribute__((sycl_device)) {
   simd<float, 16> v(0.f, 1.f);
-  auto c = esimd::sin_emu(v);
+  auto c = experimental::esimd::sin_emu(v);
   return (c[0] == 0.f);
 }
 
 bool test_esimd_tanh_cody_waite() __attribute__((sycl_device)) {
   simd<float, 16> v(0.f, 1.f);
-  auto c = esimd::tanh_cody_waite(v);
+  auto c = experimental::esimd::tanh_cody_waite(v);
   return (c[0] == 0.f);
 }
 
 bool test_esimd_dp4() __attribute__((sycl_device)) {
   simd<float, 8> a(0, 1);
   simd<float, 8> b(0, 1);
-  simd<float, 8> ret = esimd::dp4(a, b);
+  simd<float, 8> ret = experimental::esimd::dp4(a, b);
   return (ret[0] == ret[1] && ret[1] == ret[2] && ret[2] == ret[3]) &&
          (ret[0] == 14.0f && ret[4] == 126.0f);
 }
 
 bool test_esimd_trunc() __attribute__((sycl_device)) {
   simd<float, 16> vfa(1.4f);
-  simd<float, 16> vfr = esimd::trunc<float, 16>(vfa);
-  simd<short, 16> vsr = esimd::trunc<short, 16>(vfa);
+  simd<float, 16> vfr = experimental::esimd::trunc<float, 16>(vfa);
+  simd<short, 16> vsr = experimental::esimd::trunc<short, 16>(vfa);
 
   float sfa = 2.8f;
-  float sfr = esimd::trunc<float>(sfa);
-  short ssr = esimd::trunc<short>(sfa);
+  float sfr = experimental::esimd::trunc<float>(sfa);
+  short ssr = experimental::esimd::trunc<short>(sfa);
 
   return (vfr[0] == 1.f) && (vsr[0] == 1) && (sfr == 2.f) && (ssr == 2);
 }
