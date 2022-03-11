@@ -549,6 +549,12 @@ void SPIRVToOCLBase::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
 
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  SmallVector<AttributeSet, 2> ArgAttrs;
+  for (int I = (hasGroupOperation(OC) ? 2 : 1);
+       I < (int)Attrs.getNumAttrSets() - 2; I++)
+    ArgAttrs.push_back(Attrs.getParamAttrs(I));
+  Attrs = AttributeList::get(*Ctx, Attrs.getFnAttrs(), Attrs.getRetAttrs(),
+                             ArgAttrs);
   mutateCallInstOCL(M, CI, ModifyArguments, ModifyRetTy, &Attrs);
 }
 
