@@ -28,7 +28,8 @@ using namespace llvm;
 // A list of unsupported functions in ESIMD context.
 static const char *IllegalFunctions[] = {
     "^cl::sycl::multi_ptr<.+> cl::sycl::accessor<.+>::get_pointer<.+>\\(\\) "
-    "const"};
+    "const",
+    " cl::sycl::accessor<.+>::operator\\[\\]<.+>\\(.+\\) const"};
 
 namespace {
 

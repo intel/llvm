@@ -145,27 +145,29 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
     switch (BinaryType) {
     case (PI_PROGRAM_BINARY_TYPE_NONE):
       if (State == bundle_state::object)
-        Plugin.call<PiApiKind::piProgramCompile>(
+        Plugin.call<errc::build, PiApiKind::piProgramCompile>(
             PiProgram, 1, &Dev, nullptr, 0, nullptr, nullptr, nullptr, nullptr);
       else if (State == bundle_state::executable)
-        Plugin.call<PiApiKind::piProgramBuild>(PiProgram, 1, &Dev, nullptr,
-                                               nullptr, nullptr);
+        Plugin.call<errc::build, PiApiKind::piProgramBuild>(
+            PiProgram, 1, &Dev, nullptr, nullptr, nullptr);
       break;
     case (PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT):
     case (PI_PROGRAM_BINARY_TYPE_LIBRARY):
       if (State == bundle_state::input)
         // TODO SYCL2020 exception
-        throw sycl::runtime_error("Program and kernel_bundle state mismatch",
+        throw sycl::runtime_error(errc::invalid,
+                                  "Program and kernel_bundle state mismatch",
                                   PI_INVALID_VALUE);
       if (State == bundle_state::executable)
-        Plugin.call<PiApiKind::piProgramLink>(ContextImpl->getHandleRef(), 1,
-                                              &Dev, nullptr, 1, &PiProgram,
-                                              nullptr, nullptr, &PiProgram);
+        Plugin.call<errc::build, PiApiKind::piProgramLink>(
+            ContextImpl->getHandleRef(), 1, &Dev, nullptr, 1, &PiProgram,
+            nullptr, nullptr, &PiProgram);
       break;
     case (PI_PROGRAM_BINARY_TYPE_EXECUTABLE):
       if (State == bundle_state::input || State == bundle_state::object)
         // TODO SYCL2020 exception
-        throw sycl::runtime_error("Program and kernel_bundle state mismatch",
+        throw sycl::runtime_error(errc::invalid,
+                                  "Program and kernel_bundle state mismatch",
                                   PI_INVALID_VALUE);
       break;
     }
