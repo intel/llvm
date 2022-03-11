@@ -40,7 +40,6 @@ jobs:
         IF NOT EXIST D:\github\_work\cache\sycl_${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         set SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}
         python.exe src/buildbot/configure.py -o build ^
-          --ci-defaults ^
           --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
@@ -50,34 +49,34 @@ jobs:
         sccache --show-stats
     - name: check-llvm
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: bash
+      shell: cmd
       run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-llvm
+        cmake --build %GITHUB_WORKSPACE%\build --target check-llvm
     - name: check-clang
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: bash
+      shell: cmd
       run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-clang
+        cmake --build %GITHUB_WORKSPACE%\build --target check-clang
     - name: check-sycl
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: bash
+      shell: cmd
       run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-sycl
+        cmake --build %GITHUB_WORKSPACE%\build --target check-sycl
     - name: check-llvm-spirv
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: bash
+      shell: cmd
       run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-llvm-spirv
+        cmake --build %GITHUB_WORKSPACE%\build --target check-llvm-spirv
     - name: check-xptifw
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: bash
+      shell: cmd
       run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-xptifw
+        cmake --build %GITHUB_WORKSPACE%\build --target check-xptifw
     - name: check-libclc
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: bash
+      shell: cmd
       run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-libclc
+        cmake --build %GITHUB_WORKSPACE%\build --target check-libclc
     - name: Install
       shell: cmd
       run: cmake --build build --target deploy-sycl-toolchain
