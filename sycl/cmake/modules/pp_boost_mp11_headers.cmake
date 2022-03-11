@@ -1,0 +1,91 @@
+# Preprocess boost/mp11 headers to allow using specific version of mp11 (as
+# defined in these project's cmake files) within SYCL library w/o risk of
+# conflict with user program using another version of boost/mp11. Basically,
+# this transformation moves all APIs from boost namespace to sycl::boost and
+# adds SYCL_ prefix to boost macros names. See more specific commetns in the
+# code below.
+# Variables which must be set by the caller to control behavior of this module: 
+# - IN
+#   The source directory with mp11 headers, must contain mp11.h.
+# - OUT
+#   The destination directory where preprocessed source headers are put.
+# - SRC_PATH
+#   An URL or directory name the source directory originates from. Used only in
+#   generated README text.
+# - SRC_ID
+#   Git hash/tag or other ID identifying the original source. Used only in
+#   generated README text.
+
+set(SYCL_DERIVED_COPYRIGHT_NOTICE "\
+// -*- C++ -*-\n\
+//===----------------------------------------------------------------------===//\n\
+//\n\
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.\n\
+// See https://llvm.org/LICENSE.txt for license information.\n\
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception\n\
+//\n\
+//  Auto-generated from boost/mp11 sources https://github.com/boostorg/mp11\n\
+//  The original boost/mp11 copyright can be found below.\n\
+//===----------------------------------------------------------------------===//\n")
+
+function(preprocess_mp11_header)
+  cmake_parse_arguments(
+    MP11_HDR                   # prefix
+    ""                         # options
+    "SRC_NAME;DST_NAME;IN_DIR" # one value keywords
+    ""                         # multi-value keywords
+    ${ARGN})                   # arguments
+  file(READ ${MP11_HDR_SRC_NAME} FILE_CONTENTS)
+
+  # 1) replace `BOOST_*` macros with `SYCL_BOOST_*`.
+  string(REGEX REPLACE
+    "([ \t\n\r!])BOOST_"
+    "\\1SYCL_BOOST_"
+    FILE_CONTENTS "${FILE_CONTENTS}")
+  # 2) replace `namespace boost { ... }` with
+  # `namespace sycl { namespace boost { ... } }`
+  string(REGEX REPLACE
+    "(\n[ \\t]*namespace[ \\t\\n\\r]+boost)"
+    "namespace sycl {\n\\1"
+    FILE_CONTENTS "${FILE_CONTENTS}")
+  # ... use '} // namespace boost' as a marker for end-of-scope '}' replacement
+  string(REGEX REPLACE
+    "(\n[ \\t]*}[ \\t]*//[ \\t]*namespace[ \\t]+boost[ \\t]*\n)"
+    "\\1} // namespace sycl\n"
+    FILE_CONTENTS "${FILE_CONTENTS}")
+  # 3) replace `boost` in `#include <boost/...>` or `#include "boost/..."` with
+  # `sycl/boost`
+  string(REGEX REPLACE
+    "(\n#include[ \\t]*[<\"])boost"
+    "\\1sycl/boost"
+    FILE_CONTENTS "${FILE_CONTENTS}")
+
+  string(PREPEND FILE_CONTENTS ${BOOST_MP11_COPYRIGHT_NOTICE})
+  string(PREPEND FILE_CONTENTS ${SYCL_DERIVED_COPYRIGHT_NOTICE})
+  file(WRITE ${MP11_HDR_DST_NAME} "${FILE_CONTENTS}")
+endfunction(preprocess_mp11_header)
+
+# 1) Perform necessary preprocessing of headers.
+file(GLOB_RECURSE BOOST_MP11_SOURCES "${IN}/*")
+
+foreach(SRC ${BOOST_MP11_SOURCES})
+  string(REPLACE "${IN}" "${OUT}" DST "${SRC}")
+  preprocess_mp11_header(
+    SRC_NAME ${SRC}
+    DST_NAME ${DST}
+    IN_DIR ${IN}
+  )
+endforeach(SRC ${BOOST_MP11_SOURCES})
+
+# 2) Add SYCL_README.txt to the output directory root
+set(SYCL_README_TEXT "\
+This directory contains boost/mp11 headers imported from\n\
+  ${SRC_PATH} (${SRC_ID})\n\
+and adapted for use in SYCL headers in a way that does not conflict with\n\
+potential use of boost in user code. Particularly, `BOOST_*` macros are\n\
+replaced with `SYCL_BOOST_*`, APIs are moved into the top-level `sycl`\n\
+namespace. For example, `sycl::boost::mp11::mp_list`.\n")
+
+set(SYCL_README_FILE_NAME "${OUT}/README.txt")
+
+file(WRITE ${SYCL_README_FILE_NAME} "${SYCL_README_TEXT}")

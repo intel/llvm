@@ -1,0 +1,47 @@
+// -*- C++ -*-
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//  Derivative work, based on boost/mp11 tests.
+//  The original copyright is:
+//===----------------------------------------------------------------------===//
+//  Copyright 2015 Peter Dimov.
+//
+// Distributed under the Boost Software License, Version 1.0.
+//
+// See accompanying file LICENSE_1_0.txt or copy at
+// http://www.boost.org/LICENSE_1_0.txt
+//===----------------------------------------------------------------------===//
+
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c %s
+
+// This is a sanity check test to verify that the automatic boost/mp11 import
+// into SYCL is not badly broken.
+
+#include <type_traits>
+
+#include <sycl/boost/mp11.hpp>
+
+struct X1 {};
+
+int main()
+{
+    using sycl::boost::mp11::mp_list;
+    using sycl::boost::mp11::mp_fill;
+
+    using L1 = mp_list<int, void(), float[]>;
+    static_assert(std::is_same_v<mp_fill<L1, X1>, mp_list<X1, X1, X1>>);
+
+    //
+
+    using L2 = std::tuple<int, char, float>;
+    static_assert(std::is_same_v<mp_fill<L2, X1>, std::tuple<X1, X1, X1>>);
+
+    //
+
+    using L3 = std::pair<char, double>;
+    static_assert(std::is_same_v<mp_fill<L3, X1>, std::pair<X1, X1>>);
+}
