@@ -1506,8 +1506,8 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
     }
     if (ValueQType->isBooleanType())
       return std::string(Value.getInt().getExtValue() ? "true" : "false");
-    if (ValueQType->isIntegerType() || ValueQType->isFloatingType() ||
-        ValueQType->isEnumeralType())
+    if (ValueQType->isIntegralOrEnumerationType() ||
+        ValueQType->isFloatingType())
       return Value.getAsString(Context, ValueQType);
     return None;
   }
