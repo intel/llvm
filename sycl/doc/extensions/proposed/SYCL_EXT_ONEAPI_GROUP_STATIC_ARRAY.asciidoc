@@ -133,7 +133,7 @@ and the identity value of `binary_op`, using the operator `binary_op`. The scan 
 using a generalized noncommutative sum as defined in standard {cpp}. For multi-dimensional groups,
 the order of work-items in the group is determined by their linear id.
 Result is written to `out_data` with the layout specified by `properties`.
-Default layout is one that is specified by the `close` property.
+Default layout is one that is specified by the `layout<blocked>` property.
 `in_data` mustn't be changed by the algorithm.
 
 2._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
@@ -149,7 +149,7 @@ and an initial value specified by `init`, using the operator `binary_op`.
 The scan is computed using a generalized noncommutative sum as defined in standard {cpp}.
 For multi-dimensional groups, the order of work-items in the group is determined by their linear id.
 Result is written to `out_data` with the layout specified by `properties`.
-Default layout is one that is specified by the `close` property.
+Default layout is one that is specified by the `layout<blocked>` property.
 `in_data` mustn't be changed by the algorithm.
 
 [source,c++]
@@ -181,7 +181,7 @@ and the identity value of `binary_op`, using the operator `binary_op`. The scan 
 using a generalized noncommutative sum as defined in standard C++. For multi-dimensional groups,
 the order of work-items in the group is determined by their linear id.
 Result is written to `out_data` with the layout specified by `properties`.
-Default layout is one that is specified by the `close` property.
+Default layout is one that is specified by the `layout<blocked>` property.
 `in_data` mustn't be changed by the algorithm.
 
 2._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
@@ -197,7 +197,7 @@ and an initial value specified by `init`, using the operator `binary_op`. The sc
 using a generalized noncommutative sum as defined in standard C++. For multi-dimensional groups,
 the order of work-items in the group is determined by their linear id.
 Result is written to `out_data` with the layout specified by `properties`.
-Default layout is one that is specified by the `close` property.
+Default layout is one that is specified by the `layout<blocked>` property.
 `in_data` mustn't be changed by the algorithm.
 
 === Sorting functions
@@ -214,8 +214,7 @@ but keys and values are reordered both.
 namespace sycl::ext::oneapi::experimental {
 
   template <typename GroupHelper, typename T, std::size_t ItemsPerWorkItem, typename Properties = sycl::ext::oneapi::experimental::properties<>>
-  void
-  sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> values, Properties properties = {}); // (1)
+  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> values, Properties properties = {}); // (1)
 
   template <typename GroupHelper, typename T, typename U, std::size_t ItemsPerWorkItem, typename Properties = sycl::ext::oneapi::experimental::properties<>>
   void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, Properties properties = {}); // (2)
@@ -242,7 +241,7 @@ some associated scratch space and
 _Effects_: Sort elements in the range containing of elements inside `values` from all work-items
 from the group using the `gh` group helper object.
 Result of sorting is placed into `values` with the layout specified by `properties`.
-Default layout is one that is specified by the `close` property.
+Default layout is one that is specified by the `layout<blocked>` property.
 Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be the group size. `O(N*log(N)*log(N))` comparisons.
@@ -254,7 +253,7 @@ some associated scratch space and
 _Effects_: Perform key-value sorting for elements in ranges containing of elements
 inside `keys` and `values` from all work-items from the group using the `gh` group helper object.
 Result of sorting is placed into `keys` and `values` with the layout specified by `properties`.
-Default layout is one that is specified by the `close` property.
+Default layout is one that is specified by the `layout<blocked>` property.
 Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be the group size. `O(N*log(N)*log(N))` comparisons.
@@ -269,7 +268,7 @@ _Effects_: Sort elements in the range containing of elements inside `values` fro
 from the group with respect to the binary comparison function object `comp` using the `gh` group
 helper object.
 Result of sorting is placed into `values` with the layout specified by `properties`.
-Default layout is one that is specified by the `close` property.
+Default layout is one that is specified by the `layout<blocked>` property.
 
 _Complexity_: Let `N` be the work-group or sub-group size. `O(N*log(N)*log(N))` comparisons.
 
@@ -283,7 +282,7 @@ _Effects_: Perform key-value sorting for elements in ranges containing of elemen
 inside `keys` and `values` from all work-items from the group with respect to the binary comparison
 function object `comp` using the `gh` group helper object.
 Result of sorting is placed into `keys` and `values` with the layout specified by `properties`.
-Default layout is one that is specified by the `close` property.
+Default layout is one that is specified by the `layout<blocked>` property.
 Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be the work-group or sub-group size. `O(N*log(N)*log(N))` comparisons.
@@ -325,7 +324,7 @@ void operator()(Group g, sycl::span<T, ItemsPerWorkItem> values, sycl::ext::onea
 |Implements a sorting algorithm that is called by `sort_over_group` and that accepts
 the `sycl::span` value as an input parameter.
 Result of sorting is placed into `values` with the layout specified by `properties`.
-Default layout is one that is specified by the `close` property.
+Default layout is one that is specified by the `layout<blocked>` property.
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true and
 `ItemsPerWorkItem` is not equal to `sycl::dynamic_extent`.
 
@@ -334,7 +333,7 @@ void operator()(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, Ite
 |Implements a sorting algorithm that is called by `sort_over_group` and that
 accepts two `sycl::span` values as input parameters.
 Result of sorting is placed into `keys` and `values` with the layout specified by `properties`.
-Default layout is one that is specified by the `close` property.
+Default layout is one that is specified by the `layout<blocked>` property.
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true and
 `ItemsPerWorkItem` is not equal to `sycl::dynamic_extent`.
 |===
@@ -463,12 +462,21 @@ placed into the private memory under the span for `id`-th work-item.
 b) `i * N + id` element of `r` fill the `i`-th element of the private memory
 under the span for `id`-th work-item.
 
-To specify a correct layout for placing of resulting data there are 2 properties
-that satisfy link:SYCL_EXT_ONEAPI_PROPERTIES.asciidoc[SYCL Properties Extension] requirements:
+To specify a correct layout for placing of resulting data there is a enum:
 
-1.`sycl::ext::oneapi::experimental::property::close` to specify layout described in a).
+[source,c++]
+----
+class enum group_algorithm_layout{
+  blocked,
+  striped
+};
+----
 
-2.`sycl::ext::oneapi::experimental::property::spread` to specify layout described in b).
+1.`sycl::ext::oneapi::experimental::group_algorithm_layout::blocked`
+to specify layout described in a).
+
+2.`sycl::ext::oneapi::experimental::group_algorithm_layout::striped`
+to specify layout described in b).
 
 Example:
 
@@ -490,7 +498,7 @@ After performing sorting by ascending there is the following virtual range:
 
 Consider 2 layouts:
 
-1.`sycl::ext::oneapi::experimental::property::close`.
+1.`sycl::ext::oneapi::experimental::group_algorithm_layout::blocked`.
 
 |===
 |Work-item id|Output private static array
@@ -503,7 +511,7 @@ Consider 2 layouts:
 |{8, 9, 10, 11}
 |===
 
-2.`sycl::ext::oneapi::experimental::property::spread`.
+2.`sycl::ext::oneapi::experimental::group_algorithm_layout::striped`.
 
 |===
 |Work-item id|Output private static array
@@ -515,6 +523,34 @@ Consider 2 layouts:
 |2
 |{2, 5, 8, 11}
 |===
+
+There are 3 properties that satisfy
+link:SYCL_EXT_ONEAPI_PROPERTIES.asciidoc[SYCL Properties Extension] requirements:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property
+{
+    template<group_algorithm_layout type>
+    struct layout_in; // (1)
+
+    template<group_algorithm_layout type>
+    struct layout_out; // (2)
+
+    template<group_algorithm_layout type>
+    struct layout; // (3)
+}
+----
+
+1. `layout_in` specifies the layout for input data.
+2. `layout_out` specifies the layout for output data.
+3. `layout` specifies the same layout for input and output data both.
+
+Example:
+`sort_over_group(g, my_span, properties<layout_in<blocked>, layout_out<striped>>{});`
+
+It's specified that data initially in `my_span` satisfies the `blocked` layout.
+After sorting data will be placed to `my_span` corresponding to the `striped` layout.
 
 == Examples
 
@@ -571,6 +607,7 @@ q.submit([&](sycl::handler& h) {
 ----
 sort_over_group(group, std::make_tuple(sycl::span{keys}, sycl::span{values}), sorter);
 ----
+
 The thing is that tuple is not a span. It's better to have any _zip_span_ that allows the SoA layout. Interfaces without tuple highlights that we have parameters with different meaning: only keys are comparing, but keys and values are moving both. However, it can look like inconsistent comparing to other interfaces of sorting.
 
 2.Is Sorter needed to be applied to keys only or to keys and values both in case of key-value sorting?
@@ -582,7 +619,7 @@ e.g. instead of changing `default_sorter` and `radix_sorter` to have new sorters
 
 5.Should our interfaces have `sycl::span` or `std::span`?
 
-6.What is a better name for properties? e.g. `plain`/`packed`/`blocked` and `strode`/`striped`.
+6.What is a better name for properties? e.g. `plain`/`packed`/`close` and `strode`/`spread`.
 
 == Revision History
 
