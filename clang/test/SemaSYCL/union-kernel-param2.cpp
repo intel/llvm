@@ -41,7 +41,7 @@ int main() {
 
 // Check kernel_A parameters
 // CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (union MyUnion)'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'union MyUnion':'MyUnion'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_union_mem 'union MyUnion':'MyUnion'
 
 // Check kernel_A inits
 // CHECK-NEXT: CompoundStmt
@@ -50,7 +50,7 @@ int main() {
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'union MyUnion':'MyUnion' 'void (const MyUnion &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyUnion'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion':'MyUnion' lvalue ParmVar {{.*}} '_arg_' 'union MyUnion':'MyUnion'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion':'MyUnion' lvalue ParmVar {{.*}} '_arg_union_mem' 'union MyUnion':'MyUnion'
 
 // Check kernel_B parameters
 // CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (union MyUnion, __wrapper_class)'
