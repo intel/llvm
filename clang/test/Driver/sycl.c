@@ -140,5 +140,13 @@
 // RUN: %clang -### -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
 // RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
 // RUN: %clang_cl -### -fsycl -- %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
-
 // DEFAULT_STD: "-sycl-std=2020"
+
+/// Allow for preprocessing to 'succeed' even though there are coding issues
+/// in the source.  We always have an additional step to generate the
+/// integration header and footer, so if that fails we still want to produce
+/// preprocessing information in the subsequent passes.
+// RUN: echo "void foo(;" > %t_pp.cpp
+// RUN: echo "#define SYCL_PP_CHECK" >> %t_pp.cpp
+// RUN: %clang -fsycl -E -dM %t_pp.cpp 2>&1 | FileCheck %s --check-prefix=PP_CHECK
+// PP_CHECK: SYCL_PP_CHECK
