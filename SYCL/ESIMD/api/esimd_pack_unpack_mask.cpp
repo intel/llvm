@@ -7,10 +7,6 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
-// TODO: esimd_emulator fails due to unimplemented 'single_task()' method
-// XFAIL: esimd_emulator
-// TODO: fails on OpenCL - https://github.com/intel/llvm-test-suite/issues/901
-// UNSUPPORTED: opencl
 // RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
@@ -81,10 +77,10 @@ bool test_impl(queue q, const char *title, InitF init_f) {
     }
   }
   for (unsigned i = N; i < MAX_N; ++i) {
-    if (test_data[i] != 0) {
+    if (res_unpacked[i] != 0) {
       ++err_cnt;
       std::cout << "    ERROR: non-zero lane " << i << ": 0x" << std::hex
-                << test_data[i] << std::dec << "\n";
+                << res_unpacked[i] << std::dec << " in unpacked result\n";
     }
   }
   std::cout << (err_cnt > 0 ? "  FAILED\n" : "  Passed\n");

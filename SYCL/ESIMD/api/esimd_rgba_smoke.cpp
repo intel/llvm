@@ -69,16 +69,15 @@ template <class, int, int> class TestID;
 template <rgba_channel_mask ChMask, unsigned NPixels, class T>
 bool test_impl(queue q) {
   constexpr unsigned NOnChs = get_num_channels_enabled(ChMask);
-  unsigned SizeIn = NPixels * NAllChs;
-  unsigned SizeOut = NPixels * NOnChs;
+  const unsigned Size = NPixels * NAllChs;
 
   std::cout << "Testing mask=";
   print_mask(ChMask);
   std::cout << ", T=" << typeid(T).name() << ", NPixels=" << NPixels << "\n";
 
-  T *A = malloc_shared<T>(SizeIn, q);
-  T *B = malloc_shared<T>(SizeOut, q);
-  T *C = malloc_shared<T>(SizeOut, q);
+  T *A = malloc_shared<T>(Size, q);
+  T *B = malloc_shared<T>(Size, q);
+  T *C = malloc_shared<T>(Size, q);
 
   for (unsigned p = 0; p < NPixels; ++p) {
     char ch_names[] = {'R', 'G', 'B', 'A'};
