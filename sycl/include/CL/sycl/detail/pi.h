@@ -594,6 +594,13 @@ constexpr pi_mem_properties PI_MEM_PROPERTIES_CHANNEL = CL_MEM_CHANNEL_INTEL;
 constexpr pi_mem_properties PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION =
     CL_MEM_ALLOC_BUFFER_LOCATION_INTEL;
 
+// NOTE: this is made 64-bit to match the size of cl_mem_properties_intel to
+// make the translation to OpenCL transparent.
+using pi_usm_mem_properties = pi_bitfield;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL;
+constexpr pi_usm_mem_properties PI_MEM_USM_ALLOC_BUFFER_LOCATION =
+    CL_MEM_ALLOC_BUFFER_LOCATION_INTEL;
+
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
 using pi_queue_properties = pi_bitfield;
@@ -1611,10 +1618,6 @@ typedef enum {
   PI_MEM_TYPE_SHARED = CL_MEM_TYPE_SHARED_INTEL
 } _pi_usm_type;
 
-typedef enum : pi_bitfield {
-  PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL
-} _pi_usm_mem_properties;
-
 // Flag is used for piProgramUSMEnqueuePrefetch. PI_USM_MIGRATION_TBD0 is a
 // placeholder for future developments and should not change the behaviour of
 // piProgramUSMEnqueuePrefetch
@@ -1626,7 +1629,6 @@ using pi_usm_capability_query = _pi_usm_capability_query;
 using pi_usm_capabilities = _pi_usm_capabilities;
 using pi_mem_info = _pi_mem_info;
 using pi_usm_type = _pi_usm_type;
-using pi_usm_mem_properties = _pi_usm_mem_properties;
 using pi_usm_migration_flags = _pi_usm_migration_flags;
 
 /// Allocates host memory accessible by the device.

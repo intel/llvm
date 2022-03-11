@@ -89,7 +89,7 @@ namespace {
 constexpr sycl::specialization_id same_name{207};
 // CHECK: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(same_name) &__shim_[[SHIM_ID:[0-9]+]]() {
 // CHECK-NEXT: return same_name;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -98,7 +98,7 @@ constexpr sycl::specialization_id same_name{207};
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM_ID]]()>() {
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_19same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -110,7 +110,7 @@ namespace inner {
 constexpr sycl::specialization_id same_name{208};
 // CHECK: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(inner::same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(inner::same_name) &__shim_[[SHIM_ID:[0-9]+]]() {
 // CHECK-NEXT: return inner::same_name;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -119,7 +119,7 @@ constexpr sycl::specialization_id same_name{208};
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM_ID]]()>() {
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_15inner9same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -135,7 +135,7 @@ constexpr sycl::specialization_id same_name{209};
 // CHECK-NEXT: namespace inner {
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(same_name) &__shim_[[SHIM_ID:[0-9]+]]() {
 // CHECK-NEXT: return same_name;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -146,7 +146,7 @@ constexpr sycl::specialization_id same_name{209};
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::outer::inner::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::outer::inner::__sycl_detail::__shim_[[SHIM_ID]]()>() {
 // CHECK-NEXT: return "____ZN5outer5inner12_GLOBAL__N_19same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail

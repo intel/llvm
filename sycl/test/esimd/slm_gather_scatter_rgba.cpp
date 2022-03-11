@@ -2,9 +2,9 @@
 
 // This test checks compilation of ESIMD slm_gather_rgba/slm_scatter_rgba APIs.
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 using namespace cl::sycl;
 
 void caller() SYCL_ESIMD_FUNCTION {
