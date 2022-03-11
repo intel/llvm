@@ -733,17 +733,6 @@ SmallVector<ReassociationExprs, 4> ExpandShapeOp::getReassociationExprs() {
                                             getReassociationIndices());
 }
 
-ParseResult ExpandShapeOp::parse(OpAsmParser &parser, OperationState &result) {
-  return parseReshapeLikeOp(parser, result);
-}
-void ExpandShapeOp::print(OpAsmPrinter &p) { printReshapeOp(p, *this); }
-
-ParseResult CollapseShapeOp::parse(OpAsmParser &parser,
-                                   OperationState &result) {
-  return parseReshapeLikeOp(parser, result);
-}
-void CollapseShapeOp::print(OpAsmPrinter &p) { printReshapeOp(p, *this); }
-
 /// Compute the RankedTensorType obtained by applying `reassociation` to `type`.
 static RankedTensorType
 computeTensorReshapeCollapsedType(RankedTensorType type,
@@ -1238,7 +1227,12 @@ static Value foldExtractAfterInsertSlice(ExtractSliceOp extractOp) {
   return {};
 }
 
-OpFoldResult ExtractSliceOp::fold(ArrayRef<Attribute>) {
+OpFoldResult ExtractSliceOp::fold(ArrayRef<Attribute> operands) {
+  if (auto splat = operands[0].dyn_cast_or_null<SplatElementsAttr>()) {
+    auto resultType = result().getType().cast<ShapedType>();
+    if (resultType.hasStaticShape())
+      return splat.resizeSplat(resultType);
+  }
   if (getSourceType() == getType() &&
       succeeded(foldIdentityOffsetSizeAndStrideOpInterface(*this, getType())))
     return this->source();

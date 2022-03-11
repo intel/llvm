@@ -213,6 +213,8 @@ public:
   // non-lazy object causes a runtime error.
   void extract() const;
 
+  void checkDuplicate(const Defined &other) const;
+
 private:
   void resolveUndefined(const Undefined &other);
   void resolveCommon(const CommonSymbol &other);
@@ -401,8 +403,6 @@ public:
       this->type = llvm::ELF::STT_FUNC;
   }
 
-  SharedFile &getFile() const { return *cast<SharedFile>(file); }
-
   uint64_t value; // st_value
   uint64_t size;  // st_size
   uint32_t alignment;
@@ -569,6 +569,8 @@ template <typename... T> Defined *makeDefined(T &&...args) {
       Defined(std::forward<T>(args)...);
 }
 
+void reportDuplicate(const Symbol &sym, InputFile *newFile,
+                     InputSectionBase *errSec, uint64_t errOffset);
 void maybeWarnUnorderableSymbol(const Symbol *sym);
 bool computeIsPreemptible(const Symbol &sym);
 void reportBackrefs();

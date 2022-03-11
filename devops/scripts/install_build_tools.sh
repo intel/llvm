@@ -15,7 +15,8 @@ apt update && apt install -yqq \
       vim \
       libffi-dev \
       libva-dev \
-      libtool      
+      libtool \
+      sudo
 
 pip3 install psutil
 

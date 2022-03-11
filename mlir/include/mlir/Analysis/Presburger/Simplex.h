@@ -18,6 +18,7 @@
 #include "mlir/Analysis/Presburger/Fraction.h"
 #include "mlir/Analysis/Presburger/IntegerPolyhedron.h"
 #include "mlir/Analysis/Presburger/Matrix.h"
+#include "mlir/Analysis/Presburger/Utils.h"
 #include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
@@ -202,14 +203,6 @@ public:
   /// Add all the constraints from the given IntegerPolyhedron.
   void intersectIntegerPolyhedron(const IntegerPolyhedron &poly);
 
-  /// Returns the current sample point, which may contain non-integer (rational)
-  /// coordinates. Returns an empty optional when the tableau is empty.
-  ///
-  /// Also returns empty when the big M parameter is used and a variable
-  /// has a non-zero big M coefficient, meaning its value is infinite or
-  /// unbounded.
-  Optional<SmallVector<Fraction, 8>> getRationalSample() const;
-
   /// Print the tableau's internal state.
   void print(raw_ostream &os) const;
   void dump() const;
@@ -271,6 +264,10 @@ protected:
   Unknown &unknownFromColumn(unsigned col);
   /// Returns the unknown associated with row.
   Unknown &unknownFromRow(unsigned row);
+
+  /// Add a new row to the tableau and the associated data structures. The row
+  /// is initialized to zero.
+  unsigned addZeroRow(bool makeRestricted = false);
 
   /// Add a new row to the tableau and the associated data structures.
   /// The new row is considered to be a constraint; the new Unknown lives in
@@ -441,9 +438,33 @@ public:
   unsigned getSnapshot() { return SimplexBase::getSnapshotBasis(); }
 
   /// Return the lexicographically minimum rational solution to the constraints.
-  Optional<SmallVector<Fraction, 8>> getRationalLexMin();
+  presburger_utils::MaybeOptimum<SmallVector<Fraction, 8>> findRationalLexMin();
+
+  /// Return the lexicographically minimum integer solution to the constraints.
+  ///
+  /// Note: this should be used only when the lexmin is really needed. To obtain
+  /// any integer sample, use Simplex::findIntegerSample as that is more robust.
+  presburger_utils::MaybeOptimum<SmallVector<int64_t, 8>> findIntegerLexMin();
 
 protected:
+  /// Returns the current sample point, which may contain non-integer (rational)
+  /// coordinates. Returns an empty optimum when the tableau is empty.
+  ///
+  /// Returns an unbounded optimum when the big M parameter is used and a
+  /// variable has a non-zero big M coefficient, meaning its value is infinite
+  /// or unbounded.
+  presburger_utils::MaybeOptimum<SmallVector<Fraction, 8>>
+  getRationalSample() const;
+
+  /// Given a row that has a non-integer sample value, add an inequality such
+  /// that this fractional sample value is cut away from the polytope. The added
+  /// inequality will be such that no integer points are removed.
+  ///
+  /// Returns whether the cut constraint could be enforced, i.e. failure if the
+  /// cut made the polytope empty, and success if it didn't. Failure status
+  /// indicates that the polytope didn't have any integer points.
+  LogicalResult addCut(unsigned row);
+
   /// Undo the addition of the last constraint. This is only called while
   /// rolling back.
   void undoLastConstraint() final;
@@ -457,6 +478,10 @@ protected:
   /// Get a constraint row that is violated, if one exists.
   /// Otherwise, return an empty optional.
   Optional<unsigned> maybeGetViolatedRow() const;
+
+  /// Get a row corresponding to a var that has a non-integral sample value, if
+  /// one exists. Otherwise, return an empty optional.
+  Optional<unsigned> maybeGetNonIntegeralVarRow() const;
 
   /// Given two potential pivot columns for a row, return the one that results
   /// in the lexicographically smallest sample vector.
@@ -510,15 +535,16 @@ public:
   ///
   /// Returns a Fraction denoting the optimum, or a null value if no optimum
   /// exists, i.e., if the expression is unbounded in this direction.
-  Optional<Fraction> computeRowOptimum(Direction direction, unsigned row);
+  presburger_utils::MaybeOptimum<Fraction>
+  computeRowOptimum(Direction direction, unsigned row);
 
   /// Compute the maximum or minimum value of the given expression, depending on
   /// direction. Should not be called when the Simplex is empty.
   ///
   /// Returns a Fraction denoting the optimum, or a null value if no optimum
   /// exists, i.e., if the expression is unbounded in this direction.
-  Optional<Fraction> computeOptimum(Direction direction,
-                                    ArrayRef<int64_t> coeffs);
+  presburger_utils::MaybeOptimum<Fraction>
+  computeOptimum(Direction direction, ArrayRef<int64_t> coeffs);
 
   /// Returns whether the perpendicular of the specified constraint is a
   /// is a direction along which the polytope is bounded.
@@ -537,10 +563,10 @@ public:
   void detectRedundant();
 
   /// Returns a (min, max) pair denoting the minimum and maximum integer values
-  /// of the given expression. If either of the values is unbounded, an empty
-  /// optional is returned in its place. If the result has min > max then no
-  /// integer value exists.
-  std::pair<Optional<int64_t>, Optional<int64_t>>
+  /// of the given expression. If no integer value exists, both results will be
+  /// of kind Empty.
+  std::pair<presburger_utils::MaybeOptimum<int64_t>,
+            presburger_utils::MaybeOptimum<int64_t>>
   computeIntegerBounds(ArrayRef<int64_t> coeffs);
 
   /// Returns true if the polytope is unbounded, i.e., extends to infinity in
@@ -555,6 +581,16 @@ public:
   /// otherwise. This should only be called for bounded sets.
   Optional<SmallVector<int64_t, 8>> findIntegerSample();
 
+  enum class IneqType { Redundant, Cut, Separate };
+
+  /// Returns the type of the inequality with coefficients `coeffs`.
+  ///
+  /// Possible types are:
+  /// Redundant   The inequality is satisfied in the polytope
+  /// Cut         The inequality is satisfied by some points, but not by others
+  /// Separate    The inequality is not satisfied by any point
+  IneqType findIneqType(ArrayRef<int64_t> coeffs);
+
   /// Check if the specified inequality already holds in the polytope.
   bool isRedundantInequality(ArrayRef<int64_t> coeffs);
 
@@ -568,6 +604,10 @@ public:
   /// Returns the current sample point if it is integral. Otherwise, returns
   /// None.
   Optional<SmallVector<int64_t, 8>> getSamplePointIfIntegral() const;
+
+  /// Returns the current sample point, which may contain non-integer (rational)
+  /// coordinates. Returns an empty optional when the tableau is empty.
+  Optional<SmallVector<Fraction, 8>> getRationalSample() const;
 
 private:
   friend class GBRSimplex;
@@ -610,7 +650,8 @@ private:
   ///
   /// Returns a Fraction denoting the optimum, or a null value if no optimum
   /// exists, i.e., if the expression is unbounded in this direction.
-  Optional<Fraction> computeOptimum(Direction direction, Unknown &u);
+  presburger_utils::MaybeOptimum<Fraction> computeOptimum(Direction direction,
+                                                          Unknown &u);
 
   /// Mark the specified unknown redundant. This operation is added to the undo
   /// log and will be undone by rollbacks. The specified unknown must be in row

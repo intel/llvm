@@ -465,7 +465,8 @@ struct ShadowMapping {
 static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
                                       bool IsKasan) {
   bool IsAndroid = TargetTriple.isAndroid();
-  bool IsIOS = TargetTriple.isiOS() || TargetTriple.isWatchOS();
+  bool IsIOS = TargetTriple.isiOS() || TargetTriple.isWatchOS() ||
+               TargetTriple.isDriverKit();
   bool IsMacOS = TargetTriple.isMacOSX();
   bool IsFreeBSD = TargetTriple.isOSFreeBSD();
   bool IsNetBSD = TargetTriple.isOSNetBSD();
@@ -2125,6 +2126,8 @@ bool ModuleAddressSanitizer::ShouldUseMachOGlobalsSection() const {
     return true;
   if (TargetTriple.isWatchOS() && !TargetTriple.isOSVersionLT(2))
     return true;
+  if (TargetTriple.isDriverKit())
+    return true;
 
   return false;
 }
@@ -2887,6 +2890,9 @@ bool AddressSanitizer::instrumentFunction(Function &F,
 
   // Leave if the function doesn't need instrumentation.
   if (!F.hasFnAttribute(Attribute::SanitizeAddress)) return FunctionModified;
+
+  if (F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+    return FunctionModified;
 
   LLVM_DEBUG(dbgs() << "ASAN instrumenting:\n" << F << "\n");
 
