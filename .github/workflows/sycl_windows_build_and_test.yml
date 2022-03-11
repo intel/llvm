@@ -14,14 +14,13 @@ jobs:
     runs-on: [Windows, build]
     # TODO use cached checkout
     steps:
-    - run: refreshenv
-      shell: cmd
     - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
       with:
         arch: amd64
     - name: Set env
       run: |
         git config --global core.autocrlf true
+        echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         echo "SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - uses: actions/checkout@v2
       with:
@@ -53,26 +52,26 @@ jobs:
         cmake --build build --target check-llvm
     - name: check-clang
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: cmd
+      shell: bash
       run: |
         cmake --build build --target check-clang
     - name: check-sycl
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: cmd
+      shell: bash
       run: |
         cmake --build build --target check-sycl
     - name: check-llvm-spirv
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: cmd
+      shell: bash
       run: |
         cmake --build build --target check-llvm-spirv
     - name: check-xptifw
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
-      shell: cmd
+      shell: bash
       run: |
         cmake --build build --target check-xptifw
     - name: Install
-      shell: cmd
+      shell: bash
       run: cmake --build build --target deploy-sycl-toolchain
     - name: Upload toolchain
       uses: actions/upload-artifact@v2
