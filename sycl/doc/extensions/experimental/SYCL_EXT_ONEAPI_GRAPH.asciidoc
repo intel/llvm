@@ -85,7 +85,7 @@ NOTE:
 
 == Edge
 
-A dependency between two nodes representing a happens before relationship. `sender` and `receiver` may be accociated to different graphs.
+A dependency between two nodes representing a happens before relationship. `sender` and `receiver` may be associated to different graphs.
 
 [source,c++]
 ----
