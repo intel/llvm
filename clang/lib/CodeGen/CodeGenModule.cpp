@@ -1595,6 +1595,9 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
   llvm::Type *CtorPFTy = llvm::PointerType::get(CtorFTy,
       TheModule.getDataLayout().getProgramAddressSpace());
   llvm::PointerType *TargetType = VoidPtrTy;
+  // Get target type when templated global variables are used,
+  // to emit them correctly in the target (default) address space and avoid
+  // emitting them in a private address space.
   if (getLangOpts().SYCLIsDevice)
     TargetType = llvm::IntegerType::getInt8PtrTy(
         getLLVMContext(), getContext().getTargetAddressSpace(LangAS::Default));
@@ -1610,10 +1613,11 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
     auto ctor = ctors.beginStruct(CtorStructTy);
     ctor.addInt(Int32Ty, I.Priority);
     ctor.add(llvm::ConstantExpr::getBitCast(I.Initializer, CtorPFTy));
-    if (I.AssociatedData) {
+    // Emit appropriate bitcasts for pointers of different address spaces.
+    if (I.AssociatedData)
       ctor.add(llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
           I.AssociatedData, TargetType));
-    } else
+    else
       ctor.addNullPointer(TargetType);
     ctor.finishAndAddTo(ctors);
   }
@@ -2433,7 +2437,9 @@ static void emitUsed(CodeGenModule &CGM, StringRef Name,
   // Don't create llvm.used if there is no need.
   if (List.empty())
     return;
-
+  // Get target type when templated global variables are used,
+  // to emit them correctly in the target (default) address space and avoid
+  // emitting them in a private address space.
   llvm::PointerType *TargetType = CGM.Int8PtrTy;
   if (CGM.getLangOpts().SYCLIsDevice)
     TargetType = llvm::IntegerType::getInt8PtrTy(
