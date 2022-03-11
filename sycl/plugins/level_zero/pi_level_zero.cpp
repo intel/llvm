@@ -7958,6 +7958,14 @@ pi_result piextPluginGetOpaqueData(void *opaque_data_param,
   return PI_ERROR_UNKNOWN;
 }
 
+pi_result piPluginGetLastError(char *message, size_t message_size,
+                               bool *is_warning) {
+  (void)message;
+  (void)message_size;
+  (void)is_warning;
+  return PI_SUCCESS;
+}
+
 // SYCL RT calls this api to notify the end of plugin lifetime.
 // It can include all the jobs to tear down resources before
 // the plugin is unloaded from memory.

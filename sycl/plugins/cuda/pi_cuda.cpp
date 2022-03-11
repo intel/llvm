@@ -57,6 +57,29 @@ pi_result map_error(CUresult result) {
   }
 }
 
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+static const size_t MaxMessageSize = 256;
+static bool isWarning;
+static char *ErrorMessage = new char[MaxMessageSize];
+static sycl::detail::SpinLock *ErrorMessageMutex = new sycl::detail::SpinLock;
+
+// Utility function for setting a message and warning
+static void setErrorMessage(const char *message, bool is_warning) {
+  assert(strlen(message) <= MaxMessageSize);
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*ErrorMessageMutex};
+  strcpy(ErrorMessage, message);
+  isWarning = is_warning;
+}
+
+// Returns plugin specific error and warning messages
+pi_result cuda_piPluginGetLastError(char *message, size_t message_size,
+                                    bool *is_warning) {
+  assert(message_size >= MaxMessageSize);
+  strcpy(message, ErrorMessage);
+  *is_warning = isWarning;
+  return PI_SUCCESS;
+}
+
 // Iterates over the event wait list, returns correct pi_result error codes.
 // Invokes the callback for the latest event of each queue in the wait list.
 // The callback must take a single pi_event argument and return a pi_result.
@@ -4737,8 +4760,12 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
   cuDeviceGetAttribute(&isConcurrentManagedAccessAvailable,
                        CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS,
                        queue->get_context()->get_device()->get());
-  if (!isConcurrentManagedAccessAvailable)
-    return PI_SUCCESS;
+  if (!isConcurrentManagedAccessAvailable) {
+    setErrorMessage("Prefetch hint ignored as device does not support "
+                    "concurrent managed access",
+                    /*is_warning*/ true);
+    return PI_PLUGIN_SPECIFIC_ERROR;
+  }
 
   // flags is currently unused so fail if set
   if (flags != 0)
@@ -4945,7 +4972,11 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
-pi_result cuda_piTearDown(void *) { return PI_SUCCESS; }
+pi_result cuda_piTearDown(void *) {
+  delete[] ErrorMessage;
+  delete ErrorMessageMutex;
+  return PI_SUCCESS;
+}
 
 const char SupportedVersion[] = _PI_H_VERSION_STRING;
 
@@ -5086,6 +5117,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
+  _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
 
 #undef _PI_CL

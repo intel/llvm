@@ -117,6 +117,9 @@ typedef enum {
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
   PI_LINK_PROGRAM_FAILURE = CL_LINK_PROGRAM_FAILURE,
+  PI_PLUGIN_SPECIFIC_ERROR = -996, ///< PI_PLUGIN_SPECIFIC_ERROR indicates
+                                   ///< that an backend spcific error or
+                                   ///< warning has been emitted by the plugin.
   PI_COMMAND_EXECUTION_FAILURE =
       -997, ///< PI_COMMAND_EXECUTION_FAILURE indicates an error occurred
             ///< during command enqueue or execution.
@@ -1795,6 +1798,14 @@ __SYCL_EXPORT pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 /// No PI calls should be made until the next piPluginInit call.
 /// \param PluginParameter placeholder for future use, currenly not used.
 __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
+
+/// API to get Plugin specific warning and error messages.
+/// \param message is a pointer to an array of characters which will be filled
+/// with the error message. \param message_size is the size of the array message
+/// points to. \param is_warning is a bool indicating if the message is a
+/// non-failing error.
+__SYCL_EXPORT pi_result piPluginGetLastError(char *message, size_t message_size,
+                                             bool *is_warning);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
