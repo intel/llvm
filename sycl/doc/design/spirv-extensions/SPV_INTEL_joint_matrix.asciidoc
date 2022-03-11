@@ -53,8 +53,8 @@ please let us know!
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2022-03-10
-| Revision           | 4
+| Last Modified Date | 2022-04-01
+| Revision           | 5
 |========================================
 
 == Dependencies
@@ -151,6 +151,14 @@ Suitable for VNNI instructions | *{capability_name}*
 Suitable for VNNI instructions | *{capability_name}*
 |====
 
+[options="header"]
+|====
+2+^| Use ^| Enabling capability
+| 0 | *MatrixA*     | *{capability_name}*
+| 1 | *MatrixB*     | *{capability_name}*
+| 2 | *Accumulator* | *{capability_name}*
+|====
+
 === Capabilities
 
 Modify Section 3.31, Capability, adding rows to the Capability table:
@@ -170,9 +178,9 @@ See also extension: *{extension_name}*
 
 ==== 3.37.6 Type-Declaration Instructions
 
-[cols="1,1,6*3",width="100%"]
+[cols="1,1,7*3",width="100%"]
 |=====
-7+|[[OpTypeJointMatrixINTEL]]*OpTypeJointMatrixINTEL* +
+8+|[[OpTypeJointMatrixINTEL]]*OpTypeJointMatrixINTEL* +
  +
 Declare a matrix type. +
  +
@@ -192,11 +200,15 @@ It must be the result of a constant instruction. +
  +
 'Scope' is memory scope for operations on the matrix. It must be the
 result of a constant instruction with scalar 'integer type'. +
+ +
+'Use' is an optional parameter that shows where in a math operation the matrix
+is used. It must be the result of a constant instruction with scalar
+'integer type'. +
 
 
 1+|Capability: +
 *{capability_name}*
-1+| 7 | {OpTypeJointMatrixINTEL_token}
+1+| 8 | {OpTypeJointMatrixINTEL_token}
 | 'Result <id>'
 | '<id>' +
 'Component Type'
@@ -208,6 +220,8 @@ result of a constant instruction with scalar 'integer type'. +
 'Layout'
 | '<id>' +
 'Scope'
+| Optional '<id>' +
+'Use'
 |=====
 
 ==== 3.37.8. Memory Instructions
@@ -525,4 +539,5 @@ Revision History
 |2|2021-09-06|Dmitry Sidorov|Split OpJointMatrixMadINTEL instruction into 4
 |3|2021-12-28|Dmitry Sidorov|Add Joint Matrix to Composite definition
 |4|2022-03-10|Dmitry Sidorov|Add OpJointMatrixWorkItemLengthINTEL instruction
+|5|2022-04-01|Dmitry Sidorov|Add Use parameter to TypeJointMatrixINTEL
 |========================================
