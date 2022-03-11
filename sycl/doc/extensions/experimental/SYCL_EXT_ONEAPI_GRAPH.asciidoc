@@ -69,15 +69,15 @@ Table 2. Terminology.
 
 == Node
 
-Node is a class that can encapsulate SYCL kernel functions or host tasks for deferred execution.
+Node is a class that encapsulates tasks like SYCL kernel functions or host tasks for deferred execution.
 A graph has to be created first, the structure of a graph is defined second by adding nodes and edges.
 
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-	class node{
-	};
+  class node{
+  };
 }
 ----
 
@@ -85,7 +85,7 @@ NOTE:
 
 == Edge
 
-A dependency between two nodes representing a happens before relationship.
+A dependency between two nodes representing a happens before relationship. `sender` and `receiver` may be accociated to different graphs.
 
 [source,c++]
 ----
@@ -99,45 +99,46 @@ namespace sycl::ext::oneapi::experimental {
 == Graph
 
 Graph is a class that represents a directed acyclic graph of nodes. 
-A graph can be nested, can have multiple root nodes that are scheduled for execution first and multiple leaf nodes that are scheduled for execution last.
+A graph can have different states, can be nested, can have multiple root nodes that are scheduled for execution first and multiple leaf nodes that are scheduled for execution last. The execution of a graph has been completed when all leaf node tasks have been completed.
 Member functions as listed in Table 2 and 3 can be used to add nodes to a graph.
 
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-  class graph {
+  enum class graph_state{
+    modifiable,
+    executable
   };
 
+  template<graph_state State>
+  class graph {
+  public:
+    operator graph<graph_state::executable>();
+  };
+  
+  graph<graph_state::modifiable> make_graph();
+  
+  graph<graph_state::modifiable> compile(const graph<graph_state::executable> Graph);
+  
 }
+
+sycl::event sycl::queue(const graph<graph_state::executable> Graph);
+
 ----
 
 === Executable Graph
 
-`executable_graph` represents a user generated device and context specific execution object that can be submitted to a queue for execution. 
-The structure of an `executable_graph` object, such as adding nodes or edges, can not be changed.
-Each `executable_graph` object can only be executed once at the same time on its assigned queue.
+A `graph` object in `graph_state::executable` represents a user generated device and context specific execution object that is submitted to a queue for execution.
+The structure of such a `graph` object in this state is immutable and can not be changed, so are the tasks assigned with each node.
+Support of submitting a graph for execution, before a previous execution has been completed is backend specific. The runtime may throw an error.
 
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-  class executable_graph {
-  };
-
-}
-----
-
-
-Table 3. Constructors of the `graph` class.
+Table 3. Constructor of the `graph` class.
 |===
 |Constructor|Description
 
 |`graph()`
-|Creates a `graph` object
-
-|`graph(graph& parent)`
-|Creates a nested `graph` object
+|Creates a `graph` object. It's default state is `graph_state::modifiable`.
 
 |===
 
@@ -145,24 +146,12 @@ Table 4. Member functions of the `graph` class.
 |===
 |Member function|Description
 
-|`node add_empty_node(const std::vector<node>& dep = {});`
-|This node holds no task that is scheduled for execution. It's intended use is a synchronization point inside a graph, this node can significantly reduce the number of edges ( O(n) vs. O(n^2) ) .
+|`node add_node(const std::vector<node>& dep = {});`
+|This creates an empty node which is associated to no task. It's intended use is either a connection point inside a graph between groups of nodes, and can significantly reduce the number of edges ( O(n) vs. O(n^2) ). Another use-case is building the structure of a graph first and adding tasks later.
 
 |`template<typename T>
-    	node add_host_node(T hostTaskCallable, const std::vector<node>& dep = {});`
-|This node captures a host task, a native C++ callable which is scheduled by the SYCL runtime.
-
-|`template<typename T>
-    	node add_device_node(T cgf, const std::vector<node>& dep = {});`
-|This node captures a SYCL function for invoking kernels, with all restrictions that apply as described in the spec.
-
-|`template<typename T>
-    	executable_graph make_executable(const queue& syclQueue);`
-|Returns a queue specific graph object that can be submitted to a queue.
-
-|`template<typename T>
-    	executable_graph make_executable(const device& syclDevice, const context& syclContext);`
-|Returns a device and context specific graph object that can be submitted to a queue.
+    	node add_node(T cgf, const std::vector<node>& dep = {});`
+|This node captures a command group function object containing host task which is scheduled by the SYCL runtime or a SYCL function for invoking kernels with all restrictions that apply as described in the spec.
 
 |===
 
@@ -187,6 +176,8 @@ Table 5. Member functions of the `graph` class (memory operations).
 
 == Examples
 
+NOTE: The examples below demonstrate intended usage of the extension, but are not compatible with the proof-of-concept implementation. The proof-of-concept implementation currently requires different syntax, as described in the "Non-implemented features" section at the end of this document.
+
 1. Dot product
 
 [source,c++]
@@ -201,14 +192,9 @@ int main() {
   float beta = 2.0f;
   float gamma = 3.0f;
 
-#ifndef POC_IMPL
   sycl::queue q;
-#else
-  sycl::property_list p{sycl::ext::oneapi::property::queue::lazy_execution{}};
-  sycl::queue q{p};
-#endif
 
-  sycl::ext::oneapi::experimental::graph g;
+  auto g = sycl::ext::oneapi::experimental::make_graph();
 
   float *x = sycl::malloc_shared<float>(n, q);
   float *y = sycl::malloc_shared<float>(n, q);
@@ -222,21 +208,21 @@ int main() {
     z[i] = 3.0f;
   }
 
-  auto node_a = g.add_device_node([&](sycl::handler &h) {
+  auto node_a = g.add_node([&](sycl::handler &h) {
     h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
       const size_t i = it[0];
       x[i] = alpha * x[i] + beta * y[i];
     });
   });
 
-  auto node_b = g.add_device_node([&](sycl::handler &h) {
+  auto node_b = g.add_node([&](sycl::handler &h) {
     h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
       const size_t i = it[0];
       z[i] = gamma * z[i] + beta * y[i];
     });
   });
 
-  auto node_c = g.add_device_node(
+  auto node_c = g.add_node(
       [&](sycl::handler &h) {
         h.parallel_for(sycl::range<1>{n},
                        sycl::reduction(dotp, 0.0f, std::plus()),
@@ -247,13 +233,9 @@ int main() {
       },
       {node_a, node_b});
 
-  auto exec = g.make_exec(q);
+  auto exec = compile(q);
 
-#ifndef POC_IMPL
   q.submit(exec).wait();
-#else
-  exec.exec_and_wait();
-#endif
 
   sycl::free(x, q);
   sycl::free(y, q);
@@ -278,6 +260,7 @@ Please, note that the following features are not yet implemented:
 . Memory operation nodes not implemented
 . Host node not implemented
 . Submit overload of a queue. `submit(graph)` Use a combination of `executable_graph::exec_and_wait()` and queue property `sycl::ext::oneapi::property::queue::lazy_execution{}` instead.
+. `class graph<graph_state>` Use dedicated `class graph` (equivalent to `graph_state == modifiable`) and `class executable_graph` (equivalent to `graph_state == executable`) instead.
 
 == Revision History
 
@@ -287,4 +270,5 @@ Please, note that the following features are not yet implemented:
 |========================================
 |Rev|Date|Author|Changes
 |1|2022-02-11|Pablo Reble|Initial public working draft
+|2|2022-03-11|Pablo Reble|Incorporate feedback from PR
 |========================================
