@@ -47,10 +47,14 @@ jobs:
         sccache --show-stats
     - name: check-llvm
       shell: bash
+      env:
+        LIT_OPTS: -j 16 --time-tests
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build build --target check-llvm
     - name: check-clang
+      env:
+        LIT_OPTS: -j 16 --time-tests
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: bash
       run: |
