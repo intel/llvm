@@ -40,24 +40,24 @@ function(preprocess_mp11_header)
   # 1) replace `BOOST_*` macros with `SYCL_BOOST_*`.
   string(REGEX REPLACE
     "([ \t\n\r!])BOOST_"
-    "\\1SYCL_BOOST_"
+    "\\1SYCL_DETAIL_BOOST_"
     FILE_CONTENTS "${FILE_CONTENTS}")
   # 2) replace `namespace boost { ... }` with
-  # `namespace sycl { namespace boost { ... } }`
+  # `namespace sycl { namespace detail { namespace boost { ... } } }`
   string(REGEX REPLACE
-    "(\n[ \\t]*namespace[ \\t\\n\\r]+boost)"
-    "namespace sycl {\n\\1"
+    "(\n[ \t]*namespace[ \t\n\r]+boost)"
+    "namespace sycl\n{\nnamespace detail\n{\\1"
     FILE_CONTENTS "${FILE_CONTENTS}")
   # ... use '} // namespace boost' as a marker for end-of-scope '}' replacement
   string(REGEX REPLACE
-    "(\n[ \\t]*}[ \\t]*//[ \\t]*namespace[ \\t]+boost[ \\t]*\n)"
-    "\\1} // namespace sycl\n"
+    "(\n[ \t]*}[ \t]*//[ \t]*namespace[ \t]+boost[ \t]*\n)"
+    "\\1} // namespace detail\n} // namespace sycl\n"
     FILE_CONTENTS "${FILE_CONTENTS}")
   # 3) replace `boost` in `#include <boost/...>` or `#include "boost/..."` with
-  # `sycl/boost`
+  # `sycl/detail/boost`
   string(REGEX REPLACE
-    "(\n#include[ \\t]*[<\"])boost"
-    "\\1sycl/boost"
+    "(\n#include[ \t]*[<\"])boost"
+    "\\1sycl/detail/boost"
     FILE_CONTENTS "${FILE_CONTENTS}")
 
   string(PREPEND FILE_CONTENTS ${BOOST_MP11_COPYRIGHT_NOTICE})
@@ -83,8 +83,8 @@ This directory contains boost/mp11 headers imported from\n\
   ${SRC_PATH} (${SRC_ID})\n\
 and adapted for use in SYCL headers in a way that does not conflict with\n\
 potential use of boost in user code. Particularly, `BOOST_*` macros are\n\
-replaced with `SYCL_BOOST_*`, APIs are moved into the top-level `sycl`\n\
-namespace. For example, `sycl::boost::mp11::mp_list`.\n")
+replaced with `SYCL_DETAIL_BOOST_*`, APIs are moved into the top-level
+`sycl::detail` namespace. For example, `sycl::detail::boost::mp11::mp_list`.\n")
 
 set(SYCL_README_FILE_NAME "${OUT}/README.txt")
 

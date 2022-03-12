@@ -23,13 +23,13 @@
 
 #include <type_traits>
 
-#include <sycl/boost/mp11.hpp>
+#include <sycl/detail/boost/mp11.hpp>
 
 struct X1 {};
 
 int main() {
-  using sycl::boost::mp11::mp_fill;
-  using sycl::boost::mp11::mp_list;
+  using sycl::detail::boost::mp11::mp_fill;
+  using sycl::detail::boost::mp11::mp_list;
 
   using L1 = mp_list<int, void(), float[]>;
   static_assert(std::is_same_v<mp_fill<L1, X1>, mp_list<X1, X1, X1>>);
