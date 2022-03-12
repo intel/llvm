@@ -14,7 +14,7 @@
 
 using namespace llvm;
 
-enum ModeKind { PI, ZE };
+enum ModeKind { PI, ZE, CU };
 enum PrintFormatKind { PRETTY_COMPACT, PRETTY_VERBOSE, CLASSIC };
 
 int main(int argc, char **argv, char *env[]) {
@@ -23,7 +23,8 @@ int main(int argc, char **argv, char *env[]) {
       cl::values(
           // TODO graph dot
           clEnumValN(PI, "plugin", "Trace Plugin Interface calls"),
-          clEnumValN(ZE, "level_zero", "Trace Level Zero calls")));
+          clEnumValN(ZE, "level_zero", "Trace Level Zero calls"),
+          clEnumValN(ZE, "cuda", "Trace CUDA Driver API calls")));
   cl::opt<PrintFormatKind> PrintFormat(
       "print-format", cl::desc("Print format"),
       cl::values(
@@ -58,6 +59,10 @@ int main(int argc, char **argv, char *env[]) {
     NewEnv.push_back("SYCL_TRACE_ZE_ENABLE=1");
     NewEnv.push_back("ZE_ENABLE_TRACING_LAYER=1");
   };
+  const auto EnableCUTrace = [&]() {
+    NewEnv.push_back("SYCL_TRACE_CU_ENABLE=1");
+    NewEnv.push_back("SYCL_PI_CUDA_ENABLE_TRACING=1");
+  };
 
   for (auto Mode : Modes) {
     switch (Mode) {
@@ -65,6 +70,9 @@ int main(int argc, char **argv, char *env[]) {
       EnablePITrace();
       break;
     case ZE:
+      EnableZETrace();
+      break;
+    case CU:
       EnableZETrace();
       break;
     }
@@ -81,6 +89,7 @@ int main(int argc, char **argv, char *env[]) {
   if (Modes.size() == 0) {
     EnablePITrace();
     EnableZETrace();
+    EnableCUTrace();
   }
 
   std::vector<std::string> Args;

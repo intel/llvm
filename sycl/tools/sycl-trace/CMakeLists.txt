@@ -14,6 +14,20 @@ add_library(sycl_pi_trace_collector SHARED
   collector.cpp
   pi_trace_collector.cpp
   ze_trace_collector.cpp
+  cuda_trace_collector.cpp
+)
+
+find_package(CUDA 10.1 REQUIRED)
+target_include_directories(sycl_pi_trace_collector
+  PRIVATE
+  "${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include"
+)
+
+target_link_libraries(sycl_pi_trace_collector
+  PRIVATE
+    OpenCL-Headers
+    cudadrv
+    ${CUDA_cupti_LIBRARY}
 )
 
 find_package(Python3 REQUIRED)

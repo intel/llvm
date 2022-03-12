@@ -13,10 +13,13 @@
 sycl::detail::SpinLock GlobalLock;
 
 bool HasZEPrinter = false;
+bool HasCUPrinter = false;
 bool HasPIPrinter = false;
 
 void zePrintersInit();
 void zePrintersFinish();
+void cuPrintersInit();
+void cuPrintersFinish();
 void piPrintersInit();
 void piPrintersFinish();
 
@@ -25,6 +28,10 @@ XPTI_CALLBACK_API void piCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *Event,
                                   uint64_t Instance, const void *UserData);
 XPTI_CALLBACK_API void zeCallback(uint16_t TraceType,
+                                  xpti::trace_event_data_t *Parent,
+                                  xpti::trace_event_data_t *Event,
+                                  uint64_t Instance, const void *UserData);
+XPTI_CALLBACK_API void cuCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *Parent,
                                   xpti::trace_event_data_t *Event,
                                   uint64_t Instance, const void *UserData);
@@ -50,6 +57,14 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                          zeCallback);
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
                          zeCallback);
+  } else if (std::string_view(StreamName) == "sycl.experimental.cuda.debug" &&
+             std::getenv("SYCL_TRACE_CU_ENABLE")) {
+    cuPrintersInit();
+    uint16_t StreamID = xptiRegisterStream(StreamName);
+    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
+                         cuCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
+                         cuCallback);
   }
 }
 
@@ -61,4 +76,7 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
                "sycl.experimental.level_zero.debug" &&
            std::getenv("SYCL_TRACE_ZE_ENABLE"))
     zePrintersFinish();
+  else if (std::string_view(StreamName) == "sycl.experimental.cuda.debug" &&
+           std::getenv("SYCL_TRACE_CU_ENABLE"))
+    cuPrintersFinish();
 }

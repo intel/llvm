@@ -25,6 +25,9 @@
 #include <mutex>
 #include <regex>
 
+// Forward declarations
+void enableCUDATracing();
+
 namespace {
 std::string getCudaVersionString() {
   int driver_version = 0;
@@ -5310,6 +5313,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // functions are not set up below.
   std::memset(&(PluginInit->PiFunctionTable), 0,
               sizeof(PluginInit->PiFunctionTable));
+
+  enableCUDATracing();
 
 // Forward calls to CUDA RT.
 #define _PI_CL(pi_api, cuda_api)                                               \
