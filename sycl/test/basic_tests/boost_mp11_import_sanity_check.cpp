@@ -43,4 +43,6 @@ int main() {
 
   using L3 = std::pair<char, double>;
   static_assert(std::is_same_v<mp_fill<L3, X1>, std::pair<X1, X1>>);
+
+  return 0;
 }
