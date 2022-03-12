@@ -18,19 +18,16 @@ enum ModeKind { PI, ZE };
 enum PIPrintMode { PRETTY, CLASSIC };
 
 int main(int argc, char **argv, char *env[]) {
-  cl::list<ModeKind> Modes(cl::desc("Available tracing modes:"),
+  cl::list<ModeKind> Modes(
+      cl::desc("Available tracing modes:"),
       cl::values(
           // TODO graph dot
           clEnumValN(PI, "plugin", "Trace Plugin Interface calls"),
-          clEnumValN(ZE, "level_zero", "Trace Level Zero calls")
-          )
-      );
-  cl::opt<PIPrintMode> PIMode("pi_print_mode", cl::desc("PI Print mode"),
-      cl::values(
-        clEnumValN(PRETTY, "pretty", "Human readable"),
-        clEnumValN(CLASSIC, "classic", "Similar to SYCL_PI_TRACE")
-      )
-  );
+          clEnumValN(ZE, "level_zero", "Trace Level Zero calls")));
+  cl::opt<PIPrintMode> PIMode(
+      "pi_print_mode", cl::desc("PI Print mode"),
+      cl::values(clEnumValN(PRETTY, "pretty", "Human readable"),
+                 clEnumValN(CLASSIC, "classic", "Similar to SYCL_PI_TRACE")));
   cl::opt<std::string> TargetExecutable(
       cl::Positional, cl::desc("<target executable>"), cl::Required);
   cl::list<std::string> Argv(cl::ConsumeAfter,
@@ -65,12 +62,12 @@ int main(int argc, char **argv, char *env[]) {
 
   for (auto Mode : Modes) {
     switch (Mode) {
-      case PI:
-        EnablePITrace();
-        break;
-      case ZE:
-        EnableZETrace();
-        break;
+    case PI:
+      EnablePITrace();
+      break;
+    case ZE:
+      EnableZETrace();
+      break;
     }
   }
 

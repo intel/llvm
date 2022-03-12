@@ -33,14 +33,17 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      unsigned int /*minor_version*/,
                                      const char * /*version_str*/,
                                      const char *StreamName) {
-  if (std::string_view(StreamName) == "sycl.pi.debug" && std::getenv("SYCL_TRACE_PI_ENABLE")) {
+  if (std::string_view(StreamName) == "sycl.pi.debug" &&
+      std::getenv("SYCL_TRACE_PI_ENABLE")) {
     piPrintersInit();
     uint16_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
                          piCallback);
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
                          piCallback);
-  } else if (std::string_view(StreamName) == "sycl.experimental.level_zero.debug" && std::getenv("SYCL_TRACE_ZE_ENABLE")) {
+  } else if (std::string_view(StreamName) ==
+                 "sycl.experimental.level_zero.debug" &&
+             std::getenv("SYCL_TRACE_ZE_ENABLE")) {
     zePrintersInit();
     uint16_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
@@ -50,10 +53,12 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
   }
 }
 
-XPTI_CALLBACK_API void xptiTraceFinish(const char * StreamName) {
-  if (std::string_view(StreamName) == "sycl.pi.debug" && std::getenv("SYCL_TRACE_PI_ENABLE"))
+XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
+  if (std::string_view(StreamName) == "sycl.pi.debug" &&
+      std::getenv("SYCL_TRACE_PI_ENABLE"))
     piPrintersFinish();
-  else if(std::string_view(StreamName) == "sycl.experimental.level_zero.debug" && std::getenv("SYCL_TRACE_ZE_ENABLE"))
+  else if (std::string_view(StreamName) ==
+               "sycl.experimental.level_zero.debug" &&
+           std::getenv("SYCL_TRACE_ZE_ENABLE"))
     zePrintersFinish();
 }
-

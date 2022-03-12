@@ -9,7 +9,7 @@ def snake_to_camel(src):
     return ''.join(x.title() for x in temp)
 
 
-def extract_ze_apis(header):
+def generate_ze_pretty_printers(header):
     """
     Emit file with contents of
     _ZE_API(api_name, api_domain, cb, param_type)
@@ -45,7 +45,10 @@ def extract_ze_apis(header):
     printers.close()
 
 if __name__ == "__main__":
+    """
+    Usage: python generate_pi_pretty_printers.py path/to/ze_api.h
+    """
     with open(sys.argv[1], 'r') as f:
         header = f.read()
-        extract_ze_apis(header)
+        generate_ze_pretty_printers(header)
 

@@ -3,7 +3,15 @@ import sys
 
 def generate_pi_pretty_printers(header):
     hdr = open("pi_structs.hpp", "w")
-    # TODO copyright
+    hdr.write("//===-------------- pi_structs.hpp - PI Trace Structs ----------------------==//\n")
+    hdr.write("//\n")
+    hdr.write("// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.\n")
+    hdr.write("// See https://llvm.org/LICENSE.txt for license information.\n")
+    hdr.write("// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception\n")
+    hdr.write("//\n")
+    hdr.write("//===----------------------------------------------------------------------===//\n")
+    hdr.write("// clang-format off\n")
+    hdr.write("// This file is auto-generated! Do not modify!\n")
     hdr.write("#pragma once\n")
     printers = open("pi_printers.def", "w")
 

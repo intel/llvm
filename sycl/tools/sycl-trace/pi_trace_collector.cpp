@@ -14,8 +14,8 @@
 #include "pi_arguments_handler.hpp"
 #include "pi_structs.hpp"
 
-#include <detail/plugin_printers.hpp>
 #include <CL/sycl/detail/spinlock.hpp>
+#include <detail/plugin_printers.hpp>
 
 #include <iostream>
 #include <mutex>
@@ -28,7 +28,8 @@ extern sycl::detail::SpinLock GlobalLock;
 extern bool HasZEPrinter;
 extern bool HasPIPrinter;
 
-using HeaderPrinterT = std::function<void(const pi_plugin &, const xpti::function_with_args_t*)>;
+using HeaderPrinterT =
+    std::function<void(const pi_plugin &, const xpti::function_with_args_t *)>;
 
 static sycl::xpti_helpers::PiArgumentsHandler *ArgHandler = nullptr;
 static HeaderPrinterT *HeaderPrinter = nullptr;
@@ -38,7 +39,7 @@ static void setupClassicPrinter() {
   ArgHandler = new sycl::xpti_helpers::PiArgumentsHandler();
 #define _PI_API(api)                                                           \
   ArgHandler->set##_##api(                                                     \
-      [](const pi_plugin &, std::optional<pi_result>, auto &&...Args) {        \
+      [](const pi_plugin &, std::optional<pi_result>, auto &&... Args) {       \
         std::cout << "---> " << #api << "("                                    \
                   << "\n";                                                     \
         sycl::detail::pi::printArgs(Args...);                                  \
@@ -46,30 +47,30 @@ static void setupClassicPrinter() {
 #include <CL/sycl/detail/pi.def>
 #undef _PI_API
 
-  ResultPrinter = new std::function([](pi_result Res) {
-    std::cout << ") ---> " << Res << std::endl;
-  });
-  HeaderPrinter = new std::function([](const pi_plugin &Plugin, const xpti::function_with_args_t *Data) {
-    ArgHandler->handle(Data->function_id, Plugin, std::nullopt,
-                      Data->args_data);
-  });
+  ResultPrinter = new std::function(
+      [](pi_result Res) { std::cout << ") ---> " << Res << std::endl; });
+  HeaderPrinter = new std::function(
+      [](const pi_plugin &Plugin, const xpti::function_with_args_t *Data) {
+        ArgHandler->handle(Data->function_id, Plugin, std::nullopt,
+                           Data->args_data);
+      });
 }
 
 static void setupPrettyPrinter() {
-  HeaderPrinter = new std::function([](const pi_plugin&, const xpti::function_with_args_t *Data) {
-    std::cout << "[PI] " << Data->function_name << "(\n";
-    switch(Data->function_id) {
+  HeaderPrinter = new std::function(
+      [](const pi_plugin &, const xpti::function_with_args_t *Data) {
+        std::cout << "[PI] " << Data->function_name << "(\n";
+        switch (Data->function_id) {
 #include "pi_printers.def"
-    }
-    std::cout << ")";
+        }
+        std::cout << ")";
 
-    if (HasZEPrinter) {
-      std::cout << " {" << std::endl;
-    }
-  });
-  ResultPrinter = new std::function([](pi_result Res) {
-    std::cout << " ---> " << Res << std::endl;
-  });
+        if (HasZEPrinter) {
+          std::cout << " {" << std::endl;
+        }
+      });
+  ResultPrinter = new std::function(
+      [](pi_result Res) { std::cout << " ---> " << Res << std::endl; });
 }
 
 void piPrintersInit() {
@@ -99,8 +100,7 @@ XPTI_CALLBACK_API void piCallback(uint16_t TraceType,
 
   // Lock while we print information
   std::lock_guard _{GlobalLock};
-  const auto *Data =
-      static_cast<const xpti::function_with_args_t *>(UserData);
+  const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   if (TraceType == xpti::trace_function_with_args_begin) {
     const auto *Plugin = static_cast<pi_plugin *>(Data->user_data);
     (*HeaderPrinter)(*Plugin, Data);
