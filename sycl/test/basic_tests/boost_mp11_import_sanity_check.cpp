@@ -27,21 +27,20 @@
 
 struct X1 {};
 
-int main()
-{
-    using sycl::boost::mp11::mp_list;
-    using sycl::boost::mp11::mp_fill;
+int main() {
+  using sycl::boost::mp11::mp_fill;
+  using sycl::boost::mp11::mp_list;
 
-    using L1 = mp_list<int, void(), float[]>;
-    static_assert(std::is_same_v<mp_fill<L1, X1>, mp_list<X1, X1, X1>>);
+  using L1 = mp_list<int, void(), float[]>;
+  static_assert(std::is_same_v<mp_fill<L1, X1>, mp_list<X1, X1, X1>>);
 
-    //
+  //
 
-    using L2 = std::tuple<int, char, float>;
-    static_assert(std::is_same_v<mp_fill<L2, X1>, std::tuple<X1, X1, X1>>);
+  using L2 = std::tuple<int, char, float>;
+  static_assert(std::is_same_v<mp_fill<L2, X1>, std::tuple<X1, X1, X1>>);
 
-    //
+  //
 
-    using L3 = std::pair<char, double>;
-    static_assert(std::is_same_v<mp_fill<L3, X1>, std::pair<X1, X1>>);
+  using L3 = std::pair<char, double>;
+  static_assert(std::is_same_v<mp_fill<L3, X1>, std::pair<X1, X1>>);
 }
