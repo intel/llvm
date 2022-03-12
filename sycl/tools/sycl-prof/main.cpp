@@ -45,6 +45,8 @@ int main(int argc, char **argv, char *env[]) {
   NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.so");
   NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_profiler_collector.so");
   NewEnv.push_back("XPTI_TRACE_ENABLE=1");
+  NewEnv.push_back("SYCL_PI_LEVEL_ZERO_ENABLE_TRACING=1");
+  NewEnv.push_back("ZE_ENABLE_TRACING_LAYER=1");
 
   std::vector<std::string> Args;
 

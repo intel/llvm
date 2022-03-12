@@ -37,8 +37,14 @@ def generate_ze_pretty_printers(header):
             printers.write("const auto *Args = reinterpret_cast<{}*>(Data->args_data);\n".format(param_type))
             for arg in args:
                 arg_name = arg.strip().split(" ")[-1].replace('*', '')
+                arg_types = [ x.strip() for x in arg.strip().split(" ")[:-1]]
                 printers.write("PrintOffset();\n")
-                printers.write('std::cout << "{}: " << Args->{};\n'.format(arg_name, arg_name))
+                print(arg_types)
+                scalar = ["size_t*", "void**", "uint32_t*", "uint64_t*"]
+                if any(item in scalar for item in arg_types):
+                    printers.write('std::cout << "{}: " << *(Args->{}) << "\\n";\n'.format(arg_name[1:], arg_name))
+                else:
+                    printers.write('  std::cout << "{}: " << Args->{} << "\\n";\n'.format(arg_name, arg_name))
             printers.write("break;\n")
             printers.write("}\n")
 

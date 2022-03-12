@@ -15,7 +15,7 @@
 using namespace llvm;
 
 enum ModeKind { PI, ZE };
-enum PIPrintMode { PRETTY, CLASSIC };
+enum PrintFormatKind { PRETTY_COMPACT, PRETTY_VERBOSE, CLASSIC };
 
 int main(int argc, char **argv, char *env[]) {
   cl::list<ModeKind> Modes(
@@ -24,10 +24,14 @@ int main(int argc, char **argv, char *env[]) {
           // TODO graph dot
           clEnumValN(PI, "plugin", "Trace Plugin Interface calls"),
           clEnumValN(ZE, "level_zero", "Trace Level Zero calls")));
-  cl::opt<PIPrintMode> PIMode(
-      "pi_print_mode", cl::desc("PI Print mode"),
-      cl::values(clEnumValN(PRETTY, "pretty", "Human readable"),
-                 clEnumValN(CLASSIC, "classic", "Similar to SYCL_PI_TRACE")));
+  cl::opt<PrintFormatKind> PrintFormat(
+      "print-format", cl::desc("Print format"),
+      cl::values(
+          clEnumValN(PRETTY_COMPACT, "compact", "Human readable compact"),
+          clEnumValN(PRETTY_VERBOSE, "verbose", "Human readable verbose"),
+          clEnumValN(
+              CLASSIC, "classic",
+              "Similar to SYCL_PI_TRACE, only compatible with PI layer")));
   cl::opt<std::string> TargetExecutable(
       cl::Positional, cl::desc("<target executable>"), cl::Required);
   cl::list<std::string> Argv(cl::ConsumeAfter,
@@ -49,15 +53,11 @@ int main(int argc, char **argv, char *env[]) {
 
   const auto EnablePITrace = [&]() {
     NewEnv.push_back("SYCL_TRACE_PI_ENABLE=1");
-    if (PIMode == CLASSIC) {
-      NewEnv.push_back("SYCL_TRACE_PI_PRINTER=classic");
-    } else {
-      NewEnv.push_back("SYCL_TRACE_PI_PRINTER=pretty");
-    }
   };
   const auto EnableZETrace = [&]() {
     NewEnv.push_back("SYCL_TRACE_ZE_ENABLE=1");
     NewEnv.push_back("SYCL_PI_LEVEL_ZERO_ENABLE_TRACING=1");
+    NewEnv.push_back("ZE_ENABLE_TRACING_LAYER=1");
   };
 
   for (auto Mode : Modes) {
@@ -69,6 +69,14 @@ int main(int argc, char **argv, char *env[]) {
       EnableZETrace();
       break;
     }
+  }
+
+  if (PrintFormat == CLASSIC) {
+    NewEnv.push_back("SYCL_TRACE_PRINT_FORMAT=classic");
+  } else if (PrintFormat == PRETTY_VERBOSE) {
+    NewEnv.push_back("SYCL_TRACE_PRINT_FORMAT=verbose");
+  } else {
+    NewEnv.push_back("SYCL_TRACE_PRINT_FORMAT=compact");
   }
 
   if (Modes.size() == 0) {

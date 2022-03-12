@@ -118,8 +118,6 @@ add_sycl_plugin(level_zero
     Threads::Threads
 )
 
-find_package(Python3 REQUIRED)
-
 add_custom_target(ze-api
   COMMAND ${Python3_EXECUTABLE}
   ${CMAKE_CURRENT_SOURCE_DIR}/ze_api_generator.py
