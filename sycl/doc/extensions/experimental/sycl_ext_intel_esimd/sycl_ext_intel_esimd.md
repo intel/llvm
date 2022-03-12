@@ -542,7 +542,7 @@ For example, unwrapping `Y` defined as
 struct X { int x; };
 struct Y { X x; };
 ```
-results in `i32`. Unwrapping `C4` defind as
+results in `i32`. Unwrapping `C4` defined as
 ```cpp
 struct A4 { char x; };
 struct B4 { A4 a; };
@@ -564,9 +564,7 @@ the "unwrapped type set".
     * 1-2 bytes - short
     * 3-4 bytes - int
     * 5-8 bytes - array of 2 ints
-  Floating point types are not merged. Structure field alignment rules can
-  increase the calculated size compared to simple sum of `sizeof` of all the
-  types. If the total size exceeds 8, then:
+  If the total size exceeds 8, then:
     * a source parameter of this type is broken down into multiple parameters
       with types resulted from unwrapping
     * a source return value of this type keeps it (the type)

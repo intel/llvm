@@ -91,7 +91,7 @@ template SYCL_DEVICE C2 __regcall func<C2>(C2 x);
 
 // === TEST CASE: multi-level nested structs with one primitive type element at
 // the bottom, and one - at the top. The nested struct at the top is expected to
-// get "unwraped" by the compiler evaporating to the single element at the
+// get "unwrapped" by the compiler evaporating to the single element at the
 // bottom.
 
 struct A3 { char x; };
@@ -110,10 +110,9 @@ struct C3 { // unwrapped
 template SYCL_DEVICE C3 __regcall func<C3>(C3 x);
 // CHECK-DAG: define weak_odr x86_regcallcc i16 @_Z16__regcall3__funcI2C3ET_S1_(i16 %{{[0-9a-zA-Z_.]+}})
 
-// === TEST CASE: multi-level nested structs with one primitive type element at
-// the bottom, and one - at the top. The nested struct at the top is expected to
-// get "unwraped" by the compiler evaporating to the single element at the
-// bottom.
+// === TEST CASE: multi-level nested structs with a pointer field at the top
+// level. 1 step-deep unwrapping for a function argument type and no unwrapping
+// for the return type is expected to happen.
 
 struct A4 { char x; };
 struct B4 { A4 a; };
