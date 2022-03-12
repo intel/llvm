@@ -14,14 +14,23 @@
 
 using namespace llvm;
 
-enum ModeKind { PI };
+enum ModeKind { PI, ZE };
+enum PIPrintMode { PRETTY, CLASSIC };
 
 int main(int argc, char **argv, char *env[]) {
-  cl::opt<ModeKind> Mode(
-      "mode", cl::desc("Set tracing mode:"),
+  cl::list<ModeKind> Modes(cl::desc("Available tracing modes:"),
       cl::values(
           // TODO graph dot
-          clEnumValN(PI, "plugin", "Trace Plugin Interface calls")));
+          clEnumValN(PI, "plugin", "Trace Plugin Interface calls"),
+          clEnumValN(ZE, "level_zero", "Trace Level Zero calls")
+          )
+      );
+  cl::opt<PIPrintMode> PIMode("pi_print_mode", cl::desc("PI Print mode"),
+      cl::values(
+        clEnumValN(PRETTY, "pretty", "Human readable"),
+        clEnumValN(CLASSIC, "classic", "Similar to SYCL_PI_TRACE")
+      )
+  );
   cl::opt<std::string> TargetExecutable(
       cl::Positional, cl::desc("<target executable>"), cl::Required);
   cl::list<std::string> Argv(cl::ConsumeAfter,
@@ -40,6 +49,35 @@ int main(int argc, char **argv, char *env[]) {
   NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.so");
   NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_pi_trace_collector.so");
   NewEnv.push_back("XPTI_TRACE_ENABLE=1");
+  NewEnv.push_back("SYCL_PI_LEVEL_ZERO_ENABLE_TRACING=1");
+
+  const auto EnablePITrace = [&]() {
+    NewEnv.push_back("SYCL_TRACE_PI_ENABLE=1");
+    if (PIMode == CLASSIC) {
+      NewEnv.push_back("SYCL_TRACE_PI_PRINTER=classic");
+    } else {
+      NewEnv.push_back("SYCL_TRACE_PI_PRINTER=pretty");
+    }
+  };
+  const auto EnableZETrace = [&]() {
+    NewEnv.push_back("SYCL_TRACE_ZE_ENABLE=1");
+  };
+
+  for (auto Mode : Modes) {
+    switch (Mode) {
+      case PI:
+        EnablePITrace();
+        break;
+      case ZE:
+        EnableZETrace();
+        break;
+    }
+  }
+
+  if (Modes.size() == 0) {
+    EnablePITrace();
+    EnableZETrace();
+  }
 
   std::vector<std::string> Args;
 

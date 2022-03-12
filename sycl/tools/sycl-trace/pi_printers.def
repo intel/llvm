@@ -1,0 +1,806 @@
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piPlatformsGet): {
+const auto *Args = reinterpret_cast<piPlatformsGet_args*>(Data->args_data);
+std::cout << "    num_entries: " << Args->num_entries << "\n";
+std::cout << "    platforms: " << Args->platforms << "\n";
+std::cout << "    num_platforms: " << Args->num_platforms << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piPlatformGetInfo): {
+const auto *Args = reinterpret_cast<piPlatformGetInfo_args*>(Data->args_data);
+std::cout << "    platform: " << Args->platform << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextPlatformGetNativeHandle): {
+const auto *Args = reinterpret_cast<piextPlatformGetNativeHandle_args*>(Data->args_data);
+std::cout << "    platform: " << Args->platform << "\n";
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextPlatformCreateWithNativeHandle): {
+const auto *Args = reinterpret_cast<piextPlatformCreateWithNativeHandle_args*>(Data->args_data);
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+std::cout << "    platform: " << Args->platform << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piDevicesGet): {
+const auto *Args = reinterpret_cast<piDevicesGet_args*>(Data->args_data);
+std::cout << "    platform: " << Args->platform << "\n";
+std::cout << "    device_type: " << Args->device_type << "\n";
+std::cout << "    num_entries: " << Args->num_entries << "\n";
+std::cout << "    devices: " << Args->devices << "\n";
+std::cout << "    num_devices: " << Args->num_devices << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piDeviceGetInfo): {
+const auto *Args = reinterpret_cast<piDeviceGetInfo_args*>(Data->args_data);
+std::cout << "    device: " << Args->device << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piDeviceRetain): {
+const auto *Args = reinterpret_cast<piDeviceRetain_args*>(Data->args_data);
+std::cout << "    device: " << Args->device << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piDeviceRelease): {
+const auto *Args = reinterpret_cast<piDeviceRelease_args*>(Data->args_data);
+std::cout << "    device: " << Args->device << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piDevicePartition): {
+const auto *Args = reinterpret_cast<piDevicePartition_args*>(Data->args_data);
+std::cout << "    device: " << Args->device << "\n";
+std::cout << "    properties: " << Args->properties << "\n";
+std::cout << "    num_devices: " << Args->num_devices << "\n";
+std::cout << "    out_devices: " << Args->out_devices << "\n";
+std::cout << "    out_num_devices: " << Args->out_num_devices << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextDeviceGetNativeHandle): {
+const auto *Args = reinterpret_cast<piextDeviceGetNativeHandle_args*>(Data->args_data);
+std::cout << "    device: " << Args->device << "\n";
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextDeviceCreateWithNativeHandle): {
+const auto *Args = reinterpret_cast<piextDeviceCreateWithNativeHandle_args*>(Data->args_data);
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+std::cout << "    platform: " << Args->platform << "\n";
+std::cout << "    device: " << Args->device << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextDeviceSelectBinary): {
+const auto *Args = reinterpret_cast<piextDeviceSelectBinary_args*>(Data->args_data);
+std::cout << "    device: " << Args->device << "\n";
+std::cout << "    binaries: " << Args->binaries << "\n";
+std::cout << "    num_binaries: " << Args->num_binaries << "\n";
+std::cout << "    selected_binary_ind: " << Args->selected_binary_ind << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextGetDeviceFunctionPointer): {
+const auto *Args = reinterpret_cast<piextGetDeviceFunctionPointer_args*>(Data->args_data);
+std::cout << "    device: " << Args->device << "\n";
+std::cout << "    program: " << Args->program << "\n";
+std::cout << "    function_name: " << Args->function_name << "\n";
+std::cout << "    function_pointer_ret: " << Args->function_pointer_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piContextGetInfo): {
+const auto *Args = reinterpret_cast<piContextGetInfo_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piContextRetain): {
+const auto *Args = reinterpret_cast<piContextRetain_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piContextRelease): {
+const auto *Args = reinterpret_cast<piContextRelease_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextContextSetExtendedDeleter): {
+const auto *Args = reinterpret_cast<piextContextSetExtendedDeleter_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    func: " << Args->func << "\n";
+std::cout << "    user_data: " << Args->user_data << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextContextGetNativeHandle): {
+const auto *Args = reinterpret_cast<piextContextGetNativeHandle_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextContextCreateWithNativeHandle): {
+const auto *Args = reinterpret_cast<piextContextCreateWithNativeHandle_args*>(Data->args_data);
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+std::cout << "    numDevices: " << Args->numDevices << "\n";
+std::cout << "    devices: " << Args->devices << "\n";
+std::cout << "    pluginOwnsNativeHandle: " << Args->pluginOwnsNativeHandle << "\n";
+std::cout << "    context: " << Args->context << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piQueueCreate): {
+const auto *Args = reinterpret_cast<piQueueCreate_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    device: " << Args->device << "\n";
+std::cout << "    properties: " << Args->properties << "\n";
+std::cout << "    queue: " << Args->queue << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piQueueGetInfo): {
+const auto *Args = reinterpret_cast<piQueueGetInfo_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piQueueRetain): {
+const auto *Args = reinterpret_cast<piQueueRetain_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piQueueRelease): {
+const auto *Args = reinterpret_cast<piQueueRelease_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piQueueFinish): {
+const auto *Args = reinterpret_cast<piQueueFinish_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piQueueFlush): {
+const auto *Args = reinterpret_cast<piQueueFlush_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextQueueGetNativeHandle): {
+const auto *Args = reinterpret_cast<piextQueueGetNativeHandle_args*>(Data->args_data);
+std::cout << "    queue: " << Args->queue << "\n";
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextQueueCreateWithNativeHandle): {
+const auto *Args = reinterpret_cast<piextQueueCreateWithNativeHandle_args*>(Data->args_data);
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    queue: " << Args->queue << "\n";
+std::cout << "    pluginOwnsNativeHandle: " << Args->pluginOwnsNativeHandle << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piMemImageCreate): {
+const auto *Args = reinterpret_cast<piMemImageCreate_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    flags: " << Args->flags << "\n";
+std::cout << "    image_format: " << Args->image_format << "\n";
+std::cout << "    image_desc: " << Args->image_desc << "\n";
+std::cout << "    host_ptr: " << Args->host_ptr << "\n";
+std::cout << "    ret_mem: " << Args->ret_mem << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piMemImageGetInfo): {
+const auto *Args = reinterpret_cast<piMemImageGetInfo_args*>(Data->args_data);
+std::cout << "    image: " << Args->image << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piMemRetain): {
+const auto *Args = reinterpret_cast<piMemRetain_args*>(Data->args_data);
+std::cout << "    mem: " << Args->mem << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piMemRelease): {
+const auto *Args = reinterpret_cast<piMemRelease_args*>(Data->args_data);
+std::cout << "    mem: " << Args->mem << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piMemBufferPartition): {
+const auto *Args = reinterpret_cast<piMemBufferPartition_args*>(Data->args_data);
+std::cout << "    buffer: " << Args->buffer << "\n";
+std::cout << "    flags: " << Args->flags << "\n";
+std::cout << "    buffer_create_type: " << Args->buffer_create_type << "\n";
+std::cout << "    buffer_create_info: " << Args->buffer_create_info << "\n";
+std::cout << "    ret_mem: " << Args->ret_mem << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextMemGetNativeHandle): {
+const auto *Args = reinterpret_cast<piextMemGetNativeHandle_args*>(Data->args_data);
+std::cout << "    mem: " << Args->mem << "\n";
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextMemCreateWithNativeHandle): {
+const auto *Args = reinterpret_cast<piextMemCreateWithNativeHandle_args*>(Data->args_data);
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+std::cout << "    mem: " << Args->mem << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piProgramCreate): {
+const auto *Args = reinterpret_cast<piProgramCreate_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    il: " << Args->il << "\n";
+std::cout << "    length: " << Args->length << "\n";
+std::cout << "    res_program: " << Args->res_program << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piclProgramCreateWithSource): {
+const auto *Args = reinterpret_cast<piclProgramCreateWithSource_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    count: " << Args->count << "\n";
+std::cout << "    strings: " << Args->strings << "\n";
+std::cout << "    lengths: " << Args->lengths << "\n";
+std::cout << "    ret_program: " << Args->ret_program << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piProgramCreateWithBinary): {
+const auto *Args = reinterpret_cast<piProgramCreateWithBinary_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    num_devices: " << Args->num_devices << "\n";
+std::cout << "    device_list: " << Args->device_list << "\n";
+std::cout << "    lengths: " << Args->lengths << "\n";
+std::cout << "    binaries: " << Args->binaries << "\n";
+std::cout << "    num_metadata_entries: " << Args->num_metadata_entries << "\n";
+std::cout << "    metadata: " << Args->metadata << "\n";
+std::cout << "    binary_status: " << Args->binary_status << "\n";
+std::cout << "    ret_program: " << Args->ret_program << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piProgramGetInfo): {
+const auto *Args = reinterpret_cast<piProgramGetInfo_args*>(Data->args_data);
+std::cout << "    program: " << Args->program << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piProgramRetain): {
+const auto *Args = reinterpret_cast<piProgramRetain_args*>(Data->args_data);
+std::cout << "    program: " << Args->program << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piProgramRelease): {
+const auto *Args = reinterpret_cast<piProgramRelease_args*>(Data->args_data);
+std::cout << "    program: " << Args->program << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextProgramSetSpecializationConstant): {
+const auto *Args = reinterpret_cast<piextProgramSetSpecializationConstant_args*>(Data->args_data);
+std::cout << "    prog: " << Args->prog << "\n";
+std::cout << "    spec_id: " << Args->spec_id << "\n";
+std::cout << "    spec_size: " << Args->spec_size << "\n";
+std::cout << "    spec_value: " << Args->spec_value << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextProgramGetNativeHandle): {
+const auto *Args = reinterpret_cast<piextProgramGetNativeHandle_args*>(Data->args_data);
+std::cout << "    program: " << Args->program << "\n";
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextProgramCreateWithNativeHandle): {
+const auto *Args = reinterpret_cast<piextProgramCreateWithNativeHandle_args*>(Data->args_data);
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    pluginOwnsNativeHandle: " << Args->pluginOwnsNativeHandle << "\n";
+std::cout << "    program: " << Args->program << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piKernelCreate): {
+const auto *Args = reinterpret_cast<piKernelCreate_args*>(Data->args_data);
+std::cout << "    program: " << Args->program << "\n";
+std::cout << "    kernel_name: " << Args->kernel_name << "\n";
+std::cout << "    ret_kernel: " << Args->ret_kernel << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piKernelSetArg): {
+const auto *Args = reinterpret_cast<piKernelSetArg_args*>(Data->args_data);
+std::cout << "    kernel: " << Args->kernel << "\n";
+std::cout << "    arg_index: " << Args->arg_index << "\n";
+std::cout << "    arg_size: " << Args->arg_size << "\n";
+std::cout << "    arg_value: " << Args->arg_value << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piKernelGetInfo): {
+const auto *Args = reinterpret_cast<piKernelGetInfo_args*>(Data->args_data);
+std::cout << "    kernel: " << Args->kernel << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piKernelGetGroupInfo): {
+const auto *Args = reinterpret_cast<piKernelGetGroupInfo_args*>(Data->args_data);
+std::cout << "    kernel: " << Args->kernel << "\n";
+std::cout << "    device: " << Args->device << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piKernelGetSubGroupInfo): {
+const auto *Args = reinterpret_cast<piKernelGetSubGroupInfo_args*>(Data->args_data);
+std::cout << "    kernel: " << Args->kernel << "\n";
+std::cout << "    device: " << Args->device << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    input_value_size: " << Args->input_value_size << "\n";
+std::cout << "    input_value: " << Args->input_value << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piKernelRetain): {
+const auto *Args = reinterpret_cast<piKernelRetain_args*>(Data->args_data);
+std::cout << "    kernel: " << Args->kernel << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piKernelRelease): {
+const auto *Args = reinterpret_cast<piKernelRelease_args*>(Data->args_data);
+std::cout << "    kernel: " << Args->kernel << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextKernelSetArgPointer): {
+const auto *Args = reinterpret_cast<piextKernelSetArgPointer_args*>(Data->args_data);
+std::cout << "    kernel: " << Args->kernel << "\n";
+std::cout << "    arg_index: " << Args->arg_index << "\n";
+std::cout << "    arg_size: " << Args->arg_size << "\n";
+std::cout << "    arg_value: " << Args->arg_value << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piKernelSetExecInfo): {
+const auto *Args = reinterpret_cast<piKernelSetExecInfo_args*>(Data->args_data);
+std::cout << "    kernel: " << Args->kernel << "\n";
+std::cout << "    value_name: " << Args->value_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextKernelCreateWithNativeHandle): {
+const auto *Args = reinterpret_cast<piextKernelCreateWithNativeHandle_args*>(Data->args_data);
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    program: " << Args->program << "\n";
+std::cout << "    pluginOwnsNativeHandle: " << Args->pluginOwnsNativeHandle << "\n";
+std::cout << "    kernel: " << Args->kernel << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextKernelGetNativeHandle): {
+const auto *Args = reinterpret_cast<piextKernelGetNativeHandle_args*>(Data->args_data);
+std::cout << "    kernel: " << Args->kernel << "\n";
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEventCreate): {
+const auto *Args = reinterpret_cast<piEventCreate_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    ret_event: " << Args->ret_event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEventGetInfo): {
+const auto *Args = reinterpret_cast<piEventGetInfo_args*>(Data->args_data);
+std::cout << "    event: " << Args->event << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEventGetProfilingInfo): {
+const auto *Args = reinterpret_cast<piEventGetProfilingInfo_args*>(Data->args_data);
+std::cout << "    event: " << Args->event << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEventsWait): {
+const auto *Args = reinterpret_cast<piEventsWait_args*>(Data->args_data);
+std::cout << "    num_events: " << Args->num_events << "\n";
+std::cout << "    event_list: " << Args->event_list << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEventSetStatus): {
+const auto *Args = reinterpret_cast<piEventSetStatus_args*>(Data->args_data);
+std::cout << "    event: " << Args->event << "\n";
+std::cout << "    execution_status: " << Args->execution_status << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEventRetain): {
+const auto *Args = reinterpret_cast<piEventRetain_args*>(Data->args_data);
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEventRelease): {
+const auto *Args = reinterpret_cast<piEventRelease_args*>(Data->args_data);
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextEventGetNativeHandle): {
+const auto *Args = reinterpret_cast<piextEventGetNativeHandle_args*>(Data->args_data);
+std::cout << "    event: " << Args->event << "\n";
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextEventCreateWithNativeHandle): {
+const auto *Args = reinterpret_cast<piextEventCreateWithNativeHandle_args*>(Data->args_data);
+std::cout << "    nativeHandle: " << Args->nativeHandle << "\n";
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    ownNativeHandle: " << Args->ownNativeHandle << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piSamplerCreate): {
+const auto *Args = reinterpret_cast<piSamplerCreate_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    sampler_properties: " << Args->sampler_properties << "\n";
+std::cout << "    result_sampler: " << Args->result_sampler << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piSamplerGetInfo): {
+const auto *Args = reinterpret_cast<piSamplerGetInfo_args*>(Data->args_data);
+std::cout << "    sampler: " << Args->sampler << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piSamplerRetain): {
+const auto *Args = reinterpret_cast<piSamplerRetain_args*>(Data->args_data);
+std::cout << "    sampler: " << Args->sampler << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piSamplerRelease): {
+const auto *Args = reinterpret_cast<piSamplerRelease_args*>(Data->args_data);
+std::cout << "    sampler: " << Args->sampler << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueKernelLaunch): {
+const auto *Args = reinterpret_cast<piEnqueueKernelLaunch_args*>(Data->args_data);
+std::cout << "    queue: " << Args->queue << "\n";
+std::cout << "    kernel: " << Args->kernel << "\n";
+std::cout << "    work_dim: " << Args->work_dim << "\n";
+std::cout << "    global_work_offset: " << Args->global_work_offset << "\n";
+std::cout << "    global_work_size: " << Args->global_work_size << "\n";
+std::cout << "    local_work_size: " << Args->local_work_size << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueEventsWait): {
+const auto *Args = reinterpret_cast<piEnqueueEventsWait_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueEventsWaitWithBarrier): {
+const auto *Args = reinterpret_cast<piEnqueueEventsWaitWithBarrier_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemBufferRead): {
+const auto *Args = reinterpret_cast<piEnqueueMemBufferRead_args*>(Data->args_data);
+std::cout << "    queue: " << Args->queue << "\n";
+std::cout << "    buffer: " << Args->buffer << "\n";
+std::cout << "    blocking_read: " << Args->blocking_read << "\n";
+std::cout << "    offset: " << Args->offset << "\n";
+std::cout << "    size: " << Args->size << "\n";
+std::cout << "    ptr: " << Args->ptr << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemBufferReadRect): {
+const auto *Args = reinterpret_cast<piEnqueueMemBufferReadRect_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    buffer: " << Args->buffer << "\n";
+std::cout << "    blocking_read: " << Args->blocking_read << "\n";
+std::cout << "    buffer_offset: " << Args->buffer_offset << "\n";
+std::cout << "    host_offset: " << Args->host_offset << "\n";
+std::cout << "    region: " << Args->region << "\n";
+std::cout << "    buffer_row_pitch: " << Args->buffer_row_pitch << "\n";
+std::cout << "    buffer_slice_pitch: " << Args->buffer_slice_pitch << "\n";
+std::cout << "    host_row_pitch: " << Args->host_row_pitch << "\n";
+std::cout << "    host_slice_pitch: " << Args->host_slice_pitch << "\n";
+std::cout << "    ptr: " << Args->ptr << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemBufferWrite): {
+const auto *Args = reinterpret_cast<piEnqueueMemBufferWrite_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    buffer: " << Args->buffer << "\n";
+std::cout << "    blocking_write: " << Args->blocking_write << "\n";
+std::cout << "    offset: " << Args->offset << "\n";
+std::cout << "    size: " << Args->size << "\n";
+std::cout << "    ptr: " << Args->ptr << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemBufferWriteRect): {
+const auto *Args = reinterpret_cast<piEnqueueMemBufferWriteRect_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    buffer: " << Args->buffer << "\n";
+std::cout << "    blocking_write: " << Args->blocking_write << "\n";
+std::cout << "    buffer_offset: " << Args->buffer_offset << "\n";
+std::cout << "    host_offset: " << Args->host_offset << "\n";
+std::cout << "    region: " << Args->region << "\n";
+std::cout << "    buffer_row_pitch: " << Args->buffer_row_pitch << "\n";
+std::cout << "    buffer_slice_pitch: " << Args->buffer_slice_pitch << "\n";
+std::cout << "    host_row_pitch: " << Args->host_row_pitch << "\n";
+std::cout << "    host_slice_pitch: " << Args->host_slice_pitch << "\n";
+std::cout << "    ptr: " << Args->ptr << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemBufferCopy): {
+const auto *Args = reinterpret_cast<piEnqueueMemBufferCopy_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    src_buffer: " << Args->src_buffer << "\n";
+std::cout << "    dst_buffer: " << Args->dst_buffer << "\n";
+std::cout << "    src_offset: " << Args->src_offset << "\n";
+std::cout << "    dst_offset: " << Args->dst_offset << "\n";
+std::cout << "    size: " << Args->size << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemBufferCopyRect): {
+const auto *Args = reinterpret_cast<piEnqueueMemBufferCopyRect_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    src_buffer: " << Args->src_buffer << "\n";
+std::cout << "    dst_buffer: " << Args->dst_buffer << "\n";
+std::cout << "    src_origin: " << Args->src_origin << "\n";
+std::cout << "    dst_origin: " << Args->dst_origin << "\n";
+std::cout << "    region: " << Args->region << "\n";
+std::cout << "    src_row_pitch: " << Args->src_row_pitch << "\n";
+std::cout << "    src_slice_pitch: " << Args->src_slice_pitch << "\n";
+std::cout << "    dst_row_pitch: " << Args->dst_row_pitch << "\n";
+std::cout << "    dst_slice_pitch: " << Args->dst_slice_pitch << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemBufferFill): {
+const auto *Args = reinterpret_cast<piEnqueueMemBufferFill_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    buffer: " << Args->buffer << "\n";
+std::cout << "    pattern: " << Args->pattern << "\n";
+std::cout << "    pattern_size: " << Args->pattern_size << "\n";
+std::cout << "    offset: " << Args->offset << "\n";
+std::cout << "    size: " << Args->size << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemImageRead): {
+const auto *Args = reinterpret_cast<piEnqueueMemImageRead_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    image: " << Args->image << "\n";
+std::cout << "    blocking_read: " << Args->blocking_read << "\n";
+std::cout << "    origin: " << Args->origin << "\n";
+std::cout << "    region: " << Args->region << "\n";
+std::cout << "    row_pitch: " << Args->row_pitch << "\n";
+std::cout << "    slice_pitch: " << Args->slice_pitch << "\n";
+std::cout << "    ptr: " << Args->ptr << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemImageWrite): {
+const auto *Args = reinterpret_cast<piEnqueueMemImageWrite_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    image: " << Args->image << "\n";
+std::cout << "    blocking_write: " << Args->blocking_write << "\n";
+std::cout << "    origin: " << Args->origin << "\n";
+std::cout << "    region: " << Args->region << "\n";
+std::cout << "    input_row_pitch: " << Args->input_row_pitch << "\n";
+std::cout << "    input_slice_pitch: " << Args->input_slice_pitch << "\n";
+std::cout << "    ptr: " << Args->ptr << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemImageCopy): {
+const auto *Args = reinterpret_cast<piEnqueueMemImageCopy_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    src_image: " << Args->src_image << "\n";
+std::cout << "    dst_image: " << Args->dst_image << "\n";
+std::cout << "    src_origin: " << Args->src_origin << "\n";
+std::cout << "    dst_origin: " << Args->dst_origin << "\n";
+std::cout << "    region: " << Args->region << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemImageFill): {
+const auto *Args = reinterpret_cast<piEnqueueMemImageFill_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    image: " << Args->image << "\n";
+std::cout << "    fill_color: " << Args->fill_color << "\n";
+std::cout << "    origin: " << Args->origin << "\n";
+std::cout << "    region: " << Args->region << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemBufferMap): {
+const auto *Args = reinterpret_cast<piEnqueueMemBufferMap_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    buffer: " << Args->buffer << "\n";
+std::cout << "    blocking_map: " << Args->blocking_map << "\n";
+std::cout << "    map_flags: " << Args->map_flags << "\n";
+std::cout << "    offset: " << Args->offset << "\n";
+std::cout << "    size: " << Args->size << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+std::cout << "    ret_map: " << Args->ret_map << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piEnqueueMemUnmap): {
+const auto *Args = reinterpret_cast<piEnqueueMemUnmap_args*>(Data->args_data);
+std::cout << "    command_queue: " << Args->command_queue << "\n";
+std::cout << "    memobj: " << Args->memobj << "\n";
+std::cout << "    mapped_ptr: " << Args->mapped_ptr << "\n";
+std::cout << "    num_events_in_wait_list: " << Args->num_events_in_wait_list << "\n";
+std::cout << "    event_wait_list: " << Args->event_wait_list << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextKernelSetArgMemObj): {
+const auto *Args = reinterpret_cast<piextKernelSetArgMemObj_args*>(Data->args_data);
+std::cout << "    kernel: " << Args->kernel << "\n";
+std::cout << "    arg_index: " << Args->arg_index << "\n";
+std::cout << "    arg_value: " << Args->arg_value << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextKernelSetArgSampler): {
+const auto *Args = reinterpret_cast<piextKernelSetArgSampler_args*>(Data->args_data);
+std::cout << "    kernel: " << Args->kernel << "\n";
+std::cout << "    arg_index: " << Args->arg_index << "\n";
+std::cout << "    arg_value: " << Args->arg_value << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextUSMHostAlloc): {
+const auto *Args = reinterpret_cast<piextUSMHostAlloc_args*>(Data->args_data);
+std::cout << "    result_ptr: " << Args->result_ptr << "\n";
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    properties: " << Args->properties << "\n";
+std::cout << "    size: " << Args->size << "\n";
+std::cout << "    alignment: " << Args->alignment << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextUSMDeviceAlloc): {
+const auto *Args = reinterpret_cast<piextUSMDeviceAlloc_args*>(Data->args_data);
+std::cout << "    result_ptr: " << Args->result_ptr << "\n";
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    device: " << Args->device << "\n";
+std::cout << "    properties: " << Args->properties << "\n";
+std::cout << "    size: " << Args->size << "\n";
+std::cout << "    alignment: " << Args->alignment << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextUSMSharedAlloc): {
+const auto *Args = reinterpret_cast<piextUSMSharedAlloc_args*>(Data->args_data);
+std::cout << "    result_ptr: " << Args->result_ptr << "\n";
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    device: " << Args->device << "\n";
+std::cout << "    properties: " << Args->properties << "\n";
+std::cout << "    size: " << Args->size << "\n";
+std::cout << "    alignment: " << Args->alignment << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextUSMFree): {
+const auto *Args = reinterpret_cast<piextUSMFree_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    ptr: " << Args->ptr << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextUSMEnqueueMemset): {
+const auto *Args = reinterpret_cast<piextUSMEnqueueMemset_args*>(Data->args_data);
+std::cout << "    queue: " << Args->queue << "\n";
+std::cout << "    ptr: " << Args->ptr << "\n";
+std::cout << "    value: " << Args->value << "\n";
+std::cout << "    count: " << Args->count << "\n";
+std::cout << "    num_events_in_waitlist: " << Args->num_events_in_waitlist << "\n";
+std::cout << "    events_waitlist: " << Args->events_waitlist << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextUSMEnqueueMemcpy): {
+const auto *Args = reinterpret_cast<piextUSMEnqueueMemcpy_args*>(Data->args_data);
+std::cout << "    queue: " << Args->queue << "\n";
+std::cout << "    blocking: " << Args->blocking << "\n";
+std::cout << "    dst_ptr: " << Args->dst_ptr << "\n";
+std::cout << "    src_ptr: " << Args->src_ptr << "\n";
+std::cout << "    size: " << Args->size << "\n";
+std::cout << "    num_events_in_waitlist: " << Args->num_events_in_waitlist << "\n";
+std::cout << "    events_waitlist: " << Args->events_waitlist << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextUSMEnqueuePrefetch): {
+const auto *Args = reinterpret_cast<piextUSMEnqueuePrefetch_args*>(Data->args_data);
+std::cout << "    queue: " << Args->queue << "\n";
+std::cout << "    ptr: " << Args->ptr << "\n";
+std::cout << "    size: " << Args->size << "\n";
+std::cout << "    flags: " << Args->flags << "\n";
+std::cout << "    num_events_in_waitlist: " << Args->num_events_in_waitlist << "\n";
+std::cout << "    events_waitlist: " << Args->events_waitlist << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextUSMEnqueueMemAdvise): {
+const auto *Args = reinterpret_cast<piextUSMEnqueueMemAdvise_args*>(Data->args_data);
+std::cout << "    queue: " << Args->queue << "\n";
+std::cout << "    ptr: " << Args->ptr << "\n";
+std::cout << "    length: " << Args->length << "\n";
+std::cout << "    advice: " << Args->advice << "\n";
+std::cout << "    event: " << Args->event << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextUSMGetMemAllocInfo): {
+const auto *Args = reinterpret_cast<piextUSMGetMemAllocInfo_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    ptr: " << Args->ptr << "\n";
+std::cout << "    param_name: " << Args->param_name << "\n";
+std::cout << "    param_value_size: " << Args->param_value_size << "\n";
+std::cout << "    param_value: " << Args->param_value << "\n";
+std::cout << "    param_value_size_ret: " << Args->param_value_size_ret << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piextPluginGetOpaqueData): {
+const auto *Args = reinterpret_cast<piextPluginGetOpaqueData_args*>(Data->args_data);
+std::cout << "    opaque_data_param: " << Args->opaque_data_param << "\n";
+std::cout << "    opaque_data_return: " << Args->opaque_data_return << "\n";
+break;
+}
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piTearDown): {
+const auto *Args = reinterpret_cast<piTearDown_args*>(Data->args_data);
+std::cout << "    PluginParameter: " << Args->PluginParameter << "\n";
+break;
+}

@@ -7609,7 +7609,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
 #include <CL/sycl/detail/pi.def>
 
-  if (std::getenv("SYCL_L0_ENABLE_TRACING") != nullptr) {
+  if (std::getenv("SYCL_PI_LEVEL_ZERO_ENABLE_TRACING") != nullptr) {
     enableL0Tracing();
   }
 

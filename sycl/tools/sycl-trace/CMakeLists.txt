@@ -10,7 +10,23 @@ link_llvm_libs(sycl-trace
   LLVMSupport
 )
 
-add_library(sycl_pi_trace_collector SHARED pi_trace_collector.cpp)
+add_library(sycl_pi_trace_collector SHARED
+  collector.cpp
+  pi_trace_collector.cpp
+  ze_trace_collector.cpp
+)
+
+# To get L0 loader
+add_dependencies(sycl_pi_trace_collector pi_level_zero)
+
+if (NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
+  set(LEVEL_ZERO_INCLUDE_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/../../plugins/level_zero/level_zero_loader/include")
+endif()
+target_include_directories(sycl_pi_trace_collector PRIVATE
+  ${LEVEL_ZERO_INCLUDE_DIR}
+)
+
 target_compile_definitions(sycl_pi_trace_collector PRIVATE XPTI_CALLBACK_API_EXPORTS)
 target_link_libraries(sycl_pi_trace_collector PRIVATE xptifw)
 if (TARGET OpenCL-Headers)
