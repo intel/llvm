@@ -1,0 +1,1150 @@
+case static_cast<uint32_t>(ZEApiKind::zeInit): {
+const auto *Args = reinterpret_cast<ze_init_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "pflags: " << Args->pflags;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeDriverGet): {
+const auto *Args = reinterpret_cast<ze_driver_get_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "ppCount: " << Args->ppCount;
+PrintOffset();
+std::cout << "pphDrivers: " << Args->pphDrivers;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeDriverGetApiVersion): {
+const auto *Args = reinterpret_cast<ze_driver_get_api_version_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phDriver: " << Args->phDriver;
+PrintOffset();
+std::cout << "pversion: " << Args->pversion;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeDriverGetProperties): {
+const auto *Args = reinterpret_cast<ze_driver_get_properties_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phDriver: " << Args->phDriver;
+PrintOffset();
+std::cout << "ppDriverProperties: " << Args->ppDriverProperties;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeDriverGetIpcProperties): {
+const auto *Args = reinterpret_cast<ze_driver_get_ipc_properties_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phDriver: " << Args->phDriver;
+PrintOffset();
+std::cout << "ppIpcProperties: " << Args->ppIpcProperties;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeDriverGetExtensionProperties): {
+const auto *Args = reinterpret_cast<ze_driver_get_extension_properties_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phDriver: " << Args->phDriver;
+PrintOffset();
+std::cout << "ppCount: " << Args->ppCount;
+PrintOffset();
+std::cout << "ppExtensionProperties: " << Args->ppExtensionProperties;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeContextCreate): {
+const auto *Args = reinterpret_cast<ze_context_create_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phDriver: " << Args->phDriver;
+PrintOffset();
+std::cout << "pdesc: " << Args->pdesc;
+PrintOffset();
+std::cout << "pphContext: " << Args->pphContext;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeContextDestroy): {
+const auto *Args = reinterpret_cast<ze_context_destroy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeContextGetStatus): {
+const auto *Args = reinterpret_cast<ze_context_get_status_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeContextSystemBarrier): {
+const auto *Args = reinterpret_cast<ze_context_system_barrier_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeContextMakeMemoryResident): {
+const auto *Args = reinterpret_cast<ze_context_make_memory_resident_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeContextEvictMemory): {
+const auto *Args = reinterpret_cast<ze_context_evict_memory_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeContextMakeImageResident): {
+const auto *Args = reinterpret_cast<ze_context_make_image_resident_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "phImage: " << Args->phImage;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeContextEvictImage): {
+const auto *Args = reinterpret_cast<ze_context_evict_image_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "phImage: " << Args->phImage;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandQueueCreate): {
+const auto *Args = reinterpret_cast<ze_command_queue_create_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "pdesc: " << Args->pdesc;
+PrintOffset();
+std::cout << "pphCommandQueue: " << Args->pphCommandQueue;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandQueueDestroy): {
+const auto *Args = reinterpret_cast<ze_command_queue_destroy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandQueue: " << Args->phCommandQueue;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandQueueExecuteCommandLists): {
+const auto *Args = reinterpret_cast<ze_command_queue_execute_command_lists_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandQueue: " << Args->phCommandQueue;
+PrintOffset();
+std::cout << "pnumCommandLists: " << Args->pnumCommandLists;
+PrintOffset();
+std::cout << "pphCommandLists: " << Args->pphCommandLists;
+PrintOffset();
+std::cout << "phFence: " << Args->phFence;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandQueueSynchronize): {
+const auto *Args = reinterpret_cast<ze_command_queue_synchronize_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandQueue: " << Args->phCommandQueue;
+PrintOffset();
+std::cout << "ptimeout: " << Args->ptimeout;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListCreate): {
+const auto *Args = reinterpret_cast<ze_command_list_create_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "pdesc: " << Args->pdesc;
+PrintOffset();
+std::cout << "pphCommandList: " << Args->pphCommandList;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListCreateImmediate): {
+const auto *Args = reinterpret_cast<ze_command_list_create_immediate_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "paltdesc: " << Args->paltdesc;
+PrintOffset();
+std::cout << "pphCommandList: " << Args->pphCommandList;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListDestroy): {
+const auto *Args = reinterpret_cast<ze_command_list_destroy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListClose): {
+const auto *Args = reinterpret_cast<ze_command_list_close_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListReset): {
+const auto *Args = reinterpret_cast<ze_command_list_reset_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendWriteGlobalTimestamp): {
+const auto *Args = reinterpret_cast<ze_command_list_append_write_global_timestamp_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "pdstptr: " << Args->pdstptr;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendBarrier): {
+const auto *Args = reinterpret_cast<ze_command_list_append_barrier_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendMemoryRangesBarrier): {
+const auto *Args = reinterpret_cast<ze_command_list_append_memory_ranges_barrier_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "pnumRanges: " << Args->pnumRanges;
+PrintOffset();
+std::cout << "ppRangeSizes: " << Args->ppRangeSizes;
+PrintOffset();
+std::cout << "ppRanges: " << Args->ppRanges;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendMemoryCopy): {
+const auto *Args = reinterpret_cast<ze_command_list_append_memory_copy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "pdstptr: " << Args->pdstptr;
+PrintOffset();
+std::cout << "psrcptr: " << Args->psrcptr;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendMemoryFill): {
+const auto *Args = reinterpret_cast<ze_command_list_append_memory_fill_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "ppattern: " << Args->ppattern;
+PrintOffset();
+std::cout << "ppattern_size: " << Args->ppattern_size;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendMemoryCopyRegion): {
+const auto *Args = reinterpret_cast<ze_command_list_append_memory_copy_region_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "pdstptr: " << Args->pdstptr;
+PrintOffset();
+std::cout << "pdstRegion: " << Args->pdstRegion;
+PrintOffset();
+std::cout << "pdstPitch: " << Args->pdstPitch;
+PrintOffset();
+std::cout << "pdstSlicePitch: " << Args->pdstSlicePitch;
+PrintOffset();
+std::cout << "psrcptr: " << Args->psrcptr;
+PrintOffset();
+std::cout << "psrcRegion: " << Args->psrcRegion;
+PrintOffset();
+std::cout << "psrcPitch: " << Args->psrcPitch;
+PrintOffset();
+std::cout << "psrcSlicePitch: " << Args->psrcSlicePitch;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendMemoryCopyFromContext): {
+const auto *Args = reinterpret_cast<ze_command_list_append_memory_copy_from_context_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "pdstptr: " << Args->pdstptr;
+PrintOffset();
+std::cout << "phContextSrc: " << Args->phContextSrc;
+PrintOffset();
+std::cout << "psrcptr: " << Args->psrcptr;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendImageCopy): {
+const auto *Args = reinterpret_cast<ze_command_list_append_image_copy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "phDstImage: " << Args->phDstImage;
+PrintOffset();
+std::cout << "phSrcImage: " << Args->phSrcImage;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendImageCopyRegion): {
+const auto *Args = reinterpret_cast<ze_command_list_append_image_copy_region_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "phDstImage: " << Args->phDstImage;
+PrintOffset();
+std::cout << "phSrcImage: " << Args->phSrcImage;
+PrintOffset();
+std::cout << "ppDstRegion: " << Args->ppDstRegion;
+PrintOffset();
+std::cout << "ppSrcRegion: " << Args->ppSrcRegion;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendImageCopyToMemory): {
+const auto *Args = reinterpret_cast<ze_command_list_append_image_copy_to_memory_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "pdstptr: " << Args->pdstptr;
+PrintOffset();
+std::cout << "phSrcImage: " << Args->phSrcImage;
+PrintOffset();
+std::cout << "ppSrcRegion: " << Args->ppSrcRegion;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendImageCopyFromMemory): {
+const auto *Args = reinterpret_cast<ze_command_list_append_image_copy_from_memory_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "phDstImage: " << Args->phDstImage;
+PrintOffset();
+std::cout << "psrcptr: " << Args->psrcptr;
+PrintOffset();
+std::cout << "ppDstRegion: " << Args->ppDstRegion;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendMemoryPrefetch): {
+const auto *Args = reinterpret_cast<ze_command_list_append_memory_prefetch_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendMemAdvise): {
+const auto *Args = reinterpret_cast<ze_command_list_append_mem_advise_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+PrintOffset();
+std::cout << "padvice: " << Args->padvice;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendSignalEvent): {
+const auto *Args = reinterpret_cast<ze_command_list_append_signal_event_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "phEvent: " << Args->phEvent;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendWaitOnEvents): {
+const auto *Args = reinterpret_cast<ze_command_list_append_wait_on_events_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "pnumEvents: " << Args->pnumEvents;
+PrintOffset();
+std::cout << "pphEvents: " << Args->pphEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendEventReset): {
+const auto *Args = reinterpret_cast<ze_command_list_append_event_reset_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "phEvent: " << Args->phEvent;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendQueryKernelTimestamps): {
+const auto *Args = reinterpret_cast<ze_command_list_append_query_kernel_timestamps_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "pnumEvents: " << Args->pnumEvents;
+PrintOffset();
+std::cout << "pphEvents: " << Args->pphEvents;
+PrintOffset();
+std::cout << "pdstptr: " << Args->pdstptr;
+PrintOffset();
+std::cout << "ppOffsets: " << Args->ppOffsets;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendLaunchKernel): {
+const auto *Args = reinterpret_cast<ze_command_list_append_launch_kernel_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "ppLaunchFuncArgs: " << Args->ppLaunchFuncArgs;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendLaunchCooperativeKernel): {
+const auto *Args = reinterpret_cast<ze_command_list_append_launch_cooperative_kernel_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "ppLaunchFuncArgs: " << Args->ppLaunchFuncArgs;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendLaunchKernelIndirect): {
+const auto *Args = reinterpret_cast<ze_command_list_append_launch_kernel_indirect_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "ppLaunchArgumentsBuffer: " << Args->ppLaunchArgumentsBuffer;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeCommandListAppendLaunchMultipleKernelsIndirect): {
+const auto *Args = reinterpret_cast<ze_command_list_append_launch_multiple_kernels_indirect_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandList: " << Args->phCommandList;
+PrintOffset();
+std::cout << "pnumKernels: " << Args->pnumKernels;
+PrintOffset();
+std::cout << "pphKernels: " << Args->pphKernels;
+PrintOffset();
+std::cout << "ppCountBuffer: " << Args->ppCountBuffer;
+PrintOffset();
+std::cout << "ppLaunchArgumentsBuffer: " << Args->ppLaunchArgumentsBuffer;
+PrintOffset();
+std::cout << "phSignalEvent: " << Args->phSignalEvent;
+PrintOffset();
+std::cout << "pnumWaitEvents: " << Args->pnumWaitEvents;
+PrintOffset();
+std::cout << "pphWaitEvents: " << Args->pphWaitEvents;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeFenceCreate): {
+const auto *Args = reinterpret_cast<ze_fence_create_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phCommandQueue: " << Args->phCommandQueue;
+PrintOffset();
+std::cout << "pdesc: " << Args->pdesc;
+PrintOffset();
+std::cout << "pphFence: " << Args->pphFence;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeFenceDestroy): {
+const auto *Args = reinterpret_cast<ze_fence_destroy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phFence: " << Args->phFence;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeFenceHostSynchronize): {
+const auto *Args = reinterpret_cast<ze_fence_host_synchronize_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phFence: " << Args->phFence;
+PrintOffset();
+std::cout << "ptimeout: " << Args->ptimeout;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeFenceQueryStatus): {
+const auto *Args = reinterpret_cast<ze_fence_query_status_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phFence: " << Args->phFence;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeFenceReset): {
+const auto *Args = reinterpret_cast<ze_fence_reset_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phFence: " << Args->phFence;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeEventPoolCreate): {
+const auto *Args = reinterpret_cast<ze_event_pool_create_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pdesc: " << Args->pdesc;
+PrintOffset();
+std::cout << "pnumDevices: " << Args->pnumDevices;
+PrintOffset();
+std::cout << "pphDevices: " << Args->pphDevices;
+PrintOffset();
+std::cout << "pphEventPool: " << Args->pphEventPool;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeEventPoolDestroy): {
+const auto *Args = reinterpret_cast<ze_event_pool_destroy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phEventPool: " << Args->phEventPool;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeEventPoolGetIpcHandle): {
+const auto *Args = reinterpret_cast<ze_event_pool_get_ipc_handle_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phEventPool: " << Args->phEventPool;
+PrintOffset();
+std::cout << "pphIpc: " << Args->pphIpc;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeEventPoolOpenIpcHandle): {
+const auto *Args = reinterpret_cast<ze_event_pool_open_ipc_handle_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phIpc: " << Args->phIpc;
+PrintOffset();
+std::cout << "pphEventPool: " << Args->pphEventPool;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeEventPoolCloseIpcHandle): {
+const auto *Args = reinterpret_cast<ze_event_pool_close_ipc_handle_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phEventPool: " << Args->phEventPool;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeEventCreate): {
+const auto *Args = reinterpret_cast<ze_event_create_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phEventPool: " << Args->phEventPool;
+PrintOffset();
+std::cout << "pdesc: " << Args->pdesc;
+PrintOffset();
+std::cout << "pphEvent: " << Args->pphEvent;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeEventDestroy): {
+const auto *Args = reinterpret_cast<ze_event_destroy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phEvent: " << Args->phEvent;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeEventHostSignal): {
+const auto *Args = reinterpret_cast<ze_event_host_signal_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phEvent: " << Args->phEvent;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeEventHostSynchronize): {
+const auto *Args = reinterpret_cast<ze_event_host_synchronize_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phEvent: " << Args->phEvent;
+PrintOffset();
+std::cout << "ptimeout: " << Args->ptimeout;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeEventQueryStatus): {
+const auto *Args = reinterpret_cast<ze_event_query_status_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phEvent: " << Args->phEvent;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeEventHostReset): {
+const auto *Args = reinterpret_cast<ze_event_host_reset_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phEvent: " << Args->phEvent;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeEventQueryKernelTimestamp): {
+const auto *Args = reinterpret_cast<ze_event_query_kernel_timestamp_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phEvent: " << Args->phEvent;
+PrintOffset();
+std::cout << "pdstptr: " << Args->pdstptr;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeImageGetProperties): {
+const auto *Args = reinterpret_cast<ze_image_get_properties_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "pdesc: " << Args->pdesc;
+PrintOffset();
+std::cout << "ppImageProperties: " << Args->ppImageProperties;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeImageCreate): {
+const auto *Args = reinterpret_cast<ze_image_create_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "pdesc: " << Args->pdesc;
+PrintOffset();
+std::cout << "pphImage: " << Args->pphImage;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeImageDestroy): {
+const auto *Args = reinterpret_cast<ze_image_destroy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phImage: " << Args->phImage;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeModuleCreate): {
+const auto *Args = reinterpret_cast<ze_module_create_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "pdesc: " << Args->pdesc;
+PrintOffset();
+std::cout << "pphModule: " << Args->pphModule;
+PrintOffset();
+std::cout << "pphBuildLog: " << Args->pphBuildLog;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeModuleDestroy): {
+const auto *Args = reinterpret_cast<ze_module_destroy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phModule: " << Args->phModule;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeModuleDynamicLink): {
+const auto *Args = reinterpret_cast<ze_module_dynamic_link_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "pnumModules: " << Args->pnumModules;
+PrintOffset();
+std::cout << "pphModules: " << Args->pphModules;
+PrintOffset();
+std::cout << "pphLinkLog: " << Args->pphLinkLog;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeModuleGetNativeBinary): {
+const auto *Args = reinterpret_cast<ze_module_get_native_binary_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phModule: " << Args->phModule;
+PrintOffset();
+std::cout << "ppSize: " << Args->ppSize;
+PrintOffset();
+std::cout << "ppModuleNativeBinary: " << Args->ppModuleNativeBinary;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeModuleGetGlobalPointer): {
+const auto *Args = reinterpret_cast<ze_module_get_global_pointer_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phModule: " << Args->phModule;
+PrintOffset();
+std::cout << "ppGlobalName: " << Args->ppGlobalName;
+PrintOffset();
+std::cout << "ppSize: " << Args->ppSize;
+PrintOffset();
+std::cout << "ppptr: " << Args->ppptr;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeModuleGetKernelNames): {
+const auto *Args = reinterpret_cast<ze_module_get_kernel_names_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phModule: " << Args->phModule;
+PrintOffset();
+std::cout << "ppCount: " << Args->ppCount;
+PrintOffset();
+std::cout << "ppNames: " << Args->ppNames;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeModuleGetProperties): {
+const auto *Args = reinterpret_cast<ze_module_get_properties_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phModule: " << Args->phModule;
+PrintOffset();
+std::cout << "ppModuleProperties: " << Args->ppModuleProperties;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeModuleGetFunctionPointer): {
+const auto *Args = reinterpret_cast<ze_module_get_function_pointer_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phModule: " << Args->phModule;
+PrintOffset();
+std::cout << "ppFunctionName: " << Args->ppFunctionName;
+PrintOffset();
+std::cout << "ppfnFunction: " << Args->ppfnFunction;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeModuleBuildLogDestroy): {
+const auto *Args = reinterpret_cast<ze_module_build_log_destroy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phModuleBuildLog: " << Args->phModuleBuildLog;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeModuleBuildLogGetString): {
+const auto *Args = reinterpret_cast<ze_module_build_log_get_string_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phModuleBuildLog: " << Args->phModuleBuildLog;
+PrintOffset();
+std::cout << "ppSize: " << Args->ppSize;
+PrintOffset();
+std::cout << "ppBuildLog: " << Args->ppBuildLog;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeKernelCreate): {
+const auto *Args = reinterpret_cast<ze_kernel_create_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phModule: " << Args->phModule;
+PrintOffset();
+std::cout << "pdesc: " << Args->pdesc;
+PrintOffset();
+std::cout << "pphKernel: " << Args->pphKernel;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeKernelDestroy): {
+const auto *Args = reinterpret_cast<ze_kernel_destroy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeKernelSetCacheConfig): {
+const auto *Args = reinterpret_cast<ze_kernel_set_cache_config_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "pflags: " << Args->pflags;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeKernelSetGroupSize): {
+const auto *Args = reinterpret_cast<ze_kernel_set_group_size_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "pgroupSizeX: " << Args->pgroupSizeX;
+PrintOffset();
+std::cout << "pgroupSizeY: " << Args->pgroupSizeY;
+PrintOffset();
+std::cout << "pgroupSizeZ: " << Args->pgroupSizeZ;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeKernelSuggestGroupSize): {
+const auto *Args = reinterpret_cast<ze_kernel_suggest_group_size_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "pglobalSizeX: " << Args->pglobalSizeX;
+PrintOffset();
+std::cout << "pglobalSizeY: " << Args->pglobalSizeY;
+PrintOffset();
+std::cout << "pglobalSizeZ: " << Args->pglobalSizeZ;
+PrintOffset();
+std::cout << "pgroupSizeX: " << Args->pgroupSizeX;
+PrintOffset();
+std::cout << "pgroupSizeY: " << Args->pgroupSizeY;
+PrintOffset();
+std::cout << "pgroupSizeZ: " << Args->pgroupSizeZ;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeKernelSuggestMaxCooperativeGroupCount): {
+const auto *Args = reinterpret_cast<ze_kernel_suggest_max_cooperative_group_count_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "ptotalGroupCount: " << Args->ptotalGroupCount;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeKernelSetArgumentValue): {
+const auto *Args = reinterpret_cast<ze_kernel_set_argument_value_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "pargIndex: " << Args->pargIndex;
+PrintOffset();
+std::cout << "pargSize: " << Args->pargSize;
+PrintOffset();
+std::cout << "ppArgValue: " << Args->ppArgValue;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeKernelSetIndirectAccess): {
+const auto *Args = reinterpret_cast<ze_kernel_set_indirect_access_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "pflags: " << Args->pflags;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeKernelGetIndirectAccess): {
+const auto *Args = reinterpret_cast<ze_kernel_get_indirect_access_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "ppFlags: " << Args->ppFlags;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeKernelGetSourceAttributes): {
+const auto *Args = reinterpret_cast<ze_kernel_get_source_attributes_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "ppSize: " << Args->ppSize;
+PrintOffset();
+std::cout << "ppString: " << Args->ppString;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeKernelGetProperties): {
+const auto *Args = reinterpret_cast<ze_kernel_get_properties_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "ppKernelProperties: " << Args->ppKernelProperties;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeKernelGetName): {
+const auto *Args = reinterpret_cast<ze_kernel_get_name_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phKernel: " << Args->phKernel;
+PrintOffset();
+std::cout << "ppSize: " << Args->ppSize;
+PrintOffset();
+std::cout << "ppName: " << Args->ppName;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeSamplerCreate): {
+const auto *Args = reinterpret_cast<ze_sampler_create_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "pdesc: " << Args->pdesc;
+PrintOffset();
+std::cout << "pphSampler: " << Args->pphSampler;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeSamplerDestroy): {
+const auto *Args = reinterpret_cast<ze_sampler_destroy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phSampler: " << Args->phSampler;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zePhysicalMemCreate): {
+const auto *Args = reinterpret_cast<ze_physical_mem_create_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "pdesc: " << Args->pdesc;
+PrintOffset();
+std::cout << "pphPhysicalMemory: " << Args->pphPhysicalMemory;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zePhysicalMemDestroy): {
+const auto *Args = reinterpret_cast<ze_physical_mem_destroy_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phPhysicalMemory: " << Args->phPhysicalMemory;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeMemAllocShared): {
+const auto *Args = reinterpret_cast<ze_mem_alloc_shared_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pdevice_desc: " << Args->pdevice_desc;
+PrintOffset();
+std::cout << "phost_desc: " << Args->phost_desc;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+PrintOffset();
+std::cout << "palignment: " << Args->palignment;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "ppptr: " << Args->ppptr;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeMemAllocDevice): {
+const auto *Args = reinterpret_cast<ze_mem_alloc_device_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pdevice_desc: " << Args->pdevice_desc;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+PrintOffset();
+std::cout << "palignment: " << Args->palignment;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "ppptr: " << Args->ppptr;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeMemAllocHost): {
+const auto *Args = reinterpret_cast<ze_mem_alloc_host_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phost_desc: " << Args->phost_desc;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+PrintOffset();
+std::cout << "palignment: " << Args->palignment;
+PrintOffset();
+std::cout << "ppptr: " << Args->ppptr;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeMemFree): {
+const auto *Args = reinterpret_cast<ze_mem_free_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeMemGetAllocProperties): {
+const auto *Args = reinterpret_cast<ze_mem_get_alloc_properties_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "ppMemAllocProperties: " << Args->ppMemAllocProperties;
+PrintOffset();
+std::cout << "pphDevice: " << Args->pphDevice;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeMemGetAddressRange): {
+const auto *Args = reinterpret_cast<ze_mem_get_address_range_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "ppBase: " << Args->ppBase;
+PrintOffset();
+std::cout << "ppSize: " << Args->ppSize;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeMemGetIpcHandle): {
+const auto *Args = reinterpret_cast<ze_mem_get_ipc_handle_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "ppIpcHandle: " << Args->ppIpcHandle;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeMemOpenIpcHandle): {
+const auto *Args = reinterpret_cast<ze_mem_open_ipc_handle_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "phandle: " << Args->phandle;
+PrintOffset();
+std::cout << "pflags: " << Args->pflags;
+PrintOffset();
+std::cout << "ppptr: " << Args->ppptr;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeMemCloseIpcHandle): {
+const auto *Args = reinterpret_cast<ze_mem_close_ipc_handle_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeVirtualMemReserve): {
+const auto *Args = reinterpret_cast<ze_virtual_mem_reserve_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "ppStart: " << Args->ppStart;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+PrintOffset();
+std::cout << "ppptr: " << Args->ppptr;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeVirtualMemFree): {
+const auto *Args = reinterpret_cast<ze_virtual_mem_free_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeVirtualMemQueryPageSize): {
+const auto *Args = reinterpret_cast<ze_virtual_mem_query_page_size_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "phDevice: " << Args->phDevice;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+PrintOffset();
+std::cout << "ppagesize: " << Args->ppagesize;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeVirtualMemMap): {
+const auto *Args = reinterpret_cast<ze_virtual_mem_map_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+PrintOffset();
+std::cout << "phPhysicalMemory: " << Args->phPhysicalMemory;
+PrintOffset();
+std::cout << "poffset: " << Args->poffset;
+PrintOffset();
+std::cout << "paccess: " << Args->paccess;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeVirtualMemUnmap): {
+const auto *Args = reinterpret_cast<ze_virtual_mem_unmap_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeVirtualMemSetAccessAttribute): {
+const auto *Args = reinterpret_cast<ze_virtual_mem_set_access_attribute_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+PrintOffset();
+std::cout << "paccess: " << Args->paccess;
+break;
+}
+case static_cast<uint32_t>(ZEApiKind::zeVirtualMemGetAccessAttribute): {
+const auto *Args = reinterpret_cast<ze_virtual_mem_get_access_attribute_params_t*>(Data->args_data);
+PrintOffset();
+std::cout << "phContext: " << Args->phContext;
+PrintOffset();
+std::cout << "pptr: " << Args->pptr;
+PrintOffset();
+std::cout << "psize: " << Args->psize;
+PrintOffset();
+std::cout << "paccess: " << Args->paccess;
+PrintOffset();
+std::cout << "poutSize: " << Args->poutSize;
+break;
+}
