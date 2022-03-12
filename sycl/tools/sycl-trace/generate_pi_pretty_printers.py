@@ -15,7 +15,7 @@ def generate_pi_pretty_printers(header):
     hdr.write("#pragma once\n")
     printers = open("pi_printers.def", "w")
 
-    matches = re.finditer(r'(pi[a-zA-Z]+)\(([a-zA-Z\_\s,\*0-9]*)\);', header)
+    matches = re.finditer(r'(pi[a-zA-Z]+)\(\n?\r?([\sa-zA-Z_,\*,=0-9]+)\);', header)
 
     for match in matches:
         api_name = str(match.group(1))
@@ -35,7 +35,7 @@ def generate_pi_pretty_printers(header):
         arg_names = []
 
         for arg in all_args:
-            name = arg.split(" ")[-1].replace('*', '')
+            name = arg.split("=")[0].strip().split(" ")[-1].replace('*', '')
             arg_names.append(name)
 
         printers.write("case static_cast<uint32_t>(sycl::detail::PiApiKind::{}): {{\n".format(api_name))

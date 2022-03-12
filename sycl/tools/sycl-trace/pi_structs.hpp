@@ -140,6 +140,14 @@ pi_context context;
 pi_queue *queue;
 bool pluginOwnsNativeHandle;
 };
+struct __attribute__((packed)) piMemBufferCreate_args {
+pi_context context;
+pi_mem_flags flags;
+size_t size;
+void *host_ptr;
+pi_mem *ret_mem;
+const pi_mem_properties *properties = nullptr;
+};
 struct __attribute__((packed)) piMemImageCreate_args {
 pi_context context;
 pi_mem_flags flags;
