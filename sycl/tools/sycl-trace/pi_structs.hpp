@@ -1,3 +1,12 @@
+//===-------------- pi_structs.hpp - PI Trace Structs ----------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+// clang-format off
+// This file is auto-generated! Do not modify!
 #pragma once
 struct __attribute__((packed)) piPlatformsGet_args {
 pi_uint32 num_entries;
