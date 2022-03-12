@@ -117,7 +117,10 @@ add_library(pi_level_zero SHARED
 )
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  target_compile_definitions(pi_level_zero PRIVATE XPTI_ENABLE_INSTRUMENTATION)
+  target_compile_definitions(pi_level_zero PRIVATE
+    XPTI_ENABLE_INSTRUMENTATION
+    XPTI_STATIC_LIBRARY
+  )
   target_include_directories(pi_level_zero PRIVATE "${CMAKE_SOURCE_DIR}/../xpti/include")
   target_link_libraries(pi_level_zero PRIVATE ${CMAKE_DL_LIBS})
 endif()

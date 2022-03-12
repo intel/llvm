@@ -60,7 +60,7 @@ static std::string getResult(pi_result Res) {
   case PI_INVALID_QUEUE:
     return "PI_INVALID_COMMAND_QUEUE";
   case PI_OUT_OF_HOST_MEMORY:
-    "PI_OUT_OF_HOST_MEMORY";
+    return "PI_OUT_OF_HOST_MEMORY";
   case PI_INVALID_PROGRAM:
     return "PI_INVALID_PROGRAM";
   case PI_INVALID_PROGRAM_EXECUTABLE:
@@ -139,10 +139,29 @@ static void setupClassicPrinter() {
       });
 }
 
-static void setupPrettyPrinter() {
+static void setupPrettyPrinter(bool Verbose) {
   HeaderPrinter = new std::function(
-      [](const pi_plugin &, const xpti::function_with_args_t *Data) {
-        std::cout << "[PI] " << Data->function_name << "(\n";
+      [Verbose](const pi_plugin &, const xpti::function_with_args_t *Data) {
+        if (Verbose) {
+          std::string Source = "<unknown>";
+          size_t Line = 0;
+
+          auto *Payload = xptiQueryPayloadByUID(xptiGetUniversalId());
+
+          if (Payload) {
+            if (Payload->source_file != nullptr) {
+              Source = Payload->source_file;
+              Line = Payload->line_no;
+            }
+          }
+
+          auto TID = std::this_thread::get_id();
+          std::cout << "[PI:TID " << TID << ":";
+          std::cout << Source << ":" << Line << "]\n";
+        } else {
+          std::cout << "[PI] ";
+        }
+        std::cout << Data->function_name << "(\n";
         switch (Data->function_id) {
 #include "pi_printers.def"
         }
@@ -153,18 +172,23 @@ static void setupPrettyPrinter() {
         }
       });
   ResultPrinter = new std::function([](pi_result Res) {
-    std::cout << " ---> " << getResult(Res) << std::endl;
+    if (HasZEPrinter) {
+      std::cout << "}";
+    }
+    std::cout << " ---> " << getResult(Res) << "\n" << std::endl;
   });
 }
 
 void piPrintersInit() {
   HasPIPrinter = true;
-  std::string_view PrinterType(std::getenv("SYCL_TRACE_PI_PRINTER"));
+  std::string_view PrinterType(std::getenv("SYCL_TRACE_PRINT_FORMAT"));
 
   if (PrinterType == "classic") {
     setupClassicPrinter();
-  } else if (PrinterType == "pretty") {
-    setupPrettyPrinter();
+  } else if (PrinterType == "verbose") {
+    setupPrettyPrinter(/*verbose*/ true);
+  } else if (PrinterType == "compact") {
+    setupPrettyPrinter(/*verbose*/ false);
   }
 }
 

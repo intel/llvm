@@ -58,12 +58,13 @@ void enableL0Tracing() {
 
   ze_result_t Status = zeInit(0);
   if (Status != ZE_RESULT_SUCCESS) {
-    std::cerr << "Fatal error when initializing L0\n";
-    std::terminate();
+    // Most likey there are no Level Zero devices.
+    return;
   }
 
-  zel_tracer_desc_t TracerDesc = {ZEL_STRUCTURE_TYPE_TRACER_DESC, nullptr,
-                                  nullptr};
+  int Foo = 0;
+  zel_tracer_desc_t TracerDesc = {ZEL_STRUCTURE_TYPE_TRACER_EXP_DESC, nullptr,
+                                  &Foo};
   zel_tracer_handle_t Tracer = nullptr;
 
   Status = zelTracerCreate(&TracerDesc, &Tracer);
