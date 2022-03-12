@@ -35,6 +35,89 @@ static sycl::xpti_helpers::PiArgumentsHandler *ArgHandler = nullptr;
 static HeaderPrinterT *HeaderPrinter = nullptr;
 static std::function<void(pi_result)> *ResultPrinter = nullptr;
 
+static std::string getResult(pi_result Res) {
+  switch (Res) {
+  case PI_SUCCESS:
+    return "PI_SUCCESS";
+  case PI_INVALID_KERNEL_NAME:
+    return "PI_INVALID_KERNEL_NAME";
+  case PI_INVALID_OPERATION:
+    return "CL_INVALID_OPERATION";
+  case PI_INVALID_KERNEL:
+    return "PI_INVALID_KERNEL";
+  case PI_INVALID_QUEUE_PROPERTIES:
+    return "PI_INVALID_QUEUE_PROPERTIES";
+  case PI_INVALID_VALUE:
+    return "PI_INVALID_VALUE";
+  case PI_INVALID_CONTEXT:
+    return "PI_INVALID_CONTEXT";
+  case PI_INVALID_PLATFORM:
+    return "PI_INVALID_PLATFORM";
+  case PI_INVALID_DEVICE:
+    return "PI_INVALID_DEVICE";
+  case PI_INVALID_BINARY:
+    return "PI_INVALID_BINARY";
+  case PI_INVALID_QUEUE:
+    return "PI_INVALID_COMMAND_QUEUE";
+  case PI_OUT_OF_HOST_MEMORY:
+    "PI_OUT_OF_HOST_MEMORY";
+  case PI_INVALID_PROGRAM:
+    return "PI_INVALID_PROGRAM";
+  case PI_INVALID_PROGRAM_EXECUTABLE:
+    return "PI_INVALID_PROGRAM_EXECUTABLE";
+  case PI_INVALID_SAMPLER:
+    return "PI_INVALID_SAMPLER";
+  case PI_INVALID_BUFFER_SIZE:
+    return "PI_INVALID_BUFFER_SIZE";
+  case PI_INVALID_MEM_OBJECT:
+    return "PI_INVALID_MEM_OBJECT";
+  case PI_OUT_OF_RESOURCES:
+    return "PI_OUT_OF_RESOURCES";
+  case PI_INVALID_EVENT:
+    return "PI_INVALID_EVENT";
+  case PI_INVALID_EVENT_WAIT_LIST:
+    return "PI_INVALID_EVENT_WAIT_LIST";
+  case PI_MISALIGNED_SUB_BUFFER_OFFSET:
+    return "PI_MISALIGNED_SUB_BUFFER_OFFSET";
+  case PI_BUILD_PROGRAM_FAILURE:
+    return "PI_BUILD_PROGRAM_FAILURE";
+  case PI_INVALID_WORK_GROUP_SIZE:
+    return "PI_INVALID_WORK_GROUP_SIZE";
+  case PI_COMPILER_NOT_AVAILABLE:
+    return "PI_COMPILER_NOT_AVAILABLE";
+  case PI_PROFILING_INFO_NOT_AVAILABLE:
+    return "PI_PROFILING_INFO_NOT_AVAILABLE";
+  case PI_DEVICE_NOT_FOUND:
+    return "PI_DEVICE_NOT_FOUND";
+  case PI_INVALID_WORK_ITEM_SIZE:
+    return "PI_INVALID_WORK_ITEM_SIZE";
+  case PI_INVALID_WORK_DIMENSION:
+    return "PI_INVALID_WORK_DIMENSION";
+  case PI_INVALID_KERNEL_ARGS:
+    return "PI_INVALID_KERNEL_ARGS";
+  case PI_INVALID_IMAGE_SIZE:
+    return "PI_INVALID_IMAGE_SIZE";
+  case PI_INVALID_ARG_VALUE:
+    return "PI_INVALID_ARG_VALUE";
+  case PI_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+    return "PI_INVALID_IMAGE_FORMAT_DESCRIPTOR";
+  case PI_IMAGE_FORMAT_NOT_SUPPORTED:
+    return "PI_IMAGE_FORMAT_NOT_SUPPORTED";
+  case PI_MEM_OBJECT_ALLOCATION_FAILURE:
+    return "PI_MEM_OBJECT_ALLOCATION_FAILURE";
+  case PI_LINK_PROGRAM_FAILURE:
+    return "PI_LINK_PROGRAM_FAILURE";
+  case PI_COMMAND_EXECUTION_FAILURE:
+    return "PI_COMMAND_EXECUTION_FAILURE";
+  case PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE:
+    return "PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE";
+  case PI_ERROR_UNKNOWN:
+    return "PI_ERROR_UNKNOWN";
+  }
+
+  return "UNKNOWN RESULT";
+}
+
 static void setupClassicPrinter() {
   ArgHandler = new sycl::xpti_helpers::PiArgumentsHandler();
 #define _PI_API(api)                                                           \
@@ -69,8 +152,9 @@ static void setupPrettyPrinter() {
           std::cout << " {" << std::endl;
         }
       });
-  ResultPrinter = new std::function(
-      [](pi_result Res) { std::cout << " ---> " << Res << std::endl; });
+  ResultPrinter = new std::function([](pi_result Res) {
+    std::cout << " ---> " << getResult(Res) << std::endl;
+  });
 }
 
 void piPrintersInit() {

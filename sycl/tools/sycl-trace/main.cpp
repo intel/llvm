@@ -46,7 +46,6 @@ int main(int argc, char **argv, char *env[]) {
   NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.so");
   NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_pi_trace_collector.so");
   NewEnv.push_back("XPTI_TRACE_ENABLE=1");
-  NewEnv.push_back("SYCL_PI_LEVEL_ZERO_ENABLE_TRACING=1");
 
   const auto EnablePITrace = [&]() {
     NewEnv.push_back("SYCL_TRACE_PI_ENABLE=1");
@@ -58,6 +57,7 @@ int main(int argc, char **argv, char *env[]) {
   };
   const auto EnableZETrace = [&]() {
     NewEnv.push_back("SYCL_TRACE_ZE_ENABLE=1");
+    NewEnv.push_back("SYCL_PI_LEVEL_ZERO_ENABLE_TRACING=1");
   };
 
   for (auto Mode : Modes) {

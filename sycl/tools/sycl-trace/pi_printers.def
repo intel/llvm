@@ -184,6 +184,16 @@ std::cout << "    queue: " << Args->queue << "\n";
 std::cout << "    pluginOwnsNativeHandle: " << Args->pluginOwnsNativeHandle << "\n";
 break;
 }
+case static_cast<uint32_t>(sycl::detail::PiApiKind::piMemBufferCreate): {
+const auto *Args = reinterpret_cast<piMemBufferCreate_args*>(Data->args_data);
+std::cout << "    context: " << Args->context << "\n";
+std::cout << "    flags: " << Args->flags << "\n";
+std::cout << "    size: " << Args->size << "\n";
+std::cout << "    host_ptr: " << Args->host_ptr << "\n";
+std::cout << "    ret_mem: " << Args->ret_mem << "\n";
+std::cout << "    properties: " << Args->properties << "\n";
+break;
+}
 case static_cast<uint32_t>(sycl::detail::PiApiKind::piMemImageCreate): {
 const auto *Args = reinterpret_cast<piMemImageCreate_args*>(Data->args_data);
 std::cout << "    context: " << Args->context << "\n";
