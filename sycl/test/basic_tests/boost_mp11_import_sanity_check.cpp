@@ -5,8 +5,9 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//  Derivative work, based on boost/mp11 tests.
-//  The original copyright is:
+//  Derivative work, based on boost/mp11 tests obtained from
+//  https://github.com/boostorg/mp11/blob/develop/test/mp_fill.cpp
+//  (git commit a231733). The original copyright is:
 //===----------------------------------------------------------------------===//
 //  Copyright 2015 Peter Dimov.
 //
