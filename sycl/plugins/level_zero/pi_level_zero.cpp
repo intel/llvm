@@ -7948,7 +7948,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
     enableL0Tracing();
   }
 
-
   return PI_SUCCESS;
 }
 

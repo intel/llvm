@@ -32,17 +32,14 @@ enum class ZEApiKind {
 #undef _ZE_API
 };
 
-static std::string getResult(ze_result_t Res) {
-  return "";
-}
+static std::string getResult(ze_result_t Res) { return ""; }
 
 XPTI_CALLBACK_API void zeCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t * /*Parent*/,
                                   xpti::trace_event_data_t * /*Event*/,
                                   uint64_t /*Instance*/, const void *UserData) {
   std::lock_guard _{GlobalLock};
-  const auto *Data =
-      static_cast<const xpti::function_with_args_t *>(UserData);
+  const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   if (TraceType == xpti::trace_function_with_args_begin) {
     const auto PrintOffset = [] {
       if (HasPIPrinter)
@@ -56,23 +53,22 @@ XPTI_CALLBACK_API void zeCallback(uint16_t TraceType,
 
     std::cout << "[L0] " << Data->function_name << "(\n";
 
-    switch(Data->function_id) {
+    switch (Data->function_id) {
 #include "ze_printers.def"
-      default:
-        break; // unknown API
+    default:
+      break; // unknown API
     }
 
     if (HasPIPrinter) {
       std::cout << "*  ";
     }
   } else if (TraceType == xpti::trace_function_with_args_end) {
-    std::cout << ") ---> " << getResult(*static_cast<ze_result_t*>(Data->ret_data));
+    std::cout << ") ---> "
+              << getResult(*static_cast<ze_result_t *>(Data->ret_data));
   }
 }
 
-void zePrintersInit() {
-  HasZEPrinter = true;
-}
+void zePrintersInit() { HasZEPrinter = true; }
 
 // For unification purpose
 void zePrintersFinish() {}

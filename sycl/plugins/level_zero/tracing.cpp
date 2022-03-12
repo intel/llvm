@@ -8,9 +8,9 @@
 
 #include "xpti/xpti_data_types.h"
 #include <exception>
-#include <xpti/xpti_trace_framework.h>
-#include <level_zero/ze_api.h>
 #include <level_zero/layers/zel_tracing_api.h>
+#include <level_zero/ze_api.h>
+#include <xpti/xpti_trace_framework.h>
 
 #include <iostream>
 
@@ -53,8 +53,8 @@ void enableL0Tracing() {
 
   xpti::payload_t L0DebugPayload("L0 Plugin Debug Layer");
   GDebugEvent =
-      xptiMakeEvent("L0 Plugin Debug Layer", &L0DebugPayload, xpti::trace_algorithm_event,
-                    xpti_at::active, &Dummy);
+      xptiMakeEvent("L0 Plugin Debug Layer", &L0DebugPayload,
+                    xpti::trace_algorithm_event, xpti_at::active, &Dummy);
 
   ze_result_t Status = zeInit(0);
   if (Status != ZE_RESULT_SUCCESS) {
@@ -76,36 +76,43 @@ void enableL0Tracing() {
   zel_core_callbacks_t Prologue = {};
   zel_core_callbacks_t Epilogue = {};
 
-#define _ZE_API(call, domain, cb, params_type) \
+#define _ZE_API(call, domain, cb, params_type)                                 \
   Prologue.domain.cb = [](params_type *Params, ze_result_t, void *, void **) { \
-    if (xptiTraceEnabled()) { \
-      uint8_t CallStreamID = xptiRegisterStream(L0_CALL_STREAM_NAME); \
-      uint8_t DebugStreamID = xptiRegisterStream(L0_DEBUG_STREAM_NAME); \
-      CallCorrelationID = xptiGetUniqueId(); \
-      DebugCorrelationID = xptiGetUniqueId(); \
-      const char *FuncName = #call; \
-      xptiNotifySubscribers(CallStreamID, (uint16_t)xpti::trace_point_type_t::function_begin, \
-          GCallEvent, nullptr, CallCorrelationID, FuncName); \
-      uint32_t FuncID = static_cast<uint32_t>(ZEApiKind::call); \
-      xpti::function_with_args_t Payload{FuncID, FuncName, Params, nullptr, nullptr}; \
-      xptiNotifySubscribers( \
-        DebugStreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin, \
-        GDebugEvent, nullptr, DebugCorrelationID, &Payload); \
-    } \
-  }; \
-  Epilogue.domain.cb = [](params_type *Params, ze_result_t Result, void *, void **) { \
-    if (xptiTraceEnabled()) { \
-      uint8_t CallStreamID = xptiRegisterStream(L0_CALL_STREAM_NAME); \
-      uint8_t DebugStreamID = xptiRegisterStream(L0_DEBUG_STREAM_NAME); \
-      const char *FuncName = #call; \
-      xptiNotifySubscribers(CallStreamID, (uint16_t)xpti::trace_point_type_t::function_end, \
-          GCallEvent, nullptr, CallCorrelationID, FuncName); \
-      uint32_t FuncID = static_cast<uint32_t>(ZEApiKind::call); \
-      xpti::function_with_args_t Payload{FuncID, FuncName, Params, &Result, nullptr}; \
-      xptiNotifySubscribers( \
-        DebugStreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end, \
-        GDebugEvent, nullptr, DebugCorrelationID, &Payload); \
-    } \
+    if (xptiTraceEnabled()) {                                                  \
+      uint8_t CallStreamID = xptiRegisterStream(L0_CALL_STREAM_NAME);          \
+      uint8_t DebugStreamID = xptiRegisterStream(L0_DEBUG_STREAM_NAME);        \
+      CallCorrelationID = xptiGetUniqueId();                                   \
+      DebugCorrelationID = xptiGetUniqueId();                                  \
+      const char *FuncName = #call;                                            \
+      xptiNotifySubscribers(                                                   \
+          CallStreamID, (uint16_t)xpti::trace_point_type_t::function_begin,    \
+          GCallEvent, nullptr, CallCorrelationID, FuncName);                   \
+      uint32_t FuncID = static_cast<uint32_t>(ZEApiKind::call);                \
+      xpti::function_with_args_t Payload{FuncID, FuncName, Params, nullptr,    \
+                                         nullptr};                             \
+      xptiNotifySubscribers(                                                   \
+          DebugStreamID,                                                       \
+          (uint16_t)xpti::trace_point_type_t::function_with_args_begin,        \
+          GDebugEvent, nullptr, DebugCorrelationID, &Payload);                 \
+    }                                                                          \
+  };                                                                           \
+  Epilogue.domain.cb = [](params_type *Params, ze_result_t Result, void *,     \
+                          void **) {                                           \
+    if (xptiTraceEnabled()) {                                                  \
+      uint8_t CallStreamID = xptiRegisterStream(L0_CALL_STREAM_NAME);          \
+      uint8_t DebugStreamID = xptiRegisterStream(L0_DEBUG_STREAM_NAME);        \
+      const char *FuncName = #call;                                            \
+      xptiNotifySubscribers(CallStreamID,                                      \
+                            (uint16_t)xpti::trace_point_type_t::function_end,  \
+                            GCallEvent, nullptr, CallCorrelationID, FuncName); \
+      uint32_t FuncID = static_cast<uint32_t>(ZEApiKind::call);                \
+      xpti::function_with_args_t Payload{FuncID, FuncName, Params, &Result,    \
+                                         nullptr};                             \
+      xptiNotifySubscribers(                                                   \
+          DebugStreamID,                                                       \
+          (uint16_t)xpti::trace_point_type_t::function_with_args_end,          \
+          GDebugEvent, nullptr, DebugCorrelationID, &Payload);                 \
+    }                                                                          \
   };
 
 #include "ze_api.def"
