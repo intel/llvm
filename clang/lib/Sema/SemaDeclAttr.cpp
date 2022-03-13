@@ -3428,8 +3428,8 @@ static bool checkWorkGroupSizeAttrValues(
   const auto *WGSYDimExpr = dyn_cast<ConstantExpr>(WGSYDim);
   const auto *WGSZDimExpr = dyn_cast<ConstantExpr>(WGSZDim);
 
-  if (!RWGSXDimExpr || !RWGSYDimExpr || !RWGSZDimExpr || !MWGSXDimExpr ||
-      !MWGSYDimExpr || !MWGSZDimExpr)
+  if (!RWGSXDimExpr || !RWGSYDimExpr || !RWGSZDimExpr || !WGSXDimExpr ||
+      !WGSYDimExpr || !WGSZDimExpr)
     return false;
 
   // Otherwise, check if value of 'reqd_work_group_size' attribute argument
