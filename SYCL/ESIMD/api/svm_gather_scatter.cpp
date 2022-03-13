@@ -79,18 +79,30 @@ int main(void) {
 
   bool Pass = true;
 
+  Pass &= test<int8_t, 1>(Q);
+  Pass &= test<int8_t, 2>(Q);
+  Pass &= test<int8_t, 4>(Q);
   Pass &= test<int8_t, 8>(Q);
   Pass &= test<int8_t, 16>(Q);
   Pass &= test<int8_t, 32>(Q);
 
+  Pass &= test<int16_t, 1>(Q);
+  Pass &= test<int16_t, 2>(Q);
+  Pass &= test<int16_t, 4>(Q);
   Pass &= test<int16_t, 8>(Q);
   Pass &= test<int16_t, 16>(Q);
   Pass &= test<int16_t, 32>(Q);
 
+  Pass &= test<int32_t, 1>(Q);
+  Pass &= test<int32_t, 2>(Q);
+  Pass &= test<int32_t, 4>(Q);
   Pass &= test<int32_t, 8>(Q);
   Pass &= test<int32_t, 16>(Q);
   Pass &= test<int32_t, 32>(Q);
 
+  Pass &= test<half, 1>(Q);
+  Pass &= test<half, 2>(Q);
+  Pass &= test<half, 4>(Q);
   Pass &= test<half, 8>(Q);
   Pass &= test<half, 16>(Q);
   Pass &= test<half, 32>(Q);
