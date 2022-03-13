@@ -706,7 +706,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     const auto *CE = cast<ConstantExpr>(A->getValue());
     Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
-        Builder.getInt32(ArgVal->getSExtValue()))};
+        Builder.getInt32(ArgVal->getZExtValue()))};
     Fn->setMetadata("num_simd_work_items",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
