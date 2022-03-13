@@ -39,13 +39,16 @@ public:
     bool isFilledIn() const { return !Msg.empty(); }
   };
 
+  /// Denotes the state of a build.
+  enum BuildState { BS_InProgress, BS_Done, BS_Failed };
+
   /// Denotes pointer to some entity with its general state and build error.
   /// The pointer is not null if and only if the entity is usable.
   /// State of the entity is provided by the user of cache instance.
   /// Currently there is only a single user - ProgramManager class.
   template <typename T> struct BuildResult {
     std::atomic<T *> Ptr;
-    std::atomic<int> State;
+    std::atomic<BuildState> State;
     BuildError Error;
 
     /// Condition variable to signal that build result is ready.
@@ -62,7 +65,7 @@ public:
     /// A mutex to be employed along with MBuildCV.
     std::mutex MBuildResultMutex;
 
-    BuildResult(T *P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
+    BuildResult(T *P, BuildState S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
 
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
@@ -70,7 +73,15 @@ public:
   using ProgramWithBuildStateT = BuildResult<PiProgramT>;
   using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
                                      std::pair<RT::PiDevice, std::string>>;
-  using ProgramCacheT = std::map<ProgramCacheKeyT, ProgramWithBuildStateT>;
+  using CommonProgramKeyT = std::pair<std::uintptr_t, RT::PiDevice>;
+
+  struct ProgramCache {
+    std::map<ProgramCacheKeyT, ProgramWithBuildStateT> Cache;
+    std::multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
+
+    size_t size() { return Cache.size(); }
+  };
+
   using ContextPtr = context_impl *;
 
   using PiKernelT = std::remove_pointer<RT::PiKernel>::type;
@@ -91,7 +102,7 @@ public:
 
   void setContextPtr(const ContextPtr &AContext) { MParentContext = AContext; }
 
-  Locked<ProgramCacheT> acquireCachedPrograms() {
+  Locked<ProgramCache> acquireCachedPrograms() {
     return {MCachedPrograms, MProgramCacheMutex};
   }
 
@@ -99,11 +110,56 @@ public:
     return {MKernelsPerProgramCache, MKernelsPerProgramCacheMutex};
   }
 
+  std::pair<ProgramWithBuildStateT *, bool>
+  getOrInsertProgram(const ProgramCacheKeyT &CacheKey) {
+    auto LockedCache = acquireCachedPrograms();
+    auto &ProgCache = LockedCache.get();
+    auto Inserted = ProgCache.Cache.emplace(
+        std::piecewise_construct, std::forward_as_tuple(CacheKey),
+        std::forward_as_tuple(nullptr, BS_InProgress));
+    if (Inserted.second) {
+      // Save reference between the common key and the full key.
+      CommonProgramKeyT CommonKey =
+          std::make_pair(CacheKey.first.second, CacheKey.second.first);
+      ProgCache.KeyMap.emplace(std::piecewise_construct,
+                               std::forward_as_tuple(CommonKey),
+                               std::forward_as_tuple(CacheKey));
+    }
+    return std::make_pair(&Inserted.first->second, Inserted.second);
+  }
+
+  std::pair<KernelWithBuildStateT *, bool>
+  getOrInsertKernel(RT::PiProgram Program, const std::string &KernelName) {
+    auto LockedCache = acquireKernelsPerProgramCache();
+    auto &Cache = LockedCache.get()[Program];
+    auto Inserted = Cache.emplace(
+        std::piecewise_construct, std::forward_as_tuple(KernelName),
+        std::forward_as_tuple(nullptr, BS_InProgress));
+    return std::make_pair(&Inserted.first->second, Inserted.second);
+  }
+
   template <typename T, class Predicate>
   void waitUntilBuilt(BuildResult<T> &BR, Predicate Pred) const {
     std::unique_lock<std::mutex> Lock(BR.MBuildResultMutex);
 
     BR.MBuildCV.wait(Lock, Pred);
+  }
+
+  template <typename ExceptionT, typename RetT>
+  RetT *waitUntilBuilt(BuildResult<RetT> *BuildResult) {
+    // any thread which will find nullptr in cache will wait until the pointer
+    // is not null anymore
+    waitUntilBuilt(*BuildResult, [BuildResult]() {
+      int State = BuildResult->State.load();
+      return State == BuildState::BS_Done || State == BuildState::BS_Failed;
+    });
+
+    if (BuildResult->Error.isFilledIn()) {
+      const BuildError &Error = BuildResult->Error;
+      throw ExceptionT(Error.Msg, Error.Code);
+    }
+
+    return BuildResult->Ptr.load();
   }
 
   template <typename T> void notifyAllBuild(BuildResult<T> &BR) const {
@@ -132,7 +188,7 @@ public:
   ///
   /// This member function should only be used in unit tests.
   void reset() {
-    MCachedPrograms = ProgramCacheT{};
+    MCachedPrograms = ProgramCache{};
     MKernelsPerProgramCache = KernelCacheT{};
     MKernelFastCache = KernelFastCacheT{};
   }
@@ -141,7 +197,7 @@ private:
   std::mutex MProgramCacheMutex;
   std::mutex MKernelsPerProgramCacheMutex;
 
-  ProgramCacheT MCachedPrograms;
+  ProgramCache MCachedPrograms;
   KernelCacheT MKernelsPerProgramCache;
   ContextPtr MParentContext;
 

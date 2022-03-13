@@ -19,6 +19,7 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/info/info_desc.hpp>
@@ -1058,6 +1059,267 @@ public:
     } _CODELOCFW(CodeLoc));
   }
 
+  /// Copies data from a USM memory region to a device_global.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Dest, as specified through \param NumBytes and
+  /// \param Offset.
+  ///
+  /// \param Dest is the destination device_glboal.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param NumBytes is a number of bytes to copy.
+  /// \param Offset is the offset into \param Dest to copy to.
+  /// \param DepEvents is a vector of events that specifies the operation
+  /// dependencies.
+  /// \return an event representing copy operation.
+  template <typename T, typename PropertyListT>
+  event memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
+               const void *Src, size_t NumBytes, size_t Offset,
+               const std::vector<event> &DepEvents) {
+    if (sizeof(T) < Offset + NumBytes)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Copy to device_global is out of bounds.");
+
+    constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
+        ext::oneapi::experimental::device_image_scope_key>();
+    return memcpyToDeviceGlobal(&Dest, Src, IsDeviceImageScoped, NumBytes,
+                                Offset, DepEvents);
+  }
+
+  /// Copies data from a USM memory region to a device_global.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Dest, as specified through \param NumBytes and
+  /// \param Offset.
+  ///
+  /// \param Dest is the destination device_glboal.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param NumBytes is a number of bytes to copy.
+  /// \param Offset is the offset into \param Dest to copy to.
+  /// \param DepEvent is a vector of event that specifies the operation
+  /// dependency.
+  /// \return an event representing copy operation.
+  template <typename T, typename PropertyListT>
+  event memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
+               const void *Src, size_t NumBytes, size_t Offset,
+               event DepEvent) {
+    return this->memcpy(Dest, Src, NumBytes, Offset,
+                        std::vector<event>{DepEvent});
+  }
+
+  /// Copies data from a USM memory region to a device_global.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Dest, as specified through \param NumBytes and
+  /// \param Offset.
+  ///
+  /// \param Dest is the destination device_glboal.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param NumBytes is a number of bytes to copy.
+  /// \param Offset is the offset into \param Dest to copy to.
+  /// \return an event representing copy operation.
+  template <typename T, typename PropertyListT>
+  event memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
+               const void *Src, size_t NumBytes = sizeof(T),
+               size_t Offset = 0) {
+    return this->memcpy(Dest, Src, NumBytes, Offset, std::vector<event>{});
+  }
+
+  /// Copies data from a device_global to USM memory.
+  /// Throws an exception if the copy operation intends to read outside the
+  /// memory range \param Src, as specified through \param NumBytes and
+  /// \param Offset.
+  ///
+  /// \param Dest is a USM pointer to copy to.
+  /// \param Src is the source device_global.
+  /// \param NumBytes is a number of bytes to copy.
+  /// \param Offset is the offset into \param Src to copy from.
+  /// \param DepEvents is a vector of events that specifies the operation
+  /// dependencies.
+  /// \return an event representing copy operation.
+  template <typename T, typename PropertyListT>
+  event
+  memcpy(void *Dest,
+         const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
+         size_t NumBytes, size_t Offset, const std::vector<event> &DepEvents) {
+    if (sizeof(T) < Offset + NumBytes)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Copy from device_global is out of bounds.");
+
+    constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
+        ext::oneapi::experimental::device_image_scope_key>();
+    return memcpyFromDeviceGlobal(Dest, &Src, IsDeviceImageScoped, NumBytes,
+                                  Offset, DepEvents);
+  }
+
+  /// Copies data from a device_global to USM memory.
+  /// Throws an exception if the copy operation intends to read outside the
+  /// memory range \param Src, as specified through \param NumBytes and
+  /// \param Offset.
+  ///
+  /// \param Dest is a USM pointer to copy to.
+  /// \param Src is the source device_global.
+  /// \param NumBytes is a number of bytes to copy.
+  /// \param Offset is the offset into \param Src to copy from.
+  /// \param DepEvent is a vector of event that specifies the operation
+  /// dependency.
+  /// \return an event representing copy operation.
+  template <typename T, typename PropertyListT>
+  event
+  memcpy(void *Dest,
+         const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
+         size_t NumBytes, size_t Offset, event DepEvent) {
+    return this->memcpy(Dest, Src, NumBytes, Offset,
+                        std::vector<event>{DepEvent});
+  }
+
+  /// Copies data from a device_global to USM memory.
+  /// Throws an exception if the copy operation intends to read outside the
+  /// memory range \param Src, as specified through \param NumBytes and
+  /// \param Offset.
+  ///
+  /// \param Dest is a USM pointer to copy to.
+  /// \param Src is the source device_global.
+  /// \param NumBytes is a number of bytes to copy.
+  /// \param Offset is the offset into \param Src to copy from.
+  /// \return an event representing copy operation.
+  template <typename T, typename PropertyListT>
+  event
+  memcpy(void *Dest,
+         const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
+         size_t NumBytes = sizeof(T), size_t Offset = 0) {
+    return this->memcpy(Dest, Src, NumBytes, Offset, std::vector<event>{});
+  }
+
+  /// Copies elements of type `std::remove_all_extents_t<T>` from a USM memory
+  /// region to a device_global.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Dest, as specified through \param Count and
+  /// \param StartIndex.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is the destination device_glboal.
+  /// \param Count is a number of elements to copy.
+  /// \param StartIndex is the index of the first element in Dest to copy to.
+  /// \param DepEvents is a vector of events that specifies the operation
+  /// dependencies.
+  /// \return an event representing copy operation.
+  template <typename T, typename PropertyListT>
+  event copy(const std::remove_all_extents_t<T> *Src,
+             ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
+             size_t Count, size_t StartIndex,
+             const std::vector<event> &DepEvents) {
+    return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
+                        StartIndex * sizeof(std::remove_all_extents_t<T>),
+                        DepEvents);
+  }
+
+  /// Copies elements of type `std::remove_all_extents_t<T>` from a USM memory
+  /// region to a device_global.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Dest, as specified through \param Count and
+  /// \param StartIndex.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is the destination device_glboal.
+  /// \param Count is a number of elements to copy.
+  /// \param StartIndex is the index of the first element in Dest to copy to.
+  /// \param DepEvent is a vector of event that specifies the operation
+  /// dependency.
+  /// \return an event representing copy operation.
+  template <typename T, typename PropertyListT>
+  event copy(const std::remove_all_extents_t<T> *Src,
+             ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
+             size_t Count, size_t StartIndex, event DepEvent) {
+    return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
+                        StartIndex * sizeof(std::remove_all_extents_t<T>),
+                        DepEvent);
+  }
+
+  /// Copies elements of type `std::remove_all_extents_t<T>` from a USM memory
+  /// region to a device_global.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Dest, as specified through \param Count and
+  /// \param StartIndex.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is the destination device_glboal.
+  /// \param Count is a number of elements to copy.
+  /// \param StartIndex is the index of the first element in Dest to copy to.
+  /// \return an event representing copy operation.
+  template <typename T, typename PropertyListT>
+  event copy(const std::remove_all_extents_t<T> *Src,
+             ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
+             size_t Count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
+             size_t StartIndex = 0) {
+    return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
+                        StartIndex * sizeof(std::remove_all_extents_t<T>));
+  }
+
+  /// Copies elements of type `std::remove_all_extents_t<T>` from a
+  /// device_global to a USM memory region.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Src, as specified through \param Count and
+  /// \param StartIndex.
+  ///
+  /// \param Src is the source device_global.
+  /// \param Dest is a USM pointer to copy to.
+  /// \param Count is a number of elements to copy.
+  /// \param StartIndex is the index of the first element in Src to copy from.
+  /// \param DepEvents is a vector of events that specifies the operation
+  /// dependencies.
+  /// \return an event representing copy operation.
+  template <typename T, typename PropertyListT>
+  event
+  copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
+       std::remove_all_extents_t<T> *Dest, size_t Count, size_t StartIndex,
+       const std::vector<event> &DepEvents) {
+    return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
+                        StartIndex * sizeof(std::remove_all_extents_t<T>),
+                        DepEvents);
+  }
+
+  /// Copies elements of type `std::remove_all_extents_t<T>` from a
+  /// device_global to a USM memory region.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Src, as specified through \param Count and
+  /// \param StartIndex.
+  ///
+  /// \param Src is the source device_global.
+  /// \param Dest is a USM pointer to copy to.
+  /// \param Count is a number of elements to copy.
+  /// \param StartIndex is the index of the first element in Src to copy from.
+  /// \param DepEvent is a vector of event that specifies the operation
+  /// dependency.
+  /// \return an event representing copy operation.
+  template <typename T, typename PropertyListT>
+  event
+  copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
+       std::remove_all_extents_t<T> *Dest, size_t Count, size_t StartIndex,
+       event DepEvent) {
+    return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
+                        StartIndex * sizeof(std::remove_all_extents_t<T>),
+                        DepEvent);
+  }
+
+  /// Copies elements of type `std::remove_all_extents_t<T>` from a
+  /// device_global to a USM memory region.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Src, as specified through \param Count and
+  /// \param StartIndex.
+  ///
+  /// \param Src is the source device_global.
+  /// \param Dest is a USM pointer to copy to.
+  /// \param Count is a number of elements to copy.
+  /// \param StartIndex is the index of the first element in Src to copy from.
+  /// \return an event representing copy operation.
+  template <typename T, typename PropertyListT>
+  event
+  copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
+       std::remove_all_extents_t<T> *Dest,
+       size_t Count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
+       size_t StartIndex = 0) {
+    return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
+                        StartIndex * sizeof(std::remove_all_extents_t<T>));
+  }
+
   /// single_task version with a kernel represented as a lambda.
   ///
   /// \param Properties is the kernel properties.
@@ -1781,6 +2043,15 @@ private:
   }
 
   buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();
+
+  event memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
+                             bool IsDeviceImageScope, size_t NumBytes,
+                             size_t Offset,
+                             const std::vector<event> &DepEvents);
+  event memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                               bool IsDeviceImageScope, size_t NumBytes,
+                               size_t Offset,
+                               const std::vector<event> &DepEvents);
 };
 
 namespace detail {

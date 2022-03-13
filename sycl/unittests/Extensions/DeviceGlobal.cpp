@@ -9,6 +9,9 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/sycl.hpp>
 
+#include "detail/context_impl.hpp"
+#include "detail/kernel_program_cache.hpp"
+
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -20,8 +23,16 @@
 class DeviceGlobalTestKernel;
 constexpr const char *DeviceGlobalTestKernelName = "DeviceGlobalTestKernel";
 constexpr const char *DeviceGlobalName = "DeviceGlobalName";
+class DeviceGlobalImgScopeTestKernel;
+constexpr const char *DeviceGlobalImgScopeTestKernelName =
+    "DeviceGlobalImgScopeTestKernel";
+constexpr const char *DeviceGlobalImgScopeName = "DeviceGlobalImgScopeName";
 
-sycl::ext::oneapi::experimental::device_global<int> DeviceGlobal;
+sycl::ext::oneapi::experimental::device_global<int[2]> DeviceGlobal;
+sycl::ext::oneapi::experimental::device_global<
+    int[2], decltype(sycl::ext::oneapi::experimental::properties(
+                sycl::ext::oneapi::experimental::device_image_scope))>
+    DeviceGlobalImgScope;
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -33,6 +44,20 @@ template <> struct KernelInfo<DeviceGlobalTestKernel> {
     return Dummy;
   }
   static constexpr const char *getName() { return DeviceGlobalTestKernelName; }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
+};
+template <> struct KernelInfo<DeviceGlobalImgScopeTestKernel> {
+  static constexpr unsigned getNumParams() { return 0; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() {
+    return DeviceGlobalImgScopeTestKernelName;
+  }
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
@@ -52,7 +77,7 @@ static sycl::unittest::PiImage generateDeviceGlobalImage() {
   // Insert remaining device global info into the binary.
   PiPropertySet PropSet;
   PiProperty DevGlobInfo =
-      makeDeviceGlobalInfo(DeviceGlobalName, sizeof(int), 0);
+      makeDeviceGlobalInfo(DeviceGlobalName, sizeof(int) * 2, 0);
   PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
                  PiArray<PiProperty>{std::move(DevGlobInfo)});
 
@@ -72,18 +97,54 @@ static sycl::unittest::PiImage generateDeviceGlobalImage() {
   return Img;
 }
 
+static sycl::unittest::PiImage generateDeviceGlobalImgScopeImage() {
+  using namespace sycl::unittest;
+
+  // Call device global map initializer explicitly to mimic the integration
+  // header.
+  sycl::detail::device_global_map::add(&DeviceGlobalImgScope,
+                                       DeviceGlobalImgScopeName);
+
+  // Insert remaining device global info into the binary.
+  PiPropertySet PropSet;
+  PiProperty DevGlobInfo =
+      makeDeviceGlobalInfo(DeviceGlobalImgScopeName, sizeof(int) * 2, 1);
+  PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
+                 PiArray<PiProperty>{std::move(DevGlobInfo)});
+
+  std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
+
+  PiArray<PiOffloadEntry> Entries =
+      makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
+
+  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "",                                     // Compile options
+              "",                                     // Link options
+              std::move(Bin),
+              std::move(Entries),
+              std::move(PropSet)};
+
+  return Img;
+}
+
 namespace {
-sycl::unittest::PiImage Imgs[] = {generateDeviceGlobalImage()};
-sycl::unittest::PiImageArray<1> ImgArray{Imgs};
+sycl::unittest::PiImage Imgs[] = {generateDeviceGlobalImage(),
+                                  generateDeviceGlobalImgScopeImage()};
+sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
 // Trackers.
 thread_local std::optional<pi_event> DeviceGlobalFillEvent = std::nullopt;
 thread_local std::optional<pi_event> DeviceGlobalWriteEvent = std::nullopt;
 thread_local unsigned KernelCallCounter = 0;
+thread_local unsigned DeviceGlobalWriteCounter = 0;
+thread_local unsigned DeviceGlobalReadCounter = 0;
 
 // Markers.
 thread_local bool TreatDeviceGlobalFillEventAsCompleted = false;
 thread_local bool TreatDeviceGlobalWriteEventAsCompleted = false;
+thread_local std::optional<pi_program> ExpectedReadWritePIProgram =
+    std::nullopt;
 
 static pi_result after_piextUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
                                              pi_uint32, const pi_event *,
@@ -94,12 +155,33 @@ static pi_result after_piextUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
   return PI_SUCCESS;
 }
 
+template <bool Exclusive>
 pi_result after_piextEnqueueDeviceGlobalVariableWrite(
-    pi_queue, pi_program, const char *, pi_bool, size_t, size_t, const void *,
-    pi_uint32, const pi_event *, pi_event *event) {
-  EXPECT_FALSE(DeviceGlobalWriteEvent.has_value())
-      << "piextEnqueueDeviceGlobalVariableWrite is called multiple times!";
+    pi_queue, pi_program program, const char *, pi_bool, size_t, size_t,
+    const void *, pi_uint32, const pi_event *, pi_event *event) {
+  if constexpr (Exclusive) {
+    EXPECT_FALSE(DeviceGlobalWriteEvent.has_value())
+        << "piextEnqueueDeviceGlobalVariableWrite is called multiple times!";
+  }
+  if (ExpectedReadWritePIProgram.has_value()) {
+    EXPECT_EQ(*ExpectedReadWritePIProgram, program)
+        << "piextEnqueueDeviceGlobalVariableWrite did not receive the expected "
+           "program!";
+  }
   DeviceGlobalWriteEvent = *event;
+  ++DeviceGlobalWriteCounter;
+  return PI_SUCCESS;
+}
+
+pi_result after_piextEnqueueDeviceGlobalVariableRead(
+    pi_queue, pi_program program, const char *, pi_bool, size_t, size_t, void *,
+    pi_uint32, const pi_event *, pi_event *) {
+  if (ExpectedReadWritePIProgram.has_value()) {
+    EXPECT_EQ(*ExpectedReadWritePIProgram, program)
+        << "piextEnqueueDeviceGlobalVariableRead did not receive the expected "
+           "program!";
+  }
+  ++DeviceGlobalReadCounter;
   return PI_SUCCESS;
 }
 
@@ -174,8 +256,11 @@ void ResetTrackersAndMarkers() {
   DeviceGlobalWriteEvent = std::nullopt;
   DeviceGlobalFillEvent = std::nullopt;
   KernelCallCounter = 0;
+  DeviceGlobalWriteCounter = 0;
+  DeviceGlobalReadCounter = 0;
   TreatDeviceGlobalFillEventAsCompleted = false;
   TreatDeviceGlobalWriteEventAsCompleted = false;
+  ExpectedReadWritePIProgram = std::nullopt;
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
@@ -188,13 +273,15 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
       after_piextUSMEnqueueMemset);
   Mock.redefineAfter<
       sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite);
+      after_piextEnqueueDeviceGlobalVariableWrite<true>);
   Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
       after_piEventGetInfo);
   Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
       after_piEnqueueKernelLaunch);
 
-  sycl::queue Q{Plt.get_devices()[0]};
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
 
   // Kernel call 1.
   // First launch should create both init events.
@@ -214,4 +301,570 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
   // Treat the both init event as finished.
   TreatDeviceGlobalFillEventAsCompleted = true;
   Q.single_task<DeviceGlobalTestKernel>([]() {});
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
+      after_piextUSMEnqueueMemset);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<true>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
+      after_piEventGetInfo);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  int Vals[2] = {42, 1234};
+  Q.copy(Vals, DeviceGlobal).wait();
+
+  // Device global should not have been written to yet. Fill operation is not
+  // needed since the device_global will have a new value.
+  EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(!DeviceGlobalFillEvent.has_value());
+
+  Q.single_task<DeviceGlobalTestKernel>([]() {});
+
+  // The device global should now have its USM memory pointer written, but fill
+  // should still not have happened as an explicit write have happened to the
+  // underlying memory.
+  EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(!DeviceGlobalFillEvent.has_value());
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
+      after_piextUSMEnqueueMemset);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<true>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
+      after_piEventGetInfo);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  int Vals[2] = {42, 1234};
+  Q.memcpy(DeviceGlobal, Vals).wait();
+
+  // Device global should not have been written to yet. Fill operation is not
+  // needed since the device_global will have a new value.
+  EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(!DeviceGlobalFillEvent.has_value());
+
+  Q.single_task<DeviceGlobalTestKernel>([]() {});
+
+  // The device global should now have its USM memory pointer written, but fill
+  // should still not have happened as an explicit write have happened to the
+  // underlying memory.
+  EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(!DeviceGlobalFillEvent.has_value());
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
+      after_piextUSMEnqueueMemset);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<true>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
+      after_piEventGetInfo);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  int Val = 42;
+  Q.copy(&Val, DeviceGlobal, 1).wait();
+
+  // Device global should not have been written to yet. The fill operation must
+  // have happened as the copy was only partial.
+  EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+
+  Q.single_task<DeviceGlobalTestKernel>([]() {});
+
+  // The device global should now have its USM memory pointer written.
+  EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
+      after_piextUSMEnqueueMemset);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<true>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
+      after_piEventGetInfo);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  int Val = 42;
+  Q.memcpy(DeviceGlobal, &Val, sizeof(int)).wait();
+
+  // Device global should not have been written to yet. The fill operation must
+  // have happened as the copy was only partial.
+  EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+
+  Q.single_task<DeviceGlobalTestKernel>([]() {});
+
+  // The device global should now have its USM memory pointer written.
+  EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
+      after_piextUSMEnqueueMemset);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<true>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
+      after_piEventGetInfo);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  int Val = 42;
+  Q.copy(&Val, DeviceGlobal, 1, 1).wait();
+
+  // Device global should not have been written to yet. The fill operation must
+  // have happened as the copy was only partial.
+  EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+
+  Q.single_task<DeviceGlobalTestKernel>([]() {});
+
+  // The device global should now have its USM memory pointer written.
+  EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
+      after_piextUSMEnqueueMemset);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<true>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
+      after_piEventGetInfo);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  int Val = 42;
+  Q.memcpy(DeviceGlobal, &Val, sizeof(int), sizeof(int)).wait();
+
+  // Device global should not have been written to yet. The fill operation must
+  // have happened as the copy was only partial.
+  EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+
+  Q.single_task<DeviceGlobalTestKernel>([]() {});
+
+  // The device global should now have its USM memory pointer written.
+  EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalCopyFromBeforeUse) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
+      after_piextUSMEnqueueMemset);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<true>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
+      after_piEventGetInfo);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  int Vals[2] = {42, 1234};
+  Q.copy(DeviceGlobal, Vals);
+
+  EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalMemcpyFromBeforeUse) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
+      after_piextUSMEnqueueMemset);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<true>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
+      after_piEventGetInfo);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  int Vals[2] = {42, 1234};
+  Q.memcpy(Vals, DeviceGlobal);
+
+  EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalUseBeforeCopyTo) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
+      after_piextUSMEnqueueMemset);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<true>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
+      after_piEventGetInfo);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
+
+  // Device global will have been initialized at this point.
+  EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+
+  int Vals[2] = {42, 1234};
+  Q.copy(Vals, DeviceGlobal).wait();
+
+  Q.single_task<DeviceGlobalTestKernel>([]() {});
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalUseBeforeMemcpyTo) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
+      after_piextUSMEnqueueMemset);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<true>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
+      after_piEventGetInfo);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  Q.single_task<DeviceGlobalTestKernel>([]() {});
+
+  // Device global will have been initialized at this point.
+  EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+
+  // Copy to should only copy to USM memory. If fill or a copy to the device
+  // global happens it should fail here.
+  int Vals[2] = {42, 1234};
+  Q.memcpy(DeviceGlobal, Vals).wait();
+
+  Q.single_task<DeviceGlobalTestKernel>([]() {});
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyToBeforeUse) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<false>);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
+      after_piextEnqueueDeviceGlobalVariableRead);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  int Vals[2] = {42, 1234};
+  Q.copy(Vals, DeviceGlobalImgScope).wait();
+
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+
+  EXPECT_EQ(DeviceGlobalWriteCounter, 1u);
+  EXPECT_EQ(DeviceGlobalReadCounter, 0u);
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyToBeforeUse) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<false>);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
+      after_piextEnqueueDeviceGlobalVariableRead);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  int Vals[2] = {42, 1234};
+  Q.memcpy(DeviceGlobalImgScope, Vals).wait();
+
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+
+  EXPECT_EQ(DeviceGlobalWriteCounter, 1u);
+  EXPECT_EQ(DeviceGlobalReadCounter, 0u);
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyFromBeforeUse) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<false>);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
+      after_piextEnqueueDeviceGlobalVariableRead);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  int Vals[2] = {42, 1234};
+  Q.copy(DeviceGlobalImgScope, Vals).wait();
+
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+
+  EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
+  EXPECT_EQ(DeviceGlobalReadCounter, 1u);
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyFromBeforeUse) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<false>);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
+      after_piextEnqueueDeviceGlobalVariableRead);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  int Vals[2] = {42, 1234};
+  Q.memcpy(Vals, DeviceGlobalImgScope).wait();
+
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+
+  EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
+  EXPECT_EQ(DeviceGlobalReadCounter, 1u);
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyTo) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<false>);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
+      after_piextEnqueueDeviceGlobalVariableRead);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+
+  // Register the cached program as expected for device global memory operation.
+  auto CtxImpl = sycl::detail::getSyclObjImpl(C);
+  sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
+      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+  ASSERT_EQ(KernelCache.size(), (size_t)1)
+      << "Expect 1 program in kernel cache";
+  ExpectedReadWritePIProgram = KernelCache.begin()->first;
+
+  // Expect no write or read yet.
+  EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
+  EXPECT_EQ(DeviceGlobalReadCounter, 0u);
+
+  int Vals[2] = {42, 1234};
+  Q.copy(Vals, DeviceGlobalImgScope).wait();
+
+  EXPECT_EQ(DeviceGlobalWriteCounter, 1u);
+  EXPECT_EQ(DeviceGlobalReadCounter, 0u);
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyTo) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<false>);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
+      after_piextEnqueueDeviceGlobalVariableRead);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+
+  // Register the cached program as expected for device global memory operation.
+  auto CtxImpl = sycl::detail::getSyclObjImpl(C);
+  sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
+      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+  ASSERT_EQ(KernelCache.size(), (size_t)1)
+      << "Expect 1 program in kernel cache";
+  ExpectedReadWritePIProgram = KernelCache.begin()->first;
+
+  // Expect no write or read yet.
+  EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
+  EXPECT_EQ(DeviceGlobalReadCounter, 0u);
+
+  int Vals[2] = {42, 1234};
+  Q.memcpy(DeviceGlobalImgScope, Vals).wait();
+
+  EXPECT_EQ(DeviceGlobalWriteCounter, 1u);
+  EXPECT_EQ(DeviceGlobalReadCounter, 0u);
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyFrom) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<false>);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
+      after_piextEnqueueDeviceGlobalVariableRead);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+
+  // Register the cached program as expected for device global memory operation.
+  auto CtxImpl = sycl::detail::getSyclObjImpl(C);
+  sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
+      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+  ASSERT_EQ(KernelCache.size(), (size_t)1)
+      << "Expect 1 program in kernel cache";
+  ExpectedReadWritePIProgram = KernelCache.begin()->first;
+
+  // Expect no write or read yet.
+  EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
+  EXPECT_EQ(DeviceGlobalReadCounter, 0u);
+
+  int Vals[2] = {42, 1234};
+  Q.copy(DeviceGlobalImgScope, Vals).wait();
+
+  EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
+  EXPECT_EQ(DeviceGlobalReadCounter, 1u);
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyFrom) {
+  ResetTrackersAndMarkers();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite<false>);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
+      after_piextEnqueueDeviceGlobalVariableRead);
+
+  // Create new context to isolate device_global initialization.
+  sycl::context C{Plt.get_devices()[0]};
+  sycl::queue Q{C, sycl::default_selector_v};
+
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+
+  // Register the cached program as expected for device global memory operation.
+  auto CtxImpl = sycl::detail::getSyclObjImpl(C);
+  sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
+      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+  ASSERT_EQ(KernelCache.size(), (size_t)1)
+      << "Expect 1 program in kernel cache";
+  ExpectedReadWritePIProgram = KernelCache.begin()->first;
+
+  // Expect no write or read yet.
+  EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
+  EXPECT_EQ(DeviceGlobalReadCounter, 0u);
+
+  int Vals[2] = {42, 1234};
+  Q.memcpy(Vals, DeviceGlobalImgScope).wait();
+
+  EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
+  EXPECT_EQ(DeviceGlobalReadCounter, 1u);
 }

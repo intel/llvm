@@ -13,6 +13,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <set>
 
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/pi.hpp>
@@ -47,6 +48,11 @@ struct DeviceGlobalMapEntry {
   std::string MUniqueId;
   // Pointer to the device_global on host.
   const void *MDeviceGlobalPtr;
+  // The image identifiers for the images using the device_global used by in the
+  // cache.
+  std::set<std::uintptr_t> MImageIdentifiers;
+  // The kernel-set IDs for the images using the device_global.
+  std::set<KernelSetId> MKSIds;
   // Size of the underlying type in the device_global.
   std::uint32_t MDeviceGlobalTSize;
   // True if the device_global has been decorated with device_image_scope.
@@ -56,13 +62,16 @@ struct DeviceGlobalMapEntry {
   // be initialized later.
   DeviceGlobalMapEntry(std::string UniqueId, const void *DeviceGlobalPtr)
       : MUniqueId(UniqueId), MDeviceGlobalPtr(DeviceGlobalPtr),
-        MDeviceGlobalTSize(0), MIsDeviceImageScopeDecorated(false) {}
+        MImageIdentifiers(), MKSIds(), MDeviceGlobalTSize(0),
+        MIsDeviceImageScopeDecorated(false) {}
 
   // Constructor for only initializing ID, type size, and device image scope
   // flag. The pointer to the device global will be initialized later.
-  DeviceGlobalMapEntry(std::string UniqueId, std::uint32_t DeviceGlobalTSize,
+  DeviceGlobalMapEntry(std::string UniqueId, std::uintptr_t ImgId,
+                       KernelSetId KSId, std::uint32_t DeviceGlobalTSize,
                        bool IsDeviceImageScopeDecorated)
       : MUniqueId(UniqueId), MDeviceGlobalPtr(nullptr),
+        MImageIdentifiers{ImgId}, MKSIds{KSId},
         MDeviceGlobalTSize(DeviceGlobalTSize),
         MIsDeviceImageScopeDecorated(IsDeviceImageScopeDecorated) {}
 
@@ -76,7 +85,8 @@ struct DeviceGlobalMapEntry {
 
   // Initialize the device_global's element type size and the flag signalling
   // if the device_global has the device_image_scope property.
-  void initialize(std::uint32_t DeviceGlobalTSize,
+  void initialize(std::uintptr_t ImgId, KernelSetId KSId,
+                  std::uint32_t DeviceGlobalTSize,
                   bool IsDeviceImageScopeDecorated) {
     if (MDeviceGlobalTSize != 0) {
       // The device global entry has already been initialized. This can happen
@@ -89,6 +99,8 @@ struct DeviceGlobalMapEntry {
           "Device global intializations disagree on image scope decoration.");
       return;
     }
+    MImageIdentifiers.insert(ImgId);
+    MKSIds.insert(KSId);
     MDeviceGlobalTSize = DeviceGlobalTSize;
     MIsDeviceImageScopeDecorated = IsDeviceImageScopeDecorated;
   }
@@ -96,7 +108,7 @@ struct DeviceGlobalMapEntry {
   // Gets or allocates USM memory for a device_global.
   DeviceGlobalUSMMem &
   getOrAllocateDeviceGlobalUSM(const std::shared_ptr<queue_impl> &QueueImpl,
-                               bool ZeroInit = false);
+                               bool ZeroInit);
 
   // Removes resources for device_globals associated with the context.
   void removeAssociatedResources(const context_impl *CtxImpl);

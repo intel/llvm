@@ -18,6 +18,7 @@
 #include <sycl/detail/handler_proxy.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
@@ -2574,6 +2575,89 @@ public:
       commonUSMFill2DFallbackKernel(Dest, DestPitch, Pattern, Width, Height);
   }
 
+  /// Copies data from a USM memory region to a device_global.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Dest, as specified through \param NumBytes and
+  /// \param Offset.
+  ///
+  /// \param Dest is the destination device_glboal.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param NumBytes is a number of bytes to copy.
+  /// \param Offset is the offset into \param Dest to copy to.
+  template <typename T, typename PropertyListT>
+  void memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
+              const void *Src, size_t NumBytes = sizeof(T), size_t Offset = 0) {
+    if (sizeof(T) < Offset + NumBytes)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Copy to device_global is out of bounds.");
+
+    constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
+        ext::oneapi::experimental::device_image_scope_key>();
+    memcpyToDeviceGlobal(&Dest, Src, IsDeviceImageScoped, NumBytes, Offset);
+  }
+
+  /// Copies data from a device_global to USM memory.
+  /// Throws an exception if the copy operation intends to read outside the
+  /// memory range \param Src, as specified through \param NumBytes and
+  /// \param Offset.
+  ///
+  /// \param Dest is a USM pointer to copy to.
+  /// \param Src is the source device_global.
+  /// \param NumBytes is a number of bytes to copy.
+  /// \param Offset is the offset into \param Src to copy from.
+  template <typename T, typename PropertyListT>
+  void
+  memcpy(void *Dest,
+         const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
+         size_t NumBytes = sizeof(T), size_t Offset = 0) {
+    if (sizeof(T) < Offset + NumBytes)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Copy from device_global is out of bounds.");
+
+    constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
+        ext::oneapi::experimental::device_image_scope_key>();
+    memcpyFromDeviceGlobal(Dest, &Src, IsDeviceImageScoped, NumBytes, Offset);
+  }
+
+  /// Copies elements of type `std::remove_all_extents_t<T>` from a USM memory
+  /// region to a device_global.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Dest, as specified through \param Count and
+  /// \param StartIndex.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is the destination device_glboal.
+  /// \param Count is a number of elements to copy.
+  /// \param StartIndex is the index of the first element in Dest to copy to.
+  template <typename T, typename PropertyListT>
+  void copy(const std::remove_all_extents_t<T> *Src,
+            ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
+            size_t Count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
+            size_t StartIndex = 0) {
+    this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
+                 StartIndex * sizeof(std::remove_all_extents_t<T>));
+  }
+
+  /// Copies elements of type `std::remove_all_extents_t<T>` from a
+  /// device_global to a USM memory region.
+  /// Throws an exception if the copy operation intends to write outside the
+  /// memory range \param Src, as specified through \param Count and
+  /// \param StartIndex.
+  ///
+  /// \param Src is the source device_global.
+  /// \param Dest is a USM pointer to copy to.
+  /// \param Count is a number of elements to copy.
+  /// \param StartIndex is the index of the first element in Src to copy from.
+  template <typename T, typename PropertyListT>
+  void
+  copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
+       std::remove_all_extents_t<T> *Dest,
+       size_t Count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
+       size_t StartIndex = 0) {
+    this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
+                 StartIndex * sizeof(std::remove_all_extents_t<T>));
+  }
+
 private:
   std::shared_ptr<detail::handler_impl> MImpl;
   std::shared_ptr<detail::queue_impl> MQueue;
@@ -2772,6 +2856,16 @@ private:
   // Implementation of ext_oneapi_memset2d using command for native 2D memset.
   void ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
                                 size_t Width, size_t Height);
+
+  // Implementation of memcpy to device_global.
+  void memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,
+                            bool IsDeviceImageScoped, size_t NumBytes,
+                            size_t Offset);
+
+  // Implementation of memcpy from device_global.
+  void memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                              bool IsDeviceImageScoped, size_t NumBytes,
+                              size_t Offset);
 };
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

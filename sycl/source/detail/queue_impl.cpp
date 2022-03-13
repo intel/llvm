@@ -229,6 +229,100 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
+event queue_impl::memcpyToDeviceGlobal(
+    const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
+    const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
+    const std::vector<event> &DepEvents) {
+  if (MHasDiscardEventsSupport) {
+    MemoryManager::copy_to_device_global(
+        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
+        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext), nullptr);
+    return createDiscardedEvent();
+  }
+  event ResEvent;
+  {
+    // We need to submit command and update the last event under same lock if we
+    // have in-order queue.
+    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
+                                 : std::unique_lock<std::mutex>();
+    // If the last submitted command in the in-order queue is host_task then
+    // wait for it before submitting usm command.
+    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
+                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+      MLastEvent.wait();
+
+    RT::PiEvent NativeEvent{};
+    MemoryManager::copy_to_device_global(
+        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
+        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext),
+        &NativeEvent);
+
+    if (MContext->is_host())
+      return MDiscardEvents ? createDiscardedEvent() : event();
+
+    ResEvent = prepareUSMEvent(Self, NativeEvent);
+
+    if (isInOrder()) {
+      MLastEvent = ResEvent;
+      // We don't create a command group for usm commands, so set it to None.
+      // This variable is used to perform explicit dependency management when
+      // required.
+      MLastCGType = CG::CGTYPE::None;
+    }
+  }
+  // Track only if we won't be able to handle it with piQueueFinish.
+  if (!MSupportOOO)
+    addSharedEvent(ResEvent);
+  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+}
+
+event queue_impl::memcpyFromDeviceGlobal(
+    const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
+    const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
+    size_t Offset, const std::vector<event> &DepEvents) {
+  if (MHasDiscardEventsSupport) {
+    MemoryManager::copy_from_device_global(
+        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
+        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext), nullptr);
+    return createDiscardedEvent();
+  }
+  event ResEvent;
+  {
+    // We need to submit command and update the last event under same lock if we
+    // have in-order queue.
+    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
+                                 : std::unique_lock<std::mutex>();
+    // If the last submitted command in the in-order queue is host_task then
+    // wait for it before submitting usm command.
+    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
+                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+      MLastEvent.wait();
+
+    RT::PiEvent NativeEvent{};
+    MemoryManager::copy_from_device_global(
+        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
+        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext),
+        &NativeEvent);
+
+    if (MContext->is_host())
+      return MDiscardEvents ? createDiscardedEvent() : event();
+
+    ResEvent = prepareUSMEvent(Self, NativeEvent);
+
+    if (isInOrder()) {
+      MLastEvent = ResEvent;
+      // We don't create a command group for usm commands, so set it to None.
+      // This variable is used to perform explicit dependency management when
+      // required.
+      MLastCGType = CG::CGTYPE::None;
+    }
+  }
+  // Track only if we won't be able to handle it with piQueueFinish.
+  if (!MSupportOOO)
+    addSharedEvent(ResEvent);
+  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+}
+
 void queue_impl::addEvent(const event &Event) {
   EventImplPtr EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");

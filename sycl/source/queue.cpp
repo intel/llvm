@@ -212,6 +212,24 @@ buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
   return impl->getAssertHappenedBuffer();
 }
 
+event queue::memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
+                                  bool IsDeviceImageScope, size_t NumBytes,
+                                  size_t Offset,
+                                  const std::vector<event> &DepEvents) {
+  return impl->memcpyToDeviceGlobal(impl, DeviceGlobalPtr, Src,
+                                    IsDeviceImageScope, NumBytes, Offset,
+                                    DepEvents);
+}
+
+event queue::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                                    bool IsDeviceImageScope, size_t NumBytes,
+                                    size_t Offset,
+                                    const std::vector<event> &DepEvents) {
+  return impl->memcpyFromDeviceGlobal(impl, Dest, DeviceGlobalPtr,
+                                      IsDeviceImageScope, NumBytes, Offset,
+                                      DepEvents);
+}
+
 bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
   return impl->getDeviceImplPtr()->has(Aspect);

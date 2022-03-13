@@ -16,6 +16,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/usm/usm_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
@@ -320,6 +321,22 @@ event handler::finalize() {
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
+  case detail::CG::CopyToDeviceGlobal: {
+    CommandGroup.reset(new detail::CGCopyToDeviceGlobal(
+        MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
+        std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MOSModuleHandle, MCodeLoc));
+    break;
+  }
+  case detail::CG::CopyFromDeviceGlobal: {
+    CommandGroup.reset(new detail::CGCopyFromDeviceGlobal(
+        MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
+        std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MOSModuleHandle, MCodeLoc));
+    break;
+  }
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
@@ -813,6 +830,30 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   id<2> ItemLimit = Dev.get_info<info::device::max_work_item_sizes<2>>() *
                     Dev.get_info<info::device::max_compute_units>();
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
+}
+
+void handler::memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,
+                                   bool IsDeviceImageScoped, size_t NumBytes,
+                                   size_t Offset) {
+  throwIfActionIsCreated();
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = const_cast<void *>(DeviceGlobalPtr);
+  MImpl->MIsDeviceImageScoped = IsDeviceImageScoped;
+  MLength = NumBytes;
+  MImpl->MOffset = Offset;
+  setType(detail::CG::CopyToDeviceGlobal);
+}
+
+void handler::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                                     bool IsDeviceImageScoped, size_t NumBytes,
+                                     size_t Offset) {
+  throwIfActionIsCreated();
+  MSrcPtr = const_cast<void *>(DeviceGlobalPtr);
+  MDstPtr = Dest;
+  MImpl->MIsDeviceImageScoped = IsDeviceImageScoped;
+  MLength = NumBytes;
+  MImpl->MOffset = Offset;
+  setType(detail::CG::CopyFromDeviceGlobal);
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

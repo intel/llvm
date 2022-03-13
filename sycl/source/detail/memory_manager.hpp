@@ -163,6 +163,16 @@ public:
                             size_t Width, size_t Height, char Value,
                             std::vector<RT::PiEvent> DepEvents,
                             RT::PiEvent *OutEvent);
+
+  static void copy_to_device_global(
+      const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
+      size_t NumBytes, size_t Offset, const void *SrcMem, OSModuleHandle M,
+      std::vector<RT::PiEvent> DepEvents, RT::PiEvent *OutEvent);
+
+  static void copy_from_device_global(
+      const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
+      size_t NumBytes, size_t Offset, void *DstMem, OSModuleHandle M,
+      std::vector<RT::PiEvent> DepEvents, RT::PiEvent *OutEvent);
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

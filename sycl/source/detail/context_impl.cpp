@@ -357,6 +357,38 @@ void context_impl::DeviceGlobalInitializer::ClearEvents(const plugin &Plugin) {
   MDeviceGlobalInitEvents.clear();
 }
 
+std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
+    const device &Device, DeviceGlobalMapEntry *DeviceGlobalEntry) {
+  KernelProgramCache::ProgramWithBuildStateT *BuildRes = nullptr;
+  {
+    auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
+    auto &KeyMap = LockedCache.get().KeyMap;
+    auto &Cache = LockedCache.get().Cache;
+    RT::PiDevice &DevHandle = getSyclObjImpl(Device)->getHandleRef();
+    for (std::uintptr_t ImageIDs : DeviceGlobalEntry->MImageIdentifiers) {
+      auto OuterKey = std::make_pair(ImageIDs, DevHandle);
+      size_t NProgs = KeyMap.count(OuterKey);
+      if (NProgs == 0)
+        continue;
+      // If the cache has multiple programs for the identifiers or if we have
+      // already found a program in the cache with the device_global, we cannot
+      // proceed.
+      if (NProgs > 1 || (BuildRes && NProgs == 1))
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "More than one image exists with the device_global.");
+      auto KeyMappingsIt = KeyMap.find(OuterKey);
+      assert(KeyMappingsIt != KeyMap.end());
+      auto CachedProgIt = Cache.find(KeyMappingsIt->second);
+      assert(CachedProgIt != Cache.end());
+      BuildRes = &CachedProgIt->second;
+    }
+  }
+  if (!BuildRes)
+    return std::nullopt;
+  return MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
