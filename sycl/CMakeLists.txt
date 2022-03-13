@@ -16,6 +16,7 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
+include(AddSYCL)
 include(SYCLUtils)
 
 set(SYCL_MAJOR_VERSION 5)
@@ -26,6 +27,11 @@ if (SYCL_ADD_DEV_VERSION_POSTFIX)
   set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
 endif()
 set(SYCL_VERSION_STRING "${SYCL_MAJOR_VERSION}.${SYCL_MINOR_VERSION}.${SYCL_PATCH_VERSION}${SYCL_VERSION_POSTFIX}")
+
+define_property(GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
+  BRIEF_DOCS "List of components to deploy with SYCL toolchain"
+  FULL_DOCS "List of components to deploy with SYCL toolchain"
+)
 
 # enable all warnings by default
 if (MSVC)
@@ -303,6 +309,7 @@ if(SYCL_INCLUDE_TESTS)
   add_subdirectory(test)
 endif()
 
+get_property(SYCL_TOOLCHAIN_DEPS GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS)
 # Package deploy support
 # Listed here are component names contributing the package
 set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
@@ -331,10 +338,9 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers
      sycl-headers-extras
      sycl
-     pi_opencl
-     pi_level_zero
      libsycldevice
      ${XPTIFW_LIBS}
+     ${SYCL_TOOLCHAIN_DEPS}
 )
 
 if (TARGET sycl-prof)
