@@ -159,6 +159,7 @@ void verify_logic(queue &q, buffer<float, 1> &a, buffer<float, 1> &b,
             CVal /= 2.0;
           } else
             CVal += BVal;
+          C[index] = CVal;
         }
       }
     });
@@ -172,7 +173,7 @@ int main() {
 
   // TODO: replace is_gpu check with extension check when the appropriate part
   // of implementation ready (aspect)
-  if (!dev.is_gpu()) {
+  if (!dev.is_gpu() && !dev.is_cpu()) {
     std::cout << "This device doesn't support bfloat16 conversion feature"
               << std::endl;
     return 0;
