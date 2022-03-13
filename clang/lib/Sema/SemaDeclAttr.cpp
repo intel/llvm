@@ -3681,7 +3681,7 @@ static bool CheckWorkGroupSize(Sema &S, const Expr *NSWIValue,
   // Check if the required work group size specified by num_simd_work_items
   // attribute must evenly divide the index that increments fastest in the
   // reqd_work_group_size attribute.
-  return WorkGroupSize % (NSWIValueExpr->getResultAsAPSInt()).getSExtValue() !=
+  return WorkGroupSize % NSWIValueExpr->getResultAsAPSInt().getSExtValue() !=
          0;
 }
 
