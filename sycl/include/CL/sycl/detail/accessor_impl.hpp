@@ -20,14 +20,12 @@ namespace sycl {
 
 namespace ext {
 namespace intel {
-namespace experimental {
 namespace esimd {
 namespace detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
 } // namespace detail
 } // namespace esimd
-} // namespace experimental
 } // namespace intel
 } // namespace ext
 
@@ -164,8 +162,7 @@ protected:
   AccessorImplPtr impl;
 
 private:
-  friend class sycl::ext::intel::experimental::esimd::detail::
-      AccessorPrivateProxy;
+  friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 };
 
 class __SYCL_EXPORT LocalAccessorImplHost {

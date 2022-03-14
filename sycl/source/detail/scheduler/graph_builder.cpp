@@ -234,7 +234,13 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
 
 void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
                                            MemObjRecord *Record,
+                                           access::mode AccessMode,
                                            std::vector<Command *> &ToCleanUp) {
+
+  const bool ReadOnlyReq = AccessMode == access::mode::read;
+  if (ReadOnlyReq)
+    return;
+
   for (Command *Cmd : Cmds) {
     bool WasLeaf = Cmd->MLeafCounter > 0;
     Cmd->MLeafCounter -= Record->MReadLeaves.remove(Cmd);
@@ -244,18 +250,6 @@ void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
       ToCleanUp.push_back(Cmd);
     }
   }
-}
-
-void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
-                                           MemObjRecord *Record,
-                                           access::mode AccessMode,
-                                           std::vector<Command *> &ToCleanUp) {
-
-  const bool ReadOnlyReq = AccessMode == access::mode::read;
-  if (ReadOnlyReq)
-    return;
-
-  updateLeaves(Cmds, Record, ToCleanUp);
 }
 
 void Scheduler::GraphBuilder::addNodeToLeaves(
@@ -1257,60 +1251,6 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
     }
   }
   handleVisitedNodes(MVisitedCmds);
-}
-
-void Scheduler::GraphBuilder::cleanupFailedCommand(
-    Command *FailedCmd,
-    std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>>
-        &StreamsToDeallocate,
-    std::vector<Command *> &ToCleanUp) {
-
-  // If the failed command has no users and no dependencies, there is no reason
-  // to replace it with an empty command.
-  if (FailedCmd->MDeps.size() == 0 && FailedCmd->MUsers.size() == 0)
-    return;
-
-  // Create empty command that is "ready" for enqueuing.
-  EmptyCommand *EmptyCmd = new EmptyCommand(FailedCmd->getQueue());
-  if (!EmptyCmd)
-    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
-  EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-
-  // Collect stream objects for the failed command.
-  if (FailedCmd->getType() == Command::CommandType::RUN_CG) {
-    auto ExecCmd = static_cast<ExecCGCommand *>(FailedCmd);
-    std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
-    ExecCmd->clearStreams();
-    StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
-                               Streams.end());
-  }
-
-  for (DepDesc &Dep : FailedCmd->MDeps) {
-    // Replace failed command in dependency records.
-    const Requirement *Req = Dep.MDepRequirement;
-    MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
-    updateLeaves({FailedCmd}, Record, ToCleanUp);
-    std::vector<Command *> ToEnqueue;
-    addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode, ToEnqueue);
-    assert(ToEnqueue.empty());
-
-    // Replace failed command as a user.
-    if (Dep.MDepCommand->MUsers.erase(FailedCmd)) {
-      Dep.MDepCommand->MUsers.insert(EmptyCmd);
-      EmptyCmd->MDeps.push_back(Dep);
-    }
-  }
-  FailedCmd->MDeps.clear();
-
-  for (Command *UserCmd : FailedCmd->MUsers)
-    for (DepDesc &Dep : UserCmd->MDeps)
-      if (Dep.MDepCommand == FailedCmd)
-        Dep.MDepCommand = EmptyCmd;
-  std::swap(FailedCmd->MUsers, EmptyCmd->MUsers);
-
-  FailedCmd->getEvent()->setCommand(EmptyCmd);
-  assert(FailedCmd->MLeafCounter == 0);
-  delete FailedCmd;
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
