@@ -1,13 +1,12 @@
 // -*- C++ -*-
 //===----------------------------------------------------------------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
+// Modifications Copyright Intel Corporation 2022
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//  Derivative work, based on boost/mp11 tests obtained from
+//===----------------------------------------------------------------------===//
+// Based on boost/mp11 tests obtained from
 //  https://github.com/boostorg/mp11/blob/develop/test/mp_fill.cpp
-//  (git commit a231733). The original copyright is:
+//  (git commit a231733).
+
 //===----------------------------------------------------------------------===//
 //  Copyright 2015 Peter Dimov.
 //

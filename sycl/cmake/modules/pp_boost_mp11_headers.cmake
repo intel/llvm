@@ -19,14 +19,10 @@
 set(SYCL_DERIVED_COPYRIGHT_NOTICE "\
 // -*- C++ -*-\n\
 //===----------------------------------------------------------------------===//\n\
-//\n\
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.\n\
-// See https://llvm.org/LICENSE.txt for license information.\n\
+// Modifications Copyright Intel Corporation 2022\n\
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception\n\
-//\n\
-//  Auto-generated from boost/mp11 sources https://github.com/boostorg/mp11\n\
-//  The original boost/mp11 copyright can be found below.\n\
-//===----------------------------------------------------------------------===//\n")
+//===----------------------------------------------------------------------===//\n\
+// Auto-generated from boost/mp11 sources https://github.com/boostorg/mp11\n\n")
 
 function(preprocess_mp11_header)
   cmake_parse_arguments(
@@ -60,7 +56,6 @@ function(preprocess_mp11_header)
     "\\1sycl/detail/boost"
     FILE_CONTENTS "${FILE_CONTENTS}")
 
-  string(PREPEND FILE_CONTENTS ${BOOST_MP11_COPYRIGHT_NOTICE})
   string(PREPEND FILE_CONTENTS ${SYCL_DERIVED_COPYRIGHT_NOTICE})
   file(WRITE ${MP11_HDR_DST_NAME} "${FILE_CONTENTS}")
 endfunction(preprocess_mp11_header)
