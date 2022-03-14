@@ -10286,7 +10286,7 @@ public:
 
   ABIArgInfo classifyKernelArgumentType(QualType Ty) const;
 
-  // Add new functions rather then overload existing so that these public APIs
+  // Add new functions rather than overload existing so that these public APIs
   // can't be blindly misused with wrong calling convention.
   ABIArgInfo classifyRegcallReturnType(QualType RetTy) const;
   ABIArgInfo classifyRegcallArgumentType(QualType RetTy) const;

@@ -534,7 +534,7 @@ tells how a specific source aggregate type is represented in resulting LLVM IR
 when it (the type) is part of a signature of a function with linkage defined.
 
 Compiler uses aggregate type "unwrapping process" for communicating ARVs.
-Unwarapping a structure with a single field results in the unwrapped type of
+Unwrapping a structure with a single field results in the unwrapped type of
 that field, so unwrapping is a recursive process. Unwrapped primitive type is
 the primitive type itself. Structures with pointer fields are not unwrapped.
 For example, unwrapping `Y` defined as
@@ -552,13 +552,13 @@ struct C4 {
 };
 ```
 results in { `%struct.B4`, `i32 addrspace(4)*` } pair of types. Thus,
-unwraping can result in a set of a structure, primitive or pointer types -
+unwrapping can result in a set of a structure, primitive or pointer types -
 the "unwrapped type set".
 
 - If the unwrapped type set has only primitive types, then compiler will "merge"
-  the resulting types if their total size is less or equal to 8 bytes. The total
+  the resulting types if their total size is less than or equal to 8 bytes. The total
   size is calculated as `sizeof(<top aggregate type>)`, and structure field
-  alignment rules can make it greater then the simple sum of `sizeof` of all
+  alignment rules can make it greater than the simple sum of `sizeof` of all
   the types resulted from unwrapping. [Total size] to [merged type]
   correspondence is as follows:
     * 1-2 bytes - short
