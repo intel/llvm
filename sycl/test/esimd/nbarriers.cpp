@@ -1,8 +1,9 @@
 // RUN: %clangxx -fsycl -c -fsycl-device-only -Xclang -emit-llvm %s -o %t
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
+using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
 template <typename name, typename Func>
