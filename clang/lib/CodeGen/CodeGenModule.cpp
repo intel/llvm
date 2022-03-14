@@ -2437,9 +2437,9 @@ static void emitUsed(CodeGenModule &CGM, StringRef Name,
   // Don't create llvm.used if there is no need.
   if (List.empty())
     return;
-  // Get target type when templated global variables are used,
-  // to emit them correctly in the target (default) address space and avoid
-  // emitting them in a private address space.
+  // For SYCL emit pointers in the default address space which is a superset of
+  // other address spaces, so that casts from any other address spaces will be
+  // valid.
   llvm::PointerType *TargetType = CGM.Int8PtrTy;
   if (CGM.getLangOpts().SYCLIsDevice)
     TargetType = llvm::IntegerType::getInt8PtrTy(
@@ -2862,9 +2862,9 @@ void CodeGenModule::AddGlobalAnnotations(const ValueDecl *D,
     Annotations.push_back(EmitAnnotateAttr(GV, I, D->getLocation()));
 }
 
-// Add "sycl-unique-id" llvm IR attribute for global variables marked with
-// SYCL device_global attribute, and return a unique string using
-// __builtin_sycl_unique_stable_id.
+// Add "sycl-unique-id" llvm IR attribute that has a unique string generated
+// by __builtin_sycl_unique_stable_id for global variables marked with
+// SYCL device_global attribute.
 static void addSYCLUniqueID(llvm::GlobalVariable *GV, const VarDecl *VD,
                             ASTContext &Context) {
   auto builtinString = SYCLUniqueStableIdExpr::ComputeName(Context, VD);
