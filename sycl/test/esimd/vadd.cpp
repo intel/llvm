@@ -18,9 +18,9 @@
 // RUN: -fsycl-instrument-device-code
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <iostream>
 #include <string>
+#include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;
 
@@ -101,7 +101,7 @@ int main(void) {
     q.submit([&](cl::sycl::handler &cgh) {
       cgh.parallel_for<class Test>(
           Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::experimental::esimd;
+            using namespace sycl::ext::intel::esimd;
 
             int i = ndi.get_global_id(0);
             constexpr int ESIZE = sizeof(int);
