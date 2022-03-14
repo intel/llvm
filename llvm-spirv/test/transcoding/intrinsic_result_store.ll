@@ -14,7 +14,7 @@ define spir_kernel void @test_memset(i32 addrspace(1)* %data, i32 %input) #0 !ke
 entry:
 ; CHECK-LLVM: %[[BITCAST_RES:[[:alnum:].]+]] = bitcast i32 addrspace(1)* %{{[[:alnum:].]+}} to i8 addrspace(1)*
   %ptr = bitcast i32 addrspace(1)* %data to i8 addrspace(1)*
-; CHECK-LLVM: call void @llvm.memset.p1i8.i64(i8 addrspace(1)* align 8 %[[BITCAST_RES]], i8 0, i64 8, i1 false)
+; C/HECK-LLVM: call void @llvm.memset.p1i8.i64(i8 addrspace(1)* align 8 %[[BITCAST_RES]], i8 0, i64 8, i1 false)
   call void @llvm.memset.p1i8.i64(i8 addrspace(1)* align 8 %ptr, i8 0, i64 8, i1 false)
 ; CHECK-LLVM: store i8 0, i8 addrspace(1)* %[[BITCAST_RES]]
   store i8 0, i8 addrspace(1)* %ptr
