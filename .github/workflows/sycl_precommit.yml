@@ -32,8 +32,7 @@ jobs:
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
     needs: lint
-    # if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
-    if: false
+    if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
       build_cache_root: "/__w/"
@@ -44,5 +43,7 @@ jobs:
 
   windows_default:
     name: Window
+    needs: lint
+    if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
