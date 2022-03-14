@@ -436,7 +436,7 @@ endfunction(set_windows_version_resource_properties)
 #      LLVM which means that the source resides in llvm/lib/ and it is a
 #      candidate for inclusion into libLLVM.so.
 #   CUSTOM_WIN_VER
-#      Default LLVM versioning on windows is skipped when set
+#      Suppress default LLVM versioning on Windows.
 #   )
 function(llvm_add_library name)
   cmake_parse_arguments(ARG
