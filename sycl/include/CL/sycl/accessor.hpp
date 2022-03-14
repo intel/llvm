@@ -206,14 +206,12 @@ namespace sycl {
 class stream;
 namespace ext {
 namespace intel {
-namespace experimental {
 namespace esimd {
 namespace detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
 } // namespace detail
 } // namespace esimd
-} // namespace experimental
 } // namespace intel
 } // namespace ext
 
@@ -478,8 +476,7 @@ private:
 #endif
 
 private:
-  friend class sycl::ext::intel::experimental::esimd::detail::
-      AccessorPrivateProxy;
+  friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 
 #ifdef __SYCL_DEVICE_ONLY__
   const OCLImageTy getNativeImageObj() const { return MImageObj; }
@@ -971,8 +968,7 @@ public:
 
 private:
   friend class sycl::stream;
-  friend class sycl::ext::intel::experimental::esimd::detail::
-      AccessorPrivateProxy;
+  friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 
 public:
   using value_type = DataT;
