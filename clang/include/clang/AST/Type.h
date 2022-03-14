@@ -2567,6 +2567,8 @@ public:
     return getKind() >= Half && getKind() <= Ibm128;
   }
 
+  bool isSVEBool() const { return getKind() == Kind::SveBool; }
+
   /// Determines whether the given kind corresponds to a placeholder type.
   static bool isPlaceholderTypeKind(Kind K) {
     return K >= Overload;

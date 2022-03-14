@@ -4650,6 +4650,13 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
             From->getType()->getPointeeType().getAddressSpace())
       CK = CK_AddressSpaceConversion;
 
+    if (!isCast(CCK) &&
+        !ToType->getPointeeType().getQualifiers().hasUnaligned() &&
+        From->getType()->getPointeeType().getQualifiers().hasUnaligned()) {
+      Diag(From->getBeginLoc(), diag::warn_imp_cast_drops_unaligned)
+          << InitialFromType << ToType;
+    }
+
     From = ImpCastExprToType(From, ToType.getNonLValueExprType(Context), CK, VK,
                              /*BasePath=*/nullptr, CCK)
                .get();

@@ -222,7 +222,7 @@ func @generalize_pooling_nhwc_sum_i32(%input : tensor<1x4x16x1xi32>, %shape: ten
 // -----
 
 func @generalize_fill_0d(%value: f64, %O: tensor<f32>) -> tensor<f32> {
-  %0 = linalg.fill_tensor ins(%value: f64) outs(%O : tensor<f32>) -> tensor<f32>
+  %0 = linalg.fill ins(%value: f64) outs(%O : tensor<f32>) -> tensor<f32>
   return %0: tensor<f32>
 }
 
@@ -236,7 +236,7 @@ func @generalize_fill_0d(%value: f64, %O: tensor<f32>) -> tensor<f32> {
 // -----
 
 func @generalize_fill_2d(%value: f64, %O: memref<16x32xf32>) {
-  linalg.fill_tensor ins(%value: f64) outs(%O : memref<16x32xf32>)
+  linalg.fill ins(%value: f64) outs(%O : memref<16x32xf32>)
   return
 }
 
@@ -295,6 +295,54 @@ func @generalize_elemwise_log(%lhs : tensor<4x8xf32>, %output : tensor<4x8xf32>)
 
 // CHECK-LABEL: @generalize_elemwise_log
 // CHECK:        = math.log
+
+// -----
+
+// Verifies the fun attribute controls the unary function used.
+func @generalize_elemwise_abs(%lhs : tensor<4x8xf32>, %output : tensor<4x8xf32>) -> tensor<4x8xf32> {
+  %0 = linalg.elemwise_unary {fun = #linalg.unary_fn<abs>}
+                              ins(%lhs: tensor<4x8xf32>) outs(%output: tensor<4x8xf32>) -> tensor<4x8xf32>
+  return %0: tensor<4x8xf32>
+}
+
+// CHECK-LABEL: @generalize_elemwise_abs
+// CHECK:        = math.abs
+
+// -----
+
+// Verifies the fun attribute controls the unary function used.
+func @generalize_elemwise_ceil(%lhs : tensor<4x8xf32>, %output : tensor<4x8xf32>) -> tensor<4x8xf32> {
+  %0 = linalg.elemwise_unary {fun = #linalg.unary_fn<ceil>}
+                              ins(%lhs: tensor<4x8xf32>) outs(%output: tensor<4x8xf32>) -> tensor<4x8xf32>
+  return %0: tensor<4x8xf32>
+}
+
+// CHECK-LABEL: @generalize_elemwise_ceil
+// CHECK:        = math.ceil
+
+// -----
+
+// Verifies the fun attribute controls the unary function used.
+func @generalize_elemwise_floor(%lhs : tensor<4x8xf32>, %output : tensor<4x8xf32>) -> tensor<4x8xf32> {
+  %0 = linalg.elemwise_unary {fun = #linalg.unary_fn<floor>}
+                              ins(%lhs: tensor<4x8xf32>) outs(%output: tensor<4x8xf32>) -> tensor<4x8xf32>
+  return %0: tensor<4x8xf32>
+}
+
+// CHECK-LABEL: @generalize_elemwise_floor
+// CHECK:        = math.floor
+
+// -----
+
+// Verifies the fun attribute controls the unary function used.
+func @generalize_elemwise_negf(%lhs : tensor<4x8xf32>, %output : tensor<4x8xf32>) -> tensor<4x8xf32> {
+  %0 = linalg.elemwise_unary {fun = #linalg.unary_fn<negf>}
+                              ins(%lhs: tensor<4x8xf32>) outs(%output: tensor<4x8xf32>) -> tensor<4x8xf32>
+  return %0: tensor<4x8xf32>
+}
+
+// CHECK-LABEL: @generalize_elemwise_negf
+// CHECK:        = arith.negf
 
 // -----
 

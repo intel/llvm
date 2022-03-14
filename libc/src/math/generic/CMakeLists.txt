@@ -476,9 +476,10 @@ add_entrypoint_object(
   HDRS
     ../expf.h
   DEPENDS
-    .exp_utils
-    .math_utils
+    libc.src.__support.FPUtil.fputil
     libc.include.math
+  COMPILE_OPTIONS
+    -O3
 )
 
 add_entrypoint_object(
@@ -488,9 +489,10 @@ add_entrypoint_object(
   HDRS
     ../exp2f.h
   DEPENDS
-    .exp_utils
-    .math_utils
+    libc.src.__support.FPUtil.fputil
     libc.include.math
+  COMPILE_OPTIONS
+    -O3
 )
 
 add_entrypoint_object(

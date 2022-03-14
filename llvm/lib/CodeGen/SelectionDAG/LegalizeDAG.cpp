@@ -45,7 +45,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <tuple>
@@ -1173,6 +1172,11 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
     Action = TLI.getOperationAction(
         Node->getOpcode(),
         cast<VPStoreSDNode>(Node)->getValue().getValueType());
+    break;
+  case ISD::EXPERIMENTAL_VP_STRIDED_STORE:
+    Action = TLI.getOperationAction(
+        Node->getOpcode(),
+        cast<VPStridedStoreSDNode>(Node)->getValue().getValueType());
     break;
   case ISD::VECREDUCE_FADD:
   case ISD::VECREDUCE_FMUL:
