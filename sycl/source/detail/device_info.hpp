@@ -1156,10 +1156,10 @@ inline bool get_device_info_host<info::device::kernel_kernel_pipe_support>() {
 }
 
 template <>
-inline std::string
-get_device_info_host<info::device::backend_version>() {
-  throw runtime_error("Backend version feature is not supported on HOST device.",
-                      PI_INVALID_DEVICE);
+inline std::string get_device_info_host<info::device::backend_version>() {
+  throw runtime_error(
+      "Backend version feature is not supported on HOST device.",
+      PI_INVALID_DEVICE);
 }
 
 template <>
