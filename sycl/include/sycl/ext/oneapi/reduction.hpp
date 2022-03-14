@@ -427,7 +427,8 @@ public:
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
@@ -439,7 +440,8 @@ public:
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(false) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
@@ -451,7 +453,8 @@ public:
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(true) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
@@ -468,7 +471,8 @@ public:
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
@@ -492,7 +496,8 @@ public:
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(false) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
@@ -516,7 +521,8 @@ public:
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(true) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
@@ -543,7 +549,8 @@ public:
         MBinaryOp(BOp), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
@@ -555,7 +562,8 @@ public:
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
         InitializeToIdentity(false) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
@@ -567,7 +575,8 @@ public:
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
         InitializeToIdentity(true) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 

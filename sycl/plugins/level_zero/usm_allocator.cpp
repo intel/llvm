@@ -43,57 +43,18 @@
 // allocations/deallocations.
 
 namespace settings {
+
+// Buckets for Host use a minimum of the cache line size of 64 bytes.
+// This prevents two separate allocations residing in the same cache line.
+// Buckets for Device and Shared allocations will use starting size of 512.
+// This is because memory compression on newer GPUs makes the
+// minimum granularity 512 bytes instead of 64.
+static constexpr size_t MinBucketSize[3] = {64, 512, 512};
+
 // The largest size which is allocated via the allocator.
 // Allocations with size > CutOff bypass the USM allocator and
 // go directly to the runtime.
 static constexpr size_t CutOff = (size_t)1 << 31; // 2GB
-
-// Unfortunately we cannot deduce the size of the array, so every change
-// to the number of buckets should be reflected here.
-using BucketsArrayType = std::array<size_t, 53>;
-
-// Generates a list of bucket sizes used by the allocator.
-static constexpr BucketsArrayType generateBucketSizes() {
-
-  // In order to make bucket sizes constexpr simply write
-  // them all. There are some restrictions that doesn't
-  // allow to write this in a nicer way.
-
-  // Simple helper to compute power of 2
-#define P(n) (1ULL << n)
-
-  BucketsArrayType Sizes = {64,    96,
-                            128,   192,
-                            P(8),  P(8) + P(7),
-                            P(9),  P(9) + P(8),
-                            P(10), P(10) + P(9),
-                            P(11), P(11) + P(10),
-                            P(12), P(12) + P(11),
-                            P(13), P(13) + P(12),
-                            P(14), P(14) + P(13),
-                            P(15), P(15) + P(14),
-                            P(16), P(16) + P(15),
-                            P(17), P(17) + P(16),
-                            P(18), P(18) + P(17),
-                            P(19), P(19) + P(18),
-                            P(20), P(20) + P(19),
-                            P(21), P(21) + P(20),
-                            P(22), P(22) + P(21),
-                            P(23), P(23) + P(22),
-                            P(24), P(24) + P(23),
-                            P(25), P(25) + P(24),
-                            P(26), P(26) + P(25),
-                            P(27), P(27) + P(26),
-                            P(28), P(28) + P(27),
-                            P(29), P(29) + P(28),
-                            P(30), P(30) + P(29),
-                            CutOff};
-#undef P
-
-  return Sizes;
-}
-
-static constexpr BucketsArrayType BucketSizes = generateBucketSizes();
 
 // Protects the capacity checking of the pool.
 static sycl::detail::SpinLock PoolLock;
@@ -117,14 +78,14 @@ public:
   size_t CurPoolSize = 0;
   size_t CurPoolSizes[3] = {0, 0, 0};
 
-  bool EnableBuffers = true;
+  size_t EnableBuffers = 1;
 
   // Whether to print pool usage statistics
   int PoolTrace = 0;
 
   SetLimits() {
     // Parse optional parameters of this form:
-    // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=[EnableBuffers][;MaxPoolSize][;memtypelimits]...
+    // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=[EnableBuffers][;[MaxPoolSize][;memtypelimits]...]
     //  memtypelimits: [<memtype>:]<limits>
     //  memtype: host|device|shared
     //  limits:  [MaxPoolableSize][,[Capacity][,SlabMinSize]]
@@ -135,7 +96,7 @@ public:
     // Duplicate specifications will result in the right-most taking effect.
     //
     // EnableBuffers:   Apply chunking/pooling to SYCL buffers.
-    //                  Default true.
+    //                  Default 1.
     // MaxPoolSize:     Limit on overall unfreed memory.
     //                  Default 16MB.
     // MaxPoolableSize: Maximum allocation size subject to chunking/pooling.
@@ -148,7 +109,7 @@ public:
     // Example of usage:
     // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=1;32M;host:1M,4,64K;device:1M,4,64K;shared:0,0,2M
 
-    auto GetValue = [](std::string &Param, size_t Length) {
+    auto GetValue = [=](std::string &Param, size_t Length, size_t &Setting) {
       size_t Multiplier = 1;
       if (tolower(Param[Length - 1]) == 'k') {
         Length--;
@@ -163,8 +124,8 @@ public:
         Multiplier = 1024 * 1024 * 1024;
       }
       std::string TheNumber = Param.substr(0, Length);
-      assert(TheNumber.find_first_not_of("0123456789") == std::string::npos);
-      return std::stoi(TheNumber) * Multiplier;
+      if (TheNumber.find_first_not_of("0123456789") == std::string::npos)
+        Setting = std::stoi(TheNumber) * Multiplier;
     };
 
     auto ParamParser = [=](std::string &Params, size_t &Setting,
@@ -177,13 +138,13 @@ public:
       size_t Pos = Params.find(',');
       if (Pos != std::string::npos) {
         if (Pos > 0) {
-          Setting = GetValue(Params, Pos);
+          GetValue(Params, Pos, Setting);
           ParamWasSet = true;
         }
         Params.erase(0, Pos + 1);
         More = true;
       } else {
-        Setting = GetValue(Params, Params.size());
+        GetValue(Params, Params.size(), Setting);
         ParamWasSet = true;
         More = false;
       }
@@ -244,13 +205,13 @@ public:
       size_t Pos = Params.find(';');
       if (Pos != std::string::npos) {
         if (Pos > 0) {
-          EnableBuffers = GetValue(Params, Pos);
+          GetValue(Params, Pos, EnableBuffers);
         }
         Params.erase(0, Pos + 1);
         size_t Pos = Params.find(';');
         if (Pos != std::string::npos) {
           if (Pos > 0) {
-            MaxPoolSize = GetValue(Params, Pos);
+            GetValue(Params, Pos, MaxPoolSize);
           }
           Params.erase(0, Pos + 1);
           do {
@@ -269,10 +230,10 @@ public:
             }
           } while (true);
         } else {
-          MaxPoolSize = GetValue(Params, Params.size());
+          GetValue(Params, Params.size(), MaxPoolSize);
         }
       } else {
-        EnableBuffers = GetValue(Params, Params.size());
+        GetValue(Params, Params.size(), EnableBuffers);
       }
     }
 
@@ -514,11 +475,15 @@ public:
   USMAllocImpl(std::unique_ptr<SystemMemory> SystemMemHandle)
       : MemHandle{std::move(SystemMemHandle)} {
 
-    Buckets.reserve(BucketSizes.size());
-
-    for (auto &&Size : BucketSizes) {
-      Buckets.emplace_back(std::make_unique<Bucket>(Size, *this));
+    // Generate buckets sized such as: 64, 96, 128, 192, ..., CutOff.
+    // Powers of 2 and the value halfway between the powers of 2.
+    auto Size1 = MinBucketSize[MemHandle->getMemType()];
+    auto Size2 = Size1 + Size1 / 2;
+    for (; Size2 < CutOff; Size1 *= 2, Size2 *= 2) {
+      Buckets.push_back(std::make_unique<Bucket>(Size1, *this));
+      Buckets.push_back(std::make_unique<Bucket>(Size2, *this));
     }
+    Buckets.push_back(std::make_unique<Bucket>(CutOff, *this));
   }
 
   void *allocate(size_t Size, size_t Alignment, bool &FromPool);

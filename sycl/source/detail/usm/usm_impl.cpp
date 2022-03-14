@@ -116,6 +116,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
 static pi_result alignedAllocHelper(size_t Alignment, size_t Size,
                                     const context &Ctxt, const device &Dev,
                                     alloc Kind, const detail::code_location &CL,
+                                    const property_list &PropList,
                                     void **OutPtr) {
   XPTI_CREATE_TRACEPOINT(CL);
   if (Size == 0) {
@@ -150,8 +151,25 @@ static pi_result alignedAllocHelper(size_t Alignment, size_t Size,
     switch (Kind) {
     case alloc::device: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-      Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
-          OutPtr, C, Id, nullptr, Size, Alignment);
+      // Parse out buffer location property
+      // Buffer location is only supported on FPGA devices
+      bool IsBufferLocSupported =
+          Dev.has_extension("cl_intel_mem_alloc_buffer_location");
+      if (IsBufferLocSupported &&
+          PropList.has_property<cl::sycl::ext::intel::experimental::property::
+                                    usm::buffer_location>()) {
+        auto location = PropList
+                            .get_property<cl::sycl::ext::intel::experimental::
+                                              property::usm::buffer_location>()
+                            .get_buffer_location();
+        pi_usm_mem_properties props[3] = {PI_MEM_USM_ALLOC_BUFFER_LOCATION,
+                                          location, 0};
+        Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
+            OutPtr, C, Id, props, Size, Alignment);
+      } else {
+        Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
+            OutPtr, C, Id, nullptr, Size, Alignment);
+      }
       break;
     }
     case alloc::shared: {
@@ -181,17 +199,18 @@ static pi_result alignedAllocHelper(size_t Alignment, size_t Size,
 
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind,
-                   const detail::code_location &CL) {
+                   const detail::code_location &CL,
+                   const property_list &PropList = {}) {
   void *RetVal;
-  pi_result Err =
-      alignedAllocHelper(Alignment, Size, Ctxt, Dev, Kind, CL, &RetVal);
+  pi_result Err = alignedAllocHelper(Alignment, Size, Ctxt, Dev, Kind, CL,
+                                     PropList, &RetVal);
 
   std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   ResourcePool &Resources = CtxImpl->getResourcePool();
   if (Err == PI_OUT_OF_RESOURCES && Resources.isEnabled()) {
     // Clear resource pool and retry allocation.
     Resources.clear();
-    alignedAllocHelper(Alignment, Size, Ctxt, Dev, Kind, CL, &RetVal);
+    alignedAllocHelper(Alignment, Size, Ctxt, Dev, Kind, CL, PropList, &RetVal);
   }
   return RetVal;
 }
@@ -238,8 +257,10 @@ void *malloc_device(size_t Size, const device &Dev, const context &Ctxt,
 }
 
 void *malloc_device(size_t Size, const device &Dev, const context &Ctxt,
-                    const property_list &, const detail::code_location CL) {
-  return malloc_device(Size, Dev, Ctxt, CL);
+                    const property_list &PropList,
+                    const detail::code_location CL) {
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::device, CL,
+                                   PropList);
 }
 
 void *malloc_device(size_t Size, const queue &Q,
