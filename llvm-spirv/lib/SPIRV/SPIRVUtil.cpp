@@ -1936,13 +1936,14 @@ bool postProcessBuiltinReturningStruct(Function *F) {
                     PointerType::get(F->getReturnType(), SPIRAS_Private));
       auto *NewF =
           getOrCreateFunction(M, Type::getVoidTy(*Context), ArgTys, Name);
-      NewF->addParamAttr(0, Attribute::get(*Context,
-                                           Attribute::AttrKind::StructRet,
-                                           F->getReturnType()));
+      auto SretAttr = Attribute::get(*Context, Attribute::AttrKind::StructRet,
+                                     F->getReturnType());
+      NewF->addParamAttr(0, SretAttr);
       NewF->setCallingConv(F->getCallingConv());
       auto Args = getArguments(CI);
       Args.insert(Args.begin(), ST->getPointerOperand());
       auto *NewCI = CallInst::Create(NewF, Args, CI->getName(), CI);
+      NewCI->addParamAttr(0, SretAttr);
       NewCI->setCallingConv(CI->getCallingConv());
       InstToRemove.push_back(ST);
       InstToRemove.push_back(CI);
