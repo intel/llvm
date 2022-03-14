@@ -8,11 +8,14 @@
 
 #include <spirv/spirv.h>
 
-#include "../../include/libdevice.h"
 #include <clcmacro.h>
 
-#define __CLC_FUNCTION __spirv_ocl_native_tan
-#define __CLC_BUILTIN __nv_fast_tan
-#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
-#define __FLOAT_ONLY
-#include <math/unary_builtin.inc>
+extern int __clc_nvvm_reflect_ftz();
+
+_CLC_DEF _CLC_OVERLOAD float __spirv_ocl_native_recip(float x) {
+  return (__clc_nvvm_reflect_ftz()) ? __nvvm_rcp_approx_ftz_f(x)
+                                    : __nvvm_rcp_approx_f(x);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_native_recip,
+                     float)
