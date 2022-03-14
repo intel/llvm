@@ -1,5 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -std=gnu++11 -fsyntax-only -verify %s
 
+// Tests that add_ir_attributes_* allows merging when the filter and IR
+// attributes to generate are the same.
+
 void FunctionRedecl1();
 [[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]] void FunctionRedecl1();
 [[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]] void FunctionRedecl1();

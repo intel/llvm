@@ -7554,9 +7554,9 @@ static bool hasSameSYCLAddIRAttributes(
 }
 
 template <typename AddIRAttrT>
-static bool checkSYCLAddIRAttributesMergability(const AddIRAttrT &NewAttr,
-                                                const AddIRAttrT &ExistingAttr,
-                                                Sema &S) {
+static bool checkSYCLAddIRAttributesMergeability(const AddIRAttrT &NewAttr,
+                                                 const AddIRAttrT &ExistingAttr,
+                                                 Sema &S) {
   ASTContext &Context = S.getASTContext();
   // If there are no dependent argument expressions and the filters or the
   // attributes are different, then fail due to differing duplicates.
@@ -7577,7 +7577,7 @@ SYCLAddIRAttributesFunctionAttr *Sema::MergeSYCLAddIRAttributesFunctionAttr(
     Decl *D, const SYCLAddIRAttributesFunctionAttr &A) {
   if (const auto *ExistingAttr =
           D->getAttr<SYCLAddIRAttributesFunctionAttr>()) {
-    checkSYCLAddIRAttributesMergability(A, *ExistingAttr, *this);
+    checkSYCLAddIRAttributesMergeability(A, *ExistingAttr, *this);
     return nullptr;
   }
   return A.clone(Context);
@@ -7622,7 +7622,7 @@ Sema::MergeSYCLAddIRAttributesKernelParameterAttr(
     Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A) {
   if (const auto *ExistingAttr =
           D->getAttr<SYCLAddIRAttributesKernelParameterAttr>()) {
-    checkSYCLAddIRAttributesMergability(A, *ExistingAttr, *this);
+    checkSYCLAddIRAttributesMergeability(A, *ExistingAttr, *this);
     return nullptr;
   }
   return A.clone(Context);
@@ -7655,7 +7655,7 @@ Sema::MergeSYCLAddIRAttributesGlobalVariableAttr(
     Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A) {
   if (const auto *ExistingAttr =
           D->getAttr<SYCLAddIRAttributesGlobalVariableAttr>()) {
-    checkSYCLAddIRAttributesMergability(A, *ExistingAttr, *this);
+    checkSYCLAddIRAttributesMergeability(A, *ExistingAttr, *this);
     return nullptr;
   }
   return A.clone(Context);

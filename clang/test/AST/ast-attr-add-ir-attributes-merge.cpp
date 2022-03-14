@@ -1,5 +1,8 @@
 // RUN: not %clang_cc1 -fsycl-is-device -std=gnu++11 -ast-dump %s | FileCheck %s
 
+// Tests the AST produced from add_ir_attributes_* for valid and invalid
+// redeclarations.
+
 // CHECK:      FunctionDecl [[FunctionRedecl1ID1:0x[0-9a-f]+]] {{.*}} FunctionRedecl1 'void ()'
 // CHECK-NEXT: FunctionDecl [[FunctionRedecl1ID2:0x[0-9a-f]+]] prev [[FunctionRedecl1ID1]] {{.*}} FunctionRedecl1 'void ()'
 // CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr

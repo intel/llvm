@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -std=gnu++11 -ast-dump %s | FileCheck %s
 
+// Tests the AST produced from various uses of add_ir_attributes_* attributes.
+
 // CHECK:      FunctionDecl [[OverloadedFunction1ID1:0x[0-9a-f]+]] {{.*}} OverloadedFunction1 'void (float)'
 // CHECK-NEXT:   ParmVarDecl {{.*}} 'float'
 // CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr

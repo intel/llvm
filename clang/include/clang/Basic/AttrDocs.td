@@ -3441,7 +3441,11 @@ where the last N*2 are as described above.
   // Resulting LLVM IR function definition of foo will only have the
   // "Attr2"="1" attribute.
 
-.. Note:: This attribute can only be used in SYCL device code.
+.. Note:: This attribute will only generate LLVM IR attributes in SYCL device
+  code.
+
+.. Note:: This attribute is not currently allowed on virtual, overridden, final,
+  defaulted, and deleted functions.
 
 .. Note:: This attribute is intended as an internal implementation detail and is
   not intended to be used by external users.
@@ -3507,7 +3511,8 @@ where the last N*2 are as described above.
   // Resulting LLVM IR kernel function using Foo will have a parameter for x
   // with only the "Attr1"="Attribute value" attribute.
 
-.. Note:: This attribute can only be used in SYCL device code.
+.. Note:: This attribute will only generate LLVM IR attributes in SYCL device
+  code.
 
 .. Note:: This attribute is intended as an internal implementation detail and is
   not intended to be used by external users.
@@ -3559,7 +3564,8 @@ where the last N*2 are as described above.
   // Resulting LLVM IR global variable for a will have the attributes
   // "Attr1"="false" and "Attr3"="true".
 
-.. Note:: This attribute can only be used in SYCL device code.
+.. Note:: This attribute will only generate LLVM IR attributes in SYCL device
+  code.
 
 .. Note:: This attribute is intended as an internal implementation detail and is
   not intended to be used by external users.

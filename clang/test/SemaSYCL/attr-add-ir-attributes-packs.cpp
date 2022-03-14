@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -std=gnu++11 -fsyntax-only -verify %s
 
+// Tests that add_ir_attributes_* allows pack expansions in its arguments.
+
 constexpr const char AttrName1[] = "Attr1";
 constexpr const char AttrName2[] = "Attr2";
 constexpr const char AttrName3[] = "Attr3";
