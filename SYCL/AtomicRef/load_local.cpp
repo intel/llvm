@@ -4,6 +4,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-#include "store.h"
+// Barrier is not supported on host.
+// XFAIL: host
 
-int main() { store_test_all<access::address_space::global_space>(); }
+#include "load.h"
+
+int main() { load_test_all<access::address_space::local_space>(); }
