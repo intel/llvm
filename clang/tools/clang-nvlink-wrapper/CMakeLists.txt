@@ -6,6 +6,7 @@ endif()
 
 add_clang_executable(clang-nvlink-wrapper
   ClangNvlinkWrapper.cpp
+  CUSTOM_WIN_VER
 
   DEPENDS
   ${tablegen_deps}

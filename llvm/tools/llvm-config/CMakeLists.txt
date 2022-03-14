@@ -12,6 +12,7 @@ add_llvm_tool(llvm-config
   # want to build an entire native libLLVM.so in addition to the cross one just
   # for the native `llvm-config`!
   DISABLE_LLVM_LINK_LLVM_DYLIB
+  CUSTOM_WIN_VER
   )
 
 # Compute the substitution values for various items.

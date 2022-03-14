@@ -27,6 +27,7 @@ add_llvm_tool(llvm-readobj
   Win64EHDumper.cpp
   WindowsResourceDumper.cpp
   XCOFFDumper.cpp
+  CUSTOM_WIN_VER
   )
 
 add_llvm_tool_symlink(llvm-readelf llvm-readobj)

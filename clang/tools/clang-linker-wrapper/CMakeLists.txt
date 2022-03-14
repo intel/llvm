@@ -21,6 +21,7 @@ endif()
 add_clang_executable(clang-linker-wrapper
   ClangLinkerWrapper.cpp
   OffloadWrapper.cpp
+  CUSTOM_WIN_VER
 
   DEPENDS
   ${tablegen_deps}

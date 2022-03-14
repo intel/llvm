@@ -2,6 +2,7 @@ set(LLVM_LINK_COMPONENTS BitWriter Core Object Support)
 
 add_clang_tool(clang-offload-deps
   ClangOffloadDeps.cpp
+  CUSTOM_WIN_VER
 
   DEPENDS
   intrinsics_gen

@@ -13,6 +13,7 @@ set(LLVM_LINK_COMPONENTS
 
 add_llvm_tool(llvm-link
   llvm-link.cpp
+  CUSTOM_WIN_VER
 
   DEPENDS
   intrinsics_gen

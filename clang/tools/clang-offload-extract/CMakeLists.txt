@@ -2,6 +2,7 @@ set(LLVM_LINK_COMPONENTS Core Object Support)
 
 add_clang_tool(clang-offload-extract
   ClangOffloadExtract.cpp
+  CUSTOM_WIN_VER
 
   DEPENDS
   intrinsics_gen

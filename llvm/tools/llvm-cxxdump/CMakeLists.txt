@@ -8,4 +8,5 @@ set(LLVM_LINK_COMPONENTS
 add_llvm_tool(llvm-cxxdump
   llvm-cxxdump.cpp
   Error.cpp
+  CUSTOM_WIN_VER
   )

@@ -26,6 +26,7 @@ add_public_tablegen_target(StripOptsTableGen)
 add_llvm_tool(llvm-objcopy
   ObjcopyOptions.cpp
   llvm-objcopy.cpp
+  CUSTOM_WIN_VER
   DEPENDS
   ObjcopyOptsTableGen
   InstallNameToolOptsTableGen
