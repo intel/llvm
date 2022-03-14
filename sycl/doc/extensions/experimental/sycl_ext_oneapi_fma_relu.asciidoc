@@ -78,6 +78,8 @@ This extension introduces the `fma_relu` function for datatypes `sycl::half`,
 class from the `sycl_ext_*_bf16_conversion` extension, and currently use 
 `uint16_t` and `uint32_t`, respectively, as storage types. 
 
+== Specification
+
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
@@ -88,8 +90,6 @@ T fma_relu(T a, T b, T c);
 ```
 
 `fma_relu` returns `a * b + c > 0 ? a * b + c : 0`. 
-
-== Specification
 
 === Feature test macro
 
