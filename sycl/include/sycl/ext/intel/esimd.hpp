@@ -71,9 +71,11 @@
 
 /// @} sycl_esimd
 
-#include <sycl/ext/intel/experimental/esimd/alt_ui.hpp>
-#include <sycl/ext/intel/experimental/esimd/common.hpp>
+#include <sycl/ext/intel/esimd/alt_ui.hpp>
+#include <sycl/ext/intel/esimd/common.hpp>
+#include <sycl/ext/intel/esimd/math.hpp>
+#include <sycl/ext/intel/esimd/memory.hpp>
+#include <sycl/ext/intel/esimd/simd.hpp>
+#include <sycl/ext/intel/esimd/simd_view.hpp>
 #include <sycl/ext/intel/experimental/esimd/math.hpp>
 #include <sycl/ext/intel/experimental/esimd/memory.hpp>
-#include <sycl/ext/intel/experimental/esimd/simd.hpp>
-#include <sycl/ext/intel/experimental/esimd/simd_view.hpp>

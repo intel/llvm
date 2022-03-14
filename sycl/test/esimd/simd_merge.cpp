@@ -2,10 +2,10 @@
 // expected-no-diagnostics
 
 #include <limits>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 #include <utility>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 bool test_simd_merge1() __attribute__((sycl_device)) {
   simd<int, 16> v0 = 1;

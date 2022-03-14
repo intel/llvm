@@ -855,6 +855,17 @@ let TargetPrefix = "nvvm" in {
       DefaultAttrsIntrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
 
 //
+// Tanh
+//
+
+   def int_nvvm_tanh_approx_f : GCCBuiltin<"__nvvm_tanh_approx_f">,
+        DefaultAttrsIntrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+   def int_nvvm_tanh_approx_f16 : GCCBuiltin<"__nvvm_tanh_approx_f16">,
+       DefaultAttrsIntrinsic<[llvm_half_ty], [llvm_half_ty], [IntrNoMem]>;
+   def int_nvvm_tanh_approx_f16x2 : GCCBuiltin<"__nvvm_tanh_approx_f16x2">,
+       DefaultAttrsIntrinsic<[llvm_v2f16_ty], [llvm_v2f16_ty], [IntrNoMem]>;
+
+//
 // Fma
 //
 

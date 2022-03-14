@@ -43,16 +43,14 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      const char *stream_name) {
   if (std::string_view(stream_name) == "sycl.pi.debug") {
     GStreamID = xptiRegisterStream(stream_name);
-    xptiRegisterCallback(
-        GStreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
-        tpCallback);
-    xptiRegisterCallback(
-        GStreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
-        tpCallback);
+    xptiRegisterCallback(GStreamID, xpti::trace_function_with_args_begin,
+                         tpCallback);
+    xptiRegisterCallback(GStreamID, xpti::trace_function_with_args_end,
+                         tpCallback);
 
 #define _PI_API(api)                                                           \
   ArgHandler.set##_##api(                                                      \
-      [](const pi_plugin &, std::optional<pi_result>, auto &&... Args) {       \
+      [](const pi_plugin &, std::optional<pi_result>, auto &&...Args) {        \
         std::cout << "---> " << #api << "("                                    \
                   << "\n";                                                     \
         sycl::detail::pi::printArgs(Args...);                                  \
@@ -71,8 +69,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t * /*Parent*/,
                                   xpti::trace_event_data_t * /*Event*/,
                                   uint64_t /*Instance*/, const void *UserData) {
-  auto Type = static_cast<xpti::trace_point_type_t>(TraceType);
-  if (Type == xpti::trace_point_type_t::function_with_args_end) {
+  if (TraceType == xpti::trace_function_with_args_end) {
     // Lock while we print information
     std::lock_guard<std::mutex> Lock(GIOMutex);
 

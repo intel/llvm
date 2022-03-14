@@ -81,14 +81,14 @@
 
 #pragma once
 
-#include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
+#include <sycl/ext/intel/esimd/detail/types.hpp>
 
 #include <CL/sycl/half_type.hpp>
 
 /// @cond ESIMD_DETAIL
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace __SEIEED {
+namespace __ESIMD_DNS {
 
 // Primitive C++ operations supported by simd objects and templated upon by some
 // of the functions/classes.
@@ -710,7 +710,7 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 ////////////////////////////////////////////////////////////////////////////////
 // TODO
 
-} // namespace __SEIEED
+} // namespace __ESIMD_DNS
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 /// @endcond ESIMD_DETAIL
