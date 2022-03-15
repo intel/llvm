@@ -1319,24 +1319,23 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
   if (this->isEventlessMode() && !this->SkipLastEventInEventlessMode) {
     pi_result Res =
-        createEventAndAssociateQueue(this, &LastEventInPrevCmdList,
+        createEventAndAssociateQueue(this, &this->LastCommandEvent,
                                      PI_COMMAND_TYPE_USER, CommandList, false);
     if (Res != PI_SUCCESS)
       return Res;
     // Decrement the reference count of the event as this event will not be
     // waited/released by SYCL RT, so it must be destroyed by EventRelease in
     // resetCommandList.
-    PI_CALL(piEventRelease(LastEventInPrevCmdList));
+    PI_CALL(piEventRelease(this->LastCommandEvent));
 
     // Add a special barrier with an event into command-list to ensure in-order
     // semantics between command-lists
-    auto &ZeEvent = LastEventInPrevCmdList->ZeEvent;
+    auto &ZeEvent = this->LastCommandEvent->ZeEvent;
     ZE_CALL(zeCommandListAppendBarrier,
             (CommandList->first, ZeEvent, 0, nullptr));
 
     zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
             pi_cast<std::uintptr_t>(ZeEvent));
-    this->LastCommandEvent = LastEventInPrevCmdList;
   }
 
   auto &ZeCommandQueue = CommandList->second.ZeQueue;
@@ -1544,7 +1543,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     pi_uint32 EventListLength, const pi_event *EventList, pi_queue CurQueue,
     bool UseCopyEngine) {
   auto &LastCommandEvent = CurQueue->LastCommandEvent;
-  auto &LastEventInPrevCmdList = CurQueue->LastEventInPrevCmdList;
+  bool UseLastEvent = true;
 
   if (CurQueue->isEventlessMode()) {
     // In eventless mode, to support in-order semantics, it adds a barrier or
@@ -1557,26 +1556,25 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
       auto &LastCommandList = CurQueue->LastCommandList;
       if (IsPrevCopyEngine != UseCopyEngine) {
         pi_result Res = createEventAndAssociateQueue(
-            CurQueue, &LastEventInPrevCmdList, PI_COMMAND_TYPE_USER,
-            LastCommandList, false);
+            CurQueue, &LastCommandEvent, PI_COMMAND_TYPE_USER, LastCommandList,
+            false);
         if (Res != PI_SUCCESS)
           return Res;
         // Decrement the reference count of the event as this event will not be
         // waited/released by SYCL RT, so it must be destroyed by EventRelease
         // in resetCommandList.
-        PI_CALL(piEventRelease(LastEventInPrevCmdList));
+        PI_CALL(piEventRelease(LastCommandEvent));
         ++LastCommandList->second.NumSpecialBarriersWithEvent;
         // Add a special barrier with an event into command-list to ensure
         // in-order semantics between command-lists
-        auto &ZeEvent = LastEventInPrevCmdList->ZeEvent;
+        auto &ZeEvent = LastCommandEvent->ZeEvent;
         ZE_CALL(zeCommandListAppendBarrier,
                 (LastCommandList->first, ZeEvent, 0, nullptr));
 
         zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
                 pi_cast<std::uintptr_t>(ZeEvent));
-        LastCommandEvent = LastEventInPrevCmdList;
       } else {
-        LastEventInPrevCmdList = nullptr;
+        UseLastEvent = false;
         // Add a special barrier into command-list to ensure in-order semantics
         // inside one command-list
         ZE_CALL(zeCommandListAppendBarrier,
@@ -1590,10 +1588,8 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   this->PiEventList = nullptr;
 
   try {
-    const bool NeedToAddLastEvent =
-        CurQueue->isInOrderQueue() && LastCommandEvent != nullptr &&
-        (!CurQueue->isEventlessMode() ||
-         (LastEventInPrevCmdList == LastCommandEvent));
+    const bool NeedToAddLastEvent = CurQueue->isInOrderQueue() &&
+                                    LastCommandEvent != nullptr && UseLastEvent;
 
     if (NeedToAddLastEvent) {
       this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
@@ -3323,7 +3319,6 @@ static pi_result QueueFinish(pi_queue Queue, pi_queue LockedQueue) {
                                       : std::unique_lock(Queue->Mutex));
   // Prevent unneeded already finished events to show up in the wait list.
   Queue->LastCommandEvent = nullptr;
-  Queue->LastEventInPrevCmdList = nullptr;
   return PI_SUCCESS;
 }
 
@@ -5302,9 +5297,6 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
     // already finished events to show up in the wait list.
     if (Queue->LastCommandEvent == this) {
       Queue->LastCommandEvent = nullptr;
-    }
-    if (Queue->LastEventInPrevCmdList == this) {
-      Queue->LastEventInPrevCmdList = nullptr;
     }
   }
 

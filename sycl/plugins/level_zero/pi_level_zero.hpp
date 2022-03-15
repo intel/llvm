@@ -796,15 +796,6 @@ struct _pi_queue : _pi_object {
   // command-lists.
   bool IsPrevCopyEngine = false;
 
-  // Keeps an event of last special service barrier created to ensure in-order
-  // semantics between command-lists. The plugin is a holder of this event and
-  // SYCL RT knows nothing about it. This special event will be destroyed and
-  // returned back in pool by EventRelease in resetCommandList. this is used to
-  // compare against LastCommandEvent to ensure that event-dependency will only
-  // be added between command-lists. So this serves to determine whether
-  // LastCommandEvent should be added to the WaitList or not.
-  pi_event LastEventInPrevCmdList = nullptr;
-
   // Keeps command-list of the previous command to use in EventlessMode. this is
   // stored so that the plugin knows where to submit the special service barrier
   // with an event if a command-list switch occurs.
