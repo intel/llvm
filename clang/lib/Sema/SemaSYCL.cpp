@@ -1825,11 +1825,6 @@ public:
     return true;
   }
 
-  bool handlePointerType(FieldDecl *, QualType) final {
-    CollectionStack.back() = true;
-    return true;
-  }
-
   bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
     CollectionStack.push_back(false);
     return true;
