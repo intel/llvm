@@ -3407,15 +3407,18 @@ static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
            ZDimExpr->getResultAsAPSInt() != 1));
 }
 
-// If the 'reqd_work_group_size' attribute is specified on
-// a declaration along with 'max_work_group_size' attribute,
-// check to see if values of reqd_work_group_size arguments are
-// equal or less than values of max_work_group_size attribute arguments.
-// If the 'reqd_work_group_size' attribute is specified on
-// a declaration along with 'reqd_work_group_size' attribute,
-// check to see if values of reqd_work_group_size arguments are
-// equal or greater than values of 'reqd_work_group_size' attribute arguments.
-
+// Checks correctness of mutual usage of different work_group_size attributes:
+// reqd_work_group_size and max_work_group_size.
+//
+// If the 'reqd_work_group_size' attribute is specified on a declaration along
+// with 'max_work_group_size' attribute, check to see if values of
+// 'reqd_work_group_size' attribute arguments are greater than values of
+// 'max_work_group_size' attribute arguments.
+//
+// If the 'reqd_work_group_size' attribute is specified multiple times on a
+// declaration, check if the values of 'reqd_work_group_size' attribute
+// arguments specified earlier are less  than the values of
+// 'reqd_work_group_size' attribute arguments specified after.
 template <typename Comparator>
 static bool checkWorkGroupSizeAttrValues(
     Sema &S, const Expr *RWGSXDim, const Expr *RWGSYDim, const Expr *RWGSZDim,
@@ -3432,10 +3435,9 @@ static bool checkWorkGroupSizeAttrValues(
       !WGSYDimExpr || !WGSZDimExpr)
     return false;
 
-  // Otherwise, check if value of 'reqd_work_group_size' attribute argument
-  // is greater than value of 'max_work_group_size' attribute argument.
-  // or check if value of 'reqd_work_group_size' attribute argument is less
-  // than value of 'reqd_work_group_size' attribute argument.
+  // Otherwise, compare the first set of X, Y, and Z dimension values with the
+  // second set of values passed in. The comparison is made using the operator
+  // passed as the template parameter.
 
   bool CheckFirstArgument =
       S.getLangOpts().OpenCL
@@ -3491,10 +3493,14 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   if (!XDim || !YDim || !ZDim)
     return;
 
-  // If the 'max_work_group_size' attribute is specified on
-  // a declaration along with 'reqd_work_group_size' attribute, check to
-  // see if values of reqd_work_group_size attribute arguments are
-  // equal or less than values of 'max_work_group_size' attribute arguments.
+  // If the 'max_work_group_size' attribute is specified on a declaration along
+  // with 'reqd_work_group_size' attribute, check to see if values of
+  // 'reqd_work_group_size' attribute arguments are equal or less than values
+  // of 'max_work_group_size' attribute arguments.
+  //
+  // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
+  // are greater than values of 'max_work_group_size' attribute arguments. The
+  // comparison is made using the operator passed as the template parameter.
   //
   // The arguments to reqd_work_group_size are ordered based on which index
   // increments the fastest. In OpenCL, the first argument is the index that
@@ -3576,10 +3582,14 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
       return nullptr;
   }
 
-  // If the 'max_work_group_size' attribute is specified on
-  // a declaration along with 'reqd_work_group_size' attribute, check to
-  // see if values of reqd_work_group_size attribute arguments are
-  // equal or less than values of 'max_work_group_size' attribute arguments.
+  // If the 'max_work_group_size' attribute is specified on a declaration along
+  // with 'reqd_work_group_size' attribute, check to see if values of
+  // 'reqd_work_group_size' attribute arguments are equal or less than values
+  // of 'max_work_group_size' attribute arguments.
+  //
+  // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
+  // are greater than values of 'max_work_group_size' attribute arguments. The
+  // comparison is made using the operator passed as the template parameter.
   //
   // The arguments to reqd_work_group_size are ordered based on which index
   // increments the fastest. In OpenCL, the first argument is the index that
@@ -3625,10 +3635,10 @@ static void handleSYCLIntelMaxWorkGroupSize(Sema &S, Decl *D,
 }
 
 // Handles reqd_work_group_size.
-// If the 'reqd_work_group_size' attribute is specified on a declaration
-// along with 'num_simd_work_items' attribute, the required work group
-// size specified by 'num_simd_work_items' attribute must evenly divide
-// the index that increments fastest in the 'reqd_work_group_size' attribute.
+// If the 'reqd_work_group_size' attribute is specified on a declaration along
+// with 'num_simd_work_items' attribute, the required work group size specified
+// by 'num_simd_work_items' attribute must evenly divide the index that
+// increments fastest in the 'reqd_work_group_size' attribute.
 //
 // The arguments to reqd_work_group_size are ordered based on which index
 // increments the fastest. In OpenCL, the first argument is the index that
@@ -3698,10 +3708,14 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
     }
   }
 
-  // If the 'max_work_group_size' attribute is specified on
-  // a declaration along with 'reqd_work_group_size' attribute, check to
-  // see if values of reqd_work_group_size attribute arguments are
-  // equal or less than values of 'max_work_group_size' attribute arguments.
+  // If the 'max_work_group_size' attribute is specified on a declaration along
+  // with 'reqd_work_group_size' attribute, check to see if values of
+  // 'reqd_work_group_size' attribute arguments are equal or less than values
+  // of 'max_work_group_size' attribute arguments.
+  //
+  // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
+  // are greater than values of 'max_work_group_size' attribute arguments. The
+  // comparison is made using the operator passed as the template parameter.
   //
   // The arguments to reqd_work_group_size are ordered based on which index
   // increments the fastest. In OpenCL, the first argument is the index that
@@ -3709,8 +3723,8 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
   // increments the fastest.
   //
   // __attribute__((reqd_work_group_size)) follows the OpenCL rules in OpenCL
-  // mode. All spellings of reqd_work_group_size attribute
-  // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
+  // mode. All spellings of reqd_work_group_size attribute (regardless of
+  // syntax used) follow the SYCL rules when in SYCL mode.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     if (checkWorkGroupSizeAttrValues<std::greater<int>>(
             *this, XDim, YDim, ZDim, DeclAttr->getXDim(), DeclAttr->getYDim(),
@@ -3723,9 +3737,9 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
   }
 
   // If the 'reqd_work_group_size' attribute is specified on a declaration
-  // along with 'num_simd_work_items' attribute, the required work group
-  // size specified by 'num_simd_work_items' attribute must evenly divide
-  // the index that increments fastest in the 'reqd_work_group_size' attribute.
+  // along with 'num_simd_work_items' attribute, the required work group size
+  // specified by 'num_simd_work_items' attribute must evenly divide the index
+  // that increments fastest in the 'reqd_work_group_size' attribute.
   //
   // The arguments to reqd_work_group_size are ordered based on which index
   // increments the fastest. In OpenCL, the first argument is the index that
@@ -3757,11 +3771,11 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
       Diag(Existing->getLoc(), diag::note_previous_attribute);
     }
 
-    // If the 'reqd_work_group_size' attribute is specified on
-    // a declaration along with 'reqd_work_group_size' attribute,
-    // check to see if values of 'reqd_work_group_size' attribute arguments are
-    // equal or greater than values of 'reqd_work_group_size' attribute
-    // arguments.
+    // If the 'reqd_work_group_size' attribute is specified multiple times on a
+    // declaration, check if the values of 'reqd_work_group_size' attribute
+    // arguments specified earlier are less than the values of
+    // 'reqd_work_group_size' attribute arguments specified after. The
+    // comparison is made using the operator passed as the template parameter.
     //
     // The arguments to reqd_work_group_size are ordered based on which index
     // increments the fastest. In OpenCL, the first argument is the index that
@@ -3807,10 +3821,14 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
     }
   }
 
-  // If the 'max_work_group_size' attribute is specified on
-  // a declaration along with 'reqd_work_group_size' attribute, check to
-  // see if values of reqd_work_group_size attribute arguments are
-  // equal or less than values of 'max_work_group_size' attribute arguments.
+  // If the 'max_work_group_size' attribute is specified on a declaration along
+  // with 'reqd_work_group_size' attribute, check to see if values of
+  // 'reqd_work_group_size' attribute arguments are equal or less than values
+  // of 'max_work_group_size' attribute arguments.
+  //
+  // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
+  // are greater than values of 'max_work_group_size' attribute arguments. The
+  // comparison is made using the operator passed as the template parameter.
   //
   // The arguments to reqd_work_group_size are ordered based on which index
   // increments the fastest. In OpenCL, the first argument is the index that
@@ -3818,8 +3836,8 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
   // increments the fastest.
   //
   // __attribute__((reqd_work_group_size)) follows the OpenCL rules in OpenCL
-  // mode. All spellings of reqd_work_group_size attribute
-  // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
+  // mode. All spellings of reqd_work_group_size attribute (regardless of
+  // syntax used) follow the SYCL rules when in SYCL mode.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     if (checkWorkGroupSizeAttrValues<std::greater<int>>(
             *this, A.getXDim(), A.getYDim(), A.getZDim(), DeclAttr->getXDim(),
@@ -3868,11 +3886,11 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
       Diag(A.getLoc(), diag::note_previous_attribute);
     }
 
-    // If the 'reqd_work_group_size' attribute is specified on
-    // a declaration along with 'reqd_work_group_size' attribute,
-    // check to see if values of 'reqd_work_group_size' attribute arguments
-    // are equal or greater than values of 'reqd_work_group_size' attribute
-    // arguments.
+    // If the 'reqd_work_group_size' attribute is specified multiple times on a
+    // declaration, check if the values of 'reqd_work_group_size' attribute
+    // arguments specified earlier are less than the values of
+    // 'reqd_work_group_size' attribute arguments specified after. The
+    // comparison is made using the operator passed as the template parameter.
     //
     // The arguments to reqd_work_group_size are ordered based on which index
     // increments the fastest. In OpenCL, the first argument is the index that
