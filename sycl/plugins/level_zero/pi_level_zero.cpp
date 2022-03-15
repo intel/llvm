@@ -1563,6 +1563,26 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
 
           if (auto Res = Queue->executeAllOpenCommandLists())
             return Res;
+        } else if (!Queue) {
+          // There is a dependency on an interop-event.
+          // Similarily to the above to avoid dead locks ensure that
+          // execution of all prior commands in the current command-
+          // batch is visible to the host. This may not be the case
+          // when we intended to have only last command in the batch
+          // produce host-visible event, e.g.
+          //
+          //  event0 = interop event
+          //  event1 = command1 (already in batch, no deps)
+          //  event2 = command2 (is being added, dep on event0)
+          //  event3 = signal host-visible event for the batch
+          //  event1.wait()
+          //  event0.signal()
+          //
+          // Make sure that event1.wait() will wait for a host-visible
+          // event that is signalled before the command2 is enqueued.
+          if (EventsScope != AllHostVisible) {
+            CurQueue->executeAllOpenCommandLists();
+          }
         }
 
         this->ZeEventList[TmpListLength] = EventList[I]->ZeEvent;
@@ -5663,22 +5683,6 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
-  // Submit dependent open command lists for execution, if any
-  // Only do it for queues other than the current, since the barrier
-  // will go into current queue submission together with the waited event.
-  for (uint32_t I = 0; I < NumEventsInWaitList; I++) {
-    auto EventQueue = EventWaitList[I]->Queue;
-    if (EventQueue && EventQueue != Queue) {
-      // Lock automatically releases when this goes out of scope.
-      std::scoped_lock lock(Queue->Mutex);
-
-      if (EventQueue->RefCount > 0) {
-        if (auto Res = EventQueue->executeAllOpenCommandLists())
-          return Res;
-      }
-    }
-  }
-
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock lock(Queue->Mutex);
 
@@ -7447,6 +7451,10 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 
   auto ZeAdvice = pi_cast<ze_memory_advice_t>(Advice);
 
+  if (auto Res =
+          (*Event)->WaitList.createAndRetainPiZeEventList(0, nullptr, Queue))
+    return Res;
+
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
   // UseCopyEngine is set to 'false' here.
@@ -7463,10 +7471,6 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
-
-  if (auto Res =
-          (*Event)->WaitList.createAndRetainPiZeEventList(0, nullptr, Queue))
-    return Res;
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
