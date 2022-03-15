@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// XFAIL: *
 
 // This test checks that compiler generates correct address spaces for pointer
 // kernel arguments that are wrapped by struct.

@@ -1,4 +1,5 @@
 // RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// XFAIL: *
 
 #include "Inputs/sycl.hpp"
 

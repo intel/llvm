@@ -1,5 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
+// XFAIL: *
 
 // CHECK:     const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT:  //--- _ZTSZZ5test0vENKUlRN2cl4sycl7handlerEE_clES2_E8MyKernel

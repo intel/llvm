@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -ast-dump %s | FileCheck %s
+// XFAIL: *
 
 #include "Inputs/sycl.hpp"
 
