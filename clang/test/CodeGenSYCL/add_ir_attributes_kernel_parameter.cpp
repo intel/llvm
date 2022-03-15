@@ -9,7 +9,6 @@
 #include "mock_properties.hpp"
 #include "sycl.hpp"
 
-
 // One __init parameter with add_ir_attributes_kernel_parameter attribute.
 
 template <typename... Properties> class __attribute__((sycl_special_class)) g {
