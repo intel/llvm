@@ -10,7 +10,6 @@ endforeach()
 # suppress warnings which came from Google Test sources
 if (CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)
   add_compile_options("-Wno-suggest-override")
-  add_compile_options("-Wno-inconsistent-missing-override")
 endif()
 check_cxx_compiler_flag("-Winconsistent-missing-override" SYCL_CXX_SUPPORTS_INCONSISTENT_MISSING_OVERRIDE_FLAG)
 # make CMake variable unique for SYCL toolchain by adding SYCL_ prefix to make sure there 
