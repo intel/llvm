@@ -3417,7 +3417,7 @@ static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
 //
 // If the 'reqd_work_group_size' attribute is specified multiple times on a
 // declaration, check if the values of 'reqd_work_group_size' attribute
-// arguments specified earlier are less  than the values of
+// arguments specified earlier are less than the values of
 // 'reqd_work_group_size' attribute arguments specified after.
 template <typename Comparator>
 static bool checkWorkGroupSizeAttrValues(
