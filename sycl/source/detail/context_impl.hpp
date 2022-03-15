@@ -182,7 +182,7 @@ private:
   std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
       MCachedLibPrograms;
   mutable KernelProgramCache MKernelProgramCache;
-  mutable PropertySupport SupportBufferLocationByDevices;
+  mutable PropertySupport MSupportBufferLocationByDevices;
 };
 
 } // namespace detail

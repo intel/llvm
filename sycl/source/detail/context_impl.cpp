@@ -29,7 +29,7 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
       MPlatform(), MPropList(PropList), MHostContext(Device.is_host()),
-      SupportBufferLocationByDevices(NotChecked) {
+      MSupportBufferLocationByDevices(NotChecked) {
   MKernelProgramCache.setContextPtr(this);
 }
 
@@ -38,7 +38,7 @@ context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
       MPlatform(), MPropList(PropList), MHostContext(false),
-      SupportBufferLocationByDevices(NotChecked) {
+      MSupportBufferLocationByDevices(NotChecked) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<RT::PiDevice> DeviceIds;
   for (const auto &D : MDevices) {
@@ -68,7 +68,7 @@ context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                            const plugin &Plugin)
     : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
-      MHostContext(false), SupportBufferLocationByDevices(NotChecked) {
+      MHostContext(false), MSupportBufferLocationByDevices(NotChecked) {
 
   std::vector<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
@@ -209,17 +209,17 @@ pi_native_handle context_impl::getNative() const {
 }
 
 bool context_impl::isBufferLocationSupported() const {
-  if (SupportBufferLocationByDevices != NotChecked)
-    return SupportBufferLocationByDevices == Supported ? true : false;
+  if (MSupportBufferLocationByDevices != NotChecked)
+    return MSupportBufferLocationByDevices == Supported ? true : false;
   // Check that devices within context have support of buffer location
-  SupportBufferLocationByDevices = Supported;
+  MSupportBufferLocationByDevices = Supported;
   for (auto &Device : MDevices) {
     if (!Device.has_extension("cl_intel_mem_alloc_buffer_location")) {
-      SupportBufferLocationByDevices = NotSupported;
+      MSupportBufferLocationByDevices = NotSupported;
       break;
     }
   }
-  return SupportBufferLocationByDevices == Supported ? true : false;
+  return MSupportBufferLocationByDevices == Supported ? true : false;
 }
 
 } // namespace detail
