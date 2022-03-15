@@ -81,8 +81,7 @@ struct _pi_device : _pi_object {
 };
 
 struct _pi_context : _pi_object {
-  _pi_context(pi_device ArgDevice)
-      : Device{ArgDevice} {}
+  _pi_context(pi_device ArgDevice) : Device{ArgDevice} {}
 
   // One-to-one mapping between Context and Device
   pi_device Device;

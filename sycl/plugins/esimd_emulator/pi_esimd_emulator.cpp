@@ -1258,10 +1258,9 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
       pi_cast<char *>(cm_support::get_surface_base_addr(CmIndex->get_data()));
 
   try {
-    *RetImage =
-        new _pi_image(Context, MapBasePtr, CmImg, CmIndex->get_data(),
-                      ImageDesc->image_width, ImageDesc->image_height,
-                      BytesPerPixel, IsHostMem);
+    *RetImage = new _pi_image(Context, MapBasePtr, CmImg, CmIndex->get_data(),
+                              ImageDesc->image_width, ImageDesc->image_height,
+                              BytesPerPixel, IsHostMem);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
