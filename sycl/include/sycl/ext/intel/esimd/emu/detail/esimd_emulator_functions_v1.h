@@ -47,9 +47,9 @@ char *(*sycl_get_surface_base_addr_ptr)(int);
 char *(*__cm_emu_get_slm_ptr)(void);
 void (*cm_slm_init_ptr)(size_t);
 
-unsigned int (*sycl_get_surface_index_ptr)(void *);
-void (*sycl_get_buffer_params_ptr)(unsigned int, char **, uint32_t *,
-                                   std::mutex **);
-void (*sycl_get_image_params_ptr)(unsigned int, char **, uint32_t *, uint32_t *,
-                                  uint32_t *, std::mutex **);
+unsigned int (*sycl_get_cm_surface_index_ptr)(void *);
+void (*sycl_get_cm_buffer_params_ptr)(unsigned int, char **, uint32_t *,
+                                      std::mutex **);
+void (*sycl_get_cm_image_params_ptr)(unsigned int, char **, uint32_t *,
+                                     uint32_t *, uint32_t *, std::mutex **);
 /// @endcond ESIMD_EMU
