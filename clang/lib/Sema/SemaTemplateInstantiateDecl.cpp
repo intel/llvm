@@ -1517,8 +1517,29 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
 
   // Only add this if we aren't instantiating a variable template.  We'll end up
   // adding the VarTemplateSpecializationDecl later.
-  if (!InstantiatingVarTemplate)
+  if (!InstantiatingVarTemplate) {
     SemaRef.addSyclVarDecl(Var);
+    if (SemaRef.getLangOpts().SYCLIsDevice) {
+      if (SemaRef.isDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(Var->getType())) {
+        if (!Var->hasGlobalStorage() || Var->isLocalVarDeclOrParm()) {
+          SemaRef.Diag(D->getLocation(),
+                       diag::err_sycl_device_global_incorrect_scope);
+        }
+
+        if (Var->isStaticLocal()) {
+          const DeclContext *DeclCtx = Var->getDeclContext();
+          while (!DeclCtx->isTranslationUnit()) {
+            if (isa<FunctionDecl>(DeclCtx)) {
+              SemaRef.Diag(D->getLocation(),
+                   diag::err_sycl_device_global_incorrect_scope);
+              break;
+            }
+            DeclCtx = DeclCtx->getParent();
+          }
+        }
+      }
+    }
+  }
   return Var;
 }
 
@@ -1607,6 +1628,17 @@ Decl *TemplateDeclInstantiator::VisitFieldDecl(FieldDecl *D) {
 
   Field->setImplicit(D->isImplicit());
   Field->setAccess(D->getAccess());
+  // Static members are not processed here, so error out if we have a device
+  // global without checking access modifier.
+  if (SemaRef.getLangOpts().SYCLIsDevice) {
+    if (auto Value = dyn_cast<ValueDecl>(Field)) {
+      if (SemaRef.isDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(Value->getType())) {
+        SemaRef.Diag(D->getLocation(),
+                     diag::err_sycl_device_global_incorrect_scope)
+            << Value;
+      }
+    }
+  }
   Owner->addDecl(Field);
 
   return Field;
