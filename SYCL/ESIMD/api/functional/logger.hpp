@@ -62,33 +62,54 @@ template <> struct fp_hex_representation<double> : support_flag<true> {
 
 } // namespace detail
 
-// Provides generic stringification for logging purposes
-template <typename T> static std::string stringify(T val) {
-  if constexpr (std::is_convertible_v<T, std::string>) {
-    return val;
-  } else if constexpr (type_traits::is_sycl_floating_point_v<T>) {
-    // Define the output precision based on the type precision itself
-    // For example, state 9 decimal digits for 32-bit floating point
-    const auto significand_decimal_digits = sizeof(T) * 2 + 1;
+// Provides a stringification helper for safe specialization
+// Benefits:
+//  - makes partial specialization possible
+//  - avoids unexpected behaviour for function specializations and overloads
+template <typename T> struct StringMaker {
+  static std::string stringify(T val) {
+    if constexpr (std::is_convertible_v<T, std::string>) {
+      return val;
+    } else if constexpr (type_traits::is_sycl_floating_point_v<T>) {
+      // Define the output precision based on the type precision itself
+      // For example, state 9 decimal digits for 32-bit floating point
+      const auto significand_decimal_digits = sizeof(T) * 2 + 1;
 
-    std::ostringstream out;
-    out.precision(significand_decimal_digits);
-    out << val << " [";
-    if constexpr (detail::fp_hex_representation<T>::is_supported()) {
-      // Print out hex representation using type-punning
-      using hex_type = typename detail::fp_hex_representation<T>::type;
-      const auto &representation = reinterpret_cast<const hex_type &>(val);
-      out << "0x" << std::hex << representation;
+      std::ostringstream out;
+      out.precision(significand_decimal_digits);
+      out << val << " [";
+      if constexpr (detail::fp_hex_representation<T>::is_supported()) {
+        // Print out hex representation using type-punning
+        using hex_type = typename detail::fp_hex_representation<T>::type;
+        const auto &representation = reinterpret_cast<const hex_type &>(val);
+        out << "0x" << std::hex << representation;
+      } else {
+        // Make support gap explicit to address if required
+        out << " - ";
+      }
+      out << "]";
+      return out.str();
+    } else if constexpr (std::is_enum_v<T>) {
+      // Any enumeration requires explicit cast to the underlying type
+      // Please note that StringMaker can be safely specialized for any
+      // enumeration type for more human-readable logs if required
+      return std::to_string(static_cast<std::underlying_type_t<T>>(val));
     } else {
-      // Make support gap explicit to address if required
-      out << " - ";
+      return std::to_string(val);
     }
-    out << "]";
-    return out.str();
-  } else {
-    return std::to_string(val);
   }
+};
+
+// Provides generic stringification for logging purposes
+// To tweak for specific type, please:
+// - either provide overload,
+// - or specialize the StringMaker for this type
+template <typename T> static std::string stringify(T val) {
+  return log::StringMaker<T>::stringify(val);
 }
+
+// Overload to improve performance a bit; works as the first-class citizen
+inline const std::string &stringify(const std::string &val) { return val; }
 
 // Print line to the log using a custom set of parameters
 //
@@ -138,7 +159,7 @@ template <typename... argsT> inline void print_line(const argsT &...args) {
 // logging disabled
 template <typename... argsT> inline void debug(const argsT &...args) {
 #ifdef ESIMD_TESTS_VERBOSE_LOG
-  print_line(args);
+  print_line(args...);
 #else
   // Suppress unused variables warning
   (static_cast<void>(args), ...);

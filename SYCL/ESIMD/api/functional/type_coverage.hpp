@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include "logger.hpp"
 #include "type_traits.hpp"
 
 #include <cassert>
@@ -103,16 +104,14 @@ template <typename T, T... values> struct value_pack {
   }
 
   // Factory function to generate the type pack with stringified values stored
-  // within
+  // within. Would work with or without specific StringMaker specializations.
+  // For example:
+  //   const auto targets =
+  //     value_pack<sycl::target, sycl::target::device>::generate_named();
+  //
   static inline auto generate_named() {
-    if constexpr (std::is_enum_v<T>) {
-      // Any enumeration requires explicit cast to the underlying type
-      return named_type_pack<std::integral_constant<T, values>...>::generate(
-          std::to_string(static_cast<std::underlying_type_t<T>>(values))...);
-    } else {
-      return named_type_pack<std::integral_constant<T, values>...>::generate(
-          std::to_string(values)...);
-    }
+    return named_type_pack<std::integral_constant<T, values>...>::generate(
+        log::stringify(values)...);
   }
 
   // Factory function to generate the type pack with names given for each value
@@ -130,6 +129,31 @@ template <typename T, T... values> struct value_pack {
   static inline auto generate_named(argsT &&...args) {
     return named_type_pack<std::integral_constant<T, values>...>::generate(
         std::forward<argsT>(args)...);
+  }
+
+  // Factory function to generate the type pack using generator function
+  //
+  // It could be especially usefull for value packs with enums. For example:
+  //   enum class access {read, write};
+  //   template <access ... values>
+  //   using access_pack = value_pack<access, values...>;
+  //
+  //   const auto generator = [&](const access& value) {
+  //        switch (value) {
+  //        case access:read:
+  //           return "read access";
+  //           break;
+  //        ...
+  //        };
+  //     };
+  //   const auto accesses =
+  //     access_pack<access::read, access::write>::generate_named_by(generator);
+  //
+  template <typename GeneratorT>
+  static auto generate_named_by(const GeneratorT &nameGenerator) {
+    static_assert(std::is_invocable_v<GeneratorT, T>,
+                  "Unexpected name generator type");
+    return generate_named(nameGenerator(values)...);
   }
 };
 
