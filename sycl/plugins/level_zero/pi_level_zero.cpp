@@ -1458,6 +1458,11 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
   ZeCommandQueueDesc.index = ZeCommandQueueIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
 
+  // Evaluate performance of explicit usage for "0" index.
+  if (ZeCommandQueueIndex != 0) {
+    ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
+  }
+
   zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
           "(round robin in [%d, %d])\n",
           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
