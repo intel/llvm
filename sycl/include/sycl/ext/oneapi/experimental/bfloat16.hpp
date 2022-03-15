@@ -17,7 +17,7 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-class [[sycl_detail::uses_aspects(ext_intel_bf16_conversion)]] bfloat16 {
+class bfloat16 {
   using storage_t = uint16_t;
   storage_t value;
 
