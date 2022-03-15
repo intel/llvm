@@ -34,11 +34,13 @@ struct TRIFuncObjGood2 {
 };
 
 struct TRIFuncObjGood3 {
-  [[sycl::reqd_work_group_size(8, 8)]] void // expected-note {{previous attribute is here}}
+  [[sycl::reqd_work_group_size(8, 8)]] void // expected-note {{previous attribute is here}} \
+	                                    // expected-note {{conflicting attribute is here}}
   operator()() const;
 };
 
-[[sycl::reqd_work_group_size(4, 4)]] // expected-warning {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+[[sycl::reqd_work_group_size(4, 4)]] // expected-warning {{attribute 'reqd_work_group_size' is already applied with different arguments}} \
+		                     // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
 void
 TRIFuncObjGood3::operator()() const {}
 
@@ -91,31 +93,38 @@ void instantiate() {
 // equal or greater than values coming from reqd_work_group_size attribute.
 [[sycl::reqd_work_group_size(1, 2, 3)]] [[sycl::reqd_work_group_size(1, 2, 3)]] void f10() {} // OK
 
-[[sycl::reqd_work_group_size(8)]]            // expected-note {{conflicting attribute is here}}
-[[sycl::reqd_work_group_size(1, 1, 8)]] void // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+[[sycl::reqd_work_group_size(8)]]            // expected-note {{conflicting attribute is here}} \
+		                             // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(1, 1, 8)]] void // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}} \
+		                             // expected-warning {{attribute 'reqd_work_group_size' is already applied with different arguments}}
 f11(){};
 
 [[sycl::reqd_work_group_size(32, 32, 1)]] [[sycl::reqd_work_group_size(32, 32)]] void f12() {} // OK
 
 // Test that template redeclarations also get diagnosed properly.
 template <int X, int Y, int Z>
-[[sycl::reqd_work_group_size(64, 1, 1)]] void f13(); // #f13conflict
-
+[[sycl::reqd_work_group_size(64, 1, 1)]] void f13(); // #f13conflict \
+		                                     // #f13prev
 template <int X, int Y, int Z>
-[[sycl::reqd_work_group_size(X, Y, Z)]] void f13() {} // #f13
+[[sycl::reqd_work_group_size(X, Y, Z)]] void f13() {} // #f13err \
+		                                      // #f13warn
 
 void test() {
   f13<64, 1, 1>(); // OK, args are the same on the redecl.
-  // expected-error@#f13 {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+  // expected-error@#f13err {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+  // expected-warning@#f13warn {{attribute 'reqd_work_group_size' is already applied with different arguments}}
   // expected-note@#f13conflict {{conflicting attribute is here}}
+  // expected-note@#f13prev {{previous attribute is here}}
   f13<1, 1, 64>(); // expected-note {{in instantiation}}
 }
 
 struct TRIFuncObjBad {
-  [[sycl::reqd_work_group_size(32, 1, 1)]] void // expected-note {{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(32, 1, 1)]] void // expected-note {{conflicting attribute is here}} \
+	                                        // expected-note {{previous attribute is here}}
   operator()() const;
 };
 
-[[sycl::reqd_work_group_size(1, 1, 32)]] // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+[[sycl::reqd_work_group_size(1, 1, 32)]] // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}} \
+		                         // expected-warning {{attribute 'reqd_work_group_size' is already applied with different arguments}}
 void
 TRIFuncObjBad::operator()() const {}

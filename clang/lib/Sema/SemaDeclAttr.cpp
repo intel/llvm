@@ -3722,31 +3722,6 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
     }
   }
 
-  // If the 'reqd_work_group_size' attribute is specified on
-  // a declaration along with 'reqd_work_group_size' attribute,
-  // check to see if values of 'reqd_work_group_size' attribute arguments are
-  // equal or greater than values of 'reqd_work_group_size' attribute
-  // arguments.
-  //
-  // The arguments to reqd_work_group_size are ordered based on which index
-  // increments the fastest. In OpenCL, the first argument is the index that
-  // increments the fastest, and in SYCL, the last argument is the index that
-  // increments the fastest.
-  //
-  // __attribute__((reqd_work_group_size)) follows the OpenCL rules in OpenCL
-  // mode. All spellings of reqd_work_group_size attribute
-  // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
-  if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues<std::less<int>>(
-            *this, XDim, YDim, ZDim, DeclAttr->getXDim(), DeclAttr->getYDim(),
-            DeclAttr->getZDim())) {
-      Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << CI << DeclAttr;
-      Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
-      return;
-    }
-  }
-
   // If the 'reqd_work_group_size' attribute is specified on a declaration
   // along with 'num_simd_work_items' attribute, the required work group
   // size specified by 'num_simd_work_items' attribute must evenly divide
@@ -3780,8 +3755,31 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
     if (llvm::is_contained(Results, DupArgResult::Different)) {
       Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
       Diag(Existing->getLoc(), diag::note_previous_attribute);
+    }
+
+    // If the 'reqd_work_group_size' attribute is specified on
+    // a declaration along with 'reqd_work_group_size' attribute,
+    // check to see if values of 'reqd_work_group_size' attribute arguments are
+    // equal or greater than values of 'reqd_work_group_size' attribute
+    // arguments.
+    //
+    // The arguments to reqd_work_group_size are ordered based on which index
+    // increments the fastest. In OpenCL, the first argument is the index that
+    // increments the fastest, and in SYCL, the last argument is the index that
+    // increments the fastest.
+    //
+    // __attribute__((reqd_work_group_size)) follows the OpenCL rules in OpenCL
+    // mode. All spellings of reqd_work_group_size attribute
+    // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
+    if (checkWorkGroupSizeAttrValues<std::less<int>>(
+            *this, XDim, YDim, ZDim, Existing->getXDim(), Existing->getYDim(),
+            Existing->getZDim())) {
+      Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << CI << Existing;
+      Diag(Existing->getLoc(), diag::note_conflicting_attribute);
       return;
     }
+
     // If all of the results are known to be the same, we can silently drop the
     // attribute. Otherwise, we have to add the attribute and resolve its
     // differences later.
@@ -3833,30 +3831,6 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
     }
   }
 
-  // If the 'reqd_work_group_size' attribute is specified on
-  // a declaration along with 'reqd_work_group_size' attribute,
-  // check to see if values of 'reqd_work_group_size' attribute arguments are
-  // equal or greater than values of 'reqd_work_group_size' attribute arguments.
-  //
-  // The arguments to reqd_work_group_size are ordered based on which index
-  // increments the fastest. In OpenCL, the first argument is the index that
-  // increments the fastest, and in SYCL, the last argument is the index that
-  // increments the fastest.
-  //
-  // __attribute__((reqd_work_group_size)) follows the OpenCL rules in OpenCL
-  // mode. All spellings of reqd_work_group_size attribute
-  // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
-  if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues<std::less<int>>(
-            *this, A.getXDim(), A.getYDim(), A.getZDim(), DeclAttr->getXDim(),
-            DeclAttr->getYDim(), DeclAttr->getZDim())) {
-      Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << DeclAttr << &A;
-      Diag(A.getLoc(), diag::note_conflicting_attribute);
-      return nullptr;
-    }
-  }
-
   // If the 'reqd_work_group_size' attribute is specified on a declaration
   // along with 'num_simd_work_items' attribute, the required work group size
   // specified by 'num_simd_work_items' attribute must evenly divide the index
@@ -3892,6 +3866,27 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
     if (llvm::is_contained(Results, DupArgResult::Different)) {
       Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
       Diag(A.getLoc(), diag::note_previous_attribute);
+    }
+
+    // If the 'reqd_work_group_size' attribute is specified on
+    // a declaration along with 'reqd_work_group_size' attribute,
+    // check to see if values of 'reqd_work_group_size' attribute arguments are
+    // equal or greater than values of 'reqd_work_group_size' attribute arguments.
+    //
+    // The arguments to reqd_work_group_size are ordered based on which index
+    // increments the fastest. In OpenCL, the first argument is the index that
+    // increments the fastest, and in SYCL, the last argument is the index that
+    // increments the fastest.
+    //
+    // __attribute__((reqd_work_group_size)) follows the OpenCL rules in OpenCL
+    // mode. All spellings of reqd_work_group_size attribute
+    // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
+    if (checkWorkGroupSizeAttrValues<std::less<int>>(
+            *this, DeclAttr->getXDim(), DeclAttr->getYDim(),
+	    DeclAttr->getZDim(), A.getXDim(), A.getYDim(), A.getZDim())) {
+      Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << DeclAttr << &A;
+      Diag(A.getLoc(), diag::note_conflicting_attribute);
       return nullptr;
     }
 

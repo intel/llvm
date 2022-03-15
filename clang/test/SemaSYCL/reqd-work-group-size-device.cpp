@@ -48,8 +48,11 @@ public:
 #ifdef TRIGGER_ERROR
 class Functor32 {
 public:
-  [[sycl::reqd_work_group_size(32, 1, 1)]]      // expected-note {{conflicting attribute is here}}
-  [[sycl::reqd_work_group_size(1, 1, 32)]] void // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+  // expected-note@+3{{conflicting attribute is here}}
+  // expected-warning@+3{{attribute 'reqd_work_group_size' is already applied with different arguments}}
+  // expected-error@+2 {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+  [[sycl::reqd_work_group_size(32, 1, 1)]] // expected-note {{previous attribute is here}}
+  [[sycl::reqd_work_group_size(1, 1, 32)]] void
   operator()() const {}
 };
 #endif
