@@ -3419,6 +3419,7 @@ These will be the names of the added LLVM IR attributes. The following N
 arguments are the values of the LLVM IR attributes and must be integer, floating
 point, character, boolean, ``const char *``, or an enumeration as either a
 literal or ``constexpr`` value.
+No LLVM IR attribute is generated if the attribute name is an empty string.
 
 .. code-block:: c++
 
@@ -3468,6 +3469,7 @@ first N of these arguments must be either string literals or
 attributes. The following N arguments are the values of the LLVM IR attributes
 and must be integer, floating point, character, boolean, ``const char *``, or
 an enumeration as either a literal or ``constexpr`` value.
+No LLVM IR attribute is generated if the attribute name is an empty string.
 
 .. code-block:: c++
 
@@ -3533,6 +3535,7 @@ These will be the names of the added LLVM IR attributes. The following N
 arguments are the values of the LLVM IR attributes and must be integer, floating
 point, character, boolean, ``const char *``, or an enumeration as either a
 literal or ``constexpr`` value.
+No LLVM IR attribute is generated if the attribute name is an empty string.
 
 .. code-block:: c++
 

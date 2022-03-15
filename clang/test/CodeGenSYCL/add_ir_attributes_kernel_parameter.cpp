@@ -248,6 +248,25 @@ public:
 #endif
 };
 
+// Empty attribute names.
+
+class __attribute__((sycl_special_class)) np {
+public:
+  int *x;
+
+  np() : x(nullptr) {}
+  np(int *_x) : x(_x) {}
+
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(
+      [[__sycl_detail__::add_ir_attributes_kernel_parameter(
+          "", "", "", "", "", "", "",
+          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]] int *_x) {
+    x = _x;
+  }
+#endif
+};
+
 int main() {
   sycl::queue q;
   g<prop1, prop2, prop3, prop4, prop5, prop6, prop7> a1;
@@ -334,6 +353,13 @@ int main() {
           (void)d3;
         });
   });
+  np e;
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class test_kernel13>(
+        [=]() {
+          (void)e;
+        });
+  });
 }
 
 // One __init parameter with add_ir_attributes_kernel_parameter attribute.
@@ -353,3 +379,10 @@ int main() {
 // CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel10({{.*}}i32 addrspace({{.*}})* {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} %{{.*}}, {{.*}}float addrspace({{.*}})* {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} %{{.*}})
 // CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel11({{.*}}i32 addrspace({{.*}})* {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}}, {{.*}}float addrspace({{.*}})* {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}})
 // CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel12({{.*}}i32 addrspace({{.*}})* {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}}, {{.*}}float addrspace({{.*}})* {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} %{{.*}})
+
+// Empty attribute names.
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel13({{.*}}i32 addrspace({{.*}})* {{.*}} %{{.*}})
+// CHECK-NOT: ""="Another property string"
+// CHECK-NOT: ""="1"
+// CHECK-NOT: ""="2"
+// CHECK-NOT: ""="false"
