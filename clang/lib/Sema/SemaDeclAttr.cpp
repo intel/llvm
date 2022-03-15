@@ -3870,8 +3870,9 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
 
     // If the 'reqd_work_group_size' attribute is specified on
     // a declaration along with 'reqd_work_group_size' attribute,
-    // check to see if values of 'reqd_work_group_size' attribute arguments are
-    // equal or greater than values of 'reqd_work_group_size' attribute arguments.
+    // check to see if values of 'reqd_work_group_size' attribute arguments
+    // are equal or greater than values of 'reqd_work_group_size' attribute
+    // arguments.
     //
     // The arguments to reqd_work_group_size are ordered based on which index
     // increments the fastest. In OpenCL, the first argument is the index that
@@ -3883,7 +3884,7 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
     // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
     if (checkWorkGroupSizeAttrValues<std::less<int>>(
             *this, DeclAttr->getXDim(), DeclAttr->getYDim(),
-	    DeclAttr->getZDim(), A.getXDim(), A.getYDim(), A.getZDim())) {
+            DeclAttr->getZDim(), A.getXDim(), A.getYDim(), A.getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
           << DeclAttr << &A;
       Diag(A.getLoc(), diag::note_conflicting_attribute);
