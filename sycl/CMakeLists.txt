@@ -138,6 +138,8 @@ set(BOOST_MP11_GIT_TAG 7bc4e1ae9b36ec8ee635c3629b59ec525bbe82b9)
 
 # Either download from github or use existing if BOOST_MP11_SOURCE_DIR is set
 if (NOT DEFINED BOOST_MP11_SOURCE_DIR)
+  message(STATUS "BOOST_MP11_SOURCE_DIR not set, downloading boost/mp11 headers from ${BOOST_MP11_GIT_REPO}")
+
   FetchContent_Declare(boost_mp11
     GIT_REPOSITORY ${BOOST_MP11_GIT_REPO}
     GIT_TAG ${BOOST_MP11_GIT_TAG}
@@ -152,7 +154,6 @@ if (NOT DEFINED BOOST_MP11_SOURCE_DIR)
   endif(NOT boost_mp11_POPULATED)
 
   set(BOOST_MP11_SOURCE_DIR ${boost_mp11_SOURCE_DIR})
-  message(STATUS "BOOST_MP11_SOURCE_DIR not set, downloading boost/mp11 headers from ${BOOST_MP11_GIT_REPO}")
   set(BOOST_MP11_SRC_PATH ${BOOST_MP11_GIT_REPO})
   set(BOOST_MP11_SRC_ID "git commit hash: ${BOOST_MP11_GIT_TAG}")
 else (NOT DEFINED BOOST_MP11_SOURCE_DIR)
