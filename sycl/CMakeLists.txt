@@ -142,8 +142,15 @@ if (NOT DEFINED BOOST_MP11_SOURCE_DIR)
     GIT_REPOSITORY ${BOOST_MP11_GIT_REPO}
     GIT_TAG ${BOOST_MP11_GIT_TAG}
   )
-  FetchContent_MakeAvailable(boost_mp11)
   FetchContent_GetProperties(boost_mp11)
+
+  # Avoid FetchContent_MakeAvailable, as we just want to download sources,
+  # and not to import mp11's cmake files into build.
+  if(NOT boost_mp11_POPULATED)
+    FetchContent_Populate(boost_mp11)
+    set(boost_mp11_POPULATED TRUE)
+  endif(NOT boost_mp11_POPULATED)
+
   set(BOOST_MP11_SOURCE_DIR ${boost_mp11_SOURCE_DIR})
   message(STATUS "BOOST_MP11_SOURCE_DIR not set, downloading boost/mp11 headers from ${BOOST_MP11_GIT_REPO}")
   set(BOOST_MP11_SRC_PATH ${BOOST_MP11_GIT_REPO})
@@ -161,11 +168,15 @@ set(BOOST_MP11_DESTINATION_DIR ${SYCL_INCLUDE_BUILD_DIR}/sycl/detail/boost)
 string(REPLACE "${BOOST_MP11_SOURCE_DIR}/include/boost" "${BOOST_MP11_DESTINATION_DIR}"
   OUT_HEADERS_BOOST_MP11 "${HEADERS_BOOST_MP11}")
 
+# The target which produces preprocessed boost/mp11 headers
+add_custom_target(boost_mp11-headers
+  DEPENDS ${OUT_HEADERS_BOOST_MP11})
+
 # Run preprocessing on each header, output result into
 # ${BOOST_MP11_DESTINATION_DIR}
 add_custom_command(
   OUTPUT ${OUT_HEADERS_BOOST_MP11}
-  DEPENDS boost_mp11
+  DEPENDS ${HEADERS_BOOST_MP11}
   COMMAND ${CMAKE_COMMAND}
     -DIN=${BOOST_MP11_SOURCE_DIR}/include/boost
     -DOUT=${BOOST_MP11_DESTINATION_DIR}
@@ -173,10 +184,6 @@ add_custom_command(
     -DSRC_ID="${BOOST_MP11_SRC_ID}"
     -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/pp_boost_mp11_headers.cmake
   COMMENT "Preprocessing boost/mp11 headers ${BOOST_MP11_SOURCE_DIR}/include/boost -> ${BOOST_MP11_DESTINATION_DIR}...")
-
-# The target which produces preprocessed boost/mp11 headers
-add_custom_target(boost_mp11-headers
-  DEPENDS ${OUT_HEADERS_BOOST_MP11})
 
 # -------------- end boost/mp11 headers import and preprocessing
 
@@ -209,7 +216,8 @@ string(REPLACE "${sycl_inc_dir}/CL" "${SYCL_INCLUDE_BUILD_DIR}/sycl/CL"
 # Copy SYCL headers from sources to build directory
 add_custom_target(sycl-headers
   DEPENDS ${OUT_HEADERS_IN_SYCL_DIR}
-          ${OUT_HEADERS_IN_CL_DIR})
+          ${OUT_HEADERS_IN_CL_DIR}
+          boost_mp11-headers)
 
 add_custom_command(
   OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
