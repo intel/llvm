@@ -57,6 +57,16 @@ free_func5() {
 }
 
 template <typename... Properties>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::add_ir_attributes_function(
+    "", "Prop12", "", "", "", "Prop16", "Prop17",
+    "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+#endif
+void
+free_func6() {
+}
+
+template <typename... Properties>
 class KernelFunctor1 {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
@@ -123,6 +133,19 @@ public:
   }
 };
 
+class KernelFunctor6 {
+public:
+#ifdef __SYCL_DEVICE_ONLY__
+  [[__sycl_detail__::add_ir_attributes_function(
+      "", "Prop12", "", "", "", "Prop16", "Prop17",
+      "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+#endif
+  void
+  operator()() const {
+    free_func6();
+  }
+};
+
 int main() {
   sycl::queue q;
   q.submit([&](sycl::handler &h) {
@@ -145,6 +168,10 @@ int main() {
     KernelFunctor5 f{};
     h.single_task<class test_kernel5>(f);
   });
+  q.submit([&](sycl::handler &h) {
+    KernelFunctor6 f{};
+    h.single_task<class test_kernel6>(f);
+  });
 }
 
 // CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel1() #[[KernFunc1Attrs:[0-9]+]]
@@ -152,17 +179,21 @@ int main() {
 // CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel3() #[[KernFunc3And4Attrs:[0-9]+]]
 // CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel4() #[[KernFunc3And4Attrs]]
 // CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel5() {{.*}}
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel6() #[[KernFunc6Attrs:[0-9]+]]
 // CHECK-DAG: define {{.*}}spir_func void @{{.*}}free_func1{{.*}}() #[[Func1Attrs:[0-9]+]]
 // CHECK-DAG: define {{.*}}spir_func void @{{.*}}free_func2{{.*}}() #[[Func2Attrs:[0-9]+]]
 // CHECK-DAG: define {{.*}}spir_func void @{{.*}}free_func3{{.*}}() #[[Func3and4Attrs:[0-9]+]]
 // CHECK-DAG: define {{.*}}spir_func void @{{.*}}free_func4{{.*}}() #[[Func3and4Attrs]]
 // CHECK-DAG: define {{.*}}spir_func void @{{.*}}free_func5{{.*}}() {{.*}}
+// CHECK-DAG: define {{.*}}spir_func void @{{.*}}free_func6{{.*}}() #[[Func6Attrs:[0-9]+]]
 // CHECK-DAG: attributes #[[KernFunc1Attrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
 // CHECK-DAG: attributes #[[KernFunc2Attrs]] = { {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} }
 // CHECK-DAG: attributes #[[KernFunc3And4Attrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
+// CHECK-DAG: attributes #[[KernFunc6Attrs]] = { {{.*}}"Prop12"="2"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} }
 // CHECK-DAG: attributes #[[Func1Attrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
 // CHECK-DAG: attributes #[[Func2Attrs]] = { {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} }
 // CHECK-DAG: attributes #[[Func3and4Attrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
+// CHECK-DAG: attributes #[[Func6Attrs]] = { {{.*}}"Prop12"="2"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} }
 // CHECK-NOT: ""="Another property string"
 // CHECK-NOT: ""="1"
 // CHECK-NOT: ""="2"

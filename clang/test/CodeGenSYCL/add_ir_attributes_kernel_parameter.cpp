@@ -266,6 +266,23 @@ public:
 #endif
 };
 
+class __attribute__((sycl_special_class)) mp {
+public:
+  int *x;
+
+  mp() : x(nullptr) {}
+  mp(int *_x) : x(_x) {}
+
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(
+      [[__sycl_detail__::add_ir_attributes_kernel_parameter(
+          "", "Prop12", "", "", "", "Prop16", "Prop17",
+          "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]] int *_x) {
+    x = _x;
+  }
+#endif
+};
+
 int main() {
   sycl::queue q;
   g<prop1, prop2, prop3, prop4, prop5, prop6, prop7> a1;
@@ -359,6 +376,13 @@ int main() {
           (void)e;
         });
   });
+  mp f;
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class test_kernel14>(
+        [=]() {
+          (void)f;
+        });
+  });
 }
 
 // One __init parameter with add_ir_attributes_kernel_parameter attribute.
@@ -381,6 +405,7 @@ int main() {
 
 // Empty attribute names.
 // CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel13({{.*}}i32 addrspace({{.*}})* {{.*}} %{{.*}})
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}test_kernel14({{.*}})* {{.*}}"Prop12"="2"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} %{{.*}})
 // CHECK-NOT: ""="Another property string"
 // CHECK-NOT: ""="1"
 // CHECK-NOT: ""="2"
