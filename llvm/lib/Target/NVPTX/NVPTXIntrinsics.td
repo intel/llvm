@@ -855,13 +855,13 @@ def INT_NVVM_FABS_D : F_MATH_1<"abs.f64 \t$dst, $src0;", Float64Regs,
 // Abs, Neg bf16, bf16x2
 //
 
-def INT_NVVM_ABS_BF16 : F_MATH_1<"abs.bf16 \t$dst, $dst;", Int16Regs,
+def INT_NVVM_ABS_BF16 : F_MATH_1<"abs.bf16 \t$dst, $src0;", Int16Regs,
   Int16Regs, int_nvvm_abs_bf16, [hasPTX70, hasSM80]>;
-def INT_NVVM_ABS_BF16X2 : F_MATH_1<"abs.bf16x2 \t$dst, $dst;", Int32Regs,
+def INT_NVVM_ABS_BF16X2 : F_MATH_1<"abs.bf16x2 \t$dst, $src0;", Int32Regs,
   Int32Regs, int_nvvm_abs_bf16x2, [hasPTX70, hasSM80]>;
-def INT_NVVM_NEG_BF16 : F_MATH_1<"neg.bf16 \t$dst, $dst;", Int16Regs,
+def INT_NVVM_NEG_BF16 : F_MATH_1<"neg.bf16 \t$dst, $src0;", Int16Regs,
   Int16Regs, int_nvvm_neg_bf16, [hasPTX70, hasSM80]>;
-def INT_NVVM_NEG_BF16X2 : F_MATH_1<"neg.bf16x2 \t$dst, $dst;", Int32Regs,
+def INT_NVVM_NEG_BF16X2 : F_MATH_1<"neg.bf16x2 \t$dst, $src0;", Int32Regs,
   Int32Regs, int_nvvm_neg_bf16x2, [hasPTX70, hasSM80]>;
 
 //
@@ -932,6 +932,17 @@ def INT_NVVM_COS_APPROX_FTZ_F : F_MATH_1<"cos.approx.ftz.f32 \t$dst, $src0;",
   Float32Regs, Float32Regs, int_nvvm_cos_approx_ftz_f>;
 def INT_NVVM_COS_APPROX_F : F_MATH_1<"cos.approx.f32 \t$dst, $src0;",
   Float32Regs, Float32Regs, int_nvvm_cos_approx_f>;
+
+//
+// Tanh
+//
+
+ def INT_NVVM_TANH_APPROX_F : F_MATH_1<"tanh.approx.f32 \t$dst, $src0;",
+    Float32Regs, Float32Regs, int_nvvm_tanh_approx_f>;
+ def INT_NVVM_TANH_APPROX_F16 : F_MATH_1<"tanh.approx.f16 \t$dst, $src0;",
+   Float16Regs, Float16Regs, int_nvvm_tanh_approx_f16>;
+ def INT_NVVM_TANH_APPROX_F16X2 : F_MATH_1<"tanh.approx.f16x2 \t$dst, $src0;",
+   Float16x2Regs, Float16x2Regs, int_nvvm_tanh_approx_f16x2>;
 
 //
 // Fma

@@ -15,10 +15,6 @@ on:
         type: string
         required: false
         default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
-      build_runs_on:
-        type: string
-        required: false
-        default: "build"
       build_ref:
         type: string
         required: false
@@ -68,7 +64,7 @@ on:
 jobs:
   build:
     name: Build + LIT
-    runs-on: ${{ inputs.build_runs_on }}
+    runs-on: [Linux, build]
     container:
       image: ${{ inputs.build_image }}
       options: -u 1001:1001
