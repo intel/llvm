@@ -831,6 +831,11 @@ bool _pi_queue::isInOrderQueue() const {
   return ((this->Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) == 0);
 }
 
+bool _pi_queue::isEventlessMode() const {
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS_MODE_ENABLE) !=
+          0);
+}
+
 pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                                       bool MakeAvailable) {
   bool UseCopyEngine = CommandList->second.isCopy(this);
@@ -1312,7 +1317,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     CommandBatch.OpenCommandList = CommandListMap.end();
   }
 
-  if (this->EventlessMode && !this->SkipLastEventInEventlessMode) {
+  if (this->isEventlessMode() && !this->SkipLastEventInEventlessMode) {
     pi_result Res =
         createEventAndAssociateQueue(this, &LastEventInPrevCmdList,
                                      PI_COMMAND_TYPE_USER, CommandList, false);
@@ -1541,7 +1546,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   auto &LastCommandEvent = CurQueue->LastCommandEvent;
   auto &LastEventInPrevCmdList = CurQueue->LastEventInPrevCmdList;
 
-  if (CurQueue->EventlessMode) {
+  if (CurQueue->isEventlessMode()) {
     // In eventless mode, to support in-order semantics, it adds a barrier or
     // barrier with an event to the previous command-list if the list is open.
     const auto &IsPrevCopyEngine = CurQueue->IsPrevCopyEngine;
@@ -1587,7 +1592,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   try {
     const bool NeedToAddLastEvent =
         CurQueue->isInOrderQueue() && LastCommandEvent != nullptr &&
-        (!CurQueue->EventlessMode ||
+        (!CurQueue->isEventlessMode() ||
          (LastEventInPrevCmdList == LastCommandEvent));
 
     if (NeedToAddLastEvent) {
@@ -3098,7 +3103,8 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   // Check that unexpected bits are not set.
   PI_ASSERT(!(Properties & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
                              PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
-                             PI_QUEUE_ON_DEVICE_DEFAULT)),
+                             PI_QUEUE_ON_DEVICE_DEFAULT |
+                             PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS_MODE_ENABLE)),
             PI_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
@@ -4898,7 +4904,6 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   std::scoped_lock QueueLock(Queue->Mutex);
 
   bool UseCopyEngine = false;
-  Queue->EventlessMode |= !Event;
 
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
@@ -5686,7 +5691,6 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     std::scoped_lock lock(Queue->Mutex);
 
     bool UseCopyEngine = false;
-    Queue->EventlessMode |= !Event;
 
     _pi_ze_event_list_t TmpWaitList = {};
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
@@ -5789,7 +5793,6 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   std::scoped_lock lock(Queue->Mutex);
 
   bool UseCopyEngine = false;
-  Queue->EventlessMode |= !Event;
 
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
@@ -5887,7 +5890,6 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
-  Queue->EventlessMode |= !Event;
 
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
@@ -6168,7 +6170,6 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   }
 
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
-  Queue->EventlessMode |= !Event;
 
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
@@ -6311,7 +6312,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
       {
         // Lock automatically releases when this goes out of scope.
         std::scoped_lock lock(Queue->Mutex);
-        if (Queue->EventlessMode) {
+        if (Queue->isEventlessMode()) {
           PI_CALL(QueueFinish(Queue, Queue));
         } else {
           TmpLastCommandEvent = Queue->LastCommandEvent;
@@ -6461,7 +6462,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
       {
         // Lock automatically releases when this goes out of scope.
         std::shared_lock lock(Queue->Mutex);
-        if (Queue->EventlessMode) {
+        if (Queue->isEventlessMode()) {
           PI_CALL(QueueFinish(Queue, Queue));
         } else {
           TmpLastCommandEvent = Queue->LastCommandEvent;
@@ -7535,7 +7536,6 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // TODO: Change UseCopyEngine argument to 'true' once L0 backend
   // support is added
   bool UseCopyEngine = false;
-  Queue->EventlessMode |= !Event;
 
   /**
    * @brief Please note that the following code should be run before the
@@ -7611,7 +7611,6 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // TODO: Additional analysis is required to check if this operation will
   // run faster on copy engines.
   bool UseCopyEngine = false;
-  Queue->EventlessMode |= !Event;
   auto ZeAdvice = pi_cast<ze_memory_advice_t>(Advice);
 
   _pi_ze_event_list_t TmpWaitList;

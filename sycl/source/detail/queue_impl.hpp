@@ -301,6 +301,10 @@ public:
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
     }
+    if (MPropList
+            .has_property<ext::oneapi::property::queue::discard_events>()) {
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS_MODE_ENABLE;
+    }
     RT::PiQueue Queue{};
     RT::PiContext Context = MContext->getHandleRef();
     RT::PiDevice Device = MDevice->getHandleRef();

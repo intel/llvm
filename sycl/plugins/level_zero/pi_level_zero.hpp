@@ -784,14 +784,6 @@ struct _pi_queue : _pi_object {
   // asked to not transfer the ownership to SYCL RT.
   bool OwnZeCommandQueue;
 
-  // Indicates if we create an event for each command or use eventless mode for
-  // the queue. The eventless mode is used for SYCL in-order queue with
-  // discard_events property. Since we don't create L0 events for some commands
-  // we guarantee in-order semantics inside command-list by using barriers and
-  // create a special event for the last barrier of the command-list to
-  // guarantee the semantics between command-lists.
-  bool EventlessMode = false;
-
   // It helps to skip creating a special service barrier with an event in
   // command-list in eventless mode if we do QueueFinish or piQueueRelease
   bool SkipLastEventInEventlessMode = false;
@@ -809,10 +801,13 @@ struct _pi_queue : _pi_object {
   // SYCL RT knows nothing about it. This special event will be destroyed and
   // returned back in pool by EventRelease in resetCommandList. this is used to
   // compare against LastCommandEvent to ensure that event-dependency will only
-  // be added between command-lists.
+  // be added between command-lists. So this serves to determine whether
+  // LastCommandEvent should be added to the WaitList or not.
   pi_event LastEventInPrevCmdList = nullptr;
 
-  // Keeps command-list of the previous command to use in EventlessMode.
+  // Keeps command-list of the previous command to use in EventlessMode. this is
+  // stored so that the plugin knows where to submit the special service barrier
+  // with an event if a command-list switch occurs.
   pi_command_list_ptr_t LastCommandList{};
 
   // Map of all command lists used in this queue.
@@ -854,6 +849,9 @@ struct _pi_queue : _pi_object {
 
   // Returns true if the queue is a in-order queue.
   bool isInOrderQueue() const;
+
+  // Returns true if the queue has discard_events property.
+  bool isEventlessMode() const;
 
   // adjust the queue's batch size, knowing that the current command list
   // is being closed with a full batch.

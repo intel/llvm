@@ -602,6 +602,10 @@ constexpr pi_queue_properties PI_QUEUE_PROFILING_ENABLE =
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE = CL_QUEUE_ON_DEVICE;
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT =
     CL_QUEUE_ON_DEVICE_DEFAULT;
+// Since this is a bitfield, and OpenCL has already reserved 1, 2, 4, 8. For
+// extensions, here we start at bit 32:
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS_MODE_ENABLE =
+    (1 << 31);
 
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;
