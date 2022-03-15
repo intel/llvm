@@ -88,19 +88,6 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
     __esimd_sbfe(__ESIMD_raw_vec_t(T0, SZ) src0, __ESIMD_raw_vec_t(T0, SZ) src1,
                  __ESIMD_raw_vec_t(T0, SZ) src2);
 
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rndd(__ESIMD_DNS::vector_type_t<float, SZ> src0);
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rndu(__ESIMD_DNS::vector_type_t<float, SZ> src0);
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rnde(__ESIMD_DNS::vector_type_t<float, SZ> src0);
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rndz(__ESIMD_DNS::vector_type_t<float, SZ> src0);
-
 template <typename T, int N>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
     __esimd_dp4(__ESIMD_raw_vec_t(T, N) v1, __ESIMD_raw_vec_t(T, N) v2)
@@ -447,79 +434,6 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
     const uint32_t mask = ((1 << width[i]) - 1) << offset[i];
     ret = (src[i] & mask) >> offset[i];
     retv[i] = ret;
-  }
-
-  return retv;
-}
-
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rndd(__ESIMD_DNS::vector_type_t<float, SZ> src0) {
-  __ESIMD_DNS::vector_type_t<float, SZ> retv;
-
-  for (int i = 0; i < SZ; i++) {
-    SIMDCF_ELEMENT_SKIP(i);
-    retv[i] = floor(src0[i]);
-  }
-  return retv;
-}
-
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rndu(__ESIMD_DNS::vector_type_t<float, SZ> src0) {
-  __ESIMD_DNS::vector_type_t<float, SZ> retv;
-  int increment;
-
-  for (int i = 0; i < SZ; i++) {
-    SIMDCF_ELEMENT_SKIP(i);
-    if (src0[i] - floor(src0[i]) > 0.0f) {
-      increment = 1;
-    } else {
-      increment = 0;
-    }
-
-    retv[i] = floor(src0[i]) + increment;
-  }
-
-  return retv;
-}
-
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rnde(__ESIMD_DNS::vector_type_t<float, SZ> src0) {
-  __ESIMD_DNS::vector_type_t<float, SZ> retv;
-  int increment;
-
-  for (int i = 0; i < SZ; i++) {
-    SIMDCF_ELEMENT_SKIP(i);
-    if (src0[i] - floor(src0[i]) > 0.5f) {
-      increment = 1;
-    } else if (src0[i] - floor(src0[i]) < 0.5f) {
-      increment = 0;
-    } else {
-      increment = (int(floor(src0[i])) % 2 == 1);
-    }
-
-    retv[i] = floor(src0[i]) + increment;
-  }
-
-  return retv;
-}
-
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rndz(__ESIMD_DNS::vector_type_t<float, SZ> src0) {
-  __ESIMD_DNS::vector_type_t<float, SZ> retv;
-  int increment;
-
-  for (int i = 0; i < SZ; i++) {
-    SIMDCF_ELEMENT_SKIP(i);
-    if (fabs(src0[i]) < fabs(floor(src0[i]))) {
-      increment = 1;
-    } else {
-      increment = 0;
-    }
-    retv[i] = floor(src0[i]) + increment;
   }
 
   return retv;
