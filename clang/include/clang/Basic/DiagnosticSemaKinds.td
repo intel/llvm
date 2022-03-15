@@ -7730,6 +7730,8 @@ let CategoryName = "Lambda Issue" in {
     "%select{| explicitly}1 captured here">;
   def err_implicit_this_capture : Error<
     "implicit capture of 'this' is not allowed for kernel functions">;
+  def err_lambda_member_access : Error<
+    "invalid attempt to access member of lambda">;
 
   // C++14 lambda init-captures.
   def warn_cxx11_compat_init_capture : Warning<

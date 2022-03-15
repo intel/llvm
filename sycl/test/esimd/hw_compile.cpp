@@ -2,8 +2,8 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -c %s -o %t.bc
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <iostream>
+#include <sycl/ext/intel/esimd.hpp>
 
 int main(void) {
   constexpr unsigned Size = 4;
@@ -28,12 +28,11 @@ int main(void) {
             // those operations below would normally be
             // represented as a single vector operation
             // through ESIMD vector
-            cl::sycl::ext::intel::experimental::esimd::simd<int, Size> A(
-                accA, off * sizeof(int));
-            cl::sycl::ext::intel::experimental::esimd::simd<int, Size> B(
-                accB, off * sizeof(int));
-            cl::sycl::ext::intel::experimental::esimd::simd<int, Size> C =
-                A + B;
+            cl::sycl::ext::intel::esimd::simd<int, Size> A(accA,
+                                                           off * sizeof(int));
+            cl::sycl::ext::intel::esimd::simd<int, Size> B(accB,
+                                                           off * sizeof(int));
+            cl::sycl::ext::intel::esimd::simd<int, Size> C = A + B;
             C.copy_to(accC, off * sizeof(int));
           });
     });
