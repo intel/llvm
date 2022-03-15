@@ -59,10 +59,20 @@ template <typename... NameValues> struct
   constexpr hg(int _x) : x(_x) {}
 };
 
+template <typename... NameValues> struct ig : public g<NameValues...> {};
+struct ih : public h {};
+template <typename... NameValues> struct igh : public gh<NameValues...> {};
+template <typename... NameValues> struct ihg : public hg<NameValues...> {};
+
 constexpr g<prop1, prop2, prop3, prop4, prop5, prop6, prop7> g_v;
 constexpr h h_v;
 constexpr gh<prop1, prop2, prop3, prop4, prop5, prop6, prop7> gh_v;
 constexpr hg<prop1, prop2, prop3, prop4, prop5, prop6, prop7> hg_v;
+
+constexpr ig<prop1, prop2, prop3, prop4, prop5, prop6, prop7> ig_v;
+constexpr ih ih_v;
+constexpr igh<prop1, prop2, prop3, prop4, prop5, prop6, prop7> igh_v;
+constexpr ihg<prop1, prop2, prop3, prop4, prop5, prop6, prop7> ihg_v;
 
 int main() {
   sycl::queue q;
@@ -73,6 +83,10 @@ int main() {
           (void)h_v.x;
           (void)gh_v.x;
           (void)hg_v.x;
+          (void)ig_v.x;
+          (void)ih_v.x;
+          (void)igh_v.x;
+          (void)ihg_v.x;
         });
   });
 }
@@ -81,6 +95,10 @@ int main() {
 // CHECK-DAG: @_ZL3h_v = internal addrspace(1) constant %struct.h { {{.*}} }, {{.*}} #[[GlobalVarHAttrs:[0-9]+]]
 // CHECK-DAG: @_ZL4gh_v = internal addrspace(1) constant %struct.gh { {{.*}} }, {{.*}} #[[GlobalVarHGAndGHAttrs:[0-9]+]]
 // CHECK-DAG: @_ZL4hg_v = internal addrspace(1) constant %struct.hg { {{.*}} }, {{.*}} #[[GlobalVarHGAndGHAttrs]]
+// CHECK-DAG: @_ZL4ig_v = internal addrspace(1) constant {{.*}}, align 4{{$}}
+// CHECK-DAG: @_ZL4ih_v = internal addrspace(1) constant {{.*}}, align 4{{$}}
+// CHECK-DAG: @_ZL5igh_v = internal addrspace(1) constant {{.*}}, align 4{{$}}
+// CHECK-DAG: @_ZL5ihg_v = internal addrspace(1) constant {{.*}}, align 4{{$}}
 // CHECK-DAG: attributes #[[GlobalVarGAttrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
 // CHECK-DAG: attributes #[[GlobalVarHAttrs]] = { {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} }
 // CHECK-DAG: attributes #[[GlobalVarHGAndGHAttrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
