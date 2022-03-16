@@ -126,34 +126,23 @@ struct _pi_mem : _pi_object {
 
   _pi_mem_type getMemType() const { return MemType; };
 
-  bool isHostProvidedMem() const { return isHostMem; };
-
   pi_result addMapping(void *MappedTo);
   pi_result removeMapping(void *MappedTo);
 
 protected:
   _pi_mem(pi_context ctxt, char *HostPtr, _pi_mem_type MemTypeArg,
-          unsigned int SurfaceIdxArg, bool isHostMemArg)
+          unsigned int SurfaceIdxArg)
       : Context{ctxt}, MapHostPtr{HostPtr}, SurfaceIndex{SurfaceIdxArg},
-        MemType{MemTypeArg}, isHostMem{isHostMemArg} {}
+        MemType{MemTypeArg} {}
 
 private:
   _pi_mem_type MemType;
-
-  bool isHostMem;
 
   // TODO: Runtime guarantees LIFO across multiple threads for
   // piEnqueueMemBufferMap/Unmap? No duplicated mappings for same
   // (base, offset)?
   std::stack<void *> Mappings;
 };
-
-typedef union _cm_image_ptr {
-  // For normal image
-  cm_support::CmSurface2D *GPUPtr;
-  // For image whose memory space is allocated in Host
-  cm_support::CmSurface2DUP *HostPtr;
-} cm_image_ptr;
 
 struct cm_buffer_ptr_slot {
   enum type { type_none, type_regular, type_user_provided };
@@ -176,11 +165,32 @@ struct cm_buffer_ptr_slot {
   }
 };
 
+struct cm_image_ptr_slot {
+  enum type { type_none, type_regular, type_user_provided };
+  type tag = type_none;
+
+  union {
+    cm_support::CmSurface2D *RegularImgPtr = nullptr;
+    cm_support::CmSurface2DUP *UPImgPtr;
+  };
+
+  type getImgType() { return tag; }
+
+  cm_support::CmSurface2D *getImage() {
+    assert(tag == type_regular);
+    return RegularImgPtr;
+  }
+  cm_support::CmSurface2DUP *getImageUP() {
+    assert(tag == type_user_provided);
+    return UPImgPtr;
+  }
+};
+
 struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
   _pi_buffer(pi_context ctxt, char *HostPtr, cm_buffer_ptr_slot BufferPtrArg,
              unsigned int SurfaceIdxArg, size_t SizeArg)
-      : _pi_mem(ctxt, HostPtr, PI_MEM_TYPE_BUFFER, SurfaceIdxArg, false),
+      : _pi_mem(ctxt, HostPtr, PI_MEM_TYPE_BUFFER, SurfaceIdxArg),
         BufferPtr{BufferPtrArg}, Size{SizeArg} {}
 
   cm_buffer_ptr_slot BufferPtr;
@@ -189,15 +199,14 @@ struct _pi_buffer final : _pi_mem {
 
 struct _pi_image final : _pi_mem {
   // Image constructor
-  _pi_image(pi_context ctxt, char *HostPtr, cm_image_ptr ImagePtrArg,
+  _pi_image(pi_context ctxt, char *HostPtr, cm_image_ptr_slot ImagePtrArg,
             unsigned int SurfaceIdxArg, size_t WidthArg, size_t HeightArg,
-            size_t BPPArg, bool isHostMemArg)
-      : _pi_mem(ctxt, HostPtr, PI_MEM_TYPE_IMAGE2D, SurfaceIdxArg,
-                isHostMemArg),
+            size_t BPPArg)
+    : _pi_mem(ctxt, HostPtr, PI_MEM_TYPE_IMAGE2D, SurfaceIdxArg),
         ImagePtr(ImagePtrArg), Width{WidthArg}, Height{HeightArg},
         BytesPerPixel{BPPArg} {}
 
-  cm_image_ptr ImagePtr;
+  cm_image_ptr_slot ImagePtr;
   size_t Width;
   size_t Height;
   size_t BytesPerPixel;

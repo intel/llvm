@@ -1104,12 +1104,13 @@ pi_result piMemRelease(pi_mem Mem) {
       }
     } else if (Mem->getMemType() == PI_MEM_TYPE_IMAGE2D) {
       _pi_image *PiImg = static_cast<_pi_image *>(Mem);
-      if (Mem->isHostProvidedMem()) {
+      if (PiImg->ImagePtr.getImgType() ==
+          cm_image_ptr_slot::type_user_provided) {
         Status = Mem->Context->Device->CmDevicePtr->DestroySurface2DUP(
-            PiImg->ImagePtr.HostPtr);
+            PiImg->ImagePtr.UPImgPtr);
       } else {
         Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-            PiImg->ImagePtr.GPUPtr);
+            PiImg->ImagePtr.RegularImgPtr);
       }
     }
 
@@ -1223,28 +1224,27 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   }
 
   char *MapBasePtr = nullptr;
-  cm_image_ptr CmImg;
+  cm_image_ptr_slot CmImg;
   cm_support::SurfaceIndex *CmIndex;
   std::lock_guard<std::mutex> Lock(Context->CmSurfaceManageLock);
   int Status = cm_support::CM_SUCCESS;
-  bool IsHostMem = false;
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
+    CmImg.tag = cm_image_ptr_slot::type_user_provided;
     Status = Context->Device->CmDevicePtr->CreateSurface2DUP(
         static_cast<unsigned int>(ImageDesc->image_width),
         static_cast<unsigned int>(ImageDesc->image_height), CmSurfFormat,
-        HostPtr, CmImg.HostPtr);
-    CmImg.HostPtr->GetIndex(CmIndex);
-    IsHostMem = true;
+        HostPtr, CmImg.UPImgPtr);
+    CmImg.UPImgPtr->GetIndex(CmIndex);
   } else {
     Status = Context->Device->CmDevicePtr->CreateSurface2D(
         static_cast<unsigned int>(ImageDesc->image_width),
         static_cast<unsigned int>(ImageDesc->image_height), CmSurfFormat,
-        CmImg.GPUPtr);
-    CmImg.GPUPtr->GetIndex(CmIndex);
+        CmImg.RegularImgPtr);
+    CmImg.RegularImgPtr->GetIndex(CmIndex);
 
     if (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
-      CmImg.GPUPtr->WriteSurface(
+      CmImg.RegularImgPtr->WriteSurface(
           reinterpret_cast<const unsigned char *>(HostPtr), nullptr,
           static_cast<unsigned int>(ImageDesc->image_width *
                                     ImageDesc->image_height * BytesPerPixel));
@@ -1261,7 +1261,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   try {
     *RetImage = new _pi_image(Context, MapBasePtr, CmImg, CmIndex->get_data(),
                               ImageDesc->image_width, ImageDesc->image_height,
-                              BytesPerPixel, IsHostMem);
+                              BytesPerPixel);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1899,12 +1899,13 @@ pi_result piTearDown(void *) {
       }
     } else if (Mem->getMemType() == PI_MEM_TYPE_IMAGE2D) {
       _pi_image *PiImg = static_cast<_pi_image *>(Mem);
-      if (Mem->isHostProvidedMem()) {
+      if (PiImg->ImagePtr.getImgType() ==
+          cm_image_ptr_slot::type_user_provided) {
         Status = Mem->Context->Device->CmDevicePtr->DestroySurface2DUP(
-            PiImg->ImagePtr.HostPtr);
+            PiImg->ImagePtr.UPImgPtr);
       } else {
         Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-            PiImg->ImagePtr.GPUPtr);
+            PiImg->ImagePtr.RegularImgPtr);
       }
     }
 
