@@ -193,8 +193,11 @@ public:
   /// to the device yet.
   void flushIfNeeded(const QueueImplPtr &UserQueue);
 
-  /// Cleans dependencies of this event_impl
+  /// Cleans dependencies of this event_impl.
   void cleanupDependencyEvents();
+
+  /// Cleans dependencies of this event's dependencies.
+  void cleanDepEventsThroughOneLevel();
 
   /// Checks if this event is discarded by SYCL implementation.
   ///

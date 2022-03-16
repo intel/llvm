@@ -49,6 +49,10 @@ def LinalgComprehensiveModuleBufferize :
     Option<"allowUnknownOps", "allow-unknown-ops", "bool",
            /*default=*/"false",
            "Allows unknown (not bufferizable) ops in the input IR.">,
+    Option<"alwaysAliasingWithDest", "always-aliasing-with-dest", "bool",
+            /*default=*/"true",
+            "Tensor OpResult cannot bufferize inplace OpOperands other than "
+            "out or dest OpOperands (if the op has a notion of such operands)">,
     Option<"useAlloca", "use-alloca", "bool",
            /*default=*/"false",
            "Use stack allocations for memrefs (for testing purposes only)">,
@@ -115,17 +119,6 @@ def LinalgNamedOpConversion: Pass<"linalg-named-op-conversion"> {
   let summary = "Convert from one named linalg op to another.";
   let constructor = "mlir::createLinalgNamedOpConversionPass()";
   let dependentDialects = ["linalg::LinalgDialect", "tensor::TensorDialect"];
-}
-
-def LinalgLowerTiledLoopsToSCF
-    : Pass<"convert-linalg-tiled-loops-to-scf", "FuncOp"> {
-  let summary = "Lower linalg tiled loops to SCF loops and parallel loops";
-  let constructor = "mlir::createConvertLinalgTiledLoopsToSCFPass()";
-  let dependentDialects = [
-    "linalg::LinalgDialect",
-    "scf::SCFDialect",
-    "AffineDialect"
-  ];
 }
 
 def LinalgInlineScalarOperands : Pass<"linalg-inline-scalar-operands", "FuncOp"> {
@@ -203,12 +196,7 @@ def LinalgTiling : Pass<"linalg-tile", "FuncOp"> {
     ListOption<"tileSizes", "tile-sizes", "int64_t", "Tile sizes",
                "llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated">,
     Option<"loopType", "loop-type", "std::string", /*default=*/"\"for\"",
-           "Specify the type of loops to generate: for, parallel or "
-           "tiled_loop">,
-    ListOption<"distributionTypes", "distribution-types", "std::string",
-               "DistributionTypes (if loop-type=tiled_loop)",
-               "llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated">
-
+           "Specify the type of loops to generate: for, parallel">
   ];
 }
 

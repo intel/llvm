@@ -1097,74 +1097,55 @@ static bool adjustMinMax(SelectInst &Sel, ICmpInst &Cmp) {
   return true;
 }
 
-/// If this is an integer min/max (icmp + select) with a constant operand,
-/// create the canonical icmp for the min/max operation and canonicalize the
-/// constant to the 'false' operand of the select:
-/// select (icmp Pred X, C1), C2, X --> select (icmp Pred' X, C2), X, C2
-/// Note: if C1 != C2, this will change the icmp constant to the existing
-/// constant operand of the select.
-static Instruction *canonicalizeMinMaxWithConstant(SelectInst &Sel,
-                                                   ICmpInst &Cmp,
-                                                   InstCombinerImpl &IC) {
-  if (!Cmp.hasOneUse() || !isa<Constant>(Cmp.getOperand(1)))
-    return nullptr;
-
-  // Canonicalize the compare predicate based on whether we have min or max.
+static Instruction *canonicalizeSPF(SelectInst &Sel, ICmpInst &Cmp,
+                                    InstCombinerImpl &IC) {
   Value *LHS, *RHS;
-  SelectPatternResult SPR = matchSelectPattern(&Sel, LHS, RHS);
-  if (!SelectPatternResult::isMinOrMax(SPR.Flavor))
+  // TODO: What to do with pointer min/max patterns?
+  if (!Sel.getType()->isIntOrIntVectorTy())
     return nullptr;
 
-  // Is this already canonical?
-  ICmpInst::Predicate CanonicalPred = getMinMaxPred(SPR.Flavor);
-  if (Cmp.getOperand(0) == LHS && Cmp.getOperand(1) == RHS &&
-      Cmp.getPredicate() == CanonicalPred)
-    return nullptr;
-
-  // Bail out on unsimplified X-0 operand (due to some worklist management bug),
-  // as this may cause an infinite combine loop. Let the sub be folded first.
-  if (match(LHS, m_Sub(m_Value(), m_Zero())) ||
-      match(RHS, m_Sub(m_Value(), m_Zero())))
-    return nullptr;
-
-  // Create the canonical compare and plug it into the select.
-  IC.replaceOperand(Sel, 0, IC.Builder.CreateICmp(CanonicalPred, LHS, RHS));
-
-  // If the select operands did not change, we're done.
-  if (Sel.getTrueValue() == LHS && Sel.getFalseValue() == RHS)
-    return &Sel;
-
-  // If we are swapping the select operands, swap the metadata too.
-  assert(Sel.getTrueValue() == RHS && Sel.getFalseValue() == LHS &&
-         "Unexpected results from matchSelectPattern");
-  Sel.swapValues();
-  Sel.swapProfMetadata();
-  return &Sel;
-}
-
-static Instruction *canonicalizeAbsNabs(SelectInst &Sel, ICmpInst &Cmp,
-                                        InstCombinerImpl &IC) {
-  if (!Cmp.hasOneUse() || !isa<Constant>(Cmp.getOperand(1)))
-    return nullptr;
-
-  Value *LHS, *RHS;
   SelectPatternFlavor SPF = matchSelectPattern(&Sel, LHS, RHS).Flavor;
-  if (SPF != SelectPatternFlavor::SPF_ABS &&
-      SPF != SelectPatternFlavor::SPF_NABS)
-    return nullptr;
+  if (SPF == SelectPatternFlavor::SPF_ABS ||
+      SPF == SelectPatternFlavor::SPF_NABS) {
+    if (!Cmp.hasOneUse() && !RHS->hasOneUse())
+      return nullptr; // TODO: Relax this restriction.
 
-  // Note that NSW flag can only be propagated for normal, non-negated abs!
-  bool IntMinIsPoison = SPF == SelectPatternFlavor::SPF_ABS &&
-                        match(RHS, m_NSWNeg(m_Specific(LHS)));
-  Constant *IntMinIsPoisonC =
-      ConstantInt::get(Type::getInt1Ty(Sel.getContext()), IntMinIsPoison);
-  Instruction *Abs =
-      IC.Builder.CreateBinaryIntrinsic(Intrinsic::abs, LHS, IntMinIsPoisonC);
+    // Note that NSW flag can only be propagated for normal, non-negated abs!
+    bool IntMinIsPoison = SPF == SelectPatternFlavor::SPF_ABS &&
+                          match(RHS, m_NSWNeg(m_Specific(LHS)));
+    Constant *IntMinIsPoisonC =
+        ConstantInt::get(Type::getInt1Ty(Sel.getContext()), IntMinIsPoison);
+    Instruction *Abs =
+        IC.Builder.CreateBinaryIntrinsic(Intrinsic::abs, LHS, IntMinIsPoisonC);
 
-  if (SPF == SelectPatternFlavor::SPF_NABS)
-    return BinaryOperator::CreateNeg(Abs); // Always without NSW flag!
+    if (SPF == SelectPatternFlavor::SPF_NABS)
+      return BinaryOperator::CreateNeg(Abs); // Always without NSW flag!
+    return IC.replaceInstUsesWith(Sel, Abs);
+  }
 
-  return IC.replaceInstUsesWith(Sel, Abs);
+  if (SelectPatternResult::isMinOrMax(SPF)) {
+    Intrinsic::ID IntrinsicID;
+    switch (SPF) {
+    case SelectPatternFlavor::SPF_UMIN:
+      IntrinsicID = Intrinsic::umin;
+      break;
+    case SelectPatternFlavor::SPF_UMAX:
+      IntrinsicID = Intrinsic::umax;
+      break;
+    case SelectPatternFlavor::SPF_SMIN:
+      IntrinsicID = Intrinsic::smin;
+      break;
+    case SelectPatternFlavor::SPF_SMAX:
+      IntrinsicID = Intrinsic::smax;
+      break;
+    default:
+      llvm_unreachable("Unexpected SPF");
+    }
+    return IC.replaceInstUsesWith(
+        Sel, IC.Builder.CreateBinaryIntrinsic(IntrinsicID, LHS, RHS));
+  }
+
+  return nullptr;
 }
 
 /// If we have a select with an equality comparison, then we know the value in
@@ -1531,17 +1512,38 @@ tryToReuseConstantFromSelectInComparison(SelectInst &Sel, ICmpInst &Cmp,
   return &Sel;
 }
 
+static Instruction *foldSelectZeroOrOnes(ICmpInst *Cmp, Value *TVal,
+                                         Value *FVal,
+                                         InstCombiner::BuilderTy &Builder) {
+  if (!Cmp->hasOneUse())
+    return nullptr;
+
+  const APInt *CmpC;
+  if (!match(Cmp->getOperand(1), m_APIntAllowUndef(CmpC)))
+    return nullptr;
+
+  // (X u< 2) ? -X : -1 --> sext (X != 0)
+  Value *X = Cmp->getOperand(0);
+  if (Cmp->getPredicate() == ICmpInst::ICMP_ULT && *CmpC == 2 &&
+      match(TVal, m_Neg(m_Specific(X))) && match(FVal, m_AllOnes()))
+    return new SExtInst(Builder.CreateIsNotNull(X), TVal->getType());
+
+  // (X u> 1) ? -1 : -X --> sext (X != 0)
+  if (Cmp->getPredicate() == ICmpInst::ICMP_UGT && *CmpC == 1 &&
+      match(FVal, m_Neg(m_Specific(X))) && match(TVal, m_AllOnes()))
+    return new SExtInst(Builder.CreateIsNotNull(X), TVal->getType());
+
+  return nullptr;
+}
+
 /// Visit a SelectInst that has an ICmpInst as its first operand.
 Instruction *InstCombinerImpl::foldSelectInstWithICmp(SelectInst &SI,
                                                       ICmpInst *ICI) {
   if (Instruction *NewSel = foldSelectValueEquivalence(SI, *ICI))
     return NewSel;
 
-  if (Instruction *NewSel = canonicalizeMinMaxWithConstant(SI, *ICI, *this))
-    return NewSel;
-
-  if (Instruction *NewAbs = canonicalizeAbsNabs(SI, *ICI, *this))
-    return NewAbs;
+  if (Instruction *NewSPF = canonicalizeSPF(SI, *ICI, *this))
+    return NewSPF;
 
   if (Value *V = canonicalizeClampLike(SI, *ICI, Builder))
     return replaceInstUsesWith(SI, V);
@@ -1628,6 +1630,9 @@ Instruction *InstCombinerImpl::foldSelectInstWithICmp(SelectInst &SI,
     return V;
 
   if (Instruction *V = foldSelectCtlzToCttz(ICI, TrueVal, FalseVal, Builder))
+    return V;
+
+  if (Instruction *V = foldSelectZeroOrOnes(ICI, TrueVal, FalseVal, Builder))
     return V;
 
   if (Value *V = foldSelectICmpAndOr(ICI, TrueVal, FalseVal, Builder))
@@ -2239,163 +2244,6 @@ static Value *foldSelectCmpXchg(SelectInst &SI) {
   return nullptr;
 }
 
-static Instruction *moveAddAfterMinMax(SelectPatternFlavor SPF, Value *X,
-                                       Value *Y,
-                                       InstCombiner::BuilderTy &Builder) {
-  assert(SelectPatternResult::isMinOrMax(SPF) && "Expected min/max pattern");
-  bool IsUnsigned = SPF == SelectPatternFlavor::SPF_UMIN ||
-                    SPF == SelectPatternFlavor::SPF_UMAX;
-  // TODO: If InstSimplify could fold all cases where C2 <= C1, we could change
-  // the constant value check to an assert.
-  Value *A;
-  const APInt *C1, *C2;
-  if (IsUnsigned && match(X, m_NUWAdd(m_Value(A), m_APInt(C1))) &&
-      match(Y, m_APInt(C2)) && C2->uge(*C1) && X->hasNUses(2)) {
-    // umin (add nuw A, C1), C2 --> add nuw (umin A, C2 - C1), C1
-    // umax (add nuw A, C1), C2 --> add nuw (umax A, C2 - C1), C1
-    Value *NewMinMax = createMinMax(Builder, SPF, A,
-                                    ConstantInt::get(X->getType(), *C2 - *C1));
-    return BinaryOperator::CreateNUW(BinaryOperator::Add, NewMinMax,
-                                     ConstantInt::get(X->getType(), *C1));
-  }
-
-  if (!IsUnsigned && match(X, m_NSWAdd(m_Value(A), m_APInt(C1))) &&
-      match(Y, m_APInt(C2)) && X->hasNUses(2)) {
-    bool Overflow;
-    APInt Diff = C2->ssub_ov(*C1, Overflow);
-    if (!Overflow) {
-      // smin (add nsw A, C1), C2 --> add nsw (smin A, C2 - C1), C1
-      // smax (add nsw A, C1), C2 --> add nsw (smax A, C2 - C1), C1
-      Value *NewMinMax = createMinMax(Builder, SPF, A,
-                                      ConstantInt::get(X->getType(), Diff));
-      return BinaryOperator::CreateNSW(BinaryOperator::Add, NewMinMax,
-                                       ConstantInt::get(X->getType(), *C1));
-    }
-  }
-
-  return nullptr;
-}
-
-/// Match a sadd_sat or ssub_sat which is using min/max to clamp the value.
-Instruction *InstCombinerImpl::matchSAddSubSat(Instruction &MinMax1) {
-  Type *Ty = MinMax1.getType();
-
-  // We are looking for a tree of:
-  // max(INT_MIN, min(INT_MAX, add(sext(A), sext(B))))
-  // Where the min and max could be reversed
-  Instruction *MinMax2;
-  BinaryOperator *AddSub;
-  const APInt *MinValue, *MaxValue;
-  if (match(&MinMax1, m_SMin(m_Instruction(MinMax2), m_APInt(MaxValue)))) {
-    if (!match(MinMax2, m_SMax(m_BinOp(AddSub), m_APInt(MinValue))))
-      return nullptr;
-  } else if (match(&MinMax1,
-                   m_SMax(m_Instruction(MinMax2), m_APInt(MinValue)))) {
-    if (!match(MinMax2, m_SMin(m_BinOp(AddSub), m_APInt(MaxValue))))
-      return nullptr;
-  } else
-    return nullptr;
-
-  // Check that the constants clamp a saturate, and that the new type would be
-  // sensible to convert to.
-  if (!(*MaxValue + 1).isPowerOf2() || -*MinValue != *MaxValue + 1)
-    return nullptr;
-  // In what bitwidth can this be treated as saturating arithmetics?
-  unsigned NewBitWidth = (*MaxValue + 1).logBase2() + 1;
-  // FIXME: This isn't quite right for vectors, but using the scalar type is a
-  // good first approximation for what should be done there.
-  if (!shouldChangeType(Ty->getScalarType()->getIntegerBitWidth(), NewBitWidth))
-    return nullptr;
-
-  // Also make sure that the number of uses is as expected. The 3 is for the
-  // the two items of the compare and the select, or 2 from a min/max.
-  unsigned ExpUses = isa<IntrinsicInst>(MinMax1) ? 2 : 3;
-  if (MinMax2->hasNUsesOrMore(ExpUses) || AddSub->hasNUsesOrMore(ExpUses))
-    return nullptr;
-
-  // Create the new type (which can be a vector type)
-  Type *NewTy = Ty->getWithNewBitWidth(NewBitWidth);
-
-  Intrinsic::ID IntrinsicID;
-  if (AddSub->getOpcode() == Instruction::Add)
-    IntrinsicID = Intrinsic::sadd_sat;
-  else if (AddSub->getOpcode() == Instruction::Sub)
-    IntrinsicID = Intrinsic::ssub_sat;
-  else
-    return nullptr;
-
-  // The two operands of the add/sub must be nsw-truncatable to the NewTy. This
-  // is usually achieved via a sext from a smaller type.
-  if (ComputeMaxSignificantBits(AddSub->getOperand(0), 0, AddSub) >
-          NewBitWidth ||
-      ComputeMaxSignificantBits(AddSub->getOperand(1), 0, AddSub) > NewBitWidth)
-    return nullptr;
-
-  // Finally create and return the sat intrinsic, truncated to the new type
-  Function *F = Intrinsic::getDeclaration(MinMax1.getModule(), IntrinsicID, NewTy);
-  Value *AT = Builder.CreateTrunc(AddSub->getOperand(0), NewTy);
-  Value *BT = Builder.CreateTrunc(AddSub->getOperand(1), NewTy);
-  Value *Sat = Builder.CreateCall(F, {AT, BT});
-  return CastInst::Create(Instruction::SExt, Sat, Ty);
-}
-
-/// Reduce a sequence of min/max with a common operand.
-static Instruction *factorizeMinMaxTree(SelectPatternFlavor SPF, Value *LHS,
-                                        Value *RHS,
-                                        InstCombiner::BuilderTy &Builder) {
-  assert(SelectPatternResult::isMinOrMax(SPF) && "Expected a min/max");
-  // TODO: Allow FP min/max with nnan/nsz.
-  if (!LHS->getType()->isIntOrIntVectorTy())
-    return nullptr;
-
-  // Match 3 of the same min/max ops. Example: umin(umin(), umin()).
-  Value *A, *B, *C, *D;
-  SelectPatternResult L = matchSelectPattern(LHS, A, B);
-  SelectPatternResult R = matchSelectPattern(RHS, C, D);
-  if (SPF != L.Flavor || L.Flavor != R.Flavor)
-    return nullptr;
-
-  // Look for a common operand. The use checks are different than usual because
-  // a min/max pattern typically has 2 uses of each op: 1 by the cmp and 1 by
-  // the select.
-  Value *MinMaxOp = nullptr;
-  Value *ThirdOp = nullptr;
-  if (!LHS->hasNUsesOrMore(3) && RHS->hasNUsesOrMore(3)) {
-    // If the LHS is only used in this chain and the RHS is used outside of it,
-    // reuse the RHS min/max because that will eliminate the LHS.
-    if (D == A || C == A) {
-      // min(min(a, b), min(c, a)) --> min(min(c, a), b)
-      // min(min(a, b), min(a, d)) --> min(min(a, d), b)
-      MinMaxOp = RHS;
-      ThirdOp = B;
-    } else if (D == B || C == B) {
-      // min(min(a, b), min(c, b)) --> min(min(c, b), a)
-      // min(min(a, b), min(b, d)) --> min(min(b, d), a)
-      MinMaxOp = RHS;
-      ThirdOp = A;
-    }
-  } else if (!RHS->hasNUsesOrMore(3)) {
-    // Reuse the LHS. This will eliminate the RHS.
-    if (D == A || D == B) {
-      // min(min(a, b), min(c, a)) --> min(min(a, b), c)
-      // min(min(a, b), min(c, b)) --> min(min(a, b), c)
-      MinMaxOp = LHS;
-      ThirdOp = C;
-    } else if (C == A || C == B) {
-      // min(min(a, b), min(b, d)) --> min(min(a, b), d)
-      // min(min(a, b), min(c, b)) --> min(min(a, b), d)
-      MinMaxOp = LHS;
-      ThirdOp = D;
-    }
-  }
-  if (!MinMaxOp || !ThirdOp)
-    return nullptr;
-
-  CmpInst::Predicate P = getMinMaxPred(SPF);
-  Value *CmpABC = Builder.CreateICmp(P, MinMaxOp, ThirdOp);
-  return SelectInst::Create(CmpABC, MinMaxOp, ThirdOp);
-}
-
 /// Try to reduce a funnel/rotate pattern that includes a compare and select
 /// into a funnel shift intrinsic. Example:
 /// rotl32(a, b) --> (b == 0 ? a : ((a >> (32 - b)) | (a << b)))
@@ -2505,17 +2353,16 @@ static Instruction *foldSelectToCopysign(SelectInst &Sel,
   // (bitcast X) <  0 ?  TC : -TC --> copysign(TC, -X)
   // (bitcast X) >= 0 ? -TC :  TC --> copysign(TC, -X)
   // (bitcast X) >= 0 ?  TC : -TC --> copysign(TC,  X)
+  // Note: FMF from the select can not be propagated to the new instructions.
   if (IsTrueIfSignSet ^ TC->isNegative())
-    X = Builder.CreateFNegFMF(X, &Sel);
+    X = Builder.CreateFNeg(X);
 
   // Canonicalize the magnitude argument as the positive constant since we do
   // not care about its sign.
   Value *MagArg = TC->isNegative() ? FVal : TVal;
   Function *F = Intrinsic::getDeclaration(Sel.getModule(), Intrinsic::copysign,
                                           Sel.getType());
-  Instruction *CopySign = CallInst::Create(F, { MagArg, X });
-  CopySign->setFastMathFlags(Sel.getFastMathFlags());
-  return CopySign;
+  return CallInst::Create(F, { MagArg, X });
 }
 
 Instruction *InstCombinerImpl::foldVectorSelect(SelectInst &Sel) {
@@ -3067,8 +2914,6 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
         if (Instruction *R = foldSPFofSPF(cast<Instruction>(RHS), SPF2, LHS2,
                                           RHS2, SI, SPF, LHS))
           return R;
-      // TODO.
-      // ABS(-X) -> ABS(X)
     }
 
     if (SelectPatternResult::isMinOrMax(SPF)) {
@@ -3103,46 +2948,6 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
         Value *NewCast = Builder.CreateCast(CastOp, NewSI, SelType);
         return replaceInstUsesWith(SI, NewCast);
       }
-
-      // MAX(~a, ~b) -> ~MIN(a, b)
-      // MAX(~a, C)  -> ~MIN(a, ~C)
-      // MIN(~a, ~b) -> ~MAX(a, b)
-      // MIN(~a, C)  -> ~MAX(a, ~C)
-      auto moveNotAfterMinMax = [&](Value *X, Value *Y) -> Instruction * {
-        Value *A;
-        if (match(X, m_Not(m_Value(A))) && !X->hasNUsesOrMore(3) &&
-            !isFreeToInvert(A, A->hasOneUse()) &&
-            // Passing false to only consider m_Not and constants.
-            isFreeToInvert(Y, false)) {
-          Value *B = Builder.CreateNot(Y);
-          Value *NewMinMax = createMinMax(Builder, getInverseMinMaxFlavor(SPF),
-                                          A, B);
-          // Copy the profile metadata.
-          if (MDNode *MD = SI.getMetadata(LLVMContext::MD_prof)) {
-            cast<SelectInst>(NewMinMax)->setMetadata(LLVMContext::MD_prof, MD);
-            // Swap the metadata if the operands are swapped.
-            if (X == SI.getFalseValue() && Y == SI.getTrueValue())
-              cast<SelectInst>(NewMinMax)->swapProfMetadata();
-          }
-
-          return BinaryOperator::CreateNot(NewMinMax);
-        }
-
-        return nullptr;
-      };
-
-      if (Instruction *I = moveNotAfterMinMax(LHS, RHS))
-        return I;
-      if (Instruction *I = moveNotAfterMinMax(RHS, LHS))
-        return I;
-
-      if (Instruction *I = moveAddAfterMinMax(SPF, LHS, RHS, Builder))
-        return I;
-
-      if (Instruction *I = factorizeMinMaxTree(SPF, LHS, RHS, Builder))
-        return I;
-      if (Instruction *I = matchSAddSubSat(SI))
-        return I;
     }
   }
 
