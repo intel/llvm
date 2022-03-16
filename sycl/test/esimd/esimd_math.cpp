@@ -62,14 +62,38 @@ bool test_esimd_dp4() __attribute__((sycl_device)) {
          (ret[0] == 14.0f && ret[4] == 126.0f);
 }
 
-bool test_esimd_trunc() __attribute__((sycl_device)) {
+bool test_esimd_floor() __attribute__((sycl_device)) {
   simd<float, 16> vfa(1.4f);
-  simd<float, 16> vfr = experimental::esimd::trunc<float, 16>(vfa);
-  simd<short, 16> vsr = experimental::esimd::trunc<short, 16>(vfa);
+  simd<float, 16> vfr = esimd::floor<float, 16>(vfa);
+  simd<short, 16> vsr = esimd::floor<short, 16>(vfa);
 
   float sfa = 2.8f;
-  float sfr = experimental::esimd::trunc<float>(sfa);
-  short ssr = experimental::esimd::trunc<short>(sfa);
+  float sfr = esimd::floor<float>(sfa);
+  short ssr = esimd::floor<short>(sfa);
+
+  return (vfr[0] == 1.f) && (vsr[0] == 1) && (sfr == 2.f) && (ssr == 2);
+}
+
+bool test_esimd_ceil() __attribute__((sycl_device)) {
+  simd<float, 16> vfa(1.4f);
+  simd<float, 16> vfr = esimd::ceil<float, 16>(vfa);
+  simd<short, 16> vsr = esimd::ceil<short, 16>(vfa);
+
+  float sfa = 2.8f;
+  float sfr = esimd::ceil<float>(sfa);
+  short ssr = esimd::ceil<short>(sfa);
+
+  return (vfr[0] == 2.f) && (vsr[0] == 2) && (sfr == 3.f) && (ssr == 3);
+}
+
+bool test_esimd_trunc() __attribute__((sycl_device)) {
+  simd<float, 16> vfa(1.4f);
+  simd<float, 16> vfr = esimd::trunc<float, 16>(vfa);
+  simd<short, 16> vsr = esimd::trunc<short, 16>(vfa);
+
+  float sfa = 2.8f;
+  float sfr = esimd::trunc<float>(sfa);
+  short ssr = esimd::trunc<short>(sfa);
 
   return (vfr[0] == 1.f) && (vsr[0] == 1) && (sfr == 2.f) && (ssr == 2);
 }

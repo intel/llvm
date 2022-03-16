@@ -133,6 +133,9 @@ static const char *LinkerExecutable;
 /// Filename of the executable being created.
 static StringRef ExecutableName;
 
+/// System root if passed in to the linker via. '--sysroot='.
+static StringRef Sysroot = "";
+
 /// Binary path for the CUDA installation.
 static std::string CudaBinaryPath;
 
@@ -163,6 +166,15 @@ namespace {
 Expected<Optional<std::string>>
 extractFromBuffer(std::unique_ptr<MemoryBuffer> Buffer,
                   SmallVectorImpl<DeviceFile> &DeviceFiles);
+
+void printCommands(ArrayRef<StringRef> CmdArgs) {
+  if (CmdArgs.empty())
+    return;
+
+  llvm::errs() << " \"" << CmdArgs.front() << "\" ";
+  for (auto IC = std::next(CmdArgs.begin()), IE = CmdArgs.end(); IC != IE; ++IC)
+    llvm::errs() << *IC << (std::next(IC) != IE ? " " : "\n");
+}
 
 static StringRef getDeviceFileExtension(StringRef DeviceTriple,
                                         bool IsBitcode = false) {
@@ -209,6 +221,9 @@ Error runLinker(std::string &LinkerPath, SmallVectorImpl<std::string> &Args) {
   LinkerArgs.push_back(LinkerPath);
   for (auto &Arg : Args)
     LinkerArgs.push_back(Arg);
+
+  if (Verbose)
+    printCommands(LinkerArgs);
 
   if (sys::ExecuteAndWait(LinkerPath, LinkerArgs))
     return createStringError(inconvertibleErrorCode(), "'linker' failed");
@@ -337,6 +352,9 @@ extractFromBinary(const ObjectFile &Obj,
   }
   StripArgs.push_back("-o");
   StripArgs.push_back(TempFile);
+
+  if (Verbose)
+    printCommands(StripArgs);
 
   if (sys::ExecuteAndWait(*StripPath, StripArgs))
     return createStringError(inconvertibleErrorCode(), "'llvm-strip' failed");
@@ -560,6 +578,9 @@ Expected<std::string> assemble(StringRef InputFile, Triple TheTriple,
 
   CmdArgs.push_back(InputFile);
 
+  if (Verbose)
+    printCommands(CmdArgs);
+
   if (sys::ExecuteAndWait(*PtxasPath, CmdArgs))
     return createStringError(inconvertibleErrorCode(), "'ptxas' failed");
 
@@ -601,6 +622,9 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
 
+  if (Verbose)
+    printCommands(CmdArgs);
+
   if (sys::ExecuteAndWait(*NvlinkPath, CmdArgs))
     return createStringError(inconvertibleErrorCode(), "'nvlink' failed");
 
@@ -638,6 +662,9 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   // Add extracted input files.
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
+
+  if (Verbose)
+    printCommands(CmdArgs);
 
   if (sys::ExecuteAndWait(*LLDPath, CmdArgs))
     return createStringError(inconvertibleErrorCode(), "'lld' failed");
@@ -702,10 +729,10 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
       CmdArgs.push_back(Arg);
     else if (Arg.startswith("-rpath")) {
       CmdArgs.push_back(Arg);
-      CmdArgs.push_back(*(AI + 1));
+      CmdArgs.push_back(*std::next(AI));
     } else if (Arg.startswith("-dynamic-linker")) {
       CmdArgs.push_back(Arg);
-      CmdArgs.push_back(*(AI + 1));
+      CmdArgs.push_back(*std::next(AI));
     }
   }
   CmdArgs.push_back("-Bsymbolic");
@@ -715,6 +742,9 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   // Add extracted input files.
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
+
+  if (Verbose)
+    printCommands(CmdArgs);
 
   if (sys::ExecuteAndWait(LinkerUserPath, CmdArgs))
     return createStringError(inconvertibleErrorCode(), "'linker' failed");
@@ -1130,8 +1160,11 @@ Expected<std::string> wrapDeviceImages(ArrayRef<std::string> Images) {
 
 Optional<std::string> findFile(StringRef Dir, const Twine &Name) {
   SmallString<128> Path;
-  // TODO: Parse `--sysroot` somewhere and use it here.
-  sys::path::append(Path, Dir, Name);
+  if (Dir.startswith("="))
+    sys::path::append(Path, Sysroot, Dir.substr(1), Name);
+  else
+    sys::path::append(Path, Dir, Name);
+
   if (sys::fs::exists(Path))
     return static_cast<std::string>(Path);
   return None;
@@ -1202,7 +1235,13 @@ int main(int argc, const char **argv) {
   if (!CudaPath.empty())
     CudaBinaryPath = CudaPath + "/bin";
 
-  ExecutableName = *(llvm::find(HostLinkerArgs, "-o") + 1);
+  auto RootIt = llvm::find_if(HostLinkerArgs, [](StringRef Arg) {
+    return Arg.startswith("--sysroot=");
+  });
+  if (RootIt != HostLinkerArgs.end())
+    Sysroot = StringRef(*RootIt).split('=').second;
+
+  ExecutableName = *std::next(llvm::find(HostLinkerArgs, "-o"));
   SmallVector<std::string, 16> LinkerArgs;
   for (const std::string &Arg : HostLinkerArgs)
     LinkerArgs.push_back(Arg);

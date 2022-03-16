@@ -6,7 +6,7 @@ target_include_directories(sycl-prof PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/../xpti_helpers/"
 )
 
-target_link_libraries(sycl-prof PRIVATE
+link_llvm_libs(sycl-prof
   LLVMSupport
 )
 

@@ -1,6 +1,7 @@
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 
 add_flang_library(FortranLower
+  Allocatable.cpp
   Bridge.cpp
   CallInterface.cpp
   Coarray.cpp
@@ -8,6 +9,10 @@ add_flang_library(FortranLower
   ConvertType.cpp
   ConvertVariable.cpp
   IntrinsicCall.cpp
+  IO.cpp
+  ComponentPath.cpp
+  DumpEvaluateExpr.cpp
+  IterationSpace.cpp
   Mangler.cpp
   OpenACC.cpp
   OpenMP.cpp
@@ -33,9 +38,9 @@ add_flang_library(FortranLower
   FortranEvaluate
   FortranSemantics
   MLIRAffineToStandard
+  MLIRFunc
   MLIRLLVMIR
   MLIRSCFToControlFlow
-  MLIRStandard
 
   LINK_COMPONENTS
   Support

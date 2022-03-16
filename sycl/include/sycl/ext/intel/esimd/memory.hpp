@@ -117,7 +117,8 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 /// any element's memory location can be disabled via the input vector of
 /// predicates (mask).
 /// @tparam Tx Element type, must be of size 4 or less.
-/// @tparam N Number of elements to read; can be \c 8, \c 16 or \c 32.
+/// @tparam N Number of elements to read; can be \c 1, \c 2, \c 4, \c 8, \c 16
+///   or \c 32.
 /// @param p The base address.
 /// @param offsets the vector of 32-bit offsets in bytes. For each lane \c i,
 ///   ((byte*)p + offsets[i]) must be element size aligned.
@@ -126,7 +127,7 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 ///   undefined.
 ///
 template <typename Tx, int N, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<N == 8 || N == 16 || N == 32, simd<Tx, N>>
+__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32), simd<Tx, N>>
 gather(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
@@ -150,7 +151,8 @@ gather(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
 /// value of the corresponding element in the input offset vector. Access to
 /// any element's memory location can be disabled via the input mask.
 /// @tparam Tx Element type, must be of size 4 or less.
-/// @tparam N Number of elements to write; can be \c 8, \c 16 or \c 32.
+/// @tparam N Number of elements to write; can be \c 1, \c 2, \c 4, \c 8, \c 16
+///   or \c 32.
 /// @param p The base address.
 /// @param offsets A vector of 32-bit offsets in bytes. For each lane \c i,
 ///   ((byte*)p + offsets[i]) must be element size aligned.
@@ -158,7 +160,7 @@ gather(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
 /// @param mask The access mask, defaults to all 1s.
 ///
 template <typename Tx, int N, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<N == 8 || N == 16 || N == 32>
+__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32)>
 scatter(Tx *p, simd<uint32_t, N> offsets, simd<Tx, N> vals,
         simd_mask<N> mask = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);

@@ -1612,8 +1612,12 @@ llvm::DenseSet<Module*> &Sema::getLookupModules() {
 static bool isInCurrentModule(const Module *M, const LangOptions &LangOpts) {
   // If M is the global module fragment of a module that we've not yet finished
   // parsing, then it must be part of the current module.
+  // If it's a partition, then it must be visible to an importer (since only
+  // another partition or the named module can import it).
   return M->getTopLevelModuleName() == LangOpts.CurrentModule ||
-         (M->Kind == Module::GlobalModuleFragment && !M->Parent);
+         (M->Kind == Module::GlobalModuleFragment && !M->Parent) ||
+         M->Kind == Module::ModulePartitionInterface ||
+         M->Kind == Module::ModulePartitionImplementation;
 }
 
 bool Sema::hasVisibleMergedDefinition(NamedDecl *Def) {
@@ -1734,8 +1738,8 @@ bool LookupResult::isVisibleSlow(Sema &SemaRef, NamedDecl *D) {
   Module *DeclModule = SemaRef.getOwningModule(D);
   assert(DeclModule && "hidden decl has no owning module");
 
-  // If the owning module is visible, the decl is visible.
   if (SemaRef.isModuleVisible(DeclModule, D->isModulePrivate()))
+    // If the owning module is visible, the decl is visible.
     return true;
 
   // Determine whether a decl context is a file context for the purpose of
@@ -1808,6 +1812,22 @@ bool Sema::isModuleVisible(const Module *M, bool ModulePrivate) {
   // is in our visible module set.
   if (ModulePrivate) {
     if (isInCurrentModule(M, getLangOpts()))
+      return true;
+    else if (M->Kind == Module::ModuleKind::ModulePartitionImplementation &&
+             isModuleDirectlyImported(M))
+      // Unless a partition implementation is directly imported it is not
+      // counted as visible for lookup, although the contained decls might
+      // still be reachable.  It's a partition, so it must be part of the
+      // current module to be a valid import.
+      return true;
+    else if (getLangOpts().CPlusPlusModules && !ModuleScopes.empty() &&
+             ModuleScopes[0].Module->Kind ==
+                 Module::ModuleKind::ModulePartitionImplementation &&
+             ModuleScopes[0].Module->getPrimaryModuleInterfaceName() ==
+                 M->Name &&
+             isModuleDirectlyImported(M))
+      // We are building a module implementation partition and the TU imports
+      // the primary module interface unit.
       return true;
   } else {
     if (VisibleModules.isVisible(M))
