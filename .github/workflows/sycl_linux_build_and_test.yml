@@ -201,7 +201,7 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
     - name: Reset GPU
-      if: ${{ contains("gen9", matrix.config) }}
+      if: ${{ contains(matrix.config, "gen9") }}
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
