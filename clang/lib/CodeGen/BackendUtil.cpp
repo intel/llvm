@@ -122,6 +122,8 @@ class EmitAssemblyHelper {
 
   std::unique_ptr<raw_pwrite_stream> OS;
 
+  Triple TargetTriple;
+
   TargetIRAnalysis getTargetIRAnalysis() const {
     if (TM)
       return TM->getTargetIRAnalysis();
@@ -174,7 +176,8 @@ public:
                      const LangOptions &LOpts, Module *M)
       : Diags(_Diags), HSOpts(HeaderSearchOpts), CodeGenOpts(CGOpts),
         TargetOpts(TOpts), LangOpts(LOpts), TheModule(M),
-        CodeGenerationTime("codegen", "Code Generation Time") {}
+        CodeGenerationTime("codegen", "Code Generation Time"),
+        TargetTriple(TheModule->getTargetTriple()) {}
 
   ~EmitAssemblyHelper() {
     if (CodeGenOpts.DisableFree)
@@ -698,7 +701,6 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
   // manually (and not via PMBuilder), since some passes (eg. InstrProfiling)
   // are inserted before PMBuilder ones - they'd get the default-constructed
   // TLI with an unknown target otherwise.
-  Triple TargetTriple(TheModule->getTargetTriple());
   std::unique_ptr<TargetLibraryInfoImpl> TLII(
       createTLII(TargetTriple, CodeGenOpts));
 
@@ -971,7 +973,6 @@ bool EmitAssemblyHelper::AddEmitPasses(legacy::PassManager &CodeGenPasses,
                                        raw_pwrite_stream &OS,
                                        raw_pwrite_stream *DwoOS) {
   // Add LibraryInfo.
-  llvm::Triple TargetTriple(TheModule->getTargetTriple());
   std::unique_ptr<TargetLibraryInfoImpl> TLII(
       createTLII(TargetTriple, CodeGenOpts));
   CodeGenPasses.add(new TargetLibraryInfoWrapperPass(*TLII));
@@ -1050,7 +1051,7 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
   // -fsycl-instrument-device-code option was passed. This option can be
   // used only with spir triple.
   if (CodeGenOpts.SPIRITTAnnotations) {
-    assert(llvm::Triple(TheModule->getTargetTriple()).isSPIR() &&
+    assert(TargetTriple.isSPIR() &&
            "ITT annotations can only be added to a module with spir target");
     PerModulePasses.add(createSPIRITTAnnotationsLegacyPass());
   }
@@ -1064,6 +1065,13 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
       PerModulePasses.add(createAlwaysInlinerLegacyPass(false));
     PerModulePasses.add(createSYCLLowerWGLocalMemoryLegacyPass());
     PerModulePasses.add(createSYCLMutatePrintfAddrspaceLegacyPass());
+  }
+
+  // Add the InferAddressSpaces pass for all the SPIR[V] targets
+  if (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) {
+    // This function pass should run after inlining, so it is added to MPM
+    PerModulePasses.add(
+        createInferAddressSpacesPass((4))); // TODO make/use the constant
   }
 
   switch (Action) {
@@ -1086,10 +1094,8 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
       // Emit a module summary by default for Regular LTO except for ld64
       // targets
       bool EmitLTOSummary =
-          (CodeGenOpts.PrepareForLTO &&
-           !CodeGenOpts.DisableLLVMPasses &&
-           llvm::Triple(TheModule->getTargetTriple()).getVendor() !=
-               llvm::Triple::Apple);
+          (CodeGenOpts.PrepareForLTO && !CodeGenOpts.DisableLLVMPasses &&
+           TargetTriple.getVendor() != llvm::Triple::Apple);
       if (EmitLTOSummary) {
         if (!TheModule->getModuleFlag("ThinLTO"))
           TheModule->addModuleFlag(Module::Error, "ThinLTO", uint32_t(0));
@@ -1370,7 +1376,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
   // Register the target library analysis directly and give it a customized
   // preset TLI.
-  Triple TargetTriple(TheModule->getTargetTriple());
   std::unique_ptr<TargetLibraryInfoImpl> TLII(
       createTLII(TargetTriple, CodeGenOpts));
   FAM.registerPass([&] { return TargetLibraryAnalysis(*TLII); });
@@ -1495,7 +1500,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   // -fsycl-instrument-device-code option was passed. This option can be used
   // only with spir triple.
   if (CodeGenOpts.SPIRITTAnnotations) {
-    assert(llvm::Triple(TheModule->getTargetTriple()).isSPIR() &&
+    assert(TargetTriple.isSPIR() &&
            "ITT annotations can only be added to a module with spir target");
     MPM.addPass(SPIRITTAnnotationsPass());
   }
@@ -1535,8 +1540,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // targets
       bool EmitLTOSummary =
           (CodeGenOpts.PrepareForLTO && !CodeGenOpts.DisableLLVMPasses &&
-           llvm::Triple(TheModule->getTargetTriple()).getVendor() !=
-               llvm::Triple::Apple);
+           TargetTriple.getVendor() != llvm::Triple::Apple);
       if (EmitLTOSummary) {
         if (!TheModule->getModuleFlag("ThinLTO"))
           TheModule->addModuleFlag(Module::Error, "ThinLTO", uint32_t(0));
