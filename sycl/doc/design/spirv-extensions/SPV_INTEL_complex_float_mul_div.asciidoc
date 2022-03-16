@@ -1,0 +1,211 @@
+:extension_name: SPV_INTEL_complex_float_mul_div
+:capability_name: ComplexFloatMulDivINTEL
+:capability_token: 6414
+:OpComplexFMulINTEL_token: 6415
+:OpComplexFDivINTEL_token: 6416
+
+{extension_name}
+================
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+- Nikita Kornev, Intel +
+
+== Notice
+
+Copyright (c) 2022 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2022-03-16
+| Revision           | 1
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 6.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension adds new capability and instructions to add support for
+arithmetic operations with operands of complex type.
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+[subs="attributes"]
+----
+{capability_name}
+----
+
+== New Instructions
+
+Instructions added under the *{capability_name}* capability:
+
+----
+
+OpComplexFMulINTEL
+OpComplexFDivINTEL
+
+----
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|*{capability_name}*  | {capability_token}
+|*OpComplexFMulINTEL*  | {OpComplexFMulINTEL_token}
+|*OpComplexFDivINTEL*  | {OpComplexFDivINTEL_token}
+
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.5, revision 6
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares 
+| {capability_token} | *{capability_name}*
+| Reserved. +
+ +
+See also extension: *{extension_name}*
+|====
+--
+
+=== Instructions
+
+==== 3.42.13. Arithmetic Instructions
+
+[cols="6*",width="100%"]
+|=====
+5+| *OpComplexFMulINTEL* +
+ +
+Complex multiplication of 'Operand 1' and 'Operand 2'. +
+ +
+'Result Type' must be a vector of floating-point type of length divisible by 2. +
+If the length is 2, the first component is the real part and the second
+component is the imaginary part. +
+If the length is greater than 2, then the first component is the real part of
+the first complex number of the vector and the second component is the imaginary
+part of the first complex number of the vector. The third component is the real
+part of the second complex number of the vector and the fourth component is the
+imaginary part of the second complex number of the vector, etc. +
+ +
+The types of 'Operand 1' and 'Operand 2' both must be the same as 'Result Type'.
+| Capability: +
+*{capability_name}*
+
+| 5
+| {OpComplexFMulINTEL_token}
+| 'Result Type' +
+'<id>'
+| 'Result' +
+'<id>'
+| '<id>' +
+'Operand 1'
+| '<id>' +
+'Operand 2'
+|=====
+
+[cols="6*",width="100%"]
+|=====
+5+| *OpComplexFDivINTEL* +
+ +
+Complex division of 'Operand 1' divided by 'Operand 2'. +
+ +
+'Result Type' must be a vector of floating-point type of length divisible by 2. +
+If the length is 2, the first component is the real part and the second
+component is the imaginary part. +
+If the length is greater than 2, then the first component is the real part of
+the first complex number of the vector and the second component is the imaginary
+part of the first complex number of the vector. The third component is the real
+part of the second complex number of the vector and the fourth component is the
+imaginary part of the second complex number of the vector, etc. +
+ +
+The types of 'Operand 1' and 'Operand 2' both must be the same as 'Result Type'.
+| Capability: +
+*{capability_name}*
+
+| 5
+| {OpComplexFDivINTEL_token}
+| 'Result Type' +
+'<id>'
+| 'Result' +
+'<id>'
+| '<id>' +
+'Operand 1'
+| '<id>' +
+'Operand 2'
+|=====
+
+=== Issues
+
+. Do we need to introduce new SPIR-V instructions to represent complex "add",
+"sub", "real" and "imag" operations?
++
+--
+*RESOLVED*
+
+Since the complex number is represented as a vector of two floating-point
+values, a complex "add", "sub" are the same as a vector "add" and "sub";
+"real" and "imag" complex operations are also represented as a vector
+instructions. As long as there is no special LLVM-IR complex type, there is no
+need for a special SPIR-V instructions to repesent these operations.
+--
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-03-16|Nikita Kornev|Initial revision
+|========================================
