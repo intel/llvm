@@ -1594,10 +1594,17 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
   llvm::FunctionType* CtorFTy = llvm::FunctionType::get(VoidTy, false);
   llvm::Type *CtorPFTy = llvm::PointerType::get(CtorFTy,
       TheModule.getDataLayout().getProgramAddressSpace());
+  llvm::PointerType *TargetType = VoidPtrTy;
+  // Get target type when templated global variables are used,
+  // to emit them correctly in the target (default) address space and avoid
+  // emitting them in a private address space.
+  if (getLangOpts().SYCLIsDevice)
+    TargetType = llvm::IntegerType::getInt8PtrTy(
+        getLLVMContext(), getContext().getTargetAddressSpace(LangAS::Default));
 
   // Get the type of a ctor entry, { i32, void ()*, i8* }.
-  llvm::StructType *CtorStructTy = llvm::StructType::get(
-      Int32Ty, CtorPFTy, VoidPtrTy);
+  llvm::StructType *CtorStructTy =
+      llvm::StructType::get(Int32Ty, CtorPFTy, TargetType);
 
   // Construct the constructor and destructor arrays.
   ConstantInitBuilder builder(*this);
@@ -1606,10 +1613,12 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
     auto ctor = ctors.beginStruct(CtorStructTy);
     ctor.addInt(Int32Ty, I.Priority);
     ctor.add(llvm::ConstantExpr::getBitCast(I.Initializer, CtorPFTy));
+    // Emit appropriate bitcasts for pointers of different address spaces.
     if (I.AssociatedData)
-      ctor.add(llvm::ConstantExpr::getBitCast(I.AssociatedData, VoidPtrTy));
+      ctor.add(llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+          I.AssociatedData, TargetType));
     else
-      ctor.addNullPointer(VoidPtrTy);
+      ctor.addNullPointer(TargetType);
     ctor.finishAndAddTo(ctors);
   }
 
@@ -2428,19 +2437,26 @@ static void emitUsed(CodeGenModule &CGM, StringRef Name,
   // Don't create llvm.used if there is no need.
   if (List.empty())
     return;
+  // For SYCL emit pointers in the default address space which is a superset of
+  // other address spaces, so that casts from any other address spaces will be
+  // valid.
+  llvm::PointerType *TargetType = CGM.Int8PtrTy;
+  if (CGM.getLangOpts().SYCLIsDevice)
+    TargetType = llvm::IntegerType::getInt8PtrTy(
+        CGM.getLLVMContext(),
+        CGM.getContext().getTargetAddressSpace(LangAS::Default));
 
   // Convert List to what ConstantArray needs.
   SmallVector<llvm::Constant*, 8> UsedArray;
   UsedArray.resize(List.size());
   for (unsigned i = 0, e = List.size(); i != e; ++i) {
-    UsedArray[i] =
-        llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
-            cast<llvm::Constant>(&*List[i]), CGM.Int8PtrTy);
+    UsedArray[i] = llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+        cast<llvm::Constant>(&*List[i]), TargetType);
   }
 
   if (UsedArray.empty())
     return;
-  llvm::ArrayType *ATy = llvm::ArrayType::get(CGM.Int8PtrTy, UsedArray.size());
+  llvm::ArrayType *ATy = llvm::ArrayType::get(TargetType, UsedArray.size());
 
   auto *GV = new llvm::GlobalVariable(
       CGM.getModule(), ATy, false, llvm::GlobalValue::AppendingLinkage,
@@ -2844,6 +2860,15 @@ void CodeGenModule::AddGlobalAnnotations(const ValueDecl *D,
   // Get the struct elements for these annotations.
   for (const auto *I : D->specific_attrs<AnnotateAttr>())
     Annotations.push_back(EmitAnnotateAttr(GV, I, D->getLocation()));
+}
+
+// Add "sycl-unique-id" llvm IR attribute that has a unique string generated
+// by __builtin_sycl_unique_stable_id for global variables marked with
+// SYCL device_global attribute.
+static void addSYCLUniqueID(llvm::GlobalVariable *GV, const VarDecl *VD,
+                            ASTContext &Context) {
+  auto builtinString = SYCLUniqueStableIdExpr::ComputeName(Context, VD);
+  GV->addAttribute("sycl-unique-id", builtinString);
 }
 
 bool CodeGenModule::isInNoSanitizeList(SanitizerMask Kind, llvm::Function *Fn,
@@ -4955,6 +4980,14 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
   // Emit Intel FPGA attribute annotation for a file-scope static variable.
   if (getLangOpts().SYCLIsDevice)
     addGlobalIntelFPGAAnnotation(D, GV);
+
+  // If VarDecl has a type decorated with SYCL device_global attribute, emit IR
+  // attribute 'sycl-unique-id'.
+  if (getLangOpts().SYCLIsDevice) {
+    const RecordDecl *RD = D->getType()->getAsRecordDecl();
+    if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>())
+      addSYCLUniqueID(GV, D, Context);
+  }
 
   if (D->getType().isRestrictQualified()) {
     llvm::LLVMContext &Context = getLLVMContext();

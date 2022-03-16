@@ -3067,6 +3067,49 @@ function. In SYCL 2020 mode, the attribute is not propagated to the kernel.
   }];
 }
 
+def SYCLDeviceGlobalAttrDocs : Documentation {
+  let Category = DocCatType;
+  let Heading = "__sycl_detail__::device_global";
+  let Content = [{
+This attribute is part of support for SYCL device_global feature.
+[[__sycl_detail__::device_global]] attribute is used for checking restrictions
+on variable declarations using the device_global type instead of the class name.
+Global or static variables of type decorated with this attribute have
+`sycl-unique-id`, an LLVM IR attribute, added to the definition of each such
+variable, which provides a unique string identifier using
+__builtin_sycl_unique_stable_id.
+We do not intend to support this as a general attribute that user code can use,
+so we have this attribute in sycl_detail namespace.
+
+.. code-block:: c++
+
+  template<typename T>
+  struct [[__sycl_detail__::device_global]] device_global {}
+
+  device_global<int> Foo;
+  }];
+}
+
+def SYCLGlobalVariableAllowedAttrDocs : Documentation {
+  let Category = DocCatType;
+  let Heading = "__sycl_detail__::global_variable_allowed";
+  let Content = [{
+This attribute is part of support for SYCL device_global feature.
+[[__sycl_detail__::global_variable_allowed]] attribute is used to avoid
+diagnosing an error when global or static variables of type decorated with this
+attribute are referenced in device code. We do not intend to support this as a
+general attribute that user code can use, therefore it is wrapped in
+sycl_detail namespace.
+
+.. code-block:: c++
+  
+  template<typename T>
+  struct [[__sycl_detail__::global_variable_allowed]] device_global {}
+  
+  device_global<int> Foo;
+  }];
+}
+
 def SYCLFPGAPipeDocs : Documentation {
   let Category = DocCatStmt;
   let Heading = "pipe (read_only, write_only)";

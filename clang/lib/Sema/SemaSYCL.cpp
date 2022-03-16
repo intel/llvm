@@ -120,10 +120,6 @@ public:
   static bool isSyclSpecIdType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
-  /// device_global class.
-  static bool isSyclDeviceGlobalType(QualType Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
   /// kernel_handler class.
   static bool isSyclKernelHandlerType(QualType Ty);
 
@@ -4844,7 +4840,8 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
     return;
   // Step 1: ensure that this is of the correct type template specialization.
   if (!Util::isSyclSpecIdType(VD->getType()) &&
-      !Util::isSyclDeviceGlobalType(VD->getType())) {
+      !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+          VD->getType())) {
     // Handle the case where this could be a deduced type, such as a deduction
     // guide. We have to do this here since this function, unlike most of the
     // rest of this file, is called during Sema instead of after it. We will
@@ -5024,7 +5021,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     // Skip if this isn't a SpecIdType or DeviceGlobal.  This can happen if it
     // was a deduced type.
     if (!Util::isSyclSpecIdType(VD->getType()) &&
-        !Util::isSyclDeviceGlobalType(VD->getType()))
+        !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            VD->getType()))
       continue;
 
     // Skip if we've already visited this.
@@ -5038,7 +5036,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     Visited.insert(VD);
     std::string TopShim = EmitShims(OS, ShimCounter, Policy, VD);
-    if (Util::isSyclDeviceGlobalType(VD->getType())) {
+    if (S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            VD->getType())) {
       DeviceGlobalsEmitted = true;
       DeviceGlobOS << "device_global_map::add(";
       DeviceGlobOS << "(void *)&";
@@ -5125,18 +5124,6 @@ bool Util::isSyclSpecIdType(QualType Ty) {
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "specialization_id")};
   return matchQualifiedTypeName(Ty, Scopes);
-}
-
-bool Util::isSyclDeviceGlobalType(QualType Ty) {
-  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
-  if (!RecTy)
-    return false;
-  if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
-    ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
-    if (CXXRecordDecl *RD = Template->getTemplatedDecl())
-      return RD->hasAttr<SYCLDeviceGlobalAttr>();
-  }
-  return RecTy->hasAttr<SYCLDeviceGlobalAttr>();
 }
 
 bool Util::isSyclKernelHandlerType(QualType Ty) {

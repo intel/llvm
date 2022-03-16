@@ -7119,6 +7119,11 @@ def warn_format_nonliteral : Warning<
   "format string is not a string literal">,
   InGroup<FormatNonLiteral>, DefaultIgnore;
 
+def err_sycl_device_global_incorrect_scope : Error<
+  "'device_global' variables must be static or declared at namespace scope">;
+def err_sycl_device_global_not_publicly_accessible: Error<
+  "'device_global' member variable %0 is not publicly accessible from namespace scope">;
+
 def err_unexpected_interface : Error<
   "unexpected interface name %0: expected expression">;
 def err_ref_non_value : Error<"%0 does not refer to a value">;

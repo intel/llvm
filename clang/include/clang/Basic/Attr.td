@@ -1257,17 +1257,8 @@ def SYCLUsesAspects : InheritableAttr {
   let Subjects = SubjectList<[CXXRecord, Function], ErrorDiag>;
   let Args = [VariadicExprArgument<"Aspects">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  // Only used internally by the SYCL implementation
+  // Only used internally by SYCL implementation
   let Documentation = [Undocumented];
-}
-
-def SYCLDeviceGlobal : InheritableAttr {
-  let Spellings = [CXX11<"__sycl_detail__", "device_global">];
-  let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  // Only used internally by the SYCL implementation
-  let Documentation = [Undocumented];
-  let SimpleHandler = 1;
 }
 
 // Marks functions which must not be vectorized via horizontal SIMT widening,
@@ -1446,6 +1437,24 @@ def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelMaxGlobalWorkDimAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
+}
+
+def SYCLDeviceGlobal: InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "device_global">];
+  let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  // Only used internally by SYCL implementation
+  let Documentation = [SYCLDeviceGlobalAttrDocs];
+  let SimpleHandler = 1;
+}
+
+def SYCLGlobalVariableAllowed : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "global_variable_allowed">];
+  let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  // Only used internally by SYCL implementation
+  let Documentation = [SYCLGlobalVariableAllowedAttrDocs];
+  let SimpleHandler = 1;
 }
 
 def SYCLIntelNoGlobalWorkOffset : InheritableAttr {

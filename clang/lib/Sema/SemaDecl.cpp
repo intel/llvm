@@ -7414,12 +7414,23 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       NewVD->setTSCSpec(TSCS);
   }
 
-  // Static variables declared inside SYCL device code must be const or
-  // constexpr
-  if (getLangOpts().SYCLIsDevice)
-    if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context))
+  // Global variables with types decorated with device_global attribute must be
+  // static if they are declared in SYCL device code.
+  if (getLangOpts().SYCLIsDevice) {
+    if (SCSpec != DeclSpec::SCS_static && !NewVD->hasGlobalStorage() &&
+        isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            NewVD->getType()))
+      Diag(D.getIdentifierLoc(), diag::err_sycl_device_global_incorrect_scope);
+
+    // Static variables declared inside SYCL device code must be const or
+    // constexpr unless their types are decorated with global_variable_allowed
+    // attribute.
+    if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context) &&
+        !isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
+            NewVD->getType()))
       SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
           << Sema::KernelNonConstStaticDataVariable;
+  }
 
   switch (D.getDeclSpec().getConstexprSpecifier()) {
   case ConstexprSpecKind::Unspecified:
