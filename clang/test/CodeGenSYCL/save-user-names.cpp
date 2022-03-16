@@ -1,9 +1,9 @@
-// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN:  %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
-// Test to verify that user specified names are retained in openCL
+// Test to verify that user specified names are retained in SPIR
 // kernel argument names.
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
 struct NestedSimple {
   int NestedSimpleField;
@@ -27,7 +27,7 @@ int main() {
   cl::sycl::queue q;
 
   q.submit([&](cl::sycl::handler &cgh) {
-     KernelFunctor FunctorObj;
+    KernelFunctor FunctorObj;
     cgh.single_task<class Kernel1>(FunctorObj);
   });
 
@@ -36,7 +36,7 @@ int main() {
     NestedSimple NestedSimpleObj;
     NestedComplex NestedComplexObj;
     cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> CapturedAcc1, CapturedAcc2;
-    cgh.single_task<class Kernel2>([=](){
+    cgh.single_task<class Kernel2>([=]() {
       Data;
       CapturedAcc1;
       CapturedAcc2;
@@ -48,7 +48,7 @@ int main() {
   return 0;
 }
 
-// Check kernel paramters generated when kernel is defined as Functor
+// Check kernel parameters generated when kernel is defined as Functor
 
 // NOTE: Accessor fields have 4 corresponding openCL kernel arguments. When
 // the compiler generates the openCL kernel arguments, they are generated
@@ -63,7 +63,7 @@ int main() {
 // CHECK-SAME: %_arg_NestedComplexField
 // CHECK-SAME: %_arg_NestedAccField{{.*}}%_arg_NestedAccField7{{.*}}%_arg_NestedAccField8{{.*}}%_arg_NestedAccField9
 
-// Check kernel paramters generated when kernel is defined as Lambda
+// Check kernel parameters generated when kernel is defined as Lambda
 //
 // CHECK: define {{.*}}spir_kernel void @{{.*}}Kernel2
 // CHECK-SAME: %_arg_Data
