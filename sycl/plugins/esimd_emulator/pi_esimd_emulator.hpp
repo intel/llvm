@@ -148,13 +148,6 @@ private:
   std::stack<void *> Mappings;
 };
 
-typedef union _cm_buffer_ptr {
-  // For normal buffer
-  cm_support::CmBuffer *GPUPtr;
-  // For buffer whose memory space is allocated in Host
-  cm_support::CmBufferUP *HostPtr;
-} cm_buffer_ptr;
-
 typedef union _cm_image_ptr {
   // For normal image
   cm_support::CmSurface2D *GPUPtr;
@@ -162,14 +155,35 @@ typedef union _cm_image_ptr {
   cm_support::CmSurface2DUP *HostPtr;
 } cm_image_ptr;
 
+struct cm_buffer_ptr_slot {
+  enum type { type_none, type_regular, type_user_provided };
+  type tag = type_none;
+
+  union {
+    cm_support::CmBuffer *RegularBufPtr = nullptr;
+    cm_support::CmBufferUP *UPBufPtr;
+  };
+
+  type getBufType() { return tag; }
+
+  cm_support::CmBuffer *getBuffer() {
+    assert(tag == type_regular);
+    return RegularBufPtr;
+  }
+  cm_support::CmBufferUP *getBufferUP() {
+    assert(tag == type_user_provided);
+    return UPBufPtr;
+  }
+};
+
 struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
-  _pi_buffer(pi_context ctxt, char *HostPtr, cm_buffer_ptr BufferPtrArg,
-             unsigned int SurfaceIdxArg, size_t SizeArg, bool isHostMemArg)
-      : _pi_mem(ctxt, HostPtr, PI_MEM_TYPE_BUFFER, SurfaceIdxArg, isHostMemArg),
+  _pi_buffer(pi_context ctxt, char *HostPtr, cm_buffer_ptr_slot BufferPtrArg,
+             unsigned int SurfaceIdxArg, size_t SizeArg)
+      : _pi_mem(ctxt, HostPtr, PI_MEM_TYPE_BUFFER, SurfaceIdxArg, false),
         BufferPtr{BufferPtrArg}, Size{SizeArg} {}
 
-  cm_buffer_ptr BufferPtr;
+  cm_buffer_ptr_slot BufferPtr;
   size_t Size;
 };
 

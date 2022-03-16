@@ -1023,24 +1023,24 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   }
 
   char *MapBasePtr = nullptr;
-  cm_buffer_ptr CmBuf;
+  cm_buffer_ptr_slot CmBuf;
   cm_support::SurfaceIndex *CmIndex;
   std::lock_guard<std::mutex> Lock(Context->CmSurfaceManageLock);
   int Status = cm_support::CM_FAILURE;
-  bool IsHostMem = false;
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
+    CmBuf.tag = cm_buffer_ptr_slot::type_user_provided;
     Status = Context->Device->CmDevicePtr->CreateBufferUP(
-        static_cast<unsigned int>(Size), HostPtr, CmBuf.HostPtr);
-    CmBuf.HostPtr->GetIndex(CmIndex);
-    IsHostMem = true;
+        static_cast<unsigned int>(Size), HostPtr, CmBuf.UPBufPtr);
+    CmBuf.UPBufPtr->GetIndex(CmIndex);
   } else {
+    CmBuf.tag = cm_buffer_ptr_slot::type_regular;
     Status = Context->Device->CmDevicePtr->CreateBuffer(
-        static_cast<unsigned int>(Size), CmBuf.GPUPtr);
-    CmBuf.GPUPtr->GetIndex(CmIndex);
+        static_cast<unsigned int>(Size), CmBuf.RegularBufPtr);
+    CmBuf.RegularBufPtr->GetIndex(CmIndex);
 
     if (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
-      CmBuf.GPUPtr->WriteSurface(
+      CmBuf.RegularBufPtr->WriteSurface(
           reinterpret_cast<const unsigned char *>(HostPtr), nullptr,
           static_cast<unsigned int>(Size));
     }
@@ -1054,8 +1054,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
       pi_cast<char *>(cm_support::get_surface_base_addr(CmIndex->get_data()));
 
   try {
-    *RetMem = new _pi_buffer(Context, MapBasePtr, CmBuf, CmIndex->get_data(),
-                             Size, IsHostMem);
+    *RetMem =
+        new _pi_buffer(Context, MapBasePtr, CmBuf, CmIndex->get_data(), Size);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1094,12 +1094,13 @@ pi_result piMemRelease(pi_mem Mem) {
 
     if (Mem->getMemType() == PI_MEM_TYPE_BUFFER) {
       _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      if (Mem->isHostProvidedMem()) {
+      if (PiBuf->BufferPtr.getBufType() ==
+          cm_buffer_ptr_slot::type_user_provided) {
         Status = Mem->Context->Device->CmDevicePtr->DestroyBufferUP(
-            PiBuf->BufferPtr.HostPtr);
+            PiBuf->BufferPtr.UPBufPtr);
       } else {
         Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-            PiBuf->BufferPtr.GPUPtr);
+            PiBuf->BufferPtr.RegularBufPtr);
       }
     } else if (Mem->getMemType() == PI_MEM_TYPE_IMAGE2D) {
       _pi_image *PiImg = static_cast<_pi_image *>(Mem);
@@ -1888,12 +1889,13 @@ pi_result piTearDown(void *) {
 
     if (Mem->getMemType() == PI_MEM_TYPE_BUFFER) {
       _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      if (Mem->isHostProvidedMem()) {
+      if (PiBuf->BufferPtr.getBufType() ==
+          cm_buffer_ptr_slot::type_user_provided) {
         Status = Mem->Context->Device->CmDevicePtr->DestroyBufferUP(
-            PiBuf->BufferPtr.HostPtr);
+            PiBuf->BufferPtr.UPBufPtr);
       } else {
         Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-            PiBuf->BufferPtr.GPUPtr);
+            PiBuf->BufferPtr.RegularBufPtr);
       }
     } else if (Mem->getMemType() == PI_MEM_TYPE_IMAGE2D) {
       _pi_image *PiImg = static_cast<_pi_image *>(Mem);
