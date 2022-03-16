@@ -2040,7 +2040,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return Res;
   }
 
-  // Filter available devices based on input DeviceType
+  // Filter available devices based on input DeviceType.
   std::vector<pi_device> MatchedDevices;
   for (auto &D : Platform->PiDevicesCache) {
     // Only ever return root-devices from piDevicesGet, but the
