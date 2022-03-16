@@ -11,9 +11,11 @@
 
 // -----
 
-// CHECK-LABEL: func @extract_slice_fun
+// CHECK-LABEL: func @extract_slice_fun(
 func @extract_slice_fun(%A : tensor<?xf32> {linalg.inplaceable = false},
+//  CHECK-SAME:          bufferization.access = "read"
                         %B : tensor<?xf32> {linalg.inplaceable = true})
+//  CHECK-SAME:         bufferization.access = "read"
   -> (tensor<4xf32>, tensor<8xf32>)
 {
   // tensor.extract_slice is not used in a write, it is not compelled to
@@ -33,10 +35,13 @@ func @extract_slice_fun(%A : tensor<?xf32> {linalg.inplaceable = false},
 
 // -----
 
-// CHECK-LABEL: func @insert_slice_fun
+// CHECK-LABEL: func @insert_slice_fun(
 func @insert_slice_fun(%A : tensor<?xf32> {linalg.inplaceable = false},
+//  CHECK-SAME:        bufferization.access = "read"
                        %B : tensor<?xf32> {linalg.inplaceable = true},
+//  CHECK-SAME:        bufferization.access = "read-write"
                        %C : tensor<4xf32> {linalg.inplaceable = false})
+//  CHECK-SAME:        bufferization.access = "read"
   -> (tensor<?xf32>, tensor<?xf32>)
 {
   // must bufferize out of place.
@@ -56,9 +61,11 @@ func @insert_slice_fun(%A : tensor<?xf32> {linalg.inplaceable = false},
 
 // -----
 
-// CHECK-LABEL: func @conflict_on_B
+// CHECK-LABEL: func @conflict_on_B(
 func @conflict_on_B(%A : tensor<4x4xf32> {linalg.inplaceable = true},
+//  CHECK-SAME:     bufferization.access = "read"
                     %B : tensor<4x4xf32> {linalg.inplaceable = true})
+//  CHECK-SAME:     bufferization.access = "read-write"
   -> (tensor<4x4xf32>, tensor<4x4xf32>, tensor<4x4xf32>)
 {
   // matmul output operand interferes with input operand.
@@ -93,10 +100,12 @@ func @conflict_on_B(%A : tensor<4x4xf32> {linalg.inplaceable = true},
 
 // -----
 
-// CHECK-LABEL: func @extract_slice_extract_slice
+// CHECK-LABEL: func @extract_slice_extract_slice(
 func @extract_slice_extract_slice(
     %A : tensor<?xf32> {linalg.inplaceable = true},
+//  CHECK-SAME:         bufferization.access = "read"
     %B : tensor<?xf32> {linalg.inplaceable = false})
+//  CHECK-SAME:         bufferization.access = "read"
   -> (tensor<2xf32>, tensor<2xf32>)
 {
   // tensor.extract_slice is not used in a write, it is not compelled to
@@ -120,14 +129,20 @@ func @extract_slice_extract_slice(
 
 // -----
 
-// CHECK-LABEL: func @insert_slice_insert_slice
+// CHECK-LABEL: func @insert_slice_insert_slice(
 func @insert_slice_insert_slice(
     %A : tensor<?xf32> {linalg.inplaceable = true},
+//  CHECK-SAME:         bufferization.access = "read-write"
     %A2 : tensor<4xf32> {linalg.inplaceable = true},
+//  CHECK-SAME:          bufferization.access = "read-write"
     %A3 : tensor<2xf32> {linalg.inplaceable = true},
+//  CHECK-SAME:          bufferization.access = "read"
     %B : tensor<?xf32> {linalg.inplaceable = false},
+//  CHECK-SAME:         bufferization.access = "read"
     %B2 : tensor<4xf32> {linalg.inplaceable = false},
+//  CHECK-SAME:          bufferization.access = "read"
     %B3 : tensor<2xf32> {linalg.inplaceable = false})
+//  CHECK-SAME:          bufferization.access = "read"
   -> (tensor<?xf32>, tensor<?xf32>)
 {
   // CHECK: {__inplace_operands_attr__ = ["true", "true"]}
@@ -624,7 +639,7 @@ func @scf_for_deps(
     %lb : index,
     %ub : index,
     %step : index)
-  -> (tensor<?xf32>, tensor<?xf32>)
+  -> (tensor<?xf32>)
 {
   // %r0 must be out of place because one use of %t in the subsequent production
   // of %r1 is read.
@@ -651,38 +666,9 @@ func @scf_for_deps(
     scf.yield %t : tensor<?xf32>
   }
 
-  // %r2 must be out of place because one use of %t in the subsequent production
-  // of %r3 is read.
-  //      CHECK: linalg.tiled_loop
-  // CHECK-NEXT: call
-  // CHECK-SAME: {__inplace_operands_attr__ = ["false"]}
-  // CHECK-NEXT: linalg.yield
-  // CHECK-SAME: {__inplace_operands_attr__ = ["true"]}
-  //      CHECK: } {__inplace_operands_attr__ = ["none", "none", "none", "false"]}
-  %r2 = linalg.tiled_loop (%i) = (%lb) to (%ub) step (%step)
-        ins()
-        outs(%t = %B: tensor<?xf32>) {
-    call @some_use(%t) : (tensor<?xf32>) -> ()
-    linalg.yield %t : tensor<?xf32>
-  }
-
-  // %r3 bufferizes inplace fine.
-  //      CHECK: linalg.tiled_loop
-  // CHECK-NEXT: call
-  // CHECK-SAME: {__inplace_operands_attr__ = ["false"]}
-  // CHECK-NEXT: linalg.yield
-  // CHECK-SAME: {__inplace_operands_attr__ = ["true"]}
-  //      CHECK: } {__inplace_operands_attr__ = ["none", "none", "none", "true"]}
-  %r3 = linalg.tiled_loop (%i) = (%lb) to (%ub) step (%step)
-        ins()
-        outs(%t = %B: tensor<?xf32>) {
-    call @some_use(%t) : (tensor<?xf32>) -> ()
-    linalg.yield %t : tensor<?xf32>
-  }
-
   //      CHECK: return
-  // CHECK-SAME: __equivalent_func_args__ = [0, 1]
-  return %r1, %r3: tensor<?xf32>, tensor<?xf32>
+  // CHECK-SAME: __equivalent_func_args__ = [0]
+  return %r1: tensor<?xf32>
 }
 
 // -----
@@ -888,12 +874,16 @@ builtin.func @matmul_on_tensors(
 // prioritizing  the tensor.insert_slice ops.
 //===----------------------------------------------------------------------===//
 
+// CHECK-LABEL: func @insert_slice_chain(
 func @insert_slice_chain(
     %v1: vector<32x90xf32>,
     %v2: vector<30x90xf32>,
     %arg0: tensor<62x126xf32> {linalg.buffer_layout = affine_map<(d0, d1) -> (d0, d1)>, linalg.inplaceable = false},
+// CHECK-SAME: bufferization.access = "none"
     %arg1: tensor<126x90xf32> {linalg.buffer_layout = affine_map<(d0, d1) -> (d0, d1)>, linalg.inplaceable = false},
+// CHECK-SAME: bufferization.access = "none"
     %arg2: tensor<62x90xf32> {linalg.buffer_layout = affine_map<(d0, d1) -> (d0, d1)>, linalg.inplaceable = true})
+// CHECK-SAME: bufferization.access = "write"
   -> tensor<62x90xf32> attributes {passthrough = [["target-cpu", "skylake-avx512"], ["prefer-vector-width", "512"]]}
 {
   %c0 = arith.constant 0 : index
@@ -968,13 +958,16 @@ func @ip(%t: tensor<10x20xf32> {linalg.inplaceable = true},
   iterator_types = ["parallel"]
 }
 
-// CHECK-LABEL: func @linalg_op_same_out_tensors
+// CHECK-LABEL: func @linalg_op_same_out_tensors(
 func @linalg_op_same_out_tensors(
     %t1: tensor<?xf32> {linalg.inplaceable = true},
-    %t2: tensor<?xf32> {linalg.inplaceable = true}) -> (tensor<?xf32>, tensor<?xf32>){
+// CHECK-SAME:          bufferization.access = "read"
+    %t2: tensor<?xf32> {linalg.inplaceable = true})
+// CHECK-SAME:          bufferization.access = "write"
+  -> (tensor<?xf32>, tensor<?xf32>){
 
   //      CHECK: linalg.generic
-  // CHECK-SAME: {__inplace_operands_attr__ = ["true", "true", "true"]
+  // CHECK-SAME: {__inplace_operands_attr__ = ["true", "true", "false"]
   %o:2 = linalg.generic #trait ins(%t1 : tensor<?xf32>)
                                outs (%t2, %t2 : tensor<?xf32>, tensor<?xf32>) {
       ^bb(%0: f32, %1: f32, %2 : f32) :
@@ -982,7 +975,7 @@ func @linalg_op_same_out_tensors(
     } -> (tensor<?xf32>, tensor<?xf32>)
 
   //      CHECK: return
-  // CHECK-SAME: __equivalent_func_args__ = [0, 1]
+  // CHECK-SAME: __equivalent_func_args__ = [1, -1]
   return %o#0, %o#1 : tensor<?xf32>, tensor<?xf32>
 }
 
@@ -999,14 +992,16 @@ func @linalg_op_same_out_tensors(
   iterator_types = ["parallel"]
 }
 
-// CHECK-LABEL: func @linalg_op_same_out_tensors_2
+// CHECK-LABEL: func @linalg_op_same_out_tensors_2(
 func @linalg_op_same_out_tensors_2(
     %t1: tensor<?xf32> {linalg.inplaceable = true},
+// CHECK-SAME:          bufferization.access = "read"
     %t2: tensor<?xf32> {linalg.inplaceable = true})
+// CHECK-SAME:          bufferization.access = "write"
         -> (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>){
 
   //      CHECK: linalg.generic
-  // CHECK-SAME: {__inplace_operands_attr__ = ["true", "true", "true", "false"]
+  // CHECK-SAME: {__inplace_operands_attr__ = ["true", "true", "false", "false"]
   %o:3 = linalg.generic #trait
           ins(%t1 : tensor<?xf32>)
           outs (%t2, %t2, %t2 : tensor<?xf32>, tensor<?xf32>, tensor<?xf32>) {
@@ -1015,7 +1010,7 @@ func @linalg_op_same_out_tensors_2(
     } -> (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>)
 
   //      CHECK: return
-  // CHECK-SAME: __equivalent_func_args__ = [0, 1, -1]
+  // CHECK-SAME: __equivalent_func_args__ = [1, -1, -1]
   return %o#0, %o#1, %o#2 : tensor<?xf32>, tensor<?xf32>, tensor<?xf32>
 }
 
@@ -1724,9 +1719,9 @@ func @write_after_select_read_one(
   %cst = arith.constant 0.0 : f32
   %idx = arith.constant 0 : index
 
-  //      CHECK: select %{{.*}}, %[[t1]], %[[t2]]
+  //      CHECK: arith.select %{{.*}}, %[[t1]], %[[t2]]
   // CHECK-SAME:   {__inplace_operands_attr__ = ["none", "false", "true"]}
-  %s = std.select %c, %t1, %t2 : tensor<?xf32>
+  %s = arith.select %c, %t1, %t2 : tensor<?xf32>
   //      CHECK: tensor.insert
   // CHECK-SAME:   {__inplace_operands_attr__ = ["none", "true", "none"]}
   %w = tensor.insert %cst into %s[%idx] : tensor<?xf32>
@@ -1750,9 +1745,9 @@ func @write_after_select_read_both(
   %cst = arith.constant 0.0 : f32
   %idx = arith.constant 0 : index
 
-  //      CHECK: select %{{.*}}, %[[t1]], %[[t2]]
+  //      CHECK: arith.select %{{.*}}, %[[t1]], %[[t2]]
   // CHECK-SAME:   {__inplace_operands_attr__ = ["none", "false", "false"]}
-  %s = std.select %c, %t1, %t2 : tensor<?xf32>
+  %s = arith.select %c, %t1, %t2 : tensor<?xf32>
   //      CHECK: tensor.insert
   // CHECK-SAME:   {__inplace_operands_attr__ = ["none", "true", "none"]}
   %w = tensor.insert %cst into %s[%idx] : tensor<?xf32>
@@ -1779,9 +1774,9 @@ func @write_after_select_no_conflict(
   %cst = arith.constant 0.0 : f32
   %idx = arith.constant 0 : index
 
-  //      CHECK: select %{{.*}}, %[[t1]], %[[t2]]
+  //      CHECK: arith.select %{{.*}}, %[[t1]], %[[t2]]
   // CHECK-SAME:   {__inplace_operands_attr__ = ["none", "true", "true"]}
-  %s = std.select %c, %t1, %t2 : tensor<?xf32>
+  %s = arith.select %c, %t1, %t2 : tensor<?xf32>
   //      CHECK: tensor.insert
   // CHECK-SAME:   {__inplace_operands_attr__ = ["none", "true", "none"]}
   %w = tensor.insert %cst into %s[%idx] : tensor<?xf32>

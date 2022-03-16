@@ -743,7 +743,7 @@ static void sharePFWGPrivateObjects(Function &F, const Triple &TT) {
     else if (Arg.getArgNo() == 0) {
       PointerType *PtrT = dyn_cast<PointerType>(Arg.getType());
       assert(PtrT && "Expected this pointer as the first argument");
-      T = PtrT->getElementType();
+      T = PtrT->getPointerElementType();
       Shadow = spirv::createWGLocalVariable(*F.getParent(), T, "ArgShadow");
     }
 
@@ -963,7 +963,8 @@ Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
       Align Alignment = M.getDataLayout().getPreferredAlign(G);
       G->setAlignment(MaybeAlign(Alignment));
     }
-    Value *Res = new LoadInst(G->getType()->getElementType(), G, "", &Before);
+    Value *Res =
+        new LoadInst(G->getType()->getPointerElementType(), G, "", &Before);
     return Res;
   }
 }

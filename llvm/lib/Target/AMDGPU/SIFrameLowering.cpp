@@ -1200,7 +1200,7 @@ void SIFrameLowering::processFunctionBeforeFrameFinalized(
       }
     }
 
-    // Stack slot coloring may assign different objets to the same stack slot.
+    // Stack slot coloring may assign different objects to the same stack slot.
     // If not, then the VGPR to AGPR spill slot is dead.
     for (unsigned FI : SpillFIs.set_bits())
       if (!NonVGPRSpillFIs.test(FI))
@@ -1229,7 +1229,11 @@ void SIFrameLowering::processFunctionBeforeFrameFinalized(
     }
   }
 
-  FuncInfo->removeDeadFrameIndices(MFI);
+  // At this point we've already allocated all spilled SGPRs to VGPRs if we
+  // can. Any remaining SGPR spills will go to memory, so move them back to the
+  // default stack.
+  bool HaveSGPRToVMemSpill =
+      FuncInfo->removeDeadFrameIndices(MFI, /*ResetSGPRSpillStackIDs*/ true);
   assert(allSGPRSpillsAreDead(MF) &&
          "SGPR spill should have been removed in SILowerSGPRSpills");
 
@@ -1241,6 +1245,13 @@ void SIFrameLowering::processFunctionBeforeFrameFinalized(
 
     // Add an emergency spill slot
     RS->addScavengingFrameIndex(FuncInfo->getScavengeFI(MFI, *TRI));
+
+    // If we are spilling SGPRs to memory with a large frame, we may need a
+    // second VGPR emergency frame index.
+    if (HaveSGPRToVMemSpill &&
+        allocateScavengingFrameIndexesNearIncomingSP(MF)) {
+      RS->addScavengingFrameIndex(MFI.CreateStackObject(4, Align(4), false));
+    }
   }
 }
 

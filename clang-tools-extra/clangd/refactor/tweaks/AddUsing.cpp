@@ -8,7 +8,6 @@
 
 #include "AST.h"
 #include "Config.h"
-#include "FindTarget.h"
 #include "refactor/Tweak.h"
 #include "support/Logger.h"
 #include "clang/AST/Decl.h"
@@ -254,8 +253,9 @@ bool AddUsing::prepare(const Selection &Inputs) {
     if (auto *T = Node->ASTNode.get<TypeLoc>()) {
       if (T->getAs<ElaboratedTypeLoc>()) {
         break;
-      } else if (Node->Parent->ASTNode.get<TypeLoc>() ||
-                 Node->Parent->ASTNode.get<NestedNameSpecifierLoc>()) {
+      }
+      if (Node->Parent->ASTNode.get<TypeLoc>() ||
+          Node->Parent->ASTNode.get<NestedNameSpecifierLoc>()) {
         // Node is TypeLoc, but it's parent is either TypeLoc or
         // NestedNameSpecifier. In both cases, we want to go up, to find
         // the outermost TypeLoc.

@@ -211,6 +211,7 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
         .Case("0xd0d", "cortex-a77")
         .Case("0xd41", "cortex-a78")
         .Case("0xd44", "cortex-x1")
+        .Case("0xd4c", "cortex-x1c")
         .Case("0xd0c", "neoverse-n1")
         .Case("0xd49", "neoverse-n2")
         .Case("0xd40", "neoverse-v1")
@@ -1705,6 +1706,9 @@ bool sys::getHostCPUFeatures(StringMap<bool> &Features) {
                                    .Case("asimd", "neon")
                                    .Case("fp", "fp-armv8")
                                    .Case("crc32", "crc")
+                                   .Case("atomics", "lse")
+                                   .Case("sve", "sve")
+                                   .Case("sve2", "sve2")
 #else
                                    .Case("half", "fp16")
                                    .Case("neon", "neon")

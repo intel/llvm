@@ -2449,7 +2449,7 @@ SDValue SelectionDAG::GetDemandedBits(SDValue V, const APInt &DemandedBits,
   switch (V.getOpcode()) {
   default:
     return TLI->SimplifyMultipleUseDemandedBits(V, DemandedBits, DemandedElts,
-                                                *this, 0);
+                                                *this);
   case ISD::Constant: {
     const APInt &CVal = cast<ConstantSDNode>(V)->getAPIntValue();
     APInt NewVal = CVal & DemandedBits;
@@ -2587,9 +2587,9 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
     return true;
   }
   case ISD::VECTOR_SHUFFLE: {
-    // Check if this is a shuffle node doing a splat.
-    // TODO: Do we need to handle shuffle(splat, undef, mask)?
-    int SplatIndex = -1;
+    // Check if this is a shuffle node doing a splat or a shuffle of a splat.
+    APInt DemandedLHS = APInt::getNullValue(NumElts);
+    APInt DemandedRHS = APInt::getNullValue(NumElts);
     ArrayRef<int> Mask = cast<ShuffleVectorSDNode>(V)->getMask();
     for (int i = 0; i != (int)NumElts; ++i) {
       int M = Mask[i];
@@ -2599,11 +2599,30 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
       }
       if (!DemandedElts[i])
         continue;
-      if (0 <= SplatIndex && SplatIndex != M)
-        return false;
-      SplatIndex = M;
+      if (M < (int)NumElts)
+        DemandedLHS.setBit(M);
+      else
+        DemandedRHS.setBit(M - NumElts);
     }
-    return true;
+
+    // If we aren't demanding either op, assume there's no splat.
+    // If we are demanding both ops, assume there's no splat.
+    if ((DemandedLHS.isZero() && DemandedRHS.isZero()) ||
+        (!DemandedLHS.isZero() && !DemandedRHS.isZero()))
+      return false;
+
+    // See if the demanded elts of the source op is a splat or we only demand
+    // one element, which should always be a splat.
+    // TODO: Handle source ops splats with undefs.
+    auto CheckSplatSrc = [&](SDValue Src, const APInt &SrcElts) {
+      APInt SrcUndefs;
+      return (SrcElts.countPopulation() == 1) ||
+             (isSplatValue(Src, SrcElts, SrcUndefs, Depth + 1) &&
+              (SrcElts & SrcUndefs).isZero());
+    };
+    if (!DemandedLHS.isZero())
+      return CheckSplatSrc(V.getOperand(0), DemandedLHS);
+    return CheckSplatSrc(V.getOperand(1), DemandedRHS);
   }
   case ISD::EXTRACT_SUBVECTOR: {
     // Offset the demanded elts by the subvector index.
@@ -2634,6 +2653,39 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
     APInt DemandedSrcElts = DemandedElts.zextOrSelf(NumSrcElts);
     if (isSplatValue(Src, DemandedSrcElts, UndefSrcElts, Depth + 1)) {
       UndefElts = UndefSrcElts.truncOrSelf(NumElts);
+      return true;
+    }
+    break;
+  }
+  case ISD::BITCAST: {
+    SDValue Src = V.getOperand(0);
+    EVT SrcVT = Src.getValueType();
+    unsigned SrcBitWidth = SrcVT.getScalarSizeInBits();
+    unsigned BitWidth = VT.getScalarSizeInBits();
+
+    // Ignore bitcasts from unsupported types.
+    // TODO: Add fp support?
+    if (!SrcVT.isVector() || !SrcVT.isInteger() || !VT.isInteger())
+      break;
+
+    // Bitcast 'small element' vector to 'large element' vector.
+    if ((BitWidth % SrcBitWidth) == 0) {
+      // See if each sub element is a splat.
+      unsigned Scale = BitWidth / SrcBitWidth;
+      unsigned NumSrcElts = SrcVT.getVectorNumElements();
+      APInt ScaledDemandedElts =
+          APIntOps::ScaleBitMask(DemandedElts, NumSrcElts);
+      for (unsigned I = 0; I != Scale; ++I) {
+        APInt SubUndefElts;
+        APInt SubDemandedElt = APInt::getOneBitSet(Scale, I);
+        APInt SubDemandedElts = APInt::getSplat(NumSrcElts, SubDemandedElt);
+        SubDemandedElts &= ScaledDemandedElts;
+        if (!isSplatValue(Src, SubDemandedElts, SubUndefElts, Depth + 1))
+          return false;
+        // TODO: Add support for merging sub undef elements.
+        if (SubDemandedElts.isSubsetOf(SubUndefElts))
+          return false;
+      }
       return true;
     }
     break;
@@ -3082,6 +3134,10 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     Known = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
     Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     bool SelfMultiply = Op.getOperand(0) == Op.getOperand(1);
+    // TODO: SelfMultiply can be poison, but not undef.
+    if (SelfMultiply)
+      SelfMultiply &= isGuaranteedNotToBeUndefOrPoison(
+          Op.getOperand(0), DemandedElts, false, Depth + 1);
     Known = KnownBits::mul(Known, Known2, SelfMultiply);
     break;
   }
@@ -3123,6 +3179,16 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
     Known = KnownBits::udiv(Known, Known2);
+    break;
+  }
+  case ISD::AVGCEILU: {
+    Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
+    Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
+    Known = Known.zext(BitWidth + 1);
+    Known2 = Known2.zext(BitWidth + 1);
+    KnownBits One = KnownBits::makeConstant(APInt(1, 1));
+    Known = KnownBits::computeForAddCarry(Known, Known2, One);
+    Known = Known.extractBits(BitWidth, 1);
     break;
   }
   case ISD::SELECT:
@@ -5240,6 +5306,8 @@ static llvm::Optional<APInt> FoldValue(unsigned Opcode, const APInt &C1,
   case ISD::UADDSAT: return C1.uadd_sat(C2);
   case ISD::SSUBSAT: return C1.ssub_sat(C2);
   case ISD::USUBSAT: return C1.usub_sat(C2);
+  case ISD::SSHLSAT: return C1.sshl_sat(C2);
+  case ISD::USHLSAT: return C1.ushl_sat(C2);
   case ISD::UDIV:
     if (!C2.getBoolValue())
       break;
@@ -5267,6 +5335,30 @@ static llvm::Optional<APInt> FoldValue(unsigned Opcode, const APInt &C1,
     APInt C1Ext = C1.zext(FullWidth);
     APInt C2Ext = C2.zext(FullWidth);
     return (C1Ext * C2Ext).extractBits(C1.getBitWidth(), C1.getBitWidth());
+  }
+  case ISD::AVGFLOORS: {
+    unsigned FullWidth = C1.getBitWidth() + 1;
+    APInt C1Ext = C1.sext(FullWidth);
+    APInt C2Ext = C2.sext(FullWidth);
+    return (C1Ext + C2Ext).extractBits(C1.getBitWidth(), 1);
+  }
+  case ISD::AVGFLOORU: {
+    unsigned FullWidth = C1.getBitWidth() + 1;
+    APInt C1Ext = C1.zext(FullWidth);
+    APInt C2Ext = C2.zext(FullWidth);
+    return (C1Ext + C2Ext).extractBits(C1.getBitWidth(), 1);
+  }
+  case ISD::AVGCEILS: {
+    unsigned FullWidth = C1.getBitWidth() + 1;
+    APInt C1Ext = C1.sext(FullWidth);
+    APInt C2Ext = C2.sext(FullWidth);
+    return (C1Ext + C2Ext + 1).extractBits(C1.getBitWidth(), 1);
+  }
+  case ISD::AVGCEILU: {
+    unsigned FullWidth = C1.getBitWidth() + 1;
+    APInt C1Ext = C1.zext(FullWidth);
+    APInt C2Ext = C2.zext(FullWidth);
+    return (C1Ext + C2Ext + 1).extractBits(C1.getBitWidth(), 1);
   }
   }
   return llvm::None;
@@ -5624,20 +5716,34 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
   return getNode(Opcode, DL, VT, N1, N2, Flags);
 }
 
+void SelectionDAG::canonicalizeCommutativeBinop(unsigned Opcode, SDValue &N1,
+                                                SDValue &N2) const {
+  if (!TLI->isCommutativeBinOp(Opcode))
+    return;
+
+  // Canonicalize:
+  //   binop(const, nonconst) -> binop(nonconst, const)
+  bool IsN1C = isConstantIntBuildVectorOrConstantInt(N1);
+  bool IsN2C = isConstantIntBuildVectorOrConstantInt(N2);
+  bool IsN1CFP = isConstantFPBuildVectorOrConstantFP(N1);
+  bool IsN2CFP = isConstantFPBuildVectorOrConstantFP(N2);
+  if ((IsN1C && !IsN2C) || (IsN1CFP && !IsN2CFP))
+    std::swap(N1, N2);
+
+  // Canonicalize:
+  //  binop(splat(x), step_vector) -> binop(step_vector, splat(x))
+  else if (N1.getOpcode() == ISD::SPLAT_VECTOR &&
+           N2.getOpcode() == ISD::STEP_VECTOR)
+    std::swap(N1, N2);
+}
+
 SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
                               SDValue N1, SDValue N2, const SDNodeFlags Flags) {
   assert(N1.getOpcode() != ISD::DELETED_NODE &&
          N2.getOpcode() != ISD::DELETED_NODE &&
          "Operand is DELETED_NODE!");
-  // Canonicalize constant to RHS if commutative.
-  if (TLI->isCommutativeBinOp(Opcode)) {
-    bool IsN1C = isConstantIntBuildVectorOrConstantInt(N1);
-    bool IsN2C = isConstantIntBuildVectorOrConstantInt(N2);
-    bool IsN1CFP = isConstantFPBuildVectorOrConstantFP(N1);
-    bool IsN2CFP = isConstantFPBuildVectorOrConstantFP(N2);
-    if ((IsN1C && !IsN2C) || (IsN1CFP && !IsN2CFP))
-      std::swap(N1, N2);
-  }
+
+  canonicalizeCommutativeBinop(Opcode, N1, N2);
 
   auto *N1C = dyn_cast<ConstantSDNode>(N1);
   auto *N2C = dyn_cast<ConstantSDNode>(N2);
@@ -9654,18 +9760,35 @@ void SelectionDAG::ReplaceAllUsesOfValueWith(SDValue From, SDValue To){
 
 namespace {
 
-  /// UseMemo - This class is used by SelectionDAG::ReplaceAllUsesOfValuesWith
-  /// to record information about a use.
-  struct UseMemo {
-    SDNode *User;
-    unsigned Index;
-    SDUse *Use;
-  };
+/// UseMemo - This class is used by SelectionDAG::ReplaceAllUsesOfValuesWith
+/// to record information about a use.
+struct UseMemo {
+  SDNode *User;
+  unsigned Index;
+  SDUse *Use;
+};
 
-  /// operator< - Sort Memos by User.
-  bool operator<(const UseMemo &L, const UseMemo &R) {
-    return (intptr_t)L.User < (intptr_t)R.User;
+/// operator< - Sort Memos by User.
+bool operator<(const UseMemo &L, const UseMemo &R) {
+  return (intptr_t)L.User < (intptr_t)R.User;
+}
+
+/// RAUOVWUpdateListener - Helper for ReplaceAllUsesOfValuesWith - When the node
+/// pointed to by a UseMemo is deleted, set the User to nullptr to indicate that
+/// the node already has been taken care of recursively.
+class RAUOVWUpdateListener : public SelectionDAG::DAGUpdateListener {
+  SmallVector<UseMemo, 4> &Uses;
+
+  void NodeDeleted(SDNode *N, SDNode *E) override {
+    for (UseMemo &Memo : Uses)
+      if (Memo.User == N)
+        Memo.User = nullptr;
   }
+
+public:
+  RAUOVWUpdateListener(SelectionDAG &d, SmallVector<UseMemo, 4> &uses)
+      : SelectionDAG::DAGUpdateListener(d), Uses(uses) {}
+};
 
 } // end anonymous namespace
 
@@ -9758,12 +9881,19 @@ void SelectionDAG::ReplaceAllUsesOfValuesWith(const SDValue *From,
 
   // Sort the uses, so that all the uses from a given User are together.
   llvm::sort(Uses);
+  RAUOVWUpdateListener Listener(*this, Uses);
 
   for (unsigned UseIndex = 0, UseIndexEnd = Uses.size();
        UseIndex != UseIndexEnd; ) {
     // We know that this user uses some value of From.  If it is the right
     // value, update it.
     SDNode *User = Uses[UseIndex].User;
+    // If the node has been deleted by recursive CSE updates when updating
+    // another node, then just skip this entry.
+    if (User == nullptr) {
+      ++UseIndex;
+      continue;
+    }
 
     // This node is about to morph, remove its old self from the CSE maps.
     RemoveNodeFromCSEMaps(User);
@@ -11061,6 +11191,10 @@ SDNode *SelectionDAG::isConstantFPBuildVectorOrConstantFP(SDValue N) const {
     return N.getNode();
 
   if (ISD::isBuildVectorOfConstantFPSDNodes(N.getNode()))
+    return N.getNode();
+
+  if ((N.getOpcode() == ISD::SPLAT_VECTOR) &&
+      isa<ConstantFPSDNode>(N.getOperand(0)))
     return N.getNode();
 
   return nullptr;

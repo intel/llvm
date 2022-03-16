@@ -129,10 +129,6 @@ def color_diagnostics_eq: JJ<"color-diagnostics=">,
 def cref: FF<"cref">,
   HelpText<"Output cross reference table. If -Map is specified, print to the map file">;
 
-defm define_common: B<"define-common",
-    "Assign space to common symbols",
-    "Do not assign space to common symbols">;
-
 defm demangle: B<"demangle",
     "Demangle symbol names (default)",
     "Do not demangle symbol names">;
@@ -180,7 +176,7 @@ defm entry: Eq<"entry", "Name of entry point symbol">,
   MetaVarName<"<entry>">;
 
 defm error_limit:
-  Eq<"error-limit", "Maximum number of errors to emit before stopping (0 = no limit)">;
+  EEq<"error-limit", "Maximum number of errors to emit before stopping (0 = no limit)">;
 
 def error_unresolved_symbols: F<"error-unresolved-symbols">,
   HelpText<"Report unresolved symbols as errors">;
@@ -512,9 +508,6 @@ def: F<"dy">, Alias<Bdynamic>, HelpText<"Alias for --Bdynamic">;
 def: F<"dn">, Alias<Bstatic>, HelpText<"Alias for --Bstatic">;
 def: F<"non_shared">, Alias<Bstatic>, HelpText<"Alias for --Bstatic">;
 def: F<"static">, Alias<Bstatic>, HelpText<"Alias for --Bstatic">;
-def: Flag<["-"], "d">, Alias<define_common>, HelpText<"Alias for --define-common">;
-def: F<"dc">, Alias<define_common>, HelpText<"Alias for --define-common">;
-def: F<"dp">, Alias<define_common>, HelpText<"Alias for --define-common">;
 def: Flag<["-"], "x">, Alias<discard_all>, HelpText<"Alias for --discard-all">;
 def: Flag<["-"], "X">, Alias<discard_locals>, HelpText<"Alias for --discard-locals">;
 def: Flag<["-"], "q">, Alias<emit_relocs>, HelpText<"Alias for --emit-relocs">;
@@ -693,6 +686,8 @@ def plugin_opt_eq : J<"plugin-opt=">;
 
 // Options listed below are silently ignored for now for compatibility.
 def: F<"detect-odr-violations">;
+def: Flag<["-"], "d">;
+def: Flag<["-"], "dc">;
 def: Flag<["-"], "g">;
 def: F<"long-plt">;
 def: F<"no-copy-dt-needed-entries">;

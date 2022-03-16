@@ -47,7 +47,8 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
         auto *Phi = cast<PHINode>(VPPhi->getUnderlyingValue());
         if (const auto *II = GetIntOrFpInductionDescriptor(Phi)) {
           VPValue *Start = Plan->getOrAddVPValue(II->getStartValue());
-          NewRecipe = new VPWidenIntOrFpInductionRecipe(Phi, Start, *II);
+          NewRecipe =
+              new VPWidenIntOrFpInductionRecipe(Phi, Start, *II, false, true);
         } else {
           Plan->addVPValue(Phi, VPPhi);
           continue;
@@ -294,14 +295,19 @@ bool VPlanTransforms::mergeReplicateRegions(VPlan &Plan) {
 }
 
 void VPlanTransforms::removeRedundantInductionCasts(VPlan &Plan) {
-  SmallVector<std::pair<VPRecipeBase *, VPValue *>> CastsToRemove;
   for (auto &Phi : Plan.getEntry()->getEntryBasicBlock()->phis()) {
     auto *IV = dyn_cast<VPWidenIntOrFpInductionRecipe>(&Phi);
     if (!IV || IV->getTruncInst())
       continue;
 
-    // Visit all casts connected to IV and in Casts. Collect them.
-    // remember them for removal.
+    // A sequence of IR Casts has potentially been recorded for IV, which
+    // *must be bypassed* when the IV is vectorized, because the vectorized IV
+    // will produce the desired casted value. This sequence forms a def-use
+    // chain and is provided in reverse order, ending with the cast that uses
+    // the IV phi. Search for the recipe of the last cast in the chain and
+    // replace it with the original IV. Note that only the final cast is
+    // expected to have users outside the cast-chain and the dead casts left
+    // over will be cleaned up later.
     auto &Casts = IV->getInductionDescriptor().getCastInsts();
     VPValue *FindMyCast = IV;
     for (Instruction *IRCast : reverse(Casts)) {
@@ -314,14 +320,9 @@ void VPlanTransforms::removeRedundantInductionCasts(VPlan &Plan) {
           break;
         }
       }
-      assert(FoundUserCast && "Missing a cast to remove");
-      CastsToRemove.emplace_back(FoundUserCast, IV);
       FindMyCast = FoundUserCast->getVPSingleValue();
     }
-  }
-  for (auto &E : CastsToRemove) {
-    E.first->getVPSingleValue()->replaceAllUsesWith(E.second);
-    E.first->eraseFromParent();
+    FindMyCast->replaceAllUsesWith(IV);
   }
 }
 
@@ -341,13 +342,81 @@ void VPlanTransforms::removeRedundantCanonicalIVs(VPlan &Plan) {
   for (VPRecipeBase &Phi : HeaderVPBB->phis()) {
     auto *WidenOriginalIV = dyn_cast<VPWidenIntOrFpInductionRecipe>(&Phi);
 
-    // If the induction recipe is canonical and the types match, use it
-    // directly.
-    if (WidenOriginalIV && WidenOriginalIV->isCanonical() &&
-        WidenOriginalIV->getScalarType() == WidenNewIV->getScalarType()) {
+    if (!WidenOriginalIV || !WidenOriginalIV->isCanonical() ||
+        WidenOriginalIV->getScalarType() != WidenNewIV->getScalarType())
+      continue;
+
+    // Replace WidenNewIV with WidenOriginalIV if WidenOriginalIV provides
+    // everything WidenNewIV's users need. That is, WidenOriginalIV will
+    // generate a vector phi or all users of WidenNewIV demand the first lane
+    // only.
+    if (WidenOriginalIV->needsVectorIV() ||
+        vputils::onlyFirstLaneUsed(WidenNewIV)) {
       WidenNewIV->replaceAllUsesWith(WidenOriginalIV);
       WidenNewIV->eraseFromParent();
       return;
     }
+  }
+}
+
+void VPlanTransforms::removeDeadRecipes(VPlan &Plan, Loop &OrigLoop) {
+  VPBasicBlock *Header = Plan.getVectorLoopRegion()->getEntryBasicBlock();
+  // Remove dead recipes in header block. The recipes in the block are processed
+  // in reverse order, to catch chains of dead recipes.
+  // TODO: Remove dead recipes across whole plan.
+  for (VPRecipeBase &R : make_early_inc_range(reverse(*Header))) {
+    if (R.mayHaveSideEffects() ||
+        any_of(R.definedValues(),
+               [](VPValue *V) { return V->getNumUsers() > 0; }) ||
+        (!isa<VPWidenIntOrFpInductionRecipe>(&R) &&
+         !isa<VPScalarIVStepsRecipe>(&R) && R.getUnderlyingInstr() &&
+         any_of(R.getUnderlyingInstr()->users(), [&OrigLoop](User *U) {
+           // Check for live-out users currently not modeled in VPlan.
+           // Note that exit values of inductions are generated independent of
+           // the recipe. This means  VPWidenIntOrFpInductionRecipe &
+           // VPScalarIVStepsRecipe can be removed, independent of uses outside
+           // the loop.
+           // TODO: Remove once live-outs are modeled in VPlan.
+           return !OrigLoop.contains(cast<Instruction>(U));
+         })))
+      continue;
+    R.eraseFromParent();
+  }
+}
+
+void VPlanTransforms::optimizeInductions(VPlan &Plan, ScalarEvolution &SE) {
+  SmallVector<VPRecipeBase *> ToRemove;
+  VPBasicBlock *HeaderVPBB = Plan.getVectorLoopRegion()->getEntryBasicBlock();
+  for (VPRecipeBase &Phi : HeaderVPBB->phis()) {
+    auto *IV = dyn_cast<VPWidenIntOrFpInductionRecipe>(&Phi);
+    if (!IV || IV->needsVectorIV())
+      continue;
+
+    const InductionDescriptor &ID = IV->getInductionDescriptor();
+    const SCEV *StepSCEV = ID.getStep();
+    VPValue *Step = nullptr;
+    if (auto *E = dyn_cast<SCEVConstant>(StepSCEV)) {
+      Step = new VPValue(E->getValue());
+      Plan.addExternalDef(Step);
+    } else if (auto *E = dyn_cast<SCEVUnknown>(StepSCEV)) {
+      Step = new VPValue(E->getValue());
+      Plan.addExternalDef(Step);
+    } else {
+      Step = new VPExpandSCEVRecipe(StepSCEV, SE);
+    }
+
+    Instruction *TruncI = IV->getTruncInst();
+    VPScalarIVStepsRecipe *Steps = new VPScalarIVStepsRecipe(
+        IV->getPHINode()->getType(), ID, Plan.getCanonicalIV(),
+        IV->getStartValue(), Step, TruncI ? TruncI->getType() : nullptr);
+
+    HeaderVPBB->insert(Steps, HeaderVPBB->getFirstNonPhi());
+    if (Step->getDef()) {
+      // TODO: Place the step in the preheader, once it is explicitly modeled in
+      // VPlan.
+      HeaderVPBB->insert(cast<VPRecipeBase>(Step->getDef()),
+                         HeaderVPBB->getFirstNonPhi());
+    }
+    IV->replaceAllUsesWith(Steps);
   }
 }

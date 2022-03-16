@@ -24,7 +24,7 @@
 #endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
@@ -52,10 +52,6 @@ public:
       [[fallthrough]];
     case _Flags::_Type::__string:
       this->__handle_bool();
-      break;
-
-    case _Flags::_Type::__char:
-      this->__handle_char();
       break;
 
     case _Flags::_Type::__binary_lower_case:

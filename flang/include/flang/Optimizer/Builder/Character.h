@@ -22,7 +22,7 @@ namespace fir::factory {
 class CharacterExprHelper {
 public:
   /// Constructor.
-  explicit CharacterExprHelper(FirOpBuilder &builder, mlir::Location loc)
+  explicit CharacterExprHelper(fir::FirOpBuilder &builder, mlir::Location loc)
       : builder{builder}, loc{loc} {}
   CharacterExprHelper(const CharacterExprHelper &) = delete;
 
@@ -106,6 +106,10 @@ public:
 
   /// Extract the kind of a character or array of character type.
   static fir::KindTy getCharacterOrSequenceKind(mlir::Type type);
+
+  /// Determine the inner character type. Unwraps references, boxes, and
+  /// sequences to find the !fir.char element type.
+  static fir::CharacterType getCharType(mlir::Type type);
 
   /// Determine the base character type
   static fir::CharacterType getCharacterType(mlir::Type type);

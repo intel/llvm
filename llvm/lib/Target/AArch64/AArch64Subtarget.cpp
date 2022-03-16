@@ -99,6 +99,7 @@ void AArch64Subtarget::initializeProperties() {
   case CortexA78C:
   case CortexR82:
   case CortexX1:
+  case CortexX1C:
     PrefFunctionLogAlignment = 4;
     break;
   case CortexA510:
@@ -351,6 +352,8 @@ bool AArch64Subtarget::supportsAddressTopByteIgnored() const {
   if (!UseAddressTopByteIgnored)
     return false;
 
+  if (TargetTriple.isDriverKit())
+    return true;
   if (TargetTriple.isiOS()) {
     return TargetTriple.getiOSVersion() >= VersionTuple(8);
   }

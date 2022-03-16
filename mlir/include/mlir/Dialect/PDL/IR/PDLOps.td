@@ -14,20 +14,16 @@
 #define MLIR_DIALECT_PDL_IR_PDLOPS
 
 include "mlir/Dialect/PDL/IR/PDLTypes.td"
-include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 
 //===----------------------------------------------------------------------===//
 // PDL Ops
 //===----------------------------------------------------------------------===//
 
-class PDL_Op<string mnemonic, list<OpTrait> traits = []>
-    : Op<PDL_Dialect, mnemonic, traits> {
-  let printer = [{ ::print(p, *this); }];
-  let parser = [{ return ::parse$cppClass(parser, result); }];
-  let verifier = [{ return ::verify(*this); }];
-}
+class PDL_Op<string mnemonic, list<Trait> traits = []>
+    : Op<PDL_Dialect, mnemonic, traits>;
 
 //===----------------------------------------------------------------------===//
 // pdl::ApplyNativeConstraintOp
@@ -66,6 +62,7 @@ def PDL_ApplyNativeConstraintOp
             params.empty() ? ArrayAttr() : $_builder.getArrayAttr(params));
     }]>,
   ];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -118,13 +115,14 @@ def PDL_ApplyNativeRewriteOp
     $name ($constParams^)? (`(` $args^ `:` type($args) `)`)?
     (`:` type($results)^)? attr-dict
   }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
 // pdl::AttributeOp
 //===----------------------------------------------------------------------===//
 
-def PDL_AttributeOp : PDL_Op<"attribute", [NoSideEffect]> {
+def PDL_AttributeOp : PDL_Op<"attribute"> {
   let summary = "Define an input attribute in a pattern";
   let description = [{
     `pdl.attribute` operations capture named attribute edges into an operation.
@@ -164,6 +162,7 @@ def PDL_AttributeOp : PDL_Op<"attribute", [NoSideEffect]> {
       build($_builder, $_state, $_builder.getType<AttributeType>(), Value(), attr);
     }]>,
   ];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -185,7 +184,6 @@ def PDL_EraseOp : PDL_Op<"erase", [HasParent<"pdl::RewriteOp">]> {
   }];
   let arguments = (ins PDL_Operation:$operation);
   let assemblyFormat = "$operation attr-dict";
-  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//
@@ -193,7 +191,7 @@ def PDL_EraseOp : PDL_Op<"erase", [HasParent<"pdl::RewriteOp">]> {
 //===----------------------------------------------------------------------===//
 
 def PDL_OperandOp
-    : PDL_Op<"operand", [HasParent<"pdl::PatternOp">, NoSideEffect]> {
+    : PDL_Op<"operand", [HasParent<"pdl::PatternOp">]> {
   let summary = "Define an external input operand in a pattern";
   let description = [{
     `pdl.operand` operations capture external operand edges into an operation
@@ -224,6 +222,7 @@ def PDL_OperandOp
       build($_builder, $_state, $_builder.getType<ValueType>(), Value());
     }]>,
   ];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -231,7 +230,7 @@ def PDL_OperandOp
 //===----------------------------------------------------------------------===//
 
 def PDL_OperandsOp
-    : PDL_Op<"operands", [HasParent<"pdl::PatternOp">, NoSideEffect]> {
+    : PDL_Op<"operands", [HasParent<"pdl::PatternOp">]> {
   let summary = "Define a range of input operands in a pattern";
   let description = [{
     `pdl.operands` operations capture external operand range edges into an
@@ -263,6 +262,7 @@ def PDL_OperandsOp
             Value());
     }]>,
   ];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -314,7 +314,7 @@ def PDL_OperationOp : PDL_Op<"operation", [AttrSizedOperandSegments]> {
 
     ```mlir
     // Define an instance with single range of operands.
-    %op = pdl.operation "std.return"(%allArgs : !pdl.range<value>)
+    %op = pdl.operation "func.return"(%allArgs : !pdl.range<value>)
     ```
 
     2) A variadic number of either !pdl.value or !pdl.range<value>:
@@ -396,6 +396,7 @@ def PDL_OperationOp : PDL_Op<"operation", [AttrSizedOperandSegments]> {
     /// inference.
     bool hasTypeInference();
   }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -452,6 +453,7 @@ def PDL_PatternOp : PDL_Op<"pattern", [
     /// Returns the rewrite operation of this pattern.
     RewriteOp getRewriter();
   }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -492,6 +494,7 @@ def PDL_ReplaceOp : PDL_Op<"replace", [
     $operation `with` (`(` $replValues^ `:` type($replValues) `)`)?
     ($replOperation^)? attr-dict
   }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -524,7 +527,6 @@ def PDL_ResultOp : PDL_Op<"result", [NoSideEffect]> {
   let arguments = (ins PDL_Operation:$parent, I32Attr:$index);
   let results = (outs PDL_Value:$val);
   let assemblyFormat = "$index `of` $parent attr-dict";
-  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//
@@ -567,6 +569,7 @@ def PDL_ResultsOp : PDL_Op<"results", [NoSideEffect]> {
     ($index^)? `of` $parent custom<ResultsValueType>(ref($index), type($val))
     attr-dict
   }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -629,13 +632,14 @@ def PDL_RewriteOp : PDL_Op<"rewrite", [
               ($body^)?
     attr-dict-with-keyword
   }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
 // pdl::TypeOp
 //===----------------------------------------------------------------------===//
 
-def PDL_TypeOp : PDL_Op<"type", [NoSideEffect]> {
+def PDL_TypeOp : PDL_Op<"type"> {
   let summary = "Define a type handle within a pattern";
   let description = [{
     `pdl.type` operations capture result type constraints of `Attributes`,
@@ -657,13 +661,14 @@ def PDL_TypeOp : PDL_Op<"type", [NoSideEffect]> {
   let arguments = (ins OptionalAttr<TypeAttr>:$type);
   let results = (outs PDL_Type:$result);
   let assemblyFormat = "attr-dict (`:` $type^)?";
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
 // pdl::TypesOp
 //===----------------------------------------------------------------------===//
 
-def PDL_TypesOp : PDL_Op<"types", [NoSideEffect]> {
+def PDL_TypesOp : PDL_Op<"types"> {
   let summary = "Define a range of type handles within a pattern";
   let description = [{
     `pdl.types` operations capture result type constraints of `Value`s, and
@@ -685,6 +690,7 @@ def PDL_TypesOp : PDL_Op<"types", [NoSideEffect]> {
   let arguments = (ins OptionalAttr<TypeArrayAttr>:$types);
   let results = (outs PDL_RangeOf<PDL_Type>:$result);
   let assemblyFormat = "attr-dict (`:` $types^)?";
+  let hasVerifier = 1;
 }
 
 #endif // MLIR_DIALECT_PDL_IR_PDLOPS

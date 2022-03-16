@@ -399,8 +399,6 @@ into a form that will resemble:
 
 ```mlir
 // Run: mlir-opt example4.mlir -convert-linalg-to-std
-// Note that we lower the Linalg dialect directly to the Standard dialect.
-// See this doc: https://mlir.llvm.org/docs/Dialects/Standard/
 
 #map0 = affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>
 
@@ -545,7 +543,6 @@ seem generally appealing.
 Additionally, `linalg` provides a small subset of commonly named operations:
 
 ```
-* `linalg.copy`,
 * `linalg.fill`,
 * `linalg.dot`,
 * `linalg.matmul`,

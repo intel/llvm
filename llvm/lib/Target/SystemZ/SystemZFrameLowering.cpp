@@ -80,6 +80,88 @@ MachineBasicBlock::iterator SystemZFrameLowering::eliminateCallFramePseudoInstr(
   }
 }
 
+namespace {
+struct SZFrameSortingObj {
+  bool IsValid = false;     // True if we care about this Object.
+  uint32_t ObjectIndex = 0; // Index of Object into MFI list.
+  uint64_t ObjectSize = 0;  // Size of Object in bytes.
+  uint32_t D12Count = 0;    // 12-bit displacement only.
+  uint32_t DPairCount = 0;  // 12 or 20 bit displacement.
+};
+typedef std::vector<SZFrameSortingObj> SZFrameObjVec;
+} // namespace
+
+// TODO: Move to base class.
+void SystemZELFFrameLowering::orderFrameObjects(
+    const MachineFunction &MF, SmallVectorImpl<int> &ObjectsToAllocate) const {
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  const SystemZInstrInfo *TII =
+      static_cast<const SystemZInstrInfo *>(MF.getSubtarget().getInstrInfo());
+
+  // Make a vector of sorting objects to track all MFI objects and mark those
+  // to be sorted as valid.
+  if (ObjectsToAllocate.size() <= 1)
+    return;
+  SZFrameObjVec SortingObjects(MFI.getObjectIndexEnd());
+  for (auto &Obj : ObjectsToAllocate) {
+    SortingObjects[Obj].IsValid = true;
+    SortingObjects[Obj].ObjectIndex = Obj;
+    SortingObjects[Obj].ObjectSize = MFI.getObjectSize(Obj);
+  }
+
+  // Examine uses for each object and record short (12-bit) and "pair"
+  // displacement types.
+  for (auto &MBB : MF)
+    for (auto &MI : MBB) {
+      if (MI.isDebugInstr())
+        continue;
+      for (unsigned I = 0, E = MI.getNumOperands(); I != E; ++I) {
+        const MachineOperand &MO = MI.getOperand(I);
+        if (!MO.isFI())
+          continue;
+        int Index = MO.getIndex();
+        if (Index >= 0 && Index < MFI.getObjectIndexEnd() &&
+            SortingObjects[Index].IsValid) {
+          if (TII->hasDisplacementPairInsn(MI.getOpcode()))
+            SortingObjects[Index].DPairCount++;
+          else if (!(MI.getDesc().TSFlags & SystemZII::Has20BitOffset))
+            SortingObjects[Index].D12Count++;
+        }
+      }
+    }
+
+  // Sort all objects for short/paired displacements, which should be
+  // sufficient as it seems like all frame objects typically are within the
+  // long displacement range.  Sorting works by computing the "density" as
+  // Count / ObjectSize. The comparisons of two such fractions are refactored
+  // by multiplying both sides with A.ObjectSize * B.ObjectSize, in order to
+  // eliminate the (fp) divisions.  A higher density object needs to go after
+  // in the list in order for it to end up lower on the stack.
+  auto CmpD12 = [](const SZFrameSortingObj &A, const SZFrameSortingObj &B) {
+    // Put all invalid and variable sized objects at the end.
+    if (!A.IsValid || !B.IsValid)
+      return A.IsValid;
+    if (!A.ObjectSize || !B.ObjectSize)
+      return A.ObjectSize > 0;
+    uint64_t ADensityCmp = A.D12Count * B.ObjectSize;
+    uint64_t BDensityCmp = B.D12Count * A.ObjectSize;
+    if (ADensityCmp != BDensityCmp)
+      return ADensityCmp < BDensityCmp;
+    return A.DPairCount * B.ObjectSize < B.DPairCount * A.ObjectSize;
+  };
+  std::stable_sort(SortingObjects.begin(), SortingObjects.end(), CmpD12);
+
+  // Now modify the original list to represent the final order that
+  // we want.
+  unsigned Idx = 0;
+  for (auto &Obj : SortingObjects) {
+    // All invalid items are sorted at the end, so it's safe to stop.
+    if (!Obj.IsValid)
+      break;
+    ObjectsToAllocate[Idx++] = Obj.ObjectIndex;
+  }
+}
+
 bool SystemZFrameLowering::hasReservedCallFrame(
     const MachineFunction &MF) const {
   // The ELF ABI requires us to allocate 160 bytes of stack space for the
@@ -1071,12 +1153,6 @@ void SystemZXPLINKFrameLowering::emitPrologue(MachineFunction &MF,
   MFFrame.setStackSize(MFFrame.getStackSize() + Regs.getCallFrameSize());
   uint64_t StackSize = MFFrame.getStackSize();
 
-  // FIXME: Implement support for large stack sizes, when the stack extension
-  // routine needs to be called.
-  if (StackSize > 1024 * 1024) {
-    llvm_unreachable("Huge Stack Frame not yet supported on z/OS");
-  }
-
   if (ZFI->getSpillGPRRegs().LowGPR) {
     // Skip over the GPR saves.
     if ((MBBI != MBB.end()) && ((MBBI->getOpcode() == SystemZ::STMG))) {
@@ -1119,6 +1195,18 @@ void SystemZXPLINKFrameLowering::emitPrologue(MachineFunction &MF,
 
     emitIncrement(MBB, InsertPt, DL, Regs.getStackPointerRegister(), Delta,
                   ZII);
+
+    // If the requested stack size is larger than the guard page, then we need
+    // to check if we need to call the stack extender. This requires adding a
+    // conditional branch, but splitting the prologue block is not possible at
+    // this point since it would invalidate the SaveBlocks / RestoreBlocks sets
+    // of PEI in the single block function case. Build a pseudo to be handled
+    // later by inlineStackProbe().
+    const uint64_t GuardPageSize = 1024 * 1024;
+    if (StackSize > GuardPageSize) {
+      assert(StoreInstr && "Wrong insertion point");
+      BuildMI(MBB, InsertPt, DL, ZII->get(SystemZ::XPLINK_STACKALLOC));
+    }
   }
 
   if (HasFP) {
@@ -1155,6 +1243,74 @@ void SystemZXPLINKFrameLowering::emitEpilogue(MachineFunction &MF,
       emitIncrement(MBB, MBBI, DL, SPReg, StackSize, ZII);
     }
   }
+}
+
+// Emit a compare of the stack pointer against the stack floor, and a call to
+// the LE stack extender if needed.
+void SystemZXPLINKFrameLowering::inlineStackProbe(
+    MachineFunction &MF, MachineBasicBlock &PrologMBB) const {
+  auto *ZII =
+      static_cast<const SystemZInstrInfo *>(MF.getSubtarget().getInstrInfo());
+
+  MachineInstr *StackAllocMI = nullptr;
+  for (MachineInstr &MI : PrologMBB)
+    if (MI.getOpcode() == SystemZ::XPLINK_STACKALLOC) {
+      StackAllocMI = &MI;
+      break;
+    }
+  if (StackAllocMI == nullptr)
+    return;
+
+  MachineBasicBlock &MBB = PrologMBB;
+  const DebugLoc DL = StackAllocMI->getDebugLoc();
+
+  // The 2nd half of block MBB after split.
+  MachineBasicBlock *NextMBB;
+
+  // Add new basic block for the call to the stack overflow function.
+  MachineBasicBlock *StackExtMBB =
+      MF.CreateMachineBasicBlock(MBB.getBasicBlock());
+  MF.push_back(StackExtMBB);
+
+  // LG r3,72(,r3)
+  BuildMI(StackExtMBB, DL, ZII->get(SystemZ::LG), SystemZ::R3D)
+      .addReg(SystemZ::R3D)
+      .addImm(72)
+      .addReg(0);
+  // BASR r3,r3
+  BuildMI(StackExtMBB, DL, ZII->get(SystemZ::CallBASR_STACKEXT))
+      .addReg(SystemZ::R3D);
+
+  // LLGT r3,1208
+  BuildMI(MBB, StackAllocMI, DL, ZII->get(SystemZ::LLGT), SystemZ::R3D)
+      .addReg(0)
+      .addImm(1208)
+      .addReg(0);
+  // CG r4,64(,r3)
+  BuildMI(MBB, StackAllocMI, DL, ZII->get(SystemZ::CG))
+      .addReg(SystemZ::R4D)
+      .addReg(SystemZ::R3D)
+      .addImm(64)
+      .addReg(0);
+  // JLL b'0100',F'37'
+  BuildMI(MBB, StackAllocMI, DL, ZII->get(SystemZ::BRC))
+      .addImm(SystemZ::CCMASK_ICMP)
+      .addImm(SystemZ::CCMASK_CMP_LT)
+      .addMBB(StackExtMBB);
+
+  NextMBB = SystemZ::splitBlockBefore(StackAllocMI, &MBB);
+  MBB.addSuccessor(NextMBB);
+  MBB.addSuccessor(StackExtMBB);
+
+  // Add jump back from stack extension BB.
+  BuildMI(StackExtMBB, DL, ZII->get(SystemZ::J)).addMBB(NextMBB);
+  StackExtMBB->addSuccessor(NextMBB);
+
+  StackAllocMI->eraseFromParent();
+
+  // Compute the live-in lists for the new blocks.
+  recomputeLiveIns(*NextMBB);
+  recomputeLiveIns(*StackExtMBB);
 }
 
 bool SystemZXPLINKFrameLowering::hasFP(const MachineFunction &MF) const {

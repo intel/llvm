@@ -301,7 +301,7 @@ func @reduce_incorrect_yield(%arg0 : f32) {
 // -----
 
 func @shuffle_mismatching_type(%arg0 : f32, %arg1 : i32, %arg2 : i32) {
-  // expected-error@+1 {{inferred type(s) 'f32', 'i1' are incompatible with return type(s) of operation 'i32', 'i1'}}
+  // expected-error@+1 {{op failed to verify that all of {value, result} have same type}}
   %shfl, %pred = "gpu.shuffle"(%arg0, %arg1, %arg2) { mode = #gpu<"shuffle_mode xor"> } : (f32, i32, i32) -> (i32, i1)
   return
 }
@@ -554,4 +554,99 @@ func @wmmaMmaOp_invalid_operand_shapes(%A : !gpu.mma_matrix<16x32xf16, "AOp">, %
     // expected-error @+1 {{operand shapes do not satisfy matmul constraints}}
     %D = gpu.subgroup_mma_compute %A, %B, %C : !gpu.mma_matrix<16x32xf16, "AOp">, !gpu.mma_matrix<16x16xf16, "BOp"> -> !gpu.mma_matrix<16x16xf16, "COp">
     return
+}
+
+// -----
+
+func @async_cp_memory_space(%dst : memref<16xf32>, %src : memref<16xf32>, %i : index) -> () {
+  // expected-error @+1 {{destination memref must have memory space 3}}
+  gpu.device_async_copy %src[%i], %dst[%i], 16 : memref<16xf32> to memref<16xf32>
+  return
+}
+
+// -----
+
+func @async_cp_memref_type(%dst : memref<16xi32, 3>, %src : memref<16xf32>, %i : index) -> () {
+  // expected-error @+1 {{source and destination must have the same element type}}
+  gpu.device_async_copy %src[%i], %dst[%i], 16 : memref<16xf32> to memref<16xi32, 3>
+  return
+}
+
+// -----
+
+func @async_cp_num_src_indices(%dst : memref<16xf32, 3>, %src : memref<16x16xf32>, %i : index) -> () {
+  // expected-error @+1 {{expected 2 source indices, got 1}}
+  gpu.device_async_copy %src[%i], %dst[%i], 16 : memref<16x16xf32> to memref<16xf32, 3>
+  return
+}
+
+// -----
+
+func @async_cp_num_dst_indices(%dst : memref<16x16xf32, 3>, %src : memref<16xf32>, %i : index) -> () {
+  // expected-error @+1 {{expected 2 destination indices, got 1}}
+  gpu.device_async_copy %src[%i], %dst[%i], 16 : memref<16xf32> to memref<16x16xf32, 3>
+  return
+}
+
+// -----
+
+func @async_cp_num_src_stride(
+  %dst : memref<200x100xf32, 3>,
+  %src : memref<200x100xf32, affine_map<(d0, d1) -> (200*d0 + 2*d1)>>,
+  %i : index) -> () {
+  // expected-error @+1 {{source memref most minor dim must have unit stride}}
+  gpu.device_async_copy %src[%i, %i], %dst[%i, %i], 16 :
+    memref<200x100xf32, affine_map<(d0, d1) -> (200*d0 + 2*d1)>> to memref<200x100xf32, 3>
+  return
+}
+
+// -----
+
+func @async_cp_num_dst_stride(
+  %dst : memref<200x100xf32, affine_map<(d0, d1) -> (200*d0 + 2*d1)>, 3>,
+  %src : memref<200x100xf32>,
+  %i : index) -> () {
+  // expected-error @+1 {{destination memref most minor dim must have unit stride}}
+  gpu.device_async_copy %src[%i, %i], %dst[%i, %i], 16 :
+    memref<200x100xf32> to memref<200x100xf32, affine_map<(d0, d1) -> (200*d0 + 2*d1)>, 3>
+  return
+}
+
+// -----
+
+// Number of symbol operand count less than memref symbol count.
+func @alloc() {
+   // expected-error@+1 {{symbol operand count does not equal memref symbol count}}
+   %1 = gpu.alloc() : memref<2x4xf32, affine_map<(d0, d1)[s0] -> ((d0 + s0), d1)>, 1>
+   return
+}
+
+// -----
+
+// Number of symbol operand count greater than memref symbol count.
+func @alloc() {
+   %0 = arith.constant 7 : index
+   // expected-error@+1 {{symbol operand count does not equal memref symbol count}}
+   %1 = gpu.alloc()[%0] : memref<2x4xf32, 1>
+   return
+}
+
+// -----
+
+// Number of dynamic dimension operand count greater than memref dynamic dimension count.
+func @alloc() {
+   %0 = arith.constant 7 : index
+   // expected-error@+1 {{dimension operand count does not equal memref dynamic dimension count}}
+   %1 = gpu.alloc(%0, %0) : memref<2x?xf32, 1>
+   return
+}
+
+// -----
+
+// Number of dynamic dimension operand count less than memref dynamic dimension count.
+func @alloc() {
+   %0 = arith.constant 7 : index
+   // expected-error@+1 {{dimension operand count does not equal memref dynamic dimension count}}
+   %1 = gpu.alloc(%0) : memref<2x?x?xf32, 1>
+   return
 }

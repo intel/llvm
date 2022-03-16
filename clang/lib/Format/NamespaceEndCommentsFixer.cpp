@@ -40,12 +40,32 @@ std::string computeName(const FormatToken *NamespaceTok) {
       Tok = Tok->getNextNonComment();
     }
   } else {
+    // Skip attributes.
+    if (Tok && Tok->is(tok::l_square)) {
+      for (int NestLevel = 1; NestLevel > 0;) {
+        Tok = Tok->getNextNonComment();
+        if (!Tok)
+          break;
+        if (Tok->is(tok::l_square))
+          ++NestLevel;
+        else if (Tok->is(tok::r_square))
+          --NestLevel;
+      }
+      if (Tok)
+        Tok = Tok->getNextNonComment();
+    }
+
+    // Use the string after `namespace` as a name candidate until `{` or `::` or
+    // `(`. If the name is empty, use the candicate.
+    std::string FirstNSName;
     // For `namespace [[foo]] A::B::inline C {` or
     // `namespace MACRO1 MACRO2 A::B::inline C {`, returns "A::B::inline C".
-    // Peek for the first '::' (or '{') and then return all tokens from one
-    // token before that up until the '{'.
+    // Peek for the first '::' (or '{' or '(')) and then return all tokens from
+    // one token before that up until the '{'. A '(' might be a macro with
+    // arguments.
     const FormatToken *FirstNSTok = Tok;
-    while (Tok && !Tok->is(tok::l_brace) && !Tok->is(tok::coloncolon)) {
+    while (Tok && !Tok->isOneOf(tok::l_brace, tok::coloncolon, tok::l_paren)) {
+      FirstNSName += FirstNSTok->TokenText;
       FirstNSTok = Tok;
       Tok = Tok->getNextNonComment();
     }
@@ -57,6 +77,8 @@ std::string computeName(const FormatToken *NamespaceTok) {
         name += " ";
       Tok = Tok->getNextNonComment();
     }
+    if (name.empty())
+      name = FirstNSName;
   }
   return name;
 }
@@ -132,12 +154,11 @@ bool validEndComment(const FormatToken *RBraceTok, StringRef NamespaceName,
       "^/[/*] *( +([a-zA-Z0-9:_]+))?\\.? *(\\*/)?$", llvm::Regex::IgnoreCase);
 
   // Pull out just the comment text.
-  if (!CommentPattern.match(Comment->Next->TokenText, &Groups)) {
+  if (!CommentPattern.match(Comment->Next->TokenText, &Groups))
     return false;
-  }
   NamespaceNameInComment = Groups.size() > 2 ? Groups[2] : "";
 
-  return (NamespaceNameInComment == NamespaceName);
+  return NamespaceNameInComment == NamespaceName;
 }
 
 void addEndComment(const FormatToken *RBraceTok, StringRef EndCommentText,
@@ -210,8 +231,8 @@ std::pair<tooling::Replacements, unsigned> NamespaceEndCommentsFixer::analyze(
 
   // Spin through the lines and ensure we have balanced braces.
   int Braces = 0;
-  for (size_t I = 0, E = AnnotatedLines.size(); I != E; ++I) {
-    FormatToken *Tok = AnnotatedLines[I]->First;
+  for (AnnotatedLine *Line : AnnotatedLines) {
+    FormatToken *Tok = Line->First;
     while (Tok) {
       Braces += Tok->is(tok::l_brace) ? 1 : Tok->is(tok::r_brace) ? -1 : 0;
       Tok = Tok->Next;
@@ -220,9 +241,8 @@ std::pair<tooling::Replacements, unsigned> NamespaceEndCommentsFixer::analyze(
   // Don't attempt to comment unbalanced braces or this can
   // lead to comments being placed on the closing brace which isn't
   // the matching brace of the namespace. (occurs during incomplete editing).
-  if (Braces != 0) {
+  if (Braces != 0)
     return {Fixes, 0};
-  }
 
   std::string AllNamespaceNames;
   size_t StartLineIndex = SIZE_MAX;
@@ -241,9 +261,8 @@ std::pair<tooling::Replacements, unsigned> NamespaceEndCommentsFixer::analyze(
     const FormatToken *EndCommentPrevTok = RBraceTok;
     // Namespaces often end with '};'. In that case, attach namespace end
     // comments to the semicolon tokens.
-    if (RBraceTok->Next && RBraceTok->Next->is(tok::semi)) {
+    if (RBraceTok->Next && RBraceTok->Next->is(tok::semi))
       EndCommentPrevTok = RBraceTok->Next;
-    }
     if (StartLineIndex == SIZE_MAX)
       StartLineIndex = EndLine->MatchingOpeningBlockLineIndex;
     std::string NamespaceName = computeName(NamespaceTok);

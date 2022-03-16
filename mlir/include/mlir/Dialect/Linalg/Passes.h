@@ -18,6 +18,9 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+namespace bufferization {
+struct AnalysisBufferizationOptions;
+} // namespace bufferization
 
 std::unique_ptr<Pass> createConvertElementwiseToLinalgPass();
 
@@ -28,20 +31,16 @@ std::unique_ptr<Pass> createFoldReshapeOpsByLinearizationPass();
 
 std::unique_ptr<Pass> createLinalgNamedOpConversionPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createLinalgTilingPass(
-    ArrayRef<int64_t> tileSizes = {},
-    linalg::LinalgTilingLoopType loopType = linalg::LinalgTilingLoopType::Loops,
-    ArrayRef<StringRef> distributionTypes = {});
+std::unique_ptr<OperationPass<FuncOp>>
+createLinalgTilingPass(ArrayRef<int64_t> tileSizes = {},
+                       linalg::LinalgTilingLoopType loopType =
+                           linalg::LinalgTilingLoopType::Loops);
 
 std::unique_ptr<OperationPass<FuncOp>>
 createLinalgPromotionPass(bool dynamicBuffers, bool useAlloca);
 std::unique_ptr<OperationPass<FuncOp>> createLinalgPromotionPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createLinalgInlineScalarOperandsPass();
-
-/// Create a pass to convert Linalg tiled loops to `scf.for` and `scf.parallel`
-/// loops and memref.load/memref.store accesses.
-std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgTiledLoopsToSCFPass();
 
 /// Create a pass to convert Linalg operations to scf.for loops and
 /// memref.load/memref.store accesses.
@@ -64,8 +63,8 @@ std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToAffineLoopsPass();
 /// on SSA use-def chains starting from function operands that are annotated
 /// with the 'inplaceable' attribute.
 std::unique_ptr<Pass> createLinalgComprehensiveModuleBufferizePass();
-std::unique_ptr<Pass>
-createLinalgComprehensiveModuleBufferizePass(bool useLinalgCopy);
+std::unique_ptr<Pass> createLinalgComprehensiveModuleBufferizePass(
+    const bufferization::AnalysisBufferizationOptions &options);
 
 /// Create a pass to convert Linalg operations which work on tensors to use
 /// buffers instead.

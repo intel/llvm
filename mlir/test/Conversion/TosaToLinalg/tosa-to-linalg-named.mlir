@@ -228,28 +228,28 @@ func @avg_pool(%arg0: tensor<1x6x34x62xf32>) -> (tensor<1x5x33x62xf32>) {
   // CHECK:   [[PAD0:%.+]] = arith.constant 1
   // CHECK:   [[SUBP0:%.+]] = arith.subi [[IDX1]], [[PAD0]]
   // CHECK:   [[P0CMP:%.+]] = arith.cmpi slt, [[SUBP0]], [[ZERO]]
-  // CHECK:   [[SELP0:%.+]] = select [[P0CMP]], [[SUBP0]], [[ZERO]]
+  // CHECK:   [[SELP0:%.+]] = arith.select [[P0CMP]], [[SUBP0]], [[ZERO]]
   // CHECK:   [[ADDP0:%.+]] = arith.addi [[KH]], [[SELP0]]
   // CHECK:   [[PAD1:%.+]] = arith.constant 1
   // CHECK:   [[SUBP1:%.+]] = arith.subi [[NY]], [[PAD1]]
   // CHECK:   [[P1CMP:%.+]] = arith.cmpi slt, [[SUBP1]], [[ZERO]]
-  // CHECK:   [[SELP1:%.+]] = select [[P1CMP]], [[SUBP1]], [[ZERO]]
+  // CHECK:   [[SELP1:%.+]] = arith.select [[P1CMP]], [[SUBP1]], [[ZERO]]
   // CHECK:   [[ADDP1:%.+]] = arith.addi [[ADDP0]], [[SELP1]]
   // CHECK:   [[YCMP:%.+]] = arith.cmpi slt, [[ADDP1]], [[ONE]]
-  // CHECK:   [[YSEL:%.+]] = select [[YCMP]], [[ONE]], [[ADDP1]]
+  // CHECK:   [[YSEL:%.+]] = arith.select [[YCMP]], [[ONE]], [[ADDP1]]
   // CHECK:   [[KW:%.+]] = arith.constant 4 : index
   // CHECK:   [[PAD2:%.+]] = arith.constant 1 : index
   // CHECK:   [[SUBP2:%.+]] = arith.subi [[IDX2]], [[PAD2]]
   // CHECK:   [[P2CMP:%.+]] = arith.cmpi slt, [[SUBP2]], [[ZERO]]
-  // CHECK:   [[SELP2:%.+]] = select [[P2CMP]], [[SUBP2]], [[ZERO]]
+  // CHECK:   [[SELP2:%.+]] = arith.select [[P2CMP]], [[SUBP2]], [[ZERO]]
   // CHECK:   [[ADDP2:%.+]] = arith.addi [[KW]], [[SELP2]]
   // CHECK:   [[PAD3:%.+]] = arith.constant 1 : index
   // CHECK:   [[SUBP3:%.+]] = arith.subi [[NX]], [[PAD3]]
   // CHECK:   [[P3CMP:%.+]] = arith.cmpi slt, [[SUBP3]], [[ZERO]]
-  // CHECK:   [[SELP3:%.+]] = select [[P3CMP]], [[SUBP3]], [[ZERO]]
+  // CHECK:   [[SELP3:%.+]] = arith.select [[P3CMP]], [[SUBP3]], [[ZERO]]
   // CHECK:   [[ADDP3:%.+]] = arith.addi [[ADDP2]], [[SELP3]]
   // CHECK:   [[XCMP:%.+]] = arith.cmpi slt, [[ADDP3]], [[ONE]]
-  // CHECK:   [[XSEL:%.+]] = select [[XCMP]], [[ONE]], [[ADDP3]]
+  // CHECK:   [[XSEL:%.+]] = arith.select [[XCMP]], [[ONE]], [[ADDP3]]
 
   // Given the valid coverage of the pooling region, normalize the summation.
   // CHECK:   [[C:%.+]] = arith.muli [[YSEL]], [[XSEL]]
@@ -299,9 +299,9 @@ func @avg_pool_i8(%arg0 : tensor<1x128x128x2xi8>) -> () {
   // CHECK: %[[MIN:.+]] = arith.constant -128
   // CHECK: %[[MAX:.+]] = arith.constant 127
   // CHECK: %[[CMP_MIN:.+]] = arith.cmpi slt, %[[OUT]], %[[MIN]]
-  // CHECK: %[[CLMP_MIN:.+]] = select %[[CMP_MIN]], %[[MIN]], %[[OUT]]
+  // CHECK: %[[CLMP_MIN:.+]] = arith.select %[[CMP_MIN]], %[[MIN]], %[[OUT]]
   // CHECK: %[[CMP_MAX:.+]] = arith.cmpi slt, %[[MAX]], %[[OUT]]
-  // CHECK: %[[CLMP_MAX:.+]] = select %[[CMP_MAX]], %[[MAX]], %[[CLMP_MIN]]
+  // CHECK: %[[CLMP_MAX:.+]] = arith.select %[[CMP_MAX]], %[[MAX]], %[[CLMP_MIN]]
   // CHECK: %[[TRUNC:.+]] = arith.trunci %[[CLMP_MAX]]
   // CHECK: linalg.yield %[[TRUNC]]
   %0 = "tosa.avg_pool2d"(%arg0) {kernel = [4, 4], pad = [0, 0, 0, 0], quantization_info = {input_zp = -128 : i32, output_zp = -128 : i32}, stride = [4, 4]} : (tensor<1x128x128x2xi8>) -> tensor<1x32x32x2xi8>
@@ -328,9 +328,9 @@ func @avg_pool_i16(%arg0 : tensor<1x128x128x2xi16>) -> () {
   // CHECK: %[[MIN:.+]] = arith.constant -32768
   // CHECK: %[[MAX:.+]] = arith.constant 32767
   // CHECK: %[[CMP_MIN:.+]] = arith.cmpi slt, %[[OUT]], %[[MIN]]
-  // CHECK: %[[CLMP_MIN:.+]] = select %[[CMP_MIN]], %[[MIN]], %[[OUT]]
+  // CHECK: %[[CLMP_MIN:.+]] = arith.select %[[CMP_MIN]], %[[MIN]], %[[OUT]]
   // CHECK: %[[CMP_MAX:.+]] = arith.cmpi slt, %[[MAX]], %[[OUT]]
-  // CHECK: %[[CLMP_MAX:.+]] = select %[[CMP_MAX]], %[[MAX]], %[[CLMP_MIN]]
+  // CHECK: %[[CLMP_MAX:.+]] = arith.select %[[CMP_MAX]], %[[MAX]], %[[CLMP_MIN]]
   // CHECK: %[[TRUNC:.+]] = arith.trunci %[[CLMP_MAX]]
   // CHECK: linalg.yield %[[TRUNC]]
   %0 = "tosa.avg_pool2d"(%arg0) {kernel = [4, 4], pad = [0, 0, 0, 0], quantization_info = {input_zp = -128 : i32, output_zp = -128 : i32}, stride = [4, 4]} : (tensor<1x128x128x2xi16>) -> tensor<1x32x32x2xi16>
@@ -378,6 +378,66 @@ func @conv2d_dyn(%input: tensor<?x49x42x27xf32>, %weights: tensor<28x3x3x27xf32>
   // CHECK:   %[[ADD:.+]] = arith.addf
   // CHECK:   linalg.yield %[[ADD]] : f32
   %0 = "tosa.conv2d"(%input, %weights, %bias) {pad = [0, 0, 0, 0], stride = [1, 1], dilation = [2, 1]} : (tensor<?x49x42x27xf32>, tensor<28x3x3x27xf32>, tensor<28xf32>)  -> (tensor<?x45x40x28xf32>)
+  return
+}
+
+// -----
+
+// CHECK: #[[$MAP1:.+]] = affine_map<(d0, d1, d2, d3) -> (d3)>
+// CHECK: #[[$MAP2:.+]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+
+// CHECK-LABEL: @conv2d_dyn_w_h
+func @conv2d_dyn_w_h(%input: tensor<1x?x?x27xf32>, %weights: tensor<28x3x3x27xf32>, %bias: tensor<28xf32>) -> () {
+  // Computing output height
+  // CHECK: %[[C1:.+]] = arith.constant 1
+  // CHECK: %[[H:.+]] = tensor.dim %arg0, %[[C1]]
+  // CHECK: %[[C1_0:.+]] = arith.constant 1
+  // CHECK: %[[KH:.+]] = tensor.dim %arg1, %[[C1_0]]
+  // CHECK: %[[ONE:.+]] = arith.constant 1 : index
+  // CHECK: %[[PAD_0:.+]] = arith.constant 0 : index
+  // CHECK: %[[ADD_PAD_0:.+]] = arith.addi %[[H]], %[[PAD_0]] : index
+  // CHECK: %[[PAD_1:.+]] = arith.constant 0 : index
+  // CHECK: %[[ADD_PAD_1:.+]] = arith.addi %[[ADD_PAD_0]], %[[PAD_1]] : index
+  // CHECK: %[[SUB_ONE:.+]] = arith.subi %[[KH]], %[[ONE]] : index
+  // CHECK: %[[DIL_H:.+]] = arith.constant 2 : index
+  // CHECK: %[[DILATED:.+]] = arith.muli %[[DIL_H]], %[[SUB_ONE]] : index
+  // CHECK: %[[ADD_ONE:.+]] = arith.addi %[[DILATED]], %[[ONE]] : index
+  // CHECK: %[[SUBTRACTED:.+]] = arith.subi %[[ADD_PAD_1]], %[[ADD_ONE]] : index
+  // CHECK: %[[STRIDE_H:.+]] = arith.constant 1 : index
+  // CHECK: %[[DIVIDED:.+]] = arith.divui %[[SUBTRACTED]], %[[STRIDE_H]] : index
+  // CHECK: %[[H_OUT:.+]] = arith.subi %[[DIVIDED]], %[[ONE]] : index
+
+  // Computing output width
+  // CHECK: %[[C2:.+]] = arith.constant 2
+  // CHECK: %[[W:.+]] = tensor.dim %arg0, %[[C2]]
+  // CHECK: %[[C2_0:.+]] = arith.constant 2
+  // CHECK: %[[KW:.+]] = tensor.dim %arg1, %[[C2_0]]
+  // CHECK: %[[ONE_0:.+]] = arith.constant 1 : index
+  // CHECK: %[[PAD_2:.+]] = arith.constant 0 : index
+  // CHECK: %[[ADD_PAD_2:.+]] = arith.addi %[[W]], %[[PAD_2]] : index
+  // CHECK: %[[PAD_3:.+]] = arith.constant 0 : index
+  // CHECK: %[[ADD_PAD_3:.+]] = arith.addi %[[ADD_PAD_2]], %[[PAD_3]] : index
+  // CHECK: %[[SUB_ONE_0:.+]] = arith.subi %[[KW]], %[[ONE_0]] : index
+  // CHECK: %[[DIL_W:.+]] = arith.constant 1 : index
+  // CHECK: %[[DILATED_0:.+]] = arith.muli %[[DIL_W]], %[[SUB_ONE_0]] : index
+  // CHECK: %[[ADD_ONE_0:.+]] = arith.addi %[[DILATED_0]], %[[ONE_0]] : index
+  // CHECK: %[[SUBTRACTED_0:.+]] = arith.subi %[[ADD_PAD_3]], %[[ADD_ONE_0]] : index
+  // CHECK: %[[STRIDE_W:.+]] = arith.constant 1 : index
+  // CHECK: %[[DIVIDED_0:.+]] = arith.divui %[[SUBTRACTED_0]], %[[STRIDE_W]] : index
+  // CHECK: %[[W_OUT:.+]] = arith.subi %[[DIVIDED_0]], %[[ONE_0]] : index
+
+  // Running convolution
+  // CHECK: %[[PERM:.+]] = arith.constant dense<[1, 2, 3, 0]>
+  // CHECK: %[[WEIGHT:.+]] = "tosa.transpose"(%arg1, %[[PERM]])
+  // CHECK: %[[M_IN:.+]] = linalg.init_tensor [1, %[[H_OUT]], %[[W_OUT]], 28]
+  // CHECK: %[[CST:.+]] = arith.constant 0
+  // CHECK: %[[FILL:.+]] = linalg.fill
+  // CHECK: %[[B_IN:.+]] = linalg.init_tensor [1, %[[H_OUT]], %[[W_OUT]], 28]
+  // CHECK: %[[CONV:.+]] = linalg.conv_2d_nhwc_hwcf {dilations = dense<[2, 1]> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>} ins(%arg0, %[[WEIGHT]] : tensor<1x?x?x27xf32>, tensor<3x3x27x28xf32>) outs(%[[FILL]] : tensor<1x?x?x28xf32>)
+  // CHECK: %[[B:.+]] = linalg.generic {indexing_maps = [#[[$MAP1]], #[[$MAP2]], #[[$MAP2]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%arg2, %[[CONV]] : tensor<28xf32>, tensor<1x?x?x28xf32>) outs(%[[B_IN]] : tensor<1x?x?x28xf32>)
+  // CHECK:   %[[ADD:.+]] = arith.addf
+  // CHECK:   linalg.yield %[[ADD]] : f32
+  %0 = "tosa.conv2d"(%input, %weights, %bias) {pad = [0, 0, 0, 0], stride = [1, 1], dilation = [2, 1]} : (tensor<1x?x?x27xf32>, tensor<28x3x3x27xf32>, tensor<28xf32>)  -> (tensor<1x?x?x28xf32>)
   return
 }
 

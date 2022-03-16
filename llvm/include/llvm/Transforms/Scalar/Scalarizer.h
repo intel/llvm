@@ -21,6 +21,9 @@
 
 namespace llvm {
 
+class Function;
+class FunctionPass;
+
 class ScalarizerPass : public PassInfoMixin<ScalarizerPass> {
 public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);

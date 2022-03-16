@@ -1,4 +1,4 @@
-// RUN: not mlir-pdll %s -split-input-file 2>&1 | FileCheck %s
+// RUN: not mlir-pdll %s -I %S -I %S/../../../include -split-input-file 2>&1 | FileCheck %s
 
 //===----------------------------------------------------------------------===//
 // Reference Expr
@@ -39,6 +39,45 @@ Pattern {
 Pattern {
   // CHECK: expected identifier constraint
   let foo = _: ;
+}
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// Call Expr
+//===----------------------------------------------------------------------===//
+
+Constraint foo(value: Value);
+
+Pattern {
+  // CHECK: expected `)` after argument list
+  foo(_: Value{};
+}
+
+// -----
+
+Pattern {
+  // CHECK: expected a reference to a callable `Constraint` or `Rewrite`, but got: `Op`
+  let foo: Op;
+  foo();
+}
+
+// -----
+
+Constraint Foo();
+
+Pattern {
+  // CHECK: invalid number of arguments for constraint call; expected 0, but got 1
+  Foo(_: Value);
+}
+
+// -----
+
+Constraint Foo(arg: Value);
+
+Pattern {
+  // CHECK: unable to convert expression of type `Attr` to the expected type of `Value`
+  Foo(attr<"i32">);
 }
 
 // -----
@@ -100,6 +139,26 @@ Pattern {
   // CHECK: unable to build a tuple with `Tuple<Value, Value>` element
   let tuple = (_: Value, _: Value);
   let var = (tuple);
+  erase op<>;
+}
+
+// -----
+
+Constraint Foo();
+
+Pattern {
+  // CHECK: unable to build a tuple with `Constraint` element
+  let tuple = (Foo);
+  erase op<>;
+}
+
+// -----
+
+Rewrite Foo();
+
+Pattern {
+  // CHECK: unable to build a tuple with `Rewrite` element
+  let tuple = (Foo);
   erase op<>;
 }
 
@@ -213,6 +272,26 @@ Pattern {
   // CHECK: expected `)` after operation result type list
   let value: TypeRange;
   let foo = op<> -> (value<;
+}
+
+// -----
+
+#include "include/ops.td"
+
+Pattern {
+  // CHECK: invalid number of operand groups for `test.all_empty`; expected 0, but got 2
+  // CHECK: see the definition of `test.all_empty` here
+  let foo = op<test.all_empty>(operand1: Value, operand2: Value);
+}
+
+// -----
+
+#include "include/ops.td"
+
+Pattern {
+  // CHECK: invalid number of result groups for `test.all_empty`; expected 0, but got 2
+  // CHECK: see the definition of `test.all_empty` here
+  let foo = op<test.all_empty> -> (result1: Type, result2: Type);
 }
 
 // -----

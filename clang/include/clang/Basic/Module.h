@@ -106,8 +106,14 @@ public:
     /// of header files.
     ModuleMapModule,
 
-    /// This is a C++ Modules TS module interface unit.
+    /// This is a C++20 module interface unit.
     ModuleInterfaceUnit,
+
+    /// This is a C++ 20 module partition interface.
+    ModulePartitionInterface,
+
+    /// This is a C++ 20 module partition implementation.
+    ModulePartitionImplementation,
 
     /// This is a fragment of the global module within some C++ module.
     GlobalModuleFragment,
@@ -150,7 +156,9 @@ public:
 
   /// Does this Module scope describe part of the purview of a named C++ module?
   bool isModulePurview() const {
-    return Kind == ModuleInterfaceUnit || Kind == PrivateModuleFragment;
+    return Kind == ModuleInterfaceUnit || Kind == ModulePartitionInterface ||
+           Kind == ModulePartitionImplementation ||
+           Kind == PrivateModuleFragment;
   }
 
   /// Does this Module scope describe a fragment of the global module within
@@ -363,6 +371,10 @@ public:
   /// The set of use declarations that have yet to be resolved.
   SmallVector<ModuleId, 2> UnresolvedDirectUses;
 
+  /// When \c NoUndeclaredIncludes is true, the set of modules this module tried
+  /// to import but didn't because they are not direct uses.
+  llvm::SmallSetVector<const Module *, 2> UndeclaredUses;
+
   /// A library or framework to link against when an entity from this
   /// module is used.
   struct LinkLibrary {
@@ -506,6 +518,21 @@ public:
     Parent->SubModules.push_back(this);
   }
 
+  /// Is this a module partition.
+  bool isModulePartition() const {
+    return Kind == ModulePartitionInterface ||
+           Kind == ModulePartitionImplementation;
+  }
+
+  /// Get the primary module interface name from a partition.
+  StringRef getPrimaryModuleInterfaceName() const {
+    if (isModulePartition()) {
+      auto pos = Name.find(':');
+      return StringRef(Name.data(), pos);
+    }
+    return Name;
+  }
+
   /// Retrieve the full name of this module, including the path from
   /// its top-level module.
   /// \param AllowStringLiterals If \c true, components that might not be
@@ -578,7 +605,7 @@ public:
 
   /// Determine whether this module has declared its intention to
   /// directly use another module.
-  bool directlyUses(const Module *Requested) const;
+  bool directlyUses(const Module *Requested);
 
   /// Add the given feature requirement to the list of features
   /// required by this module.

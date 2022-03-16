@@ -65,7 +65,7 @@ func @tensor.cast_chain_invalid(%input: tensor<4x8xi32>) -> tensor<8x4xi32> {
 // -----
 
 // CHECK-LABEL: func @fold_extract
-func @fold_extract(%arg0 : index) -> (f32, f16, f16, i32) {
+func @fold_extract(%arg0 : index) -> (f32, f16, f16, i32, complex<f32>) {
   %const_0 = arith.constant 0 : index
   %const_1 = arith.constant 1 : index
   %const_3 = arith.constant 3 : index
@@ -87,11 +87,16 @@ func @fold_extract(%arg0 : index) -> (f32, f16, f16, i32) {
   %ext_3 = tensor.extract %2[%const_0, %const_0, %const_0] : tensor<2x2x2xf16>
 
   // Fold an extract into a dense tensor.
-   %3 = arith.constant dense<[[[1, -2, 1, 36]], [[0, 2, -1, 64]]]> : tensor<2x1x4xi32>
+  %3 = arith.constant dense<[[[1, -2, 1, 36]], [[0, 2, -1, 64]]]> : tensor<2x1x4xi32>
   %ext_4 = tensor.extract %3[%const_1, %const_0, %const_3] : tensor<2x1x4xi32>
 
-  // CHECK-NEXT: return [[C4]], [[CM2]], [[C0]], [[C64]]
-  return %ext_1, %ext_2, %ext_3, %ext_4 : f32, f16, f16, i32
+  // Fold an extract into a complex constant.
+  // CHECK-DAG: [[C5:%.+]] = complex.constant [1.200000e+00 : f32, 2.300000e+00 : f32] : complex<f32>
+  %4 = arith.constant dense<(1.2, 2.3)> : tensor<complex<f32>>
+  %ext_5 = tensor.extract %4[] : tensor<complex<f32>>
+
+  // CHECK-NEXT: return [[C4]], [[CM2]], [[C0]], [[C64]], [[C5]]
+  return %ext_1, %ext_2, %ext_3, %ext_4, %ext_5 : f32, f16, f16, i32, complex<f32>
 }
 
 // -----
@@ -616,6 +621,17 @@ func @fold_extract_insert(%input : tensor<?x?x?xf32>, %slice: tensor<4x?x8xf32>,
 
 // -----
 
+// CHECK-LABEL: func @fold_extract_constant_splat
+//   CHECK-NOT: tensor.extract_slice
+//       CHECK: arith.constant dense<42> : tensor<4x4xi32>
+func @fold_extract_constant_splat() -> (tensor<4x4xi32>) {
+  %cst = arith.constant dense<42> : tensor<1024x1024xi32>
+  %1 = tensor.extract_slice %cst[0,0] [4,4] [1, 1] : tensor<1024x1024xi32> to tensor<4x4xi32>
+  return %1 : tensor<4x4xi32>
+}
+
+// -----
+
 // CHECK-LABEL: func @fold_overlapping_insert
 //  CHECK-SAME: %[[INPUT:.+]]: tensor<?x?x?xf32>, %{{.+}}: tensor<4x?x8xf32>, %[[SLICE2:.+]]: tensor<4x?x8xf32>
 func @fold_overlapping_insert(%input : tensor<?x?x?xf32>, %slice1: tensor<4x?x8xf32>, %slice2: tensor<4x?x8xf32>, %i: index, %size: index) -> (tensor<?x?x?xf32>) {
@@ -874,16 +890,17 @@ func @fold_reshape_trailing_unit_dims(%arg0: tensor<12x42x1x1xf32>)
 
 // -----
 
-func @no_fold_reshapes(%arg0 : tensor<?x?x?xf32>) -> tensor<?x?xf32> {
+func @fold_reshapes_unit_dims_in_middle(%arg0 : tensor<?x?x?xf32>) -> tensor<?x?xf32> {
   %0 = tensor.expand_shape %arg0 [[0], [1], [2, 3]]
       : tensor<?x?x?xf32> into tensor<?x?x1x?xf32>
   %1 = tensor.collapse_shape %0 [[0], [1, 2, 3]]
       : tensor<?x?x1x?xf32> into tensor<?x?xf32>
   return %1 : tensor<?x?xf32>
 }
-// CHECK-LABEL: func @no_fold_reshapes
-//       CHECK:   tensor.expand_shape
-//       CHECK:   tensor.collapse_shape
+// CHECK-LABEL: func @fold_reshapes_unit_dims_in_middle
+//  CHECK-SAME: (%[[ARG:.*]]: tensor<?x?x?xf32>
+//       CHECK: tensor.collapse_shape %[[ARG]] {{\[}}[0], [1, 2]]
+//  CHECK-SAME:   tensor<?x?x?xf32> into tensor<?x?xf32>
 
 // -----
 
@@ -1213,4 +1230,31 @@ func @propogate_index_cast(%arg0: tensor<1xi32>) -> index {
   %0 = arith.index_cast %arg0 : tensor<1xi32> to tensor<1xindex>
   %1 = tensor.extract %0[%c0] : tensor<1xindex>
   return %1 : index
+}
+
+// -----
+
+// CHECK-LABEL: func @splat_fold
+func @splat_fold() -> tensor<4xf32> {
+  %c = arith.constant 1.0 : f32
+  %t = tensor.splat %c : tensor<4xf32>
+  return %t : tensor<4xf32>
+
+  // CHECK-NEXT: [[T:%.*]] = arith.constant dense<1.000000e+00> : tensor<4xf32>
+  // CHECK-NEXT: return [[T]] : tensor<4xf32>
+}
+
+// -----
+
+// There was an issue in cast + insert_slice folding generating invalid ir.
+// https://github.com/llvm/llvm-project/issues/53099
+// CHECK-LABEL: func @insert_slice_cast
+func @insert_slice_cast(%arg0 : tensor<1x?xf32>, %arg1 : tensor<?x?xf32>, %arg2 : index, %arg3 : index, %arg4 : index, %arg5 : index, %arg6 : index, %arg7 : index) -> tensor<?x?xf32> {
+  // CHECK: %[[CAST:.*]] = tensor.cast %{{.*}} : tensor<1x?xf32> to tensor<?x?xf32>
+  %0 = tensor.cast %arg0 : tensor<1x?xf32> to tensor<?x?xf32>
+  // CHECK: %[[RES:.*]] = tensor.insert_slice %[[CAST]]
+  // CHECK-SAME: : tensor<?x?xf32> into tensor<?x?xf32>
+  %1 = tensor.insert_slice %0 into %arg1[%arg2, %arg3] [%arg4, %arg5] [%arg6, %arg7] : tensor<?x?xf32> into tensor<?x?xf32>
+  // CHECK: return %[[RES]] : tensor<?x?xf32>
+  return %1 : tensor<?x?xf32>
 }

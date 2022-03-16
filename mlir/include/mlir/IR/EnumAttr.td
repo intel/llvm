@@ -28,7 +28,7 @@ class EnumParameter<EnumAttrInfo enumInfo>
                           enumInfo.stringToSymbolFnName # [{(enumKeyword);
     if (maybeEnum)
       return *maybeEnum;
-    return {$_parser.emitError(loc, "expected }] #
+    return {(::mlir::LogicalResult)$_parser.emitError(loc, "expected }] #
     cppType # [{ to be one of: }] #
     !interleave(!foreach(enum, enumInfo.enumerants, enum.str), ", ") # [{")};
   }()}];
@@ -68,6 +68,9 @@ class EnumAttr<Dialect dialect, EnumAttrInfo enumInfo, string name = "",
                list <Trait> traits = []>
     : AttrDef<dialect, enumInfo.className, traits> {
   let summary = enumInfo.summary;
+
+  // The backing enumeration.
+  EnumAttrInfo enum = enumInfo;
 
   // Inherit the C++ namespace from the enum.
   let cppNamespace = enumInfo.cppNamespace;

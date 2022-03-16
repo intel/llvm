@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts, libcpp-has-no-incomplete-ranges
+// UNSUPPORTED: libcpp-no-concepts
+// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // [customization.point.object]
 // [range.adaptor.object] "A range adaptor object is a customization point object..."
@@ -56,9 +57,9 @@ static_assert(test(std::ranges::iter_swap, a + 0, a + 1));
 static_assert(test(std::partial_order, 1, 2));
 static_assert(test(std::strong_order, 1, 2));
 static_assert(test(std::weak_order, 1, 2));
-//static_assert(test(std::compare_partial_order_fallback, 1, 2));
-//static_assert(test(std::compare_strong_order_fallback, 1, 2));
-//static_assert(test(std::compare_weak_order_fallback, 1, 2));
+static_assert(test(std::compare_partial_order_fallback, 1, 2));
+static_assert(test(std::compare_strong_order_fallback, 1, 2));
+static_assert(test(std::compare_weak_order_fallback, 1, 2));
 
 // [range.access]
 static_assert(test(std::ranges::begin, a));

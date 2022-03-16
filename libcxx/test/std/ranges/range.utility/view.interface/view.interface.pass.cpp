@@ -58,7 +58,7 @@ using ForwardIter = forward_iterator<int*>;
 
 // So that we conform to sized_sentinel_for.
 constexpr std::ptrdiff_t operator-(const ForwardIter& x, const ForwardIter& y) {
-    return x.base() - y.base();
+    return base(x) - base(y);
 }
 
 struct ForwardRange : std::ranges::view_interface<ForwardRange> {
@@ -126,29 +126,27 @@ struct DataIsNull : std::ranges::view_interface<DataIsNull> {
 };
 static_assert(std::ranges::view<DataIsNull>);
 
-template<bool IsNoexcept>
-struct BoolConvertibleComparison : std::ranges::view_interface<BoolConvertibleComparison<IsNoexcept>> {
+struct BoolConvertibleComparison : std::ranges::view_interface<BoolConvertibleComparison> {
   struct ResultType {
     bool value;
-    constexpr operator bool() const noexcept(IsNoexcept) { return value; }
+    constexpr operator bool() const { return value; }
   };
 
   struct SentinelType {
     int *base_;
-    SentinelType() = default;
-    explicit constexpr SentinelType(int *base) : base_(base) {}
-    friend constexpr ResultType operator==(ForwardIter const& iter, SentinelType const& sent) noexcept { return {iter.base() == sent.base_}; }
-    friend constexpr ResultType operator==(SentinelType const& sent, ForwardIter const& iter) noexcept { return {iter.base() == sent.base_}; }
-    friend constexpr ResultType operator!=(ForwardIter const& iter, SentinelType const& sent) noexcept { return {iter.base() != sent.base_}; }
-    friend constexpr ResultType operator!=(SentinelType const& sent, ForwardIter const& iter) noexcept { return {iter.base() != sent.base_}; }
+    explicit SentinelType() = default;
+    constexpr explicit SentinelType(int *base) : base_(base) {}
+    friend constexpr ResultType operator==(ForwardIter const& iter, SentinelType const& sent) noexcept { return {base(iter) == sent.base_}; }
+    friend constexpr ResultType operator==(SentinelType const& sent, ForwardIter const& iter) noexcept { return {base(iter) == sent.base_}; }
+    friend constexpr ResultType operator!=(ForwardIter const& iter, SentinelType const& sent) noexcept { return {base(iter) != sent.base_}; }
+    friend constexpr ResultType operator!=(SentinelType const& sent, ForwardIter const& iter) noexcept { return {base(iter) != sent.base_}; }
   };
 
   int buff[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-  constexpr ForwardIter begin() const noexcept { return ForwardIter(const_cast<int*>(buff)); }
-  constexpr SentinelType end() const noexcept { return SentinelType(const_cast<int*>(buff) + 8); }
+  constexpr ForwardIter begin() const { return ForwardIter(const_cast<int*>(buff)); }
+  constexpr SentinelType end() const { return SentinelType(const_cast<int*>(buff) + 8); }
 };
-static_assert(std::ranges::view<BoolConvertibleComparison<true>>);
-static_assert(std::ranges::view<BoolConvertibleComparison<false>>);
+static_assert(std::ranges::view<BoolConvertibleComparison>);
 
 template<class T>
 concept EmptyInvocable = requires (T const& obj) { obj.empty(); };
@@ -189,19 +187,17 @@ constexpr bool testEmpty() {
   MoveOnlyForwardRange moveOnly;
   assert(!std::move(moveOnly).empty());
 
-  BoolConvertibleComparison<true> boolConv;
-  BoolConvertibleComparison<false> boolConv2;
-  static_assert(noexcept(boolConv.empty()));
-  static_assert(!noexcept(boolConv2.empty()));
+  BoolConvertibleComparison boolConv;
+  ASSERT_NOT_NOEXCEPT(boolConv.empty());
 
   assert(!boolConv.empty());
-  assert(!static_cast<BoolConvertibleComparison<true> const&>(boolConv).empty());
+  assert(!static_cast<const BoolConvertibleComparison&>(boolConv).empty());
 
   assert(boolConv);
-  assert(static_cast<BoolConvertibleComparison<true> const&>(boolConv));
+  assert(static_cast<const BoolConvertibleComparison&>(boolConv));
 
   assert(!std::ranges::empty(boolConv));
-  assert(!std::ranges::empty(static_cast<BoolConvertibleComparison<true> const&>(boolConv)));
+  assert(!std::ranges::empty(static_cast<const BoolConvertibleComparison&>(boolConv)));
 
   return true;
 }

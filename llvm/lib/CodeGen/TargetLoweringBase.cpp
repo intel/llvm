@@ -202,7 +202,7 @@ void TargetLoweringBase::InitLibcalls(const Triple &TT) {
     setLibcallName(RTLIB::SINCOS_PPCF128, "sincosl");
   }
 
-  if (TT.isPS4CPU()) {
+  if (TT.isPS4()) {
     setLibcallName(RTLIB::SINCOS_F32, "sincosf");
     setLibcallName(RTLIB::SINCOS_F64, "sincos");
   }
@@ -816,6 +816,12 @@ void TargetLoweringBase::initActions() {
     setOperationAction(ISD::ADDE, VT, Expand);
     setOperationAction(ISD::SUBC, VT, Expand);
     setOperationAction(ISD::SUBE, VT, Expand);
+
+    // Halving adds
+    setOperationAction(ISD::AVGFLOORS, VT, Expand);
+    setOperationAction(ISD::AVGFLOORU, VT, Expand);
+    setOperationAction(ISD::AVGCEILS, VT, Expand);
+    setOperationAction(ISD::AVGCEILU, VT, Expand);
 
     // Absolute difference
     setOperationAction(ISD::ABDS, VT, Expand);
@@ -2066,9 +2072,11 @@ static std::string getReciprocalOpName(bool IsSqrt, EVT VT) {
 
   Name += IsSqrt ? "sqrt" : "div";
 
-  // TODO: Handle "half" or other float types?
+  // TODO: Handle other float types?
   if (VT.getScalarType() == MVT::f64) {
     Name += "d";
+  } else if (VT.getScalarType() == MVT::f16) {
+    Name += "h";
   } else {
     assert(VT.getScalarType() == MVT::f32 &&
            "Unexpected FP type for reciprocal estimate");

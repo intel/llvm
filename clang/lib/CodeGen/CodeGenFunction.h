@@ -551,6 +551,9 @@ public:
   /// True if the current statement has nomerge attribute.
   bool InNoMergeAttributedStmt = false;
 
+  /// True if the current statement has noinline attribute.
+  bool InNoInlineAttributedStmt = false;
+
   // The CallExpr within the current statement that the musttail attribute
   // applies to.  nullptr if there is no 'musttail' on the current statement.
   const CallExpr *MustTailCall = nullptr;
@@ -2296,9 +2299,8 @@ public:
   /// Derived is the presumed address of an object of type T after a
   /// cast. If T is a polymorphic class type, emit a check that the virtual
   /// table for Derived belongs to a class derived from T.
-  void EmitVTablePtrCheckForCast(QualType T, llvm::Value *Derived,
-                                 bool MayBeNull, CFITypeCheckKind TCK,
-                                 SourceLocation Loc);
+  void EmitVTablePtrCheckForCast(QualType T, Address Derived, bool MayBeNull,
+                                 CFITypeCheckKind TCK, SourceLocation Loc);
 
   /// EmitVTablePtrCheckForCall - Virtual method MD is being called via VTable.
   /// If vptr CFI is enabled, emit a check that VTable is valid.
@@ -2322,7 +2324,9 @@ public:
   bool ShouldEmitVTableTypeCheckedLoad(const CXXRecordDecl *RD);
 
   /// Emit a type checked load from the given vtable.
-  llvm::Value *EmitVTableTypeCheckedLoad(const CXXRecordDecl *RD, llvm::Value *VTable,
+  llvm::Value *EmitVTableTypeCheckedLoad(const CXXRecordDecl *RD,
+                                         llvm::Value *VTable,
+                                         llvm::Type *VTableTy,
                                          uint64_t VTableByteOffset);
 
   /// EnterDtorCleanups - Enter the cleanups necessary to complete the
@@ -3562,6 +3566,7 @@ public:
   void EmitOMPTargetTeamsDistributeSimdDirective(
       const OMPTargetTeamsDistributeSimdDirective &S);
   void EmitOMPGenericLoopDirective(const OMPGenericLoopDirective &S);
+  void EmitOMPInteropDirective(const OMPInteropDirective &S);
 
   /// Emit device code for the target directive.
   static void EmitOMPTargetDeviceFunction(CodeGenModule &CGM,

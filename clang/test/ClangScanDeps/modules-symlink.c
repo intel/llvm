@@ -1,6 +1,8 @@
 // RUN: rm -rf %t
 // RUN: split-file %s %t
-// UNSUPPORTED: system-windows
+// Unsupported on AIX because we don't support the requisite "__clangast"
+// section in XCOFF yet.
+// UNSUPPORTED: system-windows, aix
 
 //--- cdb_pch.json
 [
@@ -47,8 +49,7 @@ static int foo = MACRO; // Macro usage that will trigger
 // RUN:   --tu-index=0 > %t/pch.rsp
 //
 // RUN: %clang @%t/mod.cc1.rsp
-// RUN: %clang -x c-header %t/pch.h -fmodules -gmodules -fimplicit-module-maps \
-// RUN:   -fmodules-cache-path=%t/cache -o %t/pch.h.gch -I %t @%t/pch.rsp
+// RUN: %clang @%t/pch.rsp
 
 // RUN: sed -e "s|DIR|%/t|g" %t/cdb_tu.json > %t/cdb.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full \

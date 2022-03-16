@@ -95,11 +95,11 @@ Vectors) are welcome future extensions.
 
 ### Virtual Vector Ops
 
-Some existing Standard and Vector Dialect on `n-D` `vector` types comprise:
+Some existing Arithmetic and Vector Dialect on `n-D` `vector` types comprise:
 
 ```mlir
 %2 = arith.addf %0, %1 : vector<3x7x8xf32> // -> vector<3x7x8xf32> %2 =
-arith.mulf %0, %1 : vector<3x7x8xf32> // -> vector<3x7x8xf32> %2 = std.splat
+arith.mulf %0, %1 : vector<3x7x8xf32> // -> vector<3x7x8xf32> %2 = vector.splat
 %1 : vector<3x7x8xf32> // -> vector<3x7x8xf32>
 
 %1 = vector.extract %0[1]: vector<3x7x8xf32> // -> vector<7x8xf32> %1 =
@@ -119,7 +119,7 @@ d2, d3) -> (d3, d1, d0)} : vector<5x4x3xf32>, memref<?x?x?x?xf32>
 
 The list of Vector is currently undergoing evolutions and is best kept track of
 by following the evolution of the
-[VectorOps.td](https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/Dialect/Vector/VectorOps.td)
+[VectorOps.td](https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/Dialect/Vector/IR/VectorOps.td)
 ODS file (markdown documentation is automatically generated locally when
 building and populates the
 [Vector doc](https://github.com/llvm/llvm-project/blob/main/mlir/docs/Dialects/Vector.md)).

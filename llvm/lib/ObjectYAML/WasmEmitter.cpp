@@ -187,13 +187,10 @@ void WasmWriter::writeSectionContent(raw_ostream &OS,
   // SYMBOL_TABLE subsection
   if (Section.SymbolTable.size()) {
     writeUint8(OS, wasm::WASM_SYMBOL_TABLE);
-
     encodeULEB128(Section.SymbolTable.size(), SubSection.getStream());
-#ifndef NDEBUG
-    uint32_t SymbolIndex = 0;
-#endif
-    for (const WasmYAML::SymbolInfo &Info : Section.SymbolTable) {
-      assert(Info.Index == SymbolIndex++);
+    for (auto Sym : llvm::enumerate(Section.SymbolTable)) {
+      const WasmYAML::SymbolInfo &Info = Sym.value();
+      assert(Info.Index == Sym.index());
       writeUint8(SubSection.getStream(), Info.Kind);
       encodeULEB128(Info.Flags, SubSection.getStream());
       switch (Info.Kind) {
@@ -585,19 +582,8 @@ void WasmWriter::writeRelocSection(raw_ostream &OS, WasmYAML::Section &Sec,
     writeUint8(OS, Reloc.Type);
     encodeULEB128(Reloc.Offset, OS);
     encodeULEB128(Reloc.Index, OS);
-    switch (Reloc.Type) {
-    case wasm::R_WASM_MEMORY_ADDR_LEB:
-    case wasm::R_WASM_MEMORY_ADDR_LEB64:
-    case wasm::R_WASM_MEMORY_ADDR_SLEB:
-    case wasm::R_WASM_MEMORY_ADDR_SLEB64:
-    case wasm::R_WASM_MEMORY_ADDR_I32:
-    case wasm::R_WASM_MEMORY_ADDR_I64:
-    case wasm::R_WASM_FUNCTION_OFFSET_I32:
-    case wasm::R_WASM_FUNCTION_OFFSET_I64:
-    case wasm::R_WASM_SECTION_OFFSET_I32:
+    if (wasm::relocTypeHasAddend(Reloc.Type))
       encodeSLEB128(Reloc.Addend, OS);
-      break;
-    }
   }
 }
 

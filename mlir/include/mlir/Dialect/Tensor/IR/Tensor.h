@@ -10,6 +10,7 @@
 #define MLIR_DIALECT_TENSOR_IR_TENSOR_H_
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -101,6 +102,19 @@ Value createCanonicalRankReducingExtractSliceOp(OpBuilder &b, Location loc,
 /// at the canonical [0 .. 0] position.
 Value createCanonicalRankReducingInsertSliceOp(OpBuilder &b, Location loc,
                                                Value tensor, Value dest);
+
+/// Function to control the folding of constant and extract slice
+using ControlConstantExtractSliceFusionFn = std::function<bool(ExtractSliceOp)>;
+
+/// Patterns to fold the extract slice op with its constant operand
+void populateFoldConstantExtractSlicePatterns(
+    RewritePatternSet &patterns,
+    const ControlConstantExtractSliceFusionFn &controlFn =
+        [](ExtractSliceOp op) {
+          // Disable by default because the folding can generate a large
+          // constant tensor, which would affect the compile time and storage.
+          return false;
+        });
 
 } // namespace tensor
 } // namespace mlir

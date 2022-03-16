@@ -26,19 +26,25 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
+#include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/Assumptions.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/GlobalValue.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/Attributor.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -98,9 +104,19 @@ static cl::opt<bool> DisableOpenMPOptStateMachineRewrite(
     cl::desc("Disable OpenMP optimizations that replace the state machine."),
     cl::Hidden, cl::init(false));
 
+static cl::opt<bool> DisableOpenMPOptBarrierElimination(
+    "openmp-opt-disable-barrier-elimination", cl::ZeroOrMore,
+    cl::desc("Disable OpenMP optimizations that eliminate barriers."),
+    cl::Hidden, cl::init(false));
+
 static cl::opt<bool> PrintModuleAfterOptimizations(
-    "openmp-opt-print-module", cl::ZeroOrMore,
+    "openmp-opt-print-module-after", cl::ZeroOrMore,
     cl::desc("Print the current module after OpenMP optimizations."),
+    cl::Hidden, cl::init(false));
+
+static cl::opt<bool> PrintModuleBeforeOptimizations(
+    "openmp-opt-print-module-before", cl::ZeroOrMore,
+    cl::desc("Print the current module before OpenMP optimizations."),
     cl::Hidden, cl::init(false));
 
 static cl::opt<bool> AlwaysInlineDeviceFunctions(
@@ -117,6 +133,11 @@ static cl::opt<unsigned>
     SetFixpointIterations("openmp-opt-max-iterations", cl::Hidden,
                           cl::desc("Maximal number of attributor iterations."),
                           cl::init(256));
+
+static cl::opt<unsigned>
+    SharedMemoryLimit("openmp-opt-shared-limit", cl::Hidden,
+                      cl::desc("Maximum amount of shared memory to use."),
+                      cl::init(std::numeric_limits<unsigned>::max()));
 
 STATISTIC(NumOpenMPRuntimeCallsDeduplicated,
           "Number of OpenMP runtime calls deduplicated");
@@ -147,6 +168,7 @@ STATISTIC(NumOpenMPParallelRegionsMerged,
           "Number of OpenMP parallel regions merged");
 STATISTIC(NumBytesMovedToSharedMemory,
           "Amount of memory pushed to shared memory");
+STATISTIC(NumBarriersEliminated, "Number of redundant barriers eliminated");
 
 #if !defined(NDEBUG)
 static constexpr auto TAG = "[" DEBUG_TYPE "]";
@@ -458,7 +480,6 @@ struct OMPInformationCache : public InformationCache {
     RTLFunctions.insert(F);                                                    \
     if (declMatchesRTFTypes(F, OMPBuilder._ReturnType, ArgsTypes)) {           \
       RuntimeFunctionIDMap[F] = _Enum;                                         \
-      F->removeFnAttr(Attribute::NoInline);                                    \
       auto &RFI = RFIs[_Enum];                                                 \
       RFI.Kind = _Enum;                                                        \
       RFI.Name = _Name;                                                        \
@@ -479,6 +500,15 @@ struct OMPInformationCache : public InformationCache {
     }                                                                          \
   }
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
+
+    // Remove the `noinline` attribute from `__kmpc`, `_OMP::` and `omp_`
+    // functions, except if `optnone` is present.
+    for (Function &F : M) {
+      for (StringRef Prefix : {"__kmpc", "_ZN4_OMP", "omp_"})
+        if (F.getName().startswith(Prefix) &&
+            !F.hasFnAttribute(Attribute::OptimizeNone))
+          F.removeFnAttr(Attribute::NoInline);
+    }
 
     // TODO: We should attach the attributes defined in OMPKinds.def.
   }
@@ -571,7 +601,7 @@ struct KernelInfoState : AbstractState {
   /// Abstract State interface
   ///{
 
-  KernelInfoState() {}
+  KernelInfoState() = default;
   KernelInfoState(bool BestState) {
     if (!BestState)
       indicatePessimisticFixpoint();
@@ -787,6 +817,8 @@ struct OpenMPOpt {
 
       if (remarksEnabled())
         analysisGlobalization();
+
+      Changed |= eliminateBarriers();
     } else {
       if (PrintICVValues)
         printICVs();
@@ -809,6 +841,8 @@ struct OpenMPOpt {
           Changed = true;
         }
       }
+
+      Changed |= eliminateBarriers();
     }
 
     return Changed;
@@ -1378,6 +1412,212 @@ private:
     return Changed;
   }
 
+  /// Eliminates redundant, aligned barriers in OpenMP offloaded kernels.
+  /// TODO: Make this an AA and expand it to work across blocks and functions.
+  bool eliminateBarriers() {
+    bool Changed = false;
+
+    if (DisableOpenMPOptBarrierElimination)
+      return /*Changed=*/false;
+
+    if (OMPInfoCache.Kernels.empty())
+      return /*Changed=*/false;
+
+    enum ImplicitBarrierType { IBT_ENTRY, IBT_EXIT };
+
+    class BarrierInfo {
+      Instruction *I;
+      enum ImplicitBarrierType Type;
+
+    public:
+      BarrierInfo(enum ImplicitBarrierType Type) : I(nullptr), Type(Type) {}
+      BarrierInfo(Instruction &I) : I(&I) {}
+
+      bool isImplicit() { return !I; }
+
+      bool isImplicitEntry() { return isImplicit() && Type == IBT_ENTRY; }
+
+      bool isImplicitExit() { return isImplicit() && Type == IBT_EXIT; }
+
+      Instruction *getInstruction() { return I; }
+    };
+
+    for (Function *Kernel : OMPInfoCache.Kernels) {
+      for (BasicBlock &BB : *Kernel) {
+        SmallVector<BarrierInfo, 8> BarriersInBlock;
+        SmallPtrSet<Instruction *, 8> BarriersToBeDeleted;
+
+        // Add the kernel entry implicit barrier.
+        if (&Kernel->getEntryBlock() == &BB)
+          BarriersInBlock.push_back(IBT_ENTRY);
+
+        // Find implicit and explicit aligned barriers in the same basic block.
+        for (Instruction &I : BB) {
+          if (isa<ReturnInst>(I)) {
+            // Add the implicit barrier when exiting the kernel.
+            BarriersInBlock.push_back(IBT_EXIT);
+            continue;
+          }
+          CallBase *CB = dyn_cast<CallBase>(&I);
+          if (!CB)
+            continue;
+
+          auto IsAlignBarrierCB = [&](CallBase &CB) {
+            switch (CB.getIntrinsicID()) {
+            case Intrinsic::nvvm_barrier0:
+            case Intrinsic::nvvm_barrier0_and:
+            case Intrinsic::nvvm_barrier0_or:
+            case Intrinsic::nvvm_barrier0_popc:
+              return true;
+            default:
+              break;
+            }
+            return hasAssumption(CB,
+                                 KnownAssumptionString("ompx_aligned_barrier"));
+          };
+
+          if (IsAlignBarrierCB(*CB)) {
+            // Add an explicit aligned barrier.
+            BarriersInBlock.push_back(I);
+          }
+        }
+
+        if (BarriersInBlock.size() <= 1)
+          continue;
+
+        // A barrier in a barrier pair is removeable if all instructions
+        // between the barriers in the pair are side-effect free modulo the
+        // barrier operation.
+        auto IsBarrierRemoveable = [&Kernel](BarrierInfo *StartBI,
+                                             BarrierInfo *EndBI) {
+          assert(
+              !StartBI->isImplicitExit() &&
+              "Expected start barrier to be other than a kernel exit barrier");
+          assert(
+              !EndBI->isImplicitEntry() &&
+              "Expected end barrier to be other than a kernel entry barrier");
+          // If StarBI instructions is null then this the implicit
+          // kernel entry barrier, so iterate from the first instruction in the
+          // entry block.
+          Instruction *I = (StartBI->isImplicitEntry())
+                               ? &Kernel->getEntryBlock().front()
+                               : StartBI->getInstruction()->getNextNode();
+          assert(I && "Expected non-null start instruction");
+          Instruction *E = (EndBI->isImplicitExit())
+                               ? I->getParent()->getTerminator()
+                               : EndBI->getInstruction();
+          assert(E && "Expected non-null end instruction");
+
+          for (; I != E; I = I->getNextNode()) {
+            if (!I->mayHaveSideEffects() && !I->mayReadFromMemory())
+              continue;
+
+            auto IsPotentiallyAffectedByBarrier =
+                [](Optional<MemoryLocation> Loc) {
+                  const Value *Obj = (Loc && Loc->Ptr)
+                                         ? getUnderlyingObject(Loc->Ptr)
+                                         : nullptr;
+                  if (!Obj) {
+                    LLVM_DEBUG(
+                        dbgs()
+                        << "Access to unknown location requires barriers\n");
+                    return true;
+                  }
+                  if (isa<UndefValue>(Obj))
+                    return false;
+                  if (isa<AllocaInst>(Obj))
+                    return false;
+                  if (auto *GV = dyn_cast<GlobalVariable>(Obj)) {
+                    if (GV->isConstant())
+                      return false;
+                    if (GV->isThreadLocal())
+                      return false;
+                    if (GV->getAddressSpace() == (int)AddressSpace::Local)
+                      return false;
+                    if (GV->getAddressSpace() == (int)AddressSpace::Constant)
+                      return false;
+                  }
+                  LLVM_DEBUG(dbgs() << "Access to '" << *Obj
+                                    << "' requires barriers\n");
+                  return true;
+                };
+
+            if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(I)) {
+              Optional<MemoryLocation> Loc = MemoryLocation::getForDest(MI);
+              if (IsPotentiallyAffectedByBarrier(Loc))
+                return false;
+              if (MemTransferInst *MTI = dyn_cast<MemTransferInst>(I)) {
+                Optional<MemoryLocation> Loc =
+                    MemoryLocation::getForSource(MTI);
+                if (IsPotentiallyAffectedByBarrier(Loc))
+                  return false;
+              }
+              continue;
+            }
+
+            if (auto *LI = dyn_cast<LoadInst>(I))
+              if (LI->hasMetadata(LLVMContext::MD_invariant_load))
+                continue;
+
+            Optional<MemoryLocation> Loc = MemoryLocation::getOrNone(I);
+            if (IsPotentiallyAffectedByBarrier(Loc))
+              return false;
+          }
+
+          return true;
+        };
+
+        // Iterate barrier pairs and remove an explicit barrier if analysis
+        // deems it removeable.
+        for (auto *It = BarriersInBlock.begin(),
+                  *End = BarriersInBlock.end() - 1;
+             It != End; ++It) {
+
+          BarrierInfo *StartBI = It;
+          BarrierInfo *EndBI = (It + 1);
+
+          // Cannot remove when both are implicit barriers, continue.
+          if (StartBI->isImplicit() && EndBI->isImplicit())
+            continue;
+
+          if (!IsBarrierRemoveable(StartBI, EndBI))
+            continue;
+
+          assert(!(StartBI->isImplicit() && EndBI->isImplicit()) &&
+                 "Expected at least one explicit barrier to remove.");
+
+          // Remove an explicit barrier, check first, then second.
+          if (!StartBI->isImplicit()) {
+            LLVM_DEBUG(dbgs() << "Remove start barrier "
+                              << *StartBI->getInstruction() << "\n");
+            BarriersToBeDeleted.insert(StartBI->getInstruction());
+          } else {
+            LLVM_DEBUG(dbgs() << "Remove end barrier "
+                              << *EndBI->getInstruction() << "\n");
+            BarriersToBeDeleted.insert(EndBI->getInstruction());
+          }
+        }
+
+        if (BarriersToBeDeleted.empty())
+          continue;
+
+        Changed = true;
+        for (Instruction *I : BarriersToBeDeleted) {
+          ++NumBarriersEliminated;
+          auto Remark = [&](OptimizationRemark OR) {
+            return OR << "Redundant barrier eliminated.";
+          };
+
+          if (EnableVerboseRemarks)
+            emitRemark<OptimizationRemark>(I, "OMP190", Remark);
+          I->eraseFromParent();
+        }
+      }
+    }
+
+    return Changed;
+  }
+
   void analysisGlobalization() {
     auto &RFI = OMPInfoCache.RFIs[OMPRTL___kmpc_alloc_shared];
 
@@ -1889,6 +2129,8 @@ private:
                                        OMPRTL___kmpc_barrier_simple_generic);
     ExternalizationRAII ThreadId(OMPInfoCache,
                                  OMPRTL___kmpc_get_hardware_thread_id_in_block);
+    ExternalizationRAII NumThreads(
+        OMPInfoCache, OMPRTL___kmpc_get_hardware_num_threads_in_block);
     ExternalizationRAII WarpSize(OMPInfoCache, OMPRTL___kmpc_get_warp_size);
 
     registerAAs(IsModulePass);
@@ -2724,9 +2966,15 @@ struct AAHeapToSharedFunction : public AAHeapToShared {
     auto &OMPInfoCache = static_cast<OMPInformationCache &>(A.getInfoCache());
     auto &RFI = OMPInfoCache.RFIs[OMPRTL___kmpc_alloc_shared];
 
+    Attributor::SimplifictionCallbackTy SCB =
+        [](const IRPosition &, const AbstractAttribute *,
+           bool &) -> Optional<Value *> { return nullptr; };
     for (User *U : RFI.Declaration->users())
-      if (CallBase *CB = dyn_cast<CallBase>(U))
+      if (CallBase *CB = dyn_cast<CallBase>(U)) {
         MallocCalls.insert(CB);
+        A.registerSimplificationCallback(IRPosition::callsite_returned(*CB),
+                                         SCB);
+      }
 
     findPotentialRemovedFreeCalls(A);
   }
@@ -2768,6 +3016,14 @@ struct AAHeapToSharedFunction : public AAHeapToShared {
 
       auto *AllocSize = cast<ConstantInt>(CB->getArgOperand(0));
 
+      if (AllocSize->getZExtValue() + SharedMemoryUsed > SharedMemoryLimit) {
+        LLVM_DEBUG(dbgs() << TAG << "Cannot replace call " << *CB
+                          << " with shared memory."
+                          << " Shared memory usage is limited to "
+                          << SharedMemoryLimit << " bytes\n");
+        continue;
+      }
+
       LLVM_DEBUG(dbgs() << TAG << "Replace globalization call " << *CB
                         << " with " << AllocSize->getZExtValue()
                         << " bytes of shared memory\n");
@@ -2802,7 +3058,8 @@ struct AAHeapToSharedFunction : public AAHeapToShared {
       A.deleteAfterManifest(*CB);
       A.deleteAfterManifest(*FreeCalls.front());
 
-      NumBytesMovedToSharedMemory += AllocSize->getZExtValue();
+      SharedMemoryUsed += AllocSize->getZExtValue();
+      NumBytesMovedToSharedMemory = SharedMemoryUsed;
       Changed = ChangeStatus::CHANGED;
     }
 
@@ -2838,6 +3095,8 @@ struct AAHeapToSharedFunction : public AAHeapToShared {
   SmallSetVector<CallBase *, 4> MallocCalls;
   /// Collection of potentially removed free calls in a function.
   SmallPtrSet<CallBase *, 4> PotentialRemovedFreeCalls;
+  /// The total amount of shared memory that has been used for HeapToShared.
+  unsigned SharedMemoryUsed = 0;
 };
 
 struct AAKernelInfo : public StateWrapper<KernelInfoState, AbstractAttribute> {
@@ -3480,9 +3739,9 @@ struct AAKernelInfoFunction : AAKernelInfo {
     //                         __kmpc_get_hardware_num_threads_in_block();
     //                       WarpSize = __kmpc_get_warp_size();
     //                       BlockSize = BlockHwSize - WarpSize;
-    //                       if (InitCB >= BlockSize) return;
-    // IsWorkerCheckBB:      bool IsWorker = InitCB >= 0;
+    // IsWorkerCheckBB:      bool IsWorker = InitCB != -1;
     //                       if (IsWorker) {
+    //                         if (InitCB >= BlockSize) return;
     // SMBeginBB:               __kmpc_barrier_simple_generic(...);
     //                         void *WorkFn;
     //                         bool Active = __kmpc_kernel_parallel(&WorkFn);
@@ -3539,6 +3798,13 @@ struct AAKernelInfoFunction : AAKernelInfo {
     ReturnInst::Create(Ctx, StateMachineFinishedBB)->setDebugLoc(DLoc);
     InitBB->getTerminator()->eraseFromParent();
 
+    Instruction *IsWorker =
+        ICmpInst::Create(ICmpInst::ICmp, llvm::CmpInst::ICMP_NE, KernelInitCB,
+                         ConstantInt::get(KernelInitCB->getType(), -1),
+                         "thread.is_worker", InitBB);
+    IsWorker->setDebugLoc(DLoc);
+    BranchInst::Create(IsWorkerCheckBB, UserCodeEntryBB, IsWorker, InitBB);
+
     Module &M = *Kernel->getParent();
     auto &OMPInfoCache = static_cast<OMPInformationCache &>(A.getInfoCache());
     FunctionCallee BlockHwSizeFn =
@@ -3548,29 +3814,22 @@ struct AAKernelInfoFunction : AAKernelInfo {
         OMPInfoCache.OMPBuilder.getOrCreateRuntimeFunction(
             M, OMPRTL___kmpc_get_warp_size);
     CallInst *BlockHwSize =
-        CallInst::Create(BlockHwSizeFn, "block.hw_size", InitBB);
+        CallInst::Create(BlockHwSizeFn, "block.hw_size", IsWorkerCheckBB);
     OMPInfoCache.setCallingConvention(BlockHwSizeFn, BlockHwSize);
     BlockHwSize->setDebugLoc(DLoc);
-    CallInst *WarpSize = CallInst::Create(WarpSizeFn, "warp.size", InitBB);
+    CallInst *WarpSize =
+        CallInst::Create(WarpSizeFn, "warp.size", IsWorkerCheckBB);
     OMPInfoCache.setCallingConvention(WarpSizeFn, WarpSize);
     WarpSize->setDebugLoc(DLoc);
-    Instruction *BlockSize =
-        BinaryOperator::CreateSub(BlockHwSize, WarpSize, "block.size", InitBB);
+    Instruction *BlockSize = BinaryOperator::CreateSub(
+        BlockHwSize, WarpSize, "block.size", IsWorkerCheckBB);
     BlockSize->setDebugLoc(DLoc);
-    Instruction *IsMainOrWorker =
-        ICmpInst::Create(ICmpInst::ICmp, llvm::CmpInst::ICMP_SLT, KernelInitCB,
-                         BlockSize, "thread.is_main_or_worker", InitBB);
+    Instruction *IsMainOrWorker = ICmpInst::Create(
+        ICmpInst::ICmp, llvm::CmpInst::ICMP_SLT, KernelInitCB, BlockSize,
+        "thread.is_main_or_worker", IsWorkerCheckBB);
     IsMainOrWorker->setDebugLoc(DLoc);
-    BranchInst::Create(IsWorkerCheckBB, StateMachineFinishedBB, IsMainOrWorker,
-                       InitBB);
-
-    Instruction *IsWorker =
-        ICmpInst::Create(ICmpInst::ICmp, llvm::CmpInst::ICMP_NE, KernelInitCB,
-                         ConstantInt::get(KernelInitCB->getType(), -1),
-                         "thread.is_worker", IsWorkerCheckBB);
-    IsWorker->setDebugLoc(DLoc);
-    BranchInst::Create(StateMachineBeginBB, UserCodeEntryBB, IsWorker,
-                       IsWorkerCheckBB);
+    BranchInst::Create(StateMachineBeginBB, StateMachineFinishedBB,
+                       IsMainOrWorker, IsWorkerCheckBB);
 
     // Create local storage for the work function pointer.
     const DataLayout &DL = M.getDataLayout();
@@ -4668,6 +4927,9 @@ PreservedAnalyses OpenMPOptPass::run(Module &M, ModuleAnalysisManager &AM) {
       AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   KernelSet Kernels = getDeviceKernels(M);
 
+  if (PrintModuleBeforeOptimizations)
+    LLVM_DEBUG(dbgs() << TAG << "Module before OpenMPOpt Module Pass:\n" << M);
+
   auto IsCalled = [&](Function &F) {
     if (Kernels.contains(&F))
       return true;
@@ -4769,6 +5031,9 @@ PreservedAnalyses OpenMPOptCGSCCPass::run(LazyCallGraph::SCC &C,
     return PreservedAnalyses::all();
 
   Module &M = *C.begin()->getFunction().getParent();
+
+  if (PrintModuleBeforeOptimizations)
+    LLVM_DEBUG(dbgs() << TAG << "Module before OpenMPOpt CGSCC Pass:\n" << M);
 
   KernelSet Kernels = getDeviceKernels(M);
 

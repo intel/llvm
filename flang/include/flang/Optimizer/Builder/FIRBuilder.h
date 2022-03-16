@@ -57,14 +57,21 @@ public:
   /// Get a reference to the kind map.
   const fir::KindMapping &getKindMap() { return kindMap; }
 
-  /// The LHS and RHS are not always in agreement in terms of
-  /// type. In some cases, the disagreement is between COMPLEX and other scalar
-  /// types. In that case, the conversion must insert/extract out of a COMPLEX
-  /// value to have the proper semantics and be strongly typed. For e.g for
-  /// converting an integer/real to a complex, the real part is filled using
-  /// the integer/real after type conversion and the imaginary part is zero.
+  /// Get the default integer type
+  [[maybe_unused]] mlir::IntegerType getDefaultIntegerType() {
+    return getIntegerType(
+        getKindMap().getIntegerBitsize(getKindMap().defaultIntegerKind()));
+  }
+
+  /// The LHS and RHS are not always in agreement in terms of type. In some
+  /// cases, the disagreement is between COMPLEX and other scalar types. In that
+  /// case, the conversion must insert (extract) out of a COMPLEX value to have
+  /// the proper semantics and be strongly typed. E.g., converting an integer
+  /// (real) to a complex, the real part is filled using the integer (real)
+  /// after type conversion and the imaginary part is zero.
   mlir::Value convertWithSemantics(mlir::Location loc, mlir::Type toTy,
-                                   mlir::Value val);
+                                   mlir::Value val,
+                                   bool allowCharacterConversion = false);
 
   /// Get the entry block of the current Function
   mlir::Block *getEntryBlock() { return &getFunction().front(); }
@@ -91,8 +98,17 @@ public:
     return getI64Type();
   }
 
+  /// Wrap `str` to a SymbolRefAttr.
+  mlir::SymbolRefAttr getSymbolRefAttr(llvm::StringRef str) {
+    return mlir::SymbolRefAttr::get(getContext(), str);
+  }
+
   /// Get the mlir real type that implements fortran REAL(kind).
   mlir::Type getRealType(int kind);
+
+  fir::BoxProcType getBoxProcType(mlir::FunctionType funcTy) {
+    return fir::BoxProcType::get(getContext(), funcTy);
+  }
 
   /// Create a null constant memory reference of type \p ptrType.
   /// If \p ptrType is not provided, !fir.ref<none> type will be used.
@@ -207,6 +223,14 @@ public:
   static mlir::FuncOp getNamedFunction(mlir::ModuleOp module,
                                        llvm::StringRef name);
 
+  /// Get a function by symbol name. The result will be null if there is no
+  /// function with the given symbol in the module.
+  mlir::FuncOp getNamedFunction(mlir::SymbolRefAttr symbol) {
+    return getNamedFunction(getModule(), symbol);
+  }
+  static mlir::FuncOp getNamedFunction(mlir::ModuleOp module,
+                                       mlir::SymbolRefAttr symbol);
+
   fir::GlobalOp getNamedGlobal(llvm::StringRef name) {
     return getNamedGlobal(getModule(), name);
   }
@@ -262,6 +286,11 @@ public:
   /// this may create a `fir.shift` op.
   mlir::Value createShape(mlir::Location loc, const fir::ExtendedValue &exv);
 
+  /// Create a slice op extended value. The value to be sliced, `exv`, must be
+  /// an array.
+  mlir::Value createSlice(mlir::Location loc, const fir::ExtendedValue &exv,
+                          mlir::ValueRange triples, mlir::ValueRange path);
+
   /// Create a boxed value (Fortran descriptor) to be passed to the runtime.
   /// \p exv is an extended value holding a memory reference to the object that
   /// must be boxed. This function will crash if provided something that is not
@@ -288,14 +317,14 @@ public:
         : ifOp{ifOp}, builder{builder} {}
     template <typename CC>
     IfBuilder &genThen(CC func) {
-      builder.setInsertionPointToStart(&ifOp.thenRegion().front());
+      builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
       func();
       return *this;
     }
     template <typename CC>
     IfBuilder &genElse(CC func) {
-      assert(!ifOp.elseRegion().empty() && "must have else region");
-      builder.setInsertionPointToStart(&ifOp.elseRegion().front());
+      assert(!ifOp.getElseRegion().empty() && "must have else region");
+      builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
       func();
       return *this;
     }
@@ -365,6 +394,13 @@ mlir::Value readCharLen(fir::FirOpBuilder &builder, mlir::Location loc,
 mlir::Value readExtent(fir::FirOpBuilder &builder, mlir::Location loc,
                        const fir::ExtendedValue &box, unsigned dim);
 
+/// Read or get the lower bound in dimension \p dim of the array described by
+/// \p box. If the lower bound is left default in the ExtendedValue,
+/// \p defaultValue will be returned.
+mlir::Value readLowerBound(fir::FirOpBuilder &builder, mlir::Location loc,
+                           const fir::ExtendedValue &box, unsigned dim,
+                           mlir::Value defaultValue);
+
 /// Read extents from \p box.
 llvm::SmallVector<mlir::Value> readExtents(fir::FirOpBuilder &builder,
                                            mlir::Location loc,
@@ -375,6 +411,14 @@ llvm::SmallVector<mlir::Value> readExtents(fir::FirOpBuilder &builder,
 llvm::SmallVector<mlir::Value> getExtents(fir::FirOpBuilder &builder,
                                           mlir::Location loc,
                                           const fir::ExtendedValue &box);
+
+/// Read a fir::BoxValue into an fir::UnboxValue, a fir::ArrayBoxValue or a
+/// fir::CharArrayBoxValue. This should only be called if the fir::BoxValue is
+/// known to be contiguous given the context (or if the resulting address will
+/// not be used). If the value is polymorphic, its dynamic type will be lost.
+/// This must not be used on unlimited polymorphic and assumed rank entities.
+fir::ExtendedValue readBoxValue(fir::FirOpBuilder &builder, mlir::Location loc,
+                                const fir::BoxValue &box);
 
 //===----------------------------------------------------------------------===//
 // String literal helper helpers
@@ -409,6 +453,66 @@ mlir::Value locationToLineNo(fir::FirOpBuilder &, mlir::Location, mlir::Type);
 /// evaluations. RaggedArrayHeader is defined in
 /// flang/include/flang/Runtime/ragged.h.
 mlir::TupleType getRaggedArrayHeaderType(fir::FirOpBuilder &builder);
+
+/// Create the zero value of a given the numerical or logical \p type (`false`
+/// for logical types).
+mlir::Value createZeroValue(fir::FirOpBuilder &builder, mlir::Location loc,
+                            mlir::Type type);
+
+//===--------------------------------------------------------------------===//
+// ExtendedValue helpers
+//===--------------------------------------------------------------------===//
+
+/// Return the extended value for a component of a derived type instance given
+/// the address of the component.
+fir::ExtendedValue componentToExtendedValue(fir::FirOpBuilder &builder,
+                                            mlir::Location loc,
+                                            mlir::Value component);
+
+/// Given the address of an array element and the ExtendedValue describing the
+/// array, returns the ExtendedValue describing the array element. The purpose
+/// is to propagate the length parameters of the array to the element.
+/// This can be used for elements of `array` or `array(i:j:k)`. If \p element
+/// belongs to an array section `array%x` whose base is \p array,
+/// arraySectionElementToExtendedValue must be used instead.
+fir::ExtendedValue arrayElementToExtendedValue(fir::FirOpBuilder &builder,
+                                               mlir::Location loc,
+                                               const fir::ExtendedValue &array,
+                                               mlir::Value element);
+
+/// Build the ExtendedValue for \p element that is an element of an array or
+/// array section with \p array base (`array` or `array(i:j:k)%x%y`).
+/// If it is an array section, \p slice must be provided and be a fir::SliceOp
+/// that describes the section.
+fir::ExtendedValue arraySectionElementToExtendedValue(
+    fir::FirOpBuilder &builder, mlir::Location loc,
+    const fir::ExtendedValue &array, mlir::Value element, mlir::Value slice);
+
+/// Assign \p rhs to \p lhs. Both \p rhs and \p lhs must be scalars. The
+/// assignment follows Fortran intrinsic assignment semantic (10.2.1.3).
+void genScalarAssignment(fir::FirOpBuilder &builder, mlir::Location loc,
+                         const fir::ExtendedValue &lhs,
+                         const fir::ExtendedValue &rhs);
+/// Assign \p rhs to \p lhs. Both \p rhs and \p lhs must be scalar derived
+/// types. The assignment follows Fortran intrinsic assignment semantic for
+/// derived types (10.2.1.3 point 13).
+void genRecordAssignment(fir::FirOpBuilder &builder, mlir::Location loc,
+                         const fir::ExtendedValue &lhs,
+                         const fir::ExtendedValue &rhs);
+
+/// Generate the, possibly dynamic, LEN of a CHARACTER. \p arrLoad determines
+/// the base array. After applying \p path, the result must be a reference to a
+/// `!fir.char` type object. \p substring must have 0, 1, or 2 members. The
+/// first member is the starting offset. The second is the ending offset.
+mlir::Value genLenOfCharacter(fir::FirOpBuilder &builder, mlir::Location loc,
+                              fir::ArrayLoadOp arrLoad,
+                              llvm::ArrayRef<mlir::Value> path,
+                              llvm::ArrayRef<mlir::Value> substring);
+mlir::Value genLenOfCharacter(fir::FirOpBuilder &builder, mlir::Location loc,
+                              fir::SequenceType seqTy, mlir::Value memref,
+                              llvm::ArrayRef<mlir::Value> typeParams,
+                              llvm::ArrayRef<mlir::Value> path,
+                              llvm::ArrayRef<mlir::Value> substring);
 
 } // namespace fir::factory
 

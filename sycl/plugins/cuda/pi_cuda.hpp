@@ -24,13 +24,14 @@
 #include <cassert>
 #include <cstring>
 #include <cuda.h>
+#include <functional>
 #include <limits>
+#include <mutex>
 #include <numeric>
 #include <stdint.h>
 #include <string>
+#include <unordered_map>
 #include <vector>
-#include <functional>
-#include <mutex>
 
 extern "C" {
 

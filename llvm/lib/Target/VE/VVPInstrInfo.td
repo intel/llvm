@@ -18,6 +18,24 @@
 // TODO explain how VVP nodes relate to VP SDNodes once VP ISel is uptream.
 //===----------------------------------------------------------------------===//
 
+// vvp_load(ptr, stride, mask, avl)
+def SDTLoadVVP : SDTypeProfile<1, 4, [
+  SDTCisVec<0>,
+  SDTCisPtrTy<1>,
+  SDTCisInt<2>,
+  SDTCisVec<3>,
+  IsVLVT<4>
+]>;
+
+// vvp_store(data, ptr, stride, mask, avl)
+def SDTStoreVVP: SDTypeProfile<0, 5, [
+  SDTCisVec<0>,
+  SDTCisPtrTy<1>,
+  SDTCisInt<2>,
+  SDTCisVec<3>,
+  IsVLVT<4>
+]>;
+
 // Binary Operators {
 
 // BinaryOp(x,y,mask,vl)
@@ -47,6 +65,19 @@ def SDTSelectVVP : SDTypeProfile<1, 4, [       // vp_select, vp_merge
   SDTCisSameAs<1, 2>,
   IsVLVT<4>
 ]>;
+
+// SetCC (lhs, rhs, cc, mask, vl)
+def SDTSetCCVVP : SDTypeProfile<1, 5, [        // vp_setcc
+  SDTCisVec<0>,
+  SDTCisVec<1>,
+  SDTCisSameNumEltsAs<0, 1>,
+  SDTCisSameAs<1, 2>,
+  SDTCisVT<3, OtherVT>,
+  SDTCisInt<4>,
+  SDTCisSameNumEltsAs<0, 4>,
+  IsVLVT<5>
+]>;
+
 
 // Binary operator commutative pattern.
 class vvp_commutative<SDNode RootOp> :
@@ -89,4 +120,13 @@ def vvp_fdiv    : SDNode<"VEISD::VVP_FDIV",  SDTFPBinOpVVP>;
 
 // } Binary Operators
 
+def vvp_load    : SDNode<"VEISD::VVP_LOAD",  SDTLoadVVP,
+                         [SDNPHasChain, SDNPMayLoad, SDNPMemOperand ]>;
+def vvp_store   : SDNode<"VEISD::VVP_STORE", SDTStoreVVP,
+                         [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
+
+
 def vvp_select : SDNode<"VEISD::VVP_SELECT", SDTSelectVVP>;
+
+// setcc (lhs, rhs, cc, mask, vl)
+def vvp_setcc  : SDNode<"VEISD::VVP_SETCC", SDTSetCCVVP>;

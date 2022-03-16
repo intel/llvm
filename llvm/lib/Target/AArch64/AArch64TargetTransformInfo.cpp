@@ -862,12 +862,14 @@ instCombineSVELD1(InstCombiner &IC, IntrinsicInst &II, const DataLayout &DL) {
 
   if (isAllActivePredicate(Pred)) {
     LoadInst *Load = Builder.CreateLoad(VecTy, VecPtr);
+    Load->copyMetadata(II);
     return IC.replaceInstUsesWith(II, Load);
   }
 
   CallInst *MaskedLoad =
       Builder.CreateMaskedLoad(VecTy, VecPtr, PtrOp->getPointerAlignment(DL),
                                Pred, ConstantAggregateZero::get(VecTy));
+  MaskedLoad->copyMetadata(II);
   return IC.replaceInstUsesWith(II, MaskedLoad);
 }
 
@@ -883,12 +885,14 @@ instCombineSVEST1(InstCombiner &IC, IntrinsicInst &II, const DataLayout &DL) {
       Builder.CreateBitCast(PtrOp, VecOp->getType()->getPointerTo());
 
   if (isAllActivePredicate(Pred)) {
-    Builder.CreateStore(VecOp, VecPtr);
+    StoreInst *Store = Builder.CreateStore(VecOp, VecPtr);
+    Store->copyMetadata(II);
     return IC.eraseInstFromFunction(II);
   }
 
-  Builder.CreateMaskedStore(VecOp, VecPtr, PtrOp->getPointerAlignment(DL),
-                            Pred);
+  CallInst *MaskedStore = Builder.CreateMaskedStore(
+      VecOp, VecPtr, PtrOp->getPointerAlignment(DL), Pred);
+  MaskedStore->copyMetadata(II);
   return IC.eraseInstFromFunction(II);
 }
 
@@ -1069,7 +1073,6 @@ static Optional<Instruction *> instCombineLD1GatherIndex(InstCombiner &IC,
   Value *BasePtr = II.getOperand(1);
   Value *Index = II.getOperand(2);
   Type *Ty = II.getType();
-  Type *BasePtrTy = BasePtr->getType();
   Value *PassThru = ConstantAggregateZero::get(Ty);
 
   // Contiguous gather => masked load.
@@ -1085,8 +1088,8 @@ static Optional<Instruction *> instCombineLD1GatherIndex(InstCombiner &IC,
         BasePtr->getPointerAlignment(II.getModule()->getDataLayout());
 
     Type *VecPtrTy = PointerType::getUnqual(Ty);
-    Value *Ptr = Builder.CreateGEP(BasePtrTy->getPointerElementType(), BasePtr,
-                                   IndexBase);
+    Value *Ptr = Builder.CreateGEP(
+        cast<VectorType>(Ty)->getElementType(), BasePtr, IndexBase);
     Ptr = Builder.CreateBitCast(Ptr, VecPtrTy);
     CallInst *MaskedLoad =
         Builder.CreateMaskedLoad(Ty, Ptr, Alignment, Mask, PassThru);
@@ -1104,10 +1107,9 @@ static Optional<Instruction *> instCombineST1ScatterIndex(InstCombiner &IC,
   Value *BasePtr = II.getOperand(2);
   Value *Index = II.getOperand(3);
   Type *Ty = Val->getType();
-  Type *BasePtrTy = BasePtr->getType();
 
   // Contiguous scatter => masked store.
-  // (sve.ld1.scatter.index Value Mask BasePtr (sve.index IndexBase 1))
+  // (sve.st1.scatter.index Value Mask BasePtr (sve.index IndexBase 1))
   // => (masked.store Value (gep BasePtr IndexBase) Align Mask)
   Value *IndexBase;
   if (match(Index, m_Intrinsic<Intrinsic::aarch64_sve_index>(
@@ -1118,8 +1120,8 @@ static Optional<Instruction *> instCombineST1ScatterIndex(InstCombiner &IC,
     Align Alignment =
         BasePtr->getPointerAlignment(II.getModule()->getDataLayout());
 
-    Value *Ptr = Builder.CreateGEP(BasePtrTy->getPointerElementType(), BasePtr,
-                                   IndexBase);
+    Value *Ptr = Builder.CreateGEP(
+        cast<VectorType>(Ty)->getElementType(), BasePtr, IndexBase);
     Type *VecPtrTy = PointerType::getUnqual(Ty);
     Ptr = Builder.CreateBitCast(Ptr, VecPtrTy);
 
@@ -1606,6 +1608,32 @@ InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
                                                  SrcTy.getSimpleVT()))
     return AdjustCost(Entry->Cost);
 
+  static const TypeConversionCostTblEntry FP16Tbl[] = {
+      {ISD::FP_TO_SINT, MVT::v4i8, MVT::v4f16, 1}, // fcvtzs
+      {ISD::FP_TO_UINT, MVT::v4i8, MVT::v4f16, 1},
+      {ISD::FP_TO_SINT, MVT::v4i16, MVT::v4f16, 1}, // fcvtzs
+      {ISD::FP_TO_UINT, MVT::v4i16, MVT::v4f16, 1},
+      {ISD::FP_TO_SINT, MVT::v4i32, MVT::v4f16, 2}, // fcvtl+fcvtzs
+      {ISD::FP_TO_UINT, MVT::v4i32, MVT::v4f16, 2},
+      {ISD::FP_TO_SINT, MVT::v8i8, MVT::v8f16, 2}, // fcvtzs+xtn
+      {ISD::FP_TO_UINT, MVT::v8i8, MVT::v8f16, 2},
+      {ISD::FP_TO_SINT, MVT::v8i16, MVT::v8f16, 1}, // fcvtzs
+      {ISD::FP_TO_UINT, MVT::v8i16, MVT::v8f16, 1},
+      {ISD::FP_TO_SINT, MVT::v8i32, MVT::v8f16, 4}, // 2*fcvtl+2*fcvtzs
+      {ISD::FP_TO_UINT, MVT::v8i32, MVT::v8f16, 4},
+      {ISD::FP_TO_SINT, MVT::v16i8, MVT::v16f16, 3}, // 2*fcvtzs+xtn
+      {ISD::FP_TO_UINT, MVT::v16i8, MVT::v16f16, 3},
+      {ISD::FP_TO_SINT, MVT::v16i16, MVT::v16f16, 2}, // 2*fcvtzs
+      {ISD::FP_TO_UINT, MVT::v16i16, MVT::v16f16, 2},
+      {ISD::FP_TO_SINT, MVT::v16i32, MVT::v16f16, 8}, // 4*fcvtl+4*fcvtzs
+      {ISD::FP_TO_UINT, MVT::v16i32, MVT::v16f16, 8},
+  };
+
+  if (ST->hasFullFP16())
+    if (const auto *Entry = ConvertCostTableLookup(
+            FP16Tbl, ISD, DstTy.getSimpleVT(), SrcTy.getSimpleVT()))
+      return AdjustCost(Entry->Cost);
+
   return AdjustCost(
       BaseT::getCastInstrCost(Opcode, Dst, Src, CCH, CostKind, I));
 }
@@ -1822,6 +1850,9 @@ InstructionCost AArch64TTIImpl::getArithmeticInstrCost(
   case ISD::XOR:
   case ISD::OR:
   case ISD::AND:
+  case ISD::SRL:
+  case ISD::SRA:
+  case ISD::SHL:
     // These nodes are marked as 'custom' for combining purposes only.
     // We know that they are legal. See LowerAdd in ISelLowering.
     return (Cost + 1) * LT.first;
@@ -1886,14 +1917,21 @@ InstructionCost AArch64TTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
                             m_Value())))
         VecPred = CurrentPred;
     }
-    // Check if we have a compare/select chain that can be lowered using CMxx &
-    // BFI pair.
-    if (CmpInst::isIntPredicate(VecPred)) {
-      static const auto ValidMinMaxTys = {MVT::v8i8,  MVT::v16i8, MVT::v4i16,
-                                          MVT::v8i16, MVT::v2i32, MVT::v4i32,
-                                          MVT::v2i64};
+    // Check if we have a compare/select chain that can be lowered using
+    // a (F)CMxx & BFI pair.
+    if (CmpInst::isIntPredicate(VecPred) || VecPred == CmpInst::FCMP_OLE ||
+        VecPred == CmpInst::FCMP_OLT || VecPred == CmpInst::FCMP_OGT ||
+        VecPred == CmpInst::FCMP_OGE || VecPred == CmpInst::FCMP_OEQ ||
+        VecPred == CmpInst::FCMP_UNE) {
+      static const auto ValidMinMaxTys = {
+          MVT::v8i8,  MVT::v16i8, MVT::v4i16, MVT::v8i16, MVT::v2i32,
+          MVT::v4i32, MVT::v2i64, MVT::v2f32, MVT::v4f32, MVT::v2f64};
+      static const auto ValidFP16MinMaxTys = {MVT::v4f16, MVT::v8f16};
+
       auto LT = TLI->getTypeLegalizationCost(DL, ValTy);
-      if (any_of(ValidMinMaxTys, [&LT](MVT M) { return M == LT.second; }))
+      if (any_of(ValidMinMaxTys, [&LT](MVT M) { return M == LT.second; }) ||
+          (ST->hasFullFP16() &&
+           any_of(ValidFP16MinMaxTys, [&LT](MVT M) { return M == LT.second; })))
         return LT.first;
     }
 

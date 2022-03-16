@@ -12,8 +12,8 @@
 
 #include <__algorithm/find_if.h>
 #include <__algorithm/min.h>
+#include <__assert>
 #include <__config>
-#include <__debug>
 #include <__format/format_arg.h>
 #include <__format/format_error.h>
 #include <__format/format_string.h>
@@ -24,7 +24,7 @@
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-# pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_PUSH_MACROS
@@ -45,13 +45,14 @@ namespace __format_spec {
 /**
  * Contains the flags for the std-format-spec.
  *
- * Some format-options can only be used for specific C++types and may depend on
+ * Some format-options can only be used for specific C++ types and may depend on
  * the selected format-type.
  * * The C++type filtering can be done using the proper policies for
  *   @ref __parser_std.
  * * The format-type filtering needs to be done post parsing in the parser
  *   derived from @ref __parser_std.
  */
+_LIBCPP_PACKED_BYTE_FOR_AIX
 class _LIBCPP_TYPE_VIS _Flags {
 public:
   enum class _LIBCPP_ENUM_VIS _Alignment : uint8_t {
@@ -109,6 +110,7 @@ public:
 
   _Type __type{_Type::__default};
 };
+_LIBCPP_PACKED_BYTE_FOR_AIX_END
 
 namespace __detail {
 template <class _CharT>
@@ -1271,7 +1273,7 @@ __estimate_column_width(const _CharT* __first, const _CharT* __last,
   size_t __result = 0;
 
   while (__first != __last) {
-    wchar_t __c = *__first;
+    uint32_t __c = *__first;
     __result += __column_width(__c);
 
     if (__result > __maximum)

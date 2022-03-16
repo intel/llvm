@@ -13,9 +13,18 @@ def exclude_from_consideration(path):
         path.endswith('.txt') or
         path.endswith('.modulemap') or
         os.path.basename(path) == '__config' or
-        os.path.basename(path) == '__locale' or
+        os.path.basename(path) == '__config_site.in' or
+        os.path.basename(path) == '__libcpp_version' or
         not os.path.isfile(path)
     )
+
+
+def check_for_pragma_GCC_system_header(pretty_fname, lines):
+    if pretty_fname not in ['__undef_macros']:
+        if '#  pragma GCC system_header\n' not in lines:
+            print('FAILED TO FIND #  pragma GCC system_header in libcxx/include/%s!' % pretty_fname)
+            return False
+    return True
 
 
 if __name__ == '__main__':
@@ -35,18 +44,10 @@ if __name__ == '__main__':
 
     okay = True
     for fname in all_headers:
+        pretty_fname = pretty(fname)
         with open(fname, 'r') as f:
             lines = f.readlines()
-        # Examine each consecutive run of #include directives.
-        prevline = None
-        for line in lines:
-            if re.match(r'^\s*#\s*include ', line):
-                if (prevline is not None) and (line < prevline):
-                    okay = False
-                    print('LINES OUT OF ORDER in libcxx/include/%s!' % pretty(fname))
-                    print(prevline)
-                    print(line)
-                prevline = line
-            else:
-                prevline = None
+
+        okay = check_for_pragma_GCC_system_header(pretty_fname, lines) and okay
+
     assert okay

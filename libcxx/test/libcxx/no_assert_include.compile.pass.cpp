@@ -205,9 +205,6 @@
 #        include <experimental/coroutine>
 #    endif
 #    include <experimental/deque>
-#    ifndef _LIBCPP_HAS_NO_FILESYSTEM_LIBRARY
-#        include <experimental/filesystem>
-#    endif
 #    include <experimental/forward_list>
 #    include <experimental/functional>
 #    include <experimental/iterator>
@@ -227,10 +224,6 @@
 #    include <experimental/utility>
 #    include <experimental/vector>
 #endif // __cplusplus >= 201103L
-
-// extended headers
-#include <ext/hash_map>
-#include <ext/hash_set>
 
 // clang-format on
 

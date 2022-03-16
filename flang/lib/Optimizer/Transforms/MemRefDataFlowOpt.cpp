@@ -11,7 +11,7 @@
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Transforms/Passes.h"
@@ -101,20 +101,20 @@ public:
     LoadStoreForwarding<fir::LoadOp, fir::StoreOp> lsf(domInfo);
     f.walk([&](fir::LoadOp loadOp) {
       auto maybeStore = lsf.findStoreToForward(
-          loadOp, getSpecificUsers<fir::StoreOp>(loadOp.memref()));
+          loadOp, getSpecificUsers<fir::StoreOp>(loadOp.getMemref()));
       if (maybeStore) {
         auto storeOp = maybeStore.getValue();
         LLVM_DEBUG(llvm::dbgs() << "FlangMemDataFlowOpt: In " << f.getName()
                                 << " erasing load " << loadOp
                                 << " with value from " << storeOp << '\n');
-        loadOp.getResult().replaceAllUsesWith(storeOp.value());
+        loadOp.getResult().replaceAllUsesWith(storeOp.getValue());
         loadOp.erase();
       }
     });
     f.walk([&](fir::AllocaOp alloca) {
       for (auto &storeOp : getSpecificUsers<fir::StoreOp>(alloca.getResult())) {
         if (!lsf.findReadForWrite(
-                storeOp, getSpecificUsers<fir::LoadOp>(storeOp.memref()))) {
+                storeOp, getSpecificUsers<fir::LoadOp>(storeOp.getMemref()))) {
           LLVM_DEBUG(llvm::dbgs() << "FlangMemDataFlowOpt: In " << f.getName()
                                   << " erasing store " << storeOp << '\n');
           storeOp.erase();

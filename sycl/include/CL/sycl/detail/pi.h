@@ -115,6 +115,9 @@ typedef enum {
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
   PI_LINK_PROGRAM_FAILURE = CL_LINK_PROGRAM_FAILURE,
+  PI_COMMAND_EXECUTION_FAILURE =
+      -997, ///< PI_COMMAND_EXECUTION_FAILURE indicates an error occurred
+            ///< during command enqueue or execution.
   PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE =
       -998, ///< PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE indicates a fallback
             ///< method determines the function exists but its address cannot be
@@ -302,6 +305,8 @@ typedef enum {
   PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 0x10025,
   PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026,
   PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
+  // Return true if sub-device should do its own program build
+  PI_DEVICE_INFO_BUILD_ON_SUBDEVICE = 0x10028,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
   PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
@@ -445,7 +450,17 @@ typedef enum {
 
 typedef enum {
   // Device-specific value opaque in PI API.
-  PI_MEM_ADVISE_UNKNOWN
+  PI_MEM_ADVICE_UNKNOWN,
+  PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY = 101,
+  PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY = 102,
+  PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION = 103,
+  PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION = 104,
+  PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY = 105,
+  PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY = 106,
+  PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST = 107,
+  PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 108,
+  PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 109,
+  PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 110,
 } _pi_mem_advice;
 
 typedef enum {
@@ -576,6 +591,13 @@ constexpr pi_map_flags PI_MAP_WRITE_INVALIDATE_REGION =
 // make the translation to OpenCL transparent.
 using pi_mem_properties = pi_bitfield;
 constexpr pi_mem_properties PI_MEM_PROPERTIES_CHANNEL = CL_MEM_CHANNEL_INTEL;
+
+// NOTE: this is made 64-bit to match the size of cl_mem_properties_intel to
+// make the translation to OpenCL transparent.
+using pi_usm_mem_properties = pi_bitfield;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL;
+constexpr pi_usm_mem_properties PI_MEM_USM_ALLOC_BUFFER_LOCATION =
+    CL_MEM_ALLOC_BUFFER_LOCATION_INTEL;
 
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
@@ -741,6 +763,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
 /// PropertySetRegistry::SYCL_EXPORTED_SYMBOLS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
+/// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
@@ -1592,10 +1616,6 @@ typedef enum {
   PI_MEM_TYPE_SHARED = CL_MEM_TYPE_SHARED_INTEL
 } _pi_usm_type;
 
-typedef enum : pi_bitfield {
-  PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL
-} _pi_usm_mem_properties;
-
 // Flag is used for piProgramUSMEnqueuePrefetch. PI_USM_MIGRATION_TBD0 is a
 // placeholder for future developments and should not change the behaviour of
 // piProgramUSMEnqueuePrefetch
@@ -1607,7 +1627,6 @@ using pi_usm_capability_query = _pi_usm_capability_query;
 using pi_usm_capabilities = _pi_usm_capabilities;
 using pi_mem_info = _pi_mem_info;
 using pi_usm_type = _pi_usm_type;
-using pi_usm_mem_properties = _pi_usm_mem_properties;
 using pi_usm_migration_flags = _pi_usm_migration_flags;
 
 /// Allocates host memory accessible by the device.

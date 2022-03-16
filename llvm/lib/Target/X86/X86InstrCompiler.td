@@ -839,6 +839,38 @@ let Predicates = [UseIncDec] in {
   def : Pat<(X86lock_sub addr:$dst, (i64 -1)), (LOCK_INC64m addr:$dst)>;
 }
 
+// Atomic bit test.
+def X86LBTest : SDTypeProfile<1, 3, [SDTCisVT<0, i32>, SDTCisPtrTy<1>,
+                                     SDTCisVT<2, i8>, SDTCisVT<3, i32>]>;
+def x86bts : SDNode<"X86ISD::LBTS", X86LBTest,
+                    [SDNPHasChain, SDNPMayLoad, SDNPMayStore, SDNPMemOperand]>;
+def x86btc : SDNode<"X86ISD::LBTC", X86LBTest,
+                    [SDNPHasChain, SDNPMayLoad, SDNPMayStore, SDNPMemOperand]>;
+def x86btr : SDNode<"X86ISD::LBTR", X86LBTest,
+                    [SDNPHasChain, SDNPMayLoad, SDNPMayStore, SDNPMemOperand]>;
+
+multiclass ATOMIC_LOGIC_OP<Format Form, string s> {
+  let Defs = [EFLAGS], mayLoad = 1, mayStore = 1, isCodeGenOnly = 1,
+      SchedRW = [WriteBitTestSetRegRMW]  in {
+    def 16m : Ii8<0xBA, Form, (outs), (ins i16mem:$src1, i8imm:$src2),
+                  !strconcat(s, "{w}\t{$src2, $src1|$src1, $src2}"),
+                  [(set EFLAGS, (!cast<SDNode>("x86" # s) addr:$src1, timm:$src2, (i32 16)))]>,
+              OpSize16, TB, LOCK;
+    def 32m : Ii8<0xBA, Form, (outs), (ins i32mem:$src1, i8imm:$src2),
+                  !strconcat(s, "{l}\t{$src2, $src1|$src1, $src2}"),
+                  [(set EFLAGS, (!cast<SDNode>("x86" # s) addr:$src1, timm:$src2, (i32 32)))]>,
+              OpSize32, TB, LOCK;
+    def 64m : RIi8<0xBA, Form, (outs), (ins i64mem:$src1, i8imm:$src2),
+                   !strconcat(s, "{q}\t{$src2, $src1|$src1, $src2}"),
+                   [(set EFLAGS, (!cast<SDNode>("x86" # s) addr:$src1, timm:$src2, (i32 64)))]>,
+              TB, LOCK;
+  }
+}
+
+defm LOCK_BTS : ATOMIC_LOGIC_OP<MRM5m, "bts">;
+defm LOCK_BTC : ATOMIC_LOGIC_OP<MRM7m, "btc">;
+defm LOCK_BTR : ATOMIC_LOGIC_OP<MRM6m, "btr">;
+
 // Atomic compare and swap.
 multiclass LCMPXCHG_BinOp<bits<8> Opc8, bits<8> Opc, Format Form,
                           string mnemonic, SDPatternOperator frag> {
@@ -1235,6 +1267,21 @@ def X86tcret_6regs : PatFrag<(ops node:$ptr, node:$off),
   return true;
 }]>;
 
+def X86tcret_1reg : PatFrag<(ops node:$ptr, node:$off),
+                             (X86tcret node:$ptr, node:$off), [{
+  // X86tcret args: (*chain, ptr, imm, regs..., glue)
+  unsigned NumRegs = 1;
+  const SDValue& BasePtr = cast<LoadSDNode>(N->getOperand(1))->getBasePtr();
+  if (isa<FrameIndexSDNode>(BasePtr))
+    NumRegs = 3;
+  else if (BasePtr->getNumOperands() && isa<GlobalAddressSDNode>(BasePtr->getOperand(0)))
+    NumRegs = 3;
+  for (unsigned i = 3, e = N->getNumOperands(); i != e; ++i)
+    if (isa<RegisterSDNode>(N->getOperand(i)) && ( NumRegs-- == 0))
+      return false;
+  return true;
+}]>;
+
 def : Pat<(X86tcret ptr_rc_tailcall:$dst, timm:$off),
           (TCRETURNri ptr_rc_tailcall:$dst, timm:$off)>,
           Requires<[Not64BitMode, NotUseIndirectThunkCalls]>;
@@ -1242,7 +1289,8 @@ def : Pat<(X86tcret ptr_rc_tailcall:$dst, timm:$off),
 // FIXME: This is disabled for 32-bit PIC mode because the global base
 // register which is part of the address mode may be assigned a
 // callee-saved register.
-def : Pat<(X86tcret (load addr:$dst), timm:$off),
+// Similar to X86tcret_6regs, here we only have 1 register left
+def : Pat<(X86tcret_1reg (load addr:$dst), timm:$off),
           (TCRETURNmi addr:$dst, timm:$off)>,
           Requires<[Not64BitMode, IsNotPIC, NotUseIndirectThunkCalls]>;
 

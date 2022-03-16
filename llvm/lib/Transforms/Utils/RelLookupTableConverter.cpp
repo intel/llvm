@@ -18,9 +18,6 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
-#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 using namespace llvm;
 
@@ -38,11 +35,13 @@ static bool shouldConvertToRelLookupTable(Module &M, GlobalVariable &GV) {
 
   GetElementPtrInst *GEP =
       dyn_cast<GetElementPtrInst>(GV.use_begin()->getUser());
-  if (!GEP || !GEP->hasOneUse())
+  if (!GEP || !GEP->hasOneUse() ||
+      GV.getValueType() != GEP->getSourceElementType())
     return false;
 
   LoadInst *Load = dyn_cast<LoadInst>(GEP->use_begin()->getUser());
-  if (!Load || !Load->hasOneUse())
+  if (!Load || !Load->hasOneUse() ||
+      Load->getType() != GEP->getResultElementType())
     return false;
 
   // If the original lookup table does not have local linkage and is

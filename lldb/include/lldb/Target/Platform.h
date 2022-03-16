@@ -217,7 +217,7 @@ public:
   llvm::Optional<std::string> GetOSKernelDescription();
 
   // Returns the name of the platform
-  ConstString GetName();
+  llvm::StringRef GetName() { return GetPluginName(); }
 
   virtual const char *GetHostname();
 
@@ -508,17 +508,17 @@ public:
 
   virtual uint64_t ReadFile(lldb::user_id_t fd, uint64_t offset, void *dst,
                             uint64_t dst_len, Status &error) {
-    error.SetErrorStringWithFormat(
-        "Platform::ReadFile() is not supported in the %s platform",
-        GetName().GetCString());
+    error.SetErrorStringWithFormatv(
+        "Platform::ReadFile() is not supported in the {0} platform",
+        GetPluginName());
     return -1;
   }
 
   virtual uint64_t WriteFile(lldb::user_id_t fd, uint64_t offset,
                              const void *src, uint64_t src_len, Status &error) {
-    error.SetErrorStringWithFormat(
-        "Platform::WriteFile() is not supported in the %s platform",
-        GetName().GetCString());
+    error.SetErrorStringWithFormatv(
+        "Platform::WriteFile() is not supported in the {0} platform",
+        GetPluginName());
     return -1;
   }
 
@@ -892,7 +892,7 @@ protected:
   FileSpec m_working_dir; // The working directory which is used when installing
                           // modules that have no install path set
   std::string m_remote_url;
-  std::string m_name;
+  std::string m_hostname;
   llvm::VersionTuple m_os_version;
   ArchSpec
       m_system_arch; // The architecture of the kernel or the remote platform

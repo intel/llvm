@@ -54,7 +54,7 @@ docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llv
 ```
 
 This command will start a terminal session, from which you can proceed with the
-instructions below. See [Docker BKMs](dev/DockerBKMs.md) for more info on Docker
+instructions below. See [Docker BKMs](developer/DockerBKMs.md) for more info on Docker
 commands.
 
 ### Create DPC++ workspace
@@ -177,6 +177,9 @@ the system, refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
 or
 [NVIDIA CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html)
+An installation of at least
+[CUDA 11.0](https://developer.nvidia.com/cuda-11.0-download-archive)
+is required for fully utilize Turing (SM 75) devices.
 
 Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
 a Titan RTX GPU (SM 71). The CUDA backend should work on Windows or Linux 
@@ -434,7 +437,7 @@ command:
 
 ### Obtain prerequisites for ahead of time (AOT) compilation
 
-[Ahead of time compilation](CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
+[Ahead of time compilation](design/CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
 requires ahead of time compiler available in `PATH`. There is
 AOT compiler for each device type:
 
@@ -502,10 +505,10 @@ skipped.
 If CUDA support has been built, it is tested only if there are CUDA devices
 available.
 
-If testing with HIP for AMD make sure to specify the GPU being used
-by adding `-hip-amd-arch=<target>`to buildbot/configure.py or add 
-`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` 
-to the CMake variable `SYCL_CLANG_EXTRA_FLAGS`.
+If testing with HIP for AMD, the lit tests will use `gfx906` as the default
+architecture. It is possible to change it by adding
+`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` to the CMake
+variable `SYCL_CLANG_EXTRA_FLAGS`.
 
 #### Run DPC++ E2E test suite
 
@@ -660,7 +663,7 @@ clang++ -fsycl -fsycl-targets=spir64_gen,spir64_x86_64 simple-sycl-app.cpp -o si
 
 Additionally, user can pass specific options of AOT compiler to
 the DPC++ compiler using ```-Xsycl-target-backend``` option, see
-[Device code formats](CompilerAndRuntimeDesign.md#device-code-formats) for
+[Device code formats](design/CompilerAndRuntimeDesign.md#device-code-formats) for
 more. To find available options, execute:
 
 ```ocloc compile --help``` for GPU,
@@ -705,7 +708,7 @@ SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
 
 **NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
 device selectors (e.g. `cl::sycl::cpu_selector`, `cl::sycl::gpu_selector`,
-[Intel FPGA selector(s)](extensions/supported/SYCL_EXT_INTEL_FPGA_DEVICE_SELECTOR.md)) as
+[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md)) as
 explained in following section [Code the program for a specific
 GPU](#code-the-program-for-a-specific-gpu).
 

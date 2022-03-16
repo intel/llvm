@@ -66,6 +66,7 @@ public:
   bool hasExtension(StringRef Ext) const;
   std::string toString() const;
   std::vector<std::string> toFeatureVector() const;
+  StringRef computeDefaultABI() const;
 
   static bool isSupportedExtensionFeature(StringRef Ext);
   static bool isSupportedExtension(StringRef Ext);
@@ -92,6 +93,9 @@ private:
   void updateFLen();
   void updateMinVLen();
   void updateMaxELen();
+
+  static llvm::Expected<std::unique_ptr<RISCVISAInfo>>
+  postProcessAndChecking(std::unique_ptr<RISCVISAInfo> &&ISAInfo);
 };
 
 } // namespace llvm

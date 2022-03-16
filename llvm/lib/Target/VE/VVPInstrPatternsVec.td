@@ -17,6 +17,85 @@
 //===----------------------------------------------------------------------===//
 include "VVPInstrInfo.td"
 
+multiclass VectorStore<ValueType DataVT,
+    ValueType PtrVT, ValueType MaskVT,
+    string STWithMask, string STNoMask> {
+  // Unmasked (imm stride).
+  def : Pat<(vvp_store
+               DataVT:$val, PtrVT:$addr,
+               (i64 simm7:$stride), (MaskVT true_mask), i32:$avl),
+            (!cast<Instruction>(STNoMask#"irvl")
+               (LO7 $stride), $addr, $val, $avl)>;
+  // Unmasked.
+  def : Pat<(vvp_store
+               DataVT:$val, PtrVT:$addr,
+               i64:$stride, (MaskVT true_mask), i32:$avl),
+            (!cast<Instruction>(STNoMask#"rrvl")
+               $stride, $addr, $val, $avl)>;
+  // Masked (imm stride).
+  def : Pat<(vvp_store
+               DataVT:$val, PtrVT:$addr,
+               (i64 simm7:$stride), MaskVT:$mask, i32:$avl),
+            (!cast<Instruction>(STWithMask#"irvml")
+               (LO7 $stride), $addr, $val, $mask, $avl)>;
+  // Masked.
+  def : Pat<(vvp_store
+               DataVT:$val, PtrVT:$addr,
+               i64:$stride, MaskVT:$mask, i32:$avl),
+            (!cast<Instruction>(STWithMask#"rrvml")
+               $stride, $addr, $val, $mask, $avl)>;
+}
+
+defm : VectorStore<v256f64, i64, v256i1, "VST",  "VST">;
+defm : VectorStore<v256i64, i64, v256i1, "VST",  "VST">;
+defm : VectorStore<v256f32, i64, v256i1, "VSTU", "VSTU">;
+defm : VectorStore<v256i32, i64, v256i1, "VSTL", "VSTL">;
+
+multiclass VectorLoad<ValueType DataVT,
+    ValueType PtrVT, ValueType MaskVT,
+    string GTWithMask, string LDNoMask> {
+  // Unmasked (imm stride).
+  def : Pat<(DataVT (vvp_load
+               PtrVT:$addr, (i64 simm7:$stride),
+               (MaskVT true_mask), i32:$avl)),
+            (!cast<Instruction>(LDNoMask#"irl")
+               (LO7 $stride), $addr, $avl)>;
+  // Unmasked.
+  def : Pat<(DataVT (vvp_load
+               PtrVT:$addr, i64:$stride,
+               (MaskVT true_mask), i32:$avl)),
+            (!cast<Instruction>(LDNoMask#"rrl")
+               $stride, PtrVT:$addr, $avl)>;
+  // Masked (imm stride).
+  def : Pat<(DataVT (vvp_load
+               PtrVT:$addr, (i64 simm7:$stride),
+               MaskVT:$mask, i32:$avl)),
+            (!cast<Instruction>(GTWithMask#"vizml")
+               (VADDULrvml $addr,
+                  (VMULULivml (LO7 $stride), (VSEQl $avl), $mask, $avl),
+                  $mask, $avl),
+               0, 0,
+               $mask,
+               $avl)>;
+  // Masked.
+  def : Pat<(DataVT (vvp_load
+               PtrVT:$addr, i64:$stride, MaskVT:$mask, i32:$avl)),
+            (!cast<Instruction>(GTWithMask#"vizml")
+               (VADDULrvml $addr,
+                  (VMULULrvml $stride, (VSEQl $avl), $mask, $avl),
+                  $mask, $avl),
+               0, 0,
+               $mask,
+               $avl)>;
+}
+
+defm : VectorLoad<v256f64, i64, v256i1, "VGT",    "VLD">;
+defm : VectorLoad<v256i64, i64, v256i1, "VGT",    "VLD">;
+defm : VectorLoad<v256f32, i64, v256i1, "VGTU",   "VLDU">;
+defm : VectorLoad<v256i32, i64, v256i1, "VGTLZX", "VLDLZX">;
+
+
+
 multiclass Binary_rv<SDPatternOperator OpNode,
     ValueType ScalarVT, ValueType DataVT,
     ValueType MaskVT, string OpBaseName> {
@@ -237,6 +316,31 @@ defm : Binary_rv_vr_vv_ShortLong<vvp_fdiv,
                               f64, v256f64, "VFDIVD",
                               f32, v256f32, "VFDIVS">;
 
+defm : Binary_rv_vv<c_vvp_and,
+                    i64, v512i32, v512i1, "PVAND">;
+defm : Binary_rv_vv<c_vvp_or,
+                    i64, v512i32, v512i1, "PVOR">;
+defm : Binary_rv_vv<c_vvp_xor,
+                    i64, v512i32, v512i1, "PVXOR">;
+
+defm : Binary_rv_vv<c_vvp_add,
+                    i64, v512i32, v512i1, "PVADDU">;
+defm : Binary_rv_vv<vvp_sub,
+                    i64, v512i32, v512i1, "PVSUBU">;
+defm : Binary_vr_vv<vvp_srl,
+                    i64, v512i32, v512i1, "PVSRL">;
+defm : Binary_vr_vv<vvp_sra,
+                    i64, v512i32, v512i1, "PVSRA">;
+defm : Binary_vr_vv<vvp_shl,
+                    i64, v512i32, v512i1, "PVSLL">;
+
+defm : Binary_rv_vv<c_vvp_fadd,
+                    i64, v512f32, v512i1, "PVFADD">;
+defm : Binary_rv_vv<c_vvp_fmul,
+                    i64, v512f32, v512i1, "PVFMUL">;
+defm : Binary_rv_vv<vvp_fsub,
+                    i64, v512f32, v512i1, "PVFSUB">;
+
 multiclass Merge_mvv<
     SDPatternOperator OpNode,
     ValueType DataVT, ValueType MaskVT,
@@ -268,3 +372,30 @@ defm : Merge_mvv_ShortLong<vvp_select,
 defm : Merge_mvv_ShortLong<vvp_select,
                            v256i64,
                            v256i32, "VMRG">;
+
+multiclass Set_CC<ValueType DataVT, string FmkBaseName, string CmpBaseName, SDPatternOperator CCMatcher, SDNodeXForm CCConv> {
+  // Unmasked.
+  def : Pat<(v256i1 (vvp_setcc
+              DataVT:$LHS, DataVT:$RHS, CCMatcher:$cond, (v256i1 true_mask), i32:$vl)),
+              (!cast<Instruction>(FmkBaseName#"vl")
+                (CCConv $cond),
+                (!cast<Instruction>(CmpBaseName#"vvl")
+                  $LHS, $RHS, $vl),
+                $vl)>;
+  // Masked.
+  def : Pat<(v256i1 (vvp_setcc
+              DataVT:$LHS, DataVT:$RHS, CCMatcher:$cond, v256i1:$vm, i32:$vl)),
+              (!cast<Instruction>(FmkBaseName#"vml")
+                (CCConv $cond),
+                (!cast<Instruction>(CmpBaseName#"vvl")
+                  $LHS, $RHS, $vl),
+                $vm, $vl)>;
+}
+
+defm : Set_CC<v256i64,"VFMKL","VCMPUL",CCUIOp,icond2cc>;
+defm : Set_CC<v256i64,"VFMKL","VCMPSL",CCSIOp,icond2cc>;
+defm : Set_CC<v256f64,"VFMKL","VFCMPD",cond,fcond2cc>;
+
+defm : Set_CC<v256i32,"VFMKW","VCMPUW",CCUIOp,icond2cc>;
+defm : Set_CC<v256i32,"VFMKW","VCMPSWZX",CCSIOp,icond2cc>;
+defm : Set_CC<v256f32,"VFMKS","VFCMPS",cond,fcond2cc>;

@@ -21,13 +21,12 @@
 #ifndef LLVM_ANALYSIS_TARGETTRANSFORMINFO_H
 #define LLVM_ANALYSIS_TARGETTRANSFORMINFO_H
 
+#include "llvm/IR/FMF.h"
 #include "llvm/IR/InstrTypes.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/BranchProbability.h"
-#include "llvm/Support/DataTypes.h"
 #include "llvm/Support/InstructionCost.h"
 #include <functional>
 #include <utility>
@@ -1789,7 +1788,7 @@ class TargetTransformInfo::Model final : public TargetTransformInfo::Concept {
 
 public:
   Model(T Impl) : Impl(std::move(Impl)) {}
-  ~Model() override {}
+  ~Model() override = default;
 
   const DataLayout &getDataLayout() const override {
     return Impl.getDataLayout();

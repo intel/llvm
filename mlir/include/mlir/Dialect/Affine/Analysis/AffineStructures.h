@@ -13,7 +13,7 @@
 #ifndef MLIR_DIALECT_AFFINE_ANALYSIS_AFFINESTRUCTURES_H
 #define MLIR_DIALECT_AFFINE_ANALYSIS_AFFINESTRUCTURES_H
 
-#include "mlir/Analysis/Presburger/IntegerPolyhedron.h"
+#include "mlir/Analysis/Presburger/IntegerRelation.h"
 #include "mlir/Analysis/Presburger/Matrix.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/OpDefinition.h"
@@ -57,7 +57,7 @@ struct MutableAffineMap;
 /// that some floordiv combinations are converted to mod's by AffineExpr
 /// construction.
 ///
-class FlatAffineConstraints : public IntegerPolyhedron {
+class FlatAffineConstraints : public presburger::IntegerPolyhedron {
 public:
   /// Constructs a constraint system reserving memory for the specified number
   /// of constraints and identifiers.
@@ -98,12 +98,50 @@ public:
   /// Return the kind of this FlatAffineConstraints.
   Kind getKind() const override { return Kind::FlatAffineConstraints; }
 
-  static bool classof(const IntegerPolyhedron *cst) {
+  static bool classof(const IntegerRelation *cst) {
     return cst->getKind() == Kind::FlatAffineConstraints;
   }
 
+  /// Clears any existing data and reserves memory for the specified
+  /// constraints.
+  virtual void reset(unsigned numReservedInequalities,
+                     unsigned numReservedEqualities, unsigned numReservedCols,
+                     unsigned numDims, unsigned numSymbols,
+                     unsigned numLocals = 0);
+  void reset(unsigned numDims = 0, unsigned numSymbols = 0,
+             unsigned numLocals = 0);
+
   // Clones this object.
   std::unique_ptr<FlatAffineConstraints> clone() const;
+
+  /// Insert `num` identifiers of the specified kind at position `pos`.
+  /// Positions are relative to the kind of identifier. The coefficient columns
+  /// corresponding to the added identifiers are initialized to zero. Return the
+  /// absolute column position (i.e., not relative to the kind of identifier)
+  /// of the first added identifier.
+  unsigned insertDimId(unsigned pos, unsigned num = 1) {
+    return insertId(IdKind::SetDim, pos, num);
+  }
+  unsigned insertSymbolId(unsigned pos, unsigned num = 1) {
+    return insertId(IdKind::Symbol, pos, num);
+  }
+  unsigned insertLocalId(unsigned pos, unsigned num = 1) {
+    return insertId(IdKind::Local, pos, num);
+  }
+
+  /// Append `num` identifiers of the specified kind after the last identifier.
+  /// of that kind. Return the position of the first appended column relative to
+  /// the kind of identifier. The coefficient columns corresponding to the added
+  /// identifiers are initialized to zero.
+  unsigned appendDimId(unsigned num = 1) {
+    return appendId(IdKind::SetDim, num);
+  }
+  unsigned appendSymbolId(unsigned num = 1) {
+    return appendId(IdKind::Symbol, num);
+  }
+  unsigned appendLocalId(unsigned num = 1) {
+    return appendId(IdKind::Local, num);
+  }
 
   /// Adds a bound for the identifier at the specified position with constraints
   /// being drawn from the specified bound map. In case of an EQ bound, the
@@ -141,7 +179,7 @@ public:
   LogicalResult composeMatchingMap(AffineMap other);
 
   /// Replaces the contents of this FlatAffineConstraints with `other`.
-  void clearAndCopyFrom(const IntegerPolyhedron &other) override;
+  void clearAndCopyFrom(const IntegerRelation &other) override;
 
   /// Gets the lower and upper bound of the `offset` + `pos`th identifier
   /// treating [0, offset) U [offset + num, symStartPos) as dimensions and
@@ -156,6 +194,8 @@ public:
                         MLIRContext *context) const;
 
 protected:
+  using IdKind = presburger::IdKind;
+
   /// Given an affine map that is aligned with this constraint system:
   /// * Flatten the map.
   /// * Add newly introduced local columns at the beginning of this constraint
@@ -188,11 +228,11 @@ public:
                              ArrayRef<Optional<Value>> valArgs = {})
       : FlatAffineConstraints(numReservedInequalities, numReservedEqualities,
                               numReservedCols, numDims, numSymbols, numLocals) {
-    assert(numReservedCols >= numIds + 1);
-    assert(valArgs.empty() || valArgs.size() == numIds);
+    assert(numReservedCols >= getNumIds() + 1);
+    assert(valArgs.empty() || valArgs.size() == getNumIds());
     values.reserve(numReservedCols);
     if (valArgs.empty())
-      values.resize(numIds, None);
+      values.resize(getNumIds(), None);
     else
       values.append(valArgs.begin(), valArgs.end());
   }
@@ -211,9 +251,9 @@ public:
   FlatAffineValueConstraints(const FlatAffineConstraints &fac,
                              ArrayRef<Optional<Value>> valArgs = {})
       : FlatAffineConstraints(fac) {
-    assert(valArgs.empty() || valArgs.size() == numIds);
+    assert(valArgs.empty() || valArgs.size() == getNumIds());
     if (valArgs.empty())
-      values.resize(numIds, None);
+      values.resize(getNumIds(), None);
     else
       values.append(valArgs.begin(), valArgs.end());
   }
@@ -246,7 +286,7 @@ public:
   /// Return the kind of this FlatAffineConstraints.
   Kind getKind() const override { return Kind::FlatAffineValueConstraints; }
 
-  static bool classof(const IntegerPolyhedron *cst) {
+  static bool classof(const IntegerRelation *cst) {
     return cst->getKind() == Kind::FlatAffineValueConstraints;
   }
 
@@ -444,7 +484,7 @@ public:
   bool areIdsAlignedWithOther(const FlatAffineValueConstraints &other);
 
   /// Replaces the contents of this FlatAffineValueConstraints with `other`.
-  void clearAndCopyFrom(const IntegerPolyhedron &other) override;
+  void clearAndCopyFrom(const IntegerRelation &other) override;
 
   /// Returns the Value associated with the pos^th identifier. Asserts if
   /// no Value identifier was associated.
@@ -463,15 +503,15 @@ public:
   /// Asserts if no Value was associated with one of these identifiers.
   inline void getValues(unsigned start, unsigned end,
                         SmallVectorImpl<Value> *values) const {
-    assert((start < numIds || start == end) && "invalid start position");
-    assert(end <= numIds && "invalid end position");
+    assert((start < getNumIds() || start == end) && "invalid start position");
+    assert(end <= getNumIds() && "invalid end position");
     values->clear();
     values->reserve(end - start);
     for (unsigned i = start; i < end; i++)
       values->push_back(getValue(i));
   }
   inline void getAllValues(SmallVectorImpl<Value> *values) const {
-    getValues(0, numIds, values);
+    getValues(0, getNumIds(), values);
   }
 
   inline ArrayRef<Optional<Value>> getMaybeValues() const {
@@ -492,14 +532,14 @@ public:
 
   /// Sets the Value associated with the pos^th identifier.
   inline void setValue(unsigned pos, Value val) {
-    assert(pos < numIds && "invalid id position");
+    assert(pos < getNumIds() && "invalid id position");
     values[pos] = val;
   }
 
   /// Sets the Values associated with the identifiers in the range [start, end).
   void setValues(unsigned start, unsigned end, ArrayRef<Value> values) {
-    assert((start < numIds || end == start) && "invalid start position");
-    assert(end <= numIds && "invalid end position");
+    assert((start < getNumIds() || end == start) && "invalid start position");
+    assert(end <= getNumIds() && "invalid end position");
     assert(values.size() == end - start);
     for (unsigned i = start; i < end; ++i)
       setValue(i, values[i - start]);

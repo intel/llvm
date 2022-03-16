@@ -345,9 +345,9 @@ public:
 
   Options *GetOptions() override { return &m_option_group; }
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
-    return m_cmd_name.c_str();
+  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                               uint32_t index) override {
+    return m_cmd_name;
   }
 
 protected:
@@ -1586,9 +1586,9 @@ public:
 
   ~CommandObjectMemoryHistory() override = default;
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
-    return m_cmd_name.c_str();
+  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                               uint32_t index) override {
+    return m_cmd_name;
   }
 
 protected:
@@ -1665,14 +1665,11 @@ protected:
     m_prev_end_addr = LLDB_INVALID_ADDRESS;
 
     const size_t argc = command.GetArgumentCount();
-    if (argc > 1 || (argc == 0 && load_addr == LLDB_INVALID_ADDRESS)) {
-      result.AppendErrorWithFormat("'%s' takes one argument:\nUsage: %s\n",
-                                   m_cmd_name.c_str(), m_cmd_syntax.c_str());
-      return false;
-    }
+    const lldb::ABISP &abi = process_sp->GetABI();
 
     if (argc == 1) {
       auto load_addr_str = command[0].ref();
+      // Non-address bits in this will be handled later by GetMemoryRegion
       load_addr = OptionArgParser::ToAddress(&m_exe_ctx, load_addr_str,
                                              LLDB_INVALID_ADDRESS, &error);
       if (error.Fail() || load_addr == LLDB_INVALID_ADDRESS) {
@@ -1680,6 +1677,19 @@ protected:
                                      command[0].c_str(), error.AsCString());
         return false;
       }
+    } else if (argc > 1 ||
+               // When we're repeating the command, the previous end address is
+               // used for load_addr. If that was 0xF...F then we must have
+               // reached the end of memory.
+               (argc == 0 && load_addr == LLDB_INVALID_ADDRESS) ||
+               // If the target has non-address bits (tags, limited virtual
+               // address size, etc.), the end of mappable memory will be lower
+               // than that. So if we find any non-address bit set, we must be
+               // at the end of the mappable range.
+               (abi && (abi->FixDataAddress(load_addr) != load_addr))) {
+      result.AppendErrorWithFormat("'%s' takes one argument:\nUsage: %s\n",
+                                   m_cmd_name.c_str(), m_cmd_syntax.c_str());
+      return false;
     }
 
     lldb_private::MemoryRegionInfo range_info;
@@ -1740,11 +1750,11 @@ protected:
     return false;
   }
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
+  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                               uint32_t index) override {
     // If we repeat this command, repeat it without any arguments so we can
     // show the next memory range
-    return m_cmd_name.c_str();
+    return m_cmd_name;
   }
 
   lldb::addr_t m_prev_end_addr;

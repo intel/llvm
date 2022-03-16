@@ -230,7 +230,9 @@ func @test_string_with_shape(%len: index, %nelems: index) {
 // CHECK-LABEL: llvm.func @test_string_with_shape
 // CHECK-SAME: %[[LEN:.*]]: i64, %[[NELEMS:.*]]: i64)
 // CHECK:   %[[ONE:.*]] = llvm.mlir.constant(1 : i64) : i64
-// CHECK:   %[[LEN_SIZE:.*]] = llvm.mul %[[ONE]], %[[LEN]]  : i64
+// CHECK:   %[[ONE2:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK:   %[[MUL1:.*]] = llvm.mul %[[ONE]], %[[ONE2]]  : i64
+// CHECK:   %[[LEN_SIZE:.*]] = llvm.mul %[[MUL1]], %[[LEN]]  : i64
 // CHECK:   %[[TOTAL_SIZE:.*]] = llvm.mul %[[LEN_SIZE]], %[[NELEMS]]  : i64
 // CHECK:   %[[MEM:.*]] = llvm.call @malloc(%[[TOTAL_SIZE]])
 // CHECK:   %[[B1:.*]] = llvm.bitcast %[[MEM]] : !llvm.ptr<i8> to !llvm.ptr<i8>
@@ -1175,23 +1177,23 @@ func @select_case_integer(%arg0: !fir.ref<i32>) -> i32 {
 ^bb1:  // pred: ^bb0
   %c1_i32_0 = arith.constant 1 : i32
   fir.store %c1_i32_0 to %arg0 : !fir.ref<i32>
-  br ^bb6
+  cf.br ^bb6
 ^bb2:  // pred: ^bb0
   %c2_i32_1 = arith.constant 2 : i32
   fir.store %c2_i32_1 to %arg0 : !fir.ref<i32>
-  br ^bb6
+  cf.br ^bb6
 ^bb3:  // pred: ^bb0
   %c0_i32 = arith.constant 0 : i32
   fir.store %c0_i32 to %arg0 : !fir.ref<i32>
-  br ^bb6
+  cf.br ^bb6
 ^bb4:  // pred: ^bb0
   %c4_i32_2 = arith.constant 4 : i32
   fir.store %c4_i32_2 to %arg0 : !fir.ref<i32>
-  br ^bb6
+  cf.br ^bb6
 ^bb5:  // 3 preds: ^bb0, ^bb0, ^bb0
   %c7_i32_3 = arith.constant 7 : i32
   fir.store %c7_i32_3 to %arg0 : !fir.ref<i32>
-  br ^bb6
+  cf.br ^bb6
 ^bb6:  // 5 preds: ^bb1, ^bb2, ^bb3, ^bb4, ^bb5
   %3 = fir.load %arg0 : !fir.ref<i32>
   return %3 : i32
@@ -1275,10 +1277,10 @@ func @select_case_logical(%arg0: !fir.ref<!fir.logical<4>>) {
                             unit, ^bb3]
 ^bb1:
   %c1_i32 = arith.constant 1 : i32
-  br ^bb3
+  cf.br ^bb3
 ^bb2:
   %c2_i32 = arith.constant 2 : i32
-  br ^bb3
+  cf.br ^bb3
 ^bb3:
   return
 }
@@ -1583,7 +1585,7 @@ func @embox_typecode2(%arg0: !fir.ref<f128>) {
 }
 
 // CHECK-LABEL: llvm.func @embox_typecode2
-// CHECK: %[[TYPE_CODE_F128:.*]] = llvm.mlir.constant(30 : i32) : i32
+// CHECK: %[[TYPE_CODE_F128:.*]] = llvm.mlir.constant(31 : i32) : i32
 // CHECK: %[[TYPE_CODE_F128_I8:.*]] = llvm.trunc %[[TYPE_CODE_F128]] : i32 to i8
 // CHECK: %{{.*}} = llvm.insertvalue %[[TYPE_CODE_F128_I8]], %{{.*}}[4 : i32] : !llvm.struct<(ptr<f128>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}})>
 
@@ -1616,12 +1618,14 @@ func @embox_typecode4(%arg0: !fir.ref<!fir.logical<1>>) {
 // to 1 meaning the addendum is present (true) and the addendum values are
 // inserted.
 
+fir.global linkonce @_QMtest_dinitE.dt.tseq constant : i8
+
 func @embox1(%arg0: !fir.ref<!fir.type<_QMtest_dinitTtseq{i:i32}>>) {
   %0 = fir.embox %arg0() : (!fir.ref<!fir.type<_QMtest_dinitTtseq{i:i32}>>) -> !fir.box<!fir.type<_QMtest_dinitTtseq{i:i32}>>
   return
 }
 
-// CHECK: llvm.mlir.global extern_weak @_QMtest_dinitE.dt.tseq() : i8
+// CHECK: llvm.mlir.global linkonce constant @_QMtest_dinitE.dt.tseq() : i8
 // CHECK-LABEL: llvm.func @embox1
 // CHECK:         %[[TYPE_CODE:.*]] = llvm.mlir.constant(42 : i32) : i32
 // CHECK:         %[[TYPE_CODE_I8:.*]] = llvm.trunc %[[TYPE_CODE]] : i32 to i8

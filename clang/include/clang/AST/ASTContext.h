@@ -211,7 +211,7 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable SmallVector<Type *, 0> Types;
   mutable llvm::FoldingSet<ExtQuals> ExtQualNodes;
   mutable llvm::FoldingSet<ComplexType> ComplexTypes;
-  mutable llvm::FoldingSet<PointerType> PointerTypes;
+  mutable llvm::FoldingSet<PointerType> PointerTypes{GeneralTypesLog2InitSize};
   mutable llvm::FoldingSet<AdjustedType> AdjustedTypes;
   mutable llvm::FoldingSet<BlockPointerType> BlockPointerTypes;
   mutable llvm::FoldingSet<LValueReferenceType> LValueReferenceTypes;
@@ -243,9 +243,10 @@ class ASTContext : public RefCountedBase<ASTContext> {
     SubstTemplateTypeParmPackTypes;
   mutable llvm::ContextualFoldingSet<TemplateSpecializationType, ASTContext&>
     TemplateSpecializationTypes;
-  mutable llvm::FoldingSet<ParenType> ParenTypes;
+  mutable llvm::FoldingSet<ParenType> ParenTypes{GeneralTypesLog2InitSize};
   mutable llvm::FoldingSet<UsingType> UsingTypes;
-  mutable llvm::FoldingSet<ElaboratedType> ElaboratedTypes;
+  mutable llvm::FoldingSet<ElaboratedType> ElaboratedTypes{
+      GeneralTypesLog2InitSize};
   mutable llvm::FoldingSet<DependentNameType> DependentNameTypes;
   mutable llvm::ContextualFoldingSet<DependentTemplateSpecializationType,
                                      ASTContext&>
@@ -466,6 +467,10 @@ class ASTContext : public RefCountedBase<ASTContext> {
   };
   llvm::DenseMap<Module*, PerModuleInitializers*> ModuleInitializers;
 
+  static constexpr unsigned ConstantArrayTypesLog2InitSize = 8;
+  static constexpr unsigned GeneralTypesLog2InitSize = 9;
+  static constexpr unsigned FunctionProtoTypesLog2InitSize = 12;
+
   ASTContext &this_() { return *this; }
 
 public:
@@ -652,6 +657,20 @@ public:
 
   /// Returns the clang bytecode interpreter context.
   interp::Context &getInterpContext();
+
+  struct CUDAConstantEvalContext {
+    /// Do not allow wrong-sided variables in constant expressions.
+    bool NoWrongSidedVars = false;
+  } CUDAConstantEvalCtx;
+  struct CUDAConstantEvalContextRAII {
+    ASTContext &Ctx;
+    CUDAConstantEvalContext SavedCtx;
+    CUDAConstantEvalContextRAII(ASTContext &Ctx_, bool NoWrongSidedVars)
+        : Ctx(Ctx_), SavedCtx(Ctx_.CUDAConstantEvalCtx) {
+      Ctx_.CUDAConstantEvalCtx.NoWrongSidedVars = NoWrongSidedVars;
+    }
+    ~CUDAConstantEvalContextRAII() { Ctx.CUDAConstantEvalCtx = SavedCtx; }
+  };
 
   /// Returns the dynamic AST node parent map context.
   ParentMapContext &getParentMapContext();
@@ -2621,23 +2640,32 @@ public:
   /// template name uses the shortest form of the dependent
   /// nested-name-specifier, which itself contains all canonical
   /// types, values, and templates.
-  TemplateName getCanonicalTemplateName(TemplateName Name) const;
+  TemplateName getCanonicalTemplateName(const TemplateName &Name) const;
 
   /// Determine whether the given template names refer to the same
   /// template.
-  bool hasSameTemplateName(TemplateName X, TemplateName Y);
+  bool hasSameTemplateName(const TemplateName &X, const TemplateName &Y) const;
 
   /// Determine whether the two declarations refer to the same entity.
-  bool isSameEntity(NamedDecl *X, NamedDecl *Y);
+  ///
+  /// FIXME: isSameEntity is not const due to its implementation calls
+  /// hasSameFunctionTypeIgnoringExceptionSpec which may alter this.
+  bool isSameEntity(const NamedDecl *X, const NamedDecl *Y);
 
   /// Determine whether two template parameter lists are similar enough
   /// that they may be used in declarations of the same template.
-  bool isSameTemplateParameterList(TemplateParameterList *X,
-                                   TemplateParameterList *Y);
+  ///
+  /// FIXME: isSameTemplateParameterList is not const since it calls
+  /// isSameTemplateParameter.
+  bool isSameTemplateParameterList(const TemplateParameterList *X,
+                                   const TemplateParameterList *Y);
 
   /// Determine whether two template parameters are similar enough
   /// that they may be used in declarations of the same template.
-  bool isSameTemplateParameter(NamedDecl *X, NamedDecl *Y);
+  ///
+  /// FIXME: isSameTemplateParameterList is not const since it calls
+  /// isSameEntity.
+  bool isSameTemplateParameter(const NamedDecl *X, const NamedDecl *Y);
 
   /// Retrieve the "canonical" template argument.
   ///
@@ -2734,14 +2762,6 @@ public:
   /// if both types have the same floating-point semantics on the target (i.e.
   /// long double and double on AArch64 will return 0).
   int getFloatingTypeSemanticOrder(QualType LHS, QualType RHS) const;
-
-  /// Return a real floating point or a complex type (based on
-  /// \p typeDomain/\p typeSize).
-  ///
-  /// \param typeDomain a real floating point or complex type.
-  /// \param typeSize a real floating point or complex type.
-  QualType getFloatingTypeOfSizeWithinDomain(QualType typeSize,
-                                             QualType typeDomain) const;
 
   unsigned getTargetAddressSpace(QualType T) const;
 

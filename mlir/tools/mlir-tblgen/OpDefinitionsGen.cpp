@@ -394,6 +394,9 @@ private:
   // Generates verify method for the operation.
   void genVerifier();
 
+  // Generates custom verify methods for the operation.
+  void genCustomVerifier();
+
   // Generates verify statements for operands and results in the operation.
   // The generated code will be attached to `body`.
   void genOperandResultVerifier(MethodBody &body,
@@ -593,6 +596,7 @@ OpEmitter::OpEmitter(const Operator &op,
   genParser();
   genPrinter();
   genVerifier();
+  genCustomVerifier();
   genCanonicalizerDecls();
   genFolderDecls();
   genTypeInterfaceMethods();
@@ -739,6 +743,10 @@ static void emitAttrGetterWithReturnType(FmtContext &fctx,
     // Returns the default value if not set.
     // TODO: this is inefficient, we are recreating the attribute for every
     // call. This should be set instead.
+    if (!attr.isConstBuildable()) {
+      PrintFatalError("DefaultValuedAttr of type " + attr.getAttrDefName() +
+                      " must have a constBuilder");
+    }
     std::string defaultValue = std::string(
         tgfmt(attr.getConstBuilderTemplate(), &fctx, attr.getDefaultValue()));
     body << "    if (!attr)\n      return "
@@ -2125,13 +2133,29 @@ void OpEmitter::genTypeInterfaceMethods() {
 }
 
 void OpEmitter::genParser() {
-  if (!hasStringAttribute(def, "parser") ||
-      hasStringAttribute(def, "assemblyFormat"))
+  if (hasStringAttribute(def, "assemblyFormat"))
+    return;
+
+  bool hasCppFormat = def.getValueAsBit("hasCustomAssemblyFormat");
+  if (!hasStringAttribute(def, "parser") && !hasCppFormat)
     return;
 
   SmallVector<MethodParameter> paramList;
   paramList.emplace_back("::mlir::OpAsmParser &", "parser");
   paramList.emplace_back("::mlir::OperationState &", "result");
+
+  // If this uses the cpp format, only generate a declaration.
+  if (hasCppFormat) {
+    auto *method = opClass.declareStaticMethod("::mlir::ParseResult", "parse",
+                                               std::move(paramList));
+    ERROR_IF_PRUNED(method, "parse", op);
+    return;
+  }
+
+  PrintNote(op.getLoc(),
+            "`parser` and `printer` fields are deprecated and will be removed, "
+            "please use the `hasCustomAssemblyFormat` field instead");
+
   auto *method = opClass.addStaticMethod("::mlir::ParseResult", "parse",
                                          std::move(paramList));
   ERROR_IF_PRUNED(method, "parse", op);
@@ -2145,6 +2169,14 @@ void OpEmitter::genParser() {
 void OpEmitter::genPrinter() {
   if (hasStringAttribute(def, "assemblyFormat"))
     return;
+
+  // If this uses the cpp format, only generate a declaration.
+  if (def.getValueAsBit("hasCustomAssemblyFormat")) {
+    auto *method = opClass.declareMethod(
+        "void", "print", MethodParameter("::mlir::OpAsmPrinter &", "p"));
+    ERROR_IF_PRUNED(method, "print", op);
+    return;
+  }
 
   auto *valueInit = def.getValueInit("printer");
   StringInit *stringInit = dyn_cast<StringInit>(valueInit);
@@ -2208,41 +2240,76 @@ static void genNativeTraitAttrVerifier(MethodBody &body,
 }
 
 void OpEmitter::genVerifier() {
-  auto *method = opClass.addMethod("::mlir::LogicalResult", "verify");
-  ERROR_IF_PRUNED(method, "verify", op);
-  auto &body = method->body();
+  auto *implMethod =
+      opClass.addMethod("::mlir::LogicalResult", "verifyInvariantsImpl");
+  ERROR_IF_PRUNED(implMethod, "verifyInvariantsImpl", op);
+  auto &implBody = implMethod->body();
 
   OpOrAdaptorHelper emitHelper(op, /*isOp=*/true);
-  genNativeTraitAttrVerifier(body, emitHelper);
+  genNativeTraitAttrVerifier(implBody, emitHelper);
 
-  auto *valueInit = def.getValueInit("verifier");
-  StringInit *stringInit = dyn_cast<StringInit>(valueInit);
-  bool hasCustomVerify = stringInit && !stringInit->getValue().empty();
   populateSubstitutions(emitHelper, verifyCtx);
 
-  genAttributeVerifier(emitHelper, verifyCtx, body, staticVerifierEmitter);
-  genOperandResultVerifier(body, op.getOperands(), "operand");
-  genOperandResultVerifier(body, op.getResults(), "result");
+  genAttributeVerifier(emitHelper, verifyCtx, implBody, staticVerifierEmitter);
+  genOperandResultVerifier(implBody, op.getOperands(), "operand");
+  genOperandResultVerifier(implBody, op.getResults(), "result");
 
   for (auto &trait : op.getTraits()) {
     if (auto *t = dyn_cast<tblgen::PredTrait>(&trait)) {
-      body << tgfmt("  if (!($0))\n    "
-                    "return emitOpError(\"failed to verify that $1\");\n",
-                    &verifyCtx, tgfmt(t->getPredTemplate(), &verifyCtx),
-                    t->getSummary());
+      implBody << tgfmt("  if (!($0))\n    "
+                        "return emitOpError(\"failed to verify that $1\");\n",
+                        &verifyCtx, tgfmt(t->getPredTemplate(), &verifyCtx),
+                        t->getSummary());
     }
   }
 
-  genRegionVerifier(body);
-  genSuccessorVerifier(body);
+  genRegionVerifier(implBody);
+  genSuccessorVerifier(implBody);
 
-  if (hasCustomVerify) {
+  implBody << "  return ::mlir::success();\n";
+
+  // TODO: Some places use the `verifyInvariants` to do operation verification.
+  // This may not act as their expectation because this doesn't call any
+  // verifiers of native/interface traits. Needs to review those use cases and
+  // see if we should use the mlir::verify() instead.
+  auto *valueInit = def.getValueInit("verifier");
+  StringInit *stringInit = dyn_cast<StringInit>(valueInit);
+  bool hasCustomVerifyCodeBlock = stringInit && !stringInit->getValue().empty();
+
+  auto *method = opClass.addMethod("::mlir::LogicalResult", "verifyInvariants");
+  ERROR_IF_PRUNED(method, "verifyInvariants", op);
+  auto &body = method->body();
+  if (hasCustomVerifyCodeBlock || def.getValueAsBit("hasVerifier")) {
+    body << "  if(::mlir::succeeded(verifyInvariantsImpl()) && "
+            "::mlir::succeeded(verify()))\n";
+    body << "    return ::mlir::success();\n";
+    body << "  return ::mlir::failure();";
+  } else {
+    body << "  return verifyInvariantsImpl();";
+  }
+}
+
+void OpEmitter::genCustomVerifier() {
+  auto *valueInit = def.getValueInit("verifier");
+  StringInit *stringInit = dyn_cast<StringInit>(valueInit);
+  bool hasCustomVerifyCodeBlock = stringInit && !stringInit->getValue().empty();
+
+  if (def.getValueAsBit("hasVerifier")) {
+    auto *method = opClass.declareMethod("::mlir::LogicalResult", "verify");
+    ERROR_IF_PRUNED(method, "verify", op);
+  } else if (def.getValueAsBit("hasRegionVerifier")) {
+    auto *method =
+        opClass.declareMethod("::mlir::LogicalResult", "verifyRegions");
+    ERROR_IF_PRUNED(method, "verifyRegions", op);
+  } else if (hasCustomVerifyCodeBlock) {
+    auto *method = opClass.addMethod("::mlir::LogicalResult", "verify");
+    ERROR_IF_PRUNED(method, "verify", op);
+    auto &body = method->body();
+
     FmtContext fctx;
     fctx.addSubst("cppClass", opClass.getClassName());
     auto printer = stringInit->getValue().ltrim().rtrim(" \t\v\f\r");
     body << "  " << tgfmt(printer, &fctx);
-  } else {
-    body << "  return ::mlir::success();\n";
   }
 }
 
@@ -2474,12 +2541,27 @@ void OpEmitter::genTraits() {
     }
   }
 
+  // The op traits defined internal are ensured that they can be verified
+  // earlier.
+  for (const auto &trait : op.getTraits()) {
+    if (auto *opTrait = dyn_cast<tblgen::NativeTrait>(&trait)) {
+      if (opTrait->isStructuralOpTrait())
+        opClass.addTrait(opTrait->getFullyQualifiedTraitName());
+    }
+  }
+
+  // OpInvariants wrapps the verifyInvariants which needs to be run before
+  // native/interface traits and after all the traits with `StructuralOpTrait`.
+  opClass.addTrait("::mlir::OpTrait::OpInvariants");
+
   // Add the native and interface traits.
   for (const auto &trait : op.getTraits()) {
-    if (auto *opTrait = dyn_cast<tblgen::NativeTrait>(&trait))
+    if (auto *opTrait = dyn_cast<tblgen::NativeTrait>(&trait)) {
+      if (!opTrait->isStructuralOpTrait())
+        opClass.addTrait(opTrait->getFullyQualifiedTraitName());
+    } else if (auto *opTrait = dyn_cast<tblgen::InterfaceTrait>(&trait)) {
       opClass.addTrait(opTrait->getFullyQualifiedTraitName());
-    else if (auto *opTrait = dyn_cast<tblgen::InterfaceTrait>(&trait))
-      opClass.addTrait(opTrait->getFullyQualifiedTraitName());
+    }
   }
 }
 

@@ -1,7 +1,7 @@
 ;; Test that the -print-pipeline-passes option correctly prints some explicitly specified pipelines.
 
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(adce),function(simplifycfg<bonus-inst-threshold=123;no-forward-switch-cond;switch-to-lookup;keep-loops;no-hoist-common-insts;sink-common-insts>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-0
-; CHECK-0: function(adce),function(simplifycfg<bonus-inst-threshold=123;no-forward-switch-cond;switch-to-lookup;keep-loops;no-hoist-common-insts;sink-common-insts>)
+; CHECK-0: function(adce),function(simplifycfg<bonus-inst-threshold=123;no-forward-switch-cond;no-switch-range-to-icmp;switch-to-lookup;keep-loops;no-hoist-common-insts;sink-common-insts>)
 
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='module(rpo-function-attrs,require<globals-aa>,function(float2int,lower-constant-intrinsics,loop(loop-rotate)),invalidate<globals-aa>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-1
 ; CHECK-1: rpo-function-attrs,require<globals-aa>,function(float2int,lower-constant-intrinsics,loop(loop-rotate)),invalidate<globals-aa>
@@ -46,9 +46,6 @@
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='module(hwasan<>,hwasan<kernel;recover>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-14
 ; CHECK-14: hwasan<>,hwasan<kernel;recover>
 
-; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(asan<>,asan<kernel>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-15
-; CHECK-15: function(asan<>,asan<kernel>)
-
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='module(loop-extract<>,loop-extract<single>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-16
 ; CHECK-16: loop-extract<>,loop-extract<single>
 
@@ -56,7 +53,7 @@
 ; CHECK-17: function(print<stack-lifetime><may>,print<stack-lifetime><must>)
 
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(simplifycfg<bonus-inst-threshold=5;forward-switch-cond;switch-to-lookup;keep-loops;hoist-common-insts;sink-common-insts>,simplifycfg<bonus-inst-threshold=7;no-forward-switch-cond;no-switch-to-lookup;no-keep-loops;no-hoist-common-insts;no-sink-common-insts>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-18
-; CHECK-18: function(simplifycfg<bonus-inst-threshold=5;forward-switch-cond;switch-to-lookup;keep-loops;hoist-common-insts;sink-common-insts>,simplifycfg<bonus-inst-threshold=7;no-forward-switch-cond;no-switch-to-lookup;no-keep-loops;no-hoist-common-insts;no-sink-common-insts>)
+; CHECK-18: function(simplifycfg<bonus-inst-threshold=5;forward-switch-cond;no-switch-range-to-icmp;switch-to-lookup;keep-loops;hoist-common-insts;sink-common-insts>,simplifycfg<bonus-inst-threshold=7;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-lookup;no-keep-loops;no-hoist-common-insts;no-sink-common-insts>)
 
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(loop-vectorize<no-interleave-forced-only;no-vectorize-forced-only>,loop-vectorize<interleave-forced-only;vectorize-forced-only>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-19
 ; CHECK-19: function(loop-vectorize<no-interleave-forced-only;no-vectorize-forced-only;>,loop-vectorize<interleave-forced-only;vectorize-forced-only;>)
@@ -73,3 +70,8 @@
 ;; Test that the loop-nest-pass lnicm is printed with the other loop-passes in the pipeline.
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(loop-mssa(licm,loop-rotate,loop-deletion,lnicm,loop-rotate))' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-23
 ; CHECK-23: function(loop-mssa(licm,loop-rotate,loop-deletion,lnicm,loop-rotate))
+
+;; Test that -debugify and -check-debugify is printed correctly.
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='debugify,no-op-function,check-debugify' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-24
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -enable-debugify -passes='no-op-function' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-24
+; CHECK-24: debugify,function(no-op-function),check-debugify

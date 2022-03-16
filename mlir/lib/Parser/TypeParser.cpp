@@ -34,6 +34,8 @@ OptionalParseResult Parser::parseOptionalType(Type &type) {
   case Token::kw_f16:
   case Token::kw_f32:
   case Token::kw_f64:
+  case Token::kw_f80:
+  case Token::kw_f128:
   case Token::kw_index:
   case Token::kw_none:
   case Token::exclamation_identifier:
@@ -570,7 +572,8 @@ ParseResult Parser::parseIntegerInDimensionList(int64_t &value) {
   } else {
     // Make sure this integer value is in bound and valid.
     Optional<uint64_t> dimension = getToken().getUInt64IntegerValue();
-    if (!dimension || *dimension > std::numeric_limits<int64_t>::max())
+    if (!dimension ||
+        *dimension > (uint64_t)std::numeric_limits<int64_t>::max())
       return emitError("invalid dimension");
     value = (int64_t)dimension.getValue();
     consumeToken(Token::integer);

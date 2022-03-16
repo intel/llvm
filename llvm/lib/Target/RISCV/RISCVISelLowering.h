@@ -75,6 +75,7 @@ enum NodeType : unsigned {
   //
   // FMV_H_X matches the semantics of the FMV.H.X.
   // FMV_X_ANYEXTH is similar to FMV.X.H but has an any-extended result.
+  // FMV_X_SIGNEXTH is similar to FMV.X.H and has a sign-extended result.
   // FMV_W_X_RV64 matches the semantics of the FMV.W.X.
   // FMV_X_ANYEXTW_RV64 is similar to FMV.X.W but has an any-extended result.
   //
@@ -82,6 +83,7 @@ enum NodeType : unsigned {
   // unnecessary GPR->FPR->GPR moves.
   FMV_H_X,
   FMV_X_ANYEXTH,
+  FMV_X_SIGNEXTH,
   FMV_W_X_RV64,
   FMV_X_ANYEXTW_RV64,
   // FP to XLen int conversions. Corresponds to fcvt.l(u).s/d/h on RV64 and
@@ -129,10 +131,12 @@ enum NodeType : unsigned {
   BFPW,
   // Vector Extension
   // VMV_V_X_VL matches the semantics of vmv.v.x but includes an extra operand
-  // for the VL value to be used for the operation.
+  // for the VL value to be used for the operation. The first operand is
+  // passthru operand.
   VMV_V_X_VL,
   // VFMV_V_F_VL matches the semantics of vfmv.v.f but includes an extra operand
-  // for the VL value to be used for the operation.
+  // for the VL value to be used for the operation. The first operand is
+  // passthru operand.
   VFMV_V_F_VL,
   // VMV_X_S matches the semantics of vmv.x.s. The result is always XLenVT sign
   // extended from the vector element size.
@@ -141,11 +145,9 @@ enum NodeType : unsigned {
   VMV_S_X_VL,
   // VFMV_S_F_VL matches the semantics of vfmv.s.f. It carries a VL operand.
   VFMV_S_F_VL,
-  // Splats an i64 scalar to a vector type (with element type i64) where the
-  // scalar is a sign-extended i32.
-  SPLAT_VECTOR_I64,
   // Splats an 64-bit value that has been split into two i32 parts. This is
   // expanded late to two scalar stores and a stride 0 vector load.
+  // The first operand is passthru operand.
   SPLAT_VECTOR_SPLIT_I64_VL,
   // Read VLENB CSR
   READ_VLENB,
@@ -158,9 +160,9 @@ enum NodeType : unsigned {
   // and the fifth the VL.
   VSLIDEUP_VL,
   VSLIDEDOWN_VL,
-  // Matches the semantics of vslide1up/slide1down. The first operand is the
-  // source vector, the second is the XLenVT scalar value. The third and fourth
-  // operands are the mask and VL operands.
+  // Matches the semantics of vslide1up/slide1down. The first operand is
+  // passthru operand, the second is source vector, third is the XLenVT scalar
+  // value. The fourth and fifth operands are the mask and VL operands.
   VSLIDE1UP_VL,
   VSLIDE1DOWN_VL,
   // Matches the semantics of the vid.v instruction, with a mask and VL
@@ -245,7 +247,15 @@ enum NodeType : unsigned {
   // Widening instructions
   VWMUL_VL,
   VWMULU_VL,
+  VWMULSU_VL,
+  VWADD_VL,
   VWADDU_VL,
+  VWSUB_VL,
+  VWSUBU_VL,
+  VWADD_W_VL,
+  VWADDU_W_VL,
+  VWSUB_W_VL,
+  VWSUBU_W_VL,
 
   // Vector compare producing a mask. Fourth operand is input mask. Fifth
   // operand is VL.
@@ -489,8 +499,8 @@ public:
   bool decomposeMulByConstant(LLVMContext &Context, EVT VT,
                               SDValue C) const override;
 
-  bool isMulAddWithConstProfitable(const SDValue &AddNode,
-                                   const SDValue &ConstNode) const override;
+  bool isMulAddWithConstProfitable(SDValue AddNode,
+                                   SDValue ConstNode) const override;
 
   TargetLowering::AtomicExpansionKind
   shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
@@ -605,6 +615,7 @@ private:
   SDValue lowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerSTEP_VECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVECTOR_REVERSE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerVECTOR_SPLICE(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerABS(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerMaskedLoad(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerMaskedStore(SDValue Op, SelectionDAG &DAG) const;

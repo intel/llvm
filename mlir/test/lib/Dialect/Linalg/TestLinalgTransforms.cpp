@@ -19,8 +19,7 @@
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
@@ -41,7 +40,6 @@ struct TestLinalgTransforms
     registry.insert<AffineDialect,
                     memref::MemRefDialect,
                     scf::SCFDialect,
-                    StandardOpsDialect,
                     linalg::LinalgDialect,
                     vector::VectorDialect,
                     gpu::GPUDialect>();
@@ -78,10 +76,14 @@ struct TestLinalgTransforms
       *this, "test-tile-and-distribute-options",
       llvm::cl::desc("Test tile and distribute options"),
       llvm::cl::init(false)};
+  Option<bool> testTileFuseAndDistributionOptions{
+      *this, "test-tile-fuse-and-distribute-options",
+      llvm::cl::desc("Test tile, fuse and distribute options"),
+      llvm::cl::init(false)};
   Option<bool> testVectorTransferForwardingPatterns{
       *this, "test-vector-transfer-forwarding-patterns",
       llvm::cl::desc(
-          "Test a fused pass that forwards linalg.copy to vector.transfer"),
+          "Test a fused pass that forwards memref.copy to vector.transfer"),
       llvm::cl::init(false)};
   Option<bool> testGenericToVectorPattern{
       *this, "test-linalg-to-vector-patterns",
@@ -116,10 +118,6 @@ struct TestLinalgTransforms
       *this, "tile-sizes",
       llvm::cl::desc("Linalg tile sizes for test-tile-pattern"),
       llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
-  ListOption<unsigned> testTiledLoopPeeling{
-      *this, "test-tiled-loop-peeling",
-      llvm::cl::desc("Test peeling of linalg.tiled_loop ops"),
-      llvm::cl::OneOrMore, llvm::cl::MiscFlags::CommaSeparated};
   Option<bool> skipPartial{
       *this, "skip-partial",
       llvm::cl::desc("Skip loops inside partial iterations during peeling"),
@@ -232,7 +230,8 @@ static void applyPatterns(FuncOp funcOp) {
   //===--------------------------------------------------------------------===//
   patterns.add<LinalgVectorizationPattern>(
       ctx, LinalgTransformationFilter(StringAttr::get(ctx, "VECTORIZE"))
-               .addOpFilter<MatmulOp, FillOp, CopyOp, GenericOp>());
+               .addOpFilter<MatmulOp, FillOp, GenericOp>());
+  patterns.add<CopyVectorizationPattern>(ctx);
 
   //===--------------------------------------------------------------------===//
   // Linalg generic interchange pattern.
@@ -301,7 +300,8 @@ static void fillL1TilingAndMatmulToVectorPatterns(
                MatmulOp::getOperationName(), ctx, LinalgVectorizationOptions(),
                LinalgTransformationFilter(StringAttr::get(ctx, "VEC"))));
   patternsVector.back().add<LinalgVectorizationPattern>(
-      ctx, LinalgTransformationFilter().addOpFilter<FillOp, CopyOp>());
+      ctx, LinalgTransformationFilter().addOpFilter<FillOp>());
+  patternsVector.back().add<CopyVectorizationPattern>(ctx);
 }
 
 //===----------------------------------------------------------------------===//
@@ -339,7 +339,7 @@ static LogicalResult copyCallBackFn(OpBuilder &b, Value src, Value dst,
                                             FloatAttr::get(floatType, 42.0));
     b.create<FillOp>(src.getLoc(), cst, dst);
   }
-  b.create<CopyOp>(src.getLoc(), src, dst);
+  b.create<memref::CopyOp>(src.getLoc(), src, dst);
   return success();
 }
 
@@ -503,6 +503,21 @@ static void fillTileAndDistributePatterns(MLIRContext *context,
   }
 }
 
+static void fillTileFuseAndDistributePatterns(MLIRContext *context,
+                                              RewritePatternSet &patterns) {
+  LinalgLoopDistributionOptions cyclicNprocsEqNiters;
+  cyclicNprocsEqNiters.distributionMethod.resize(2, DistributionMethod::Cyclic);
+  cyclicNprocsEqNiters.procInfo = getGpuProcIds<gpu::BlockIdOp, gpu::GridDimOp>;
+  patterns.add<LinalgTileAndFuseTensorOpsPattern>(
+      MatmulOp::getOperationName(), context,
+      LinalgTilingAndFusionOptions()
+          .setTileSizes({8, 8, 4})
+          .setDistributionOptions(cyclicNprocsEqNiters),
+      LinalgTransformationFilter(
+          StringAttr::get(context, "tensors_fuse_distribute1"),
+          StringAttr::get(context, "tensors_after_fuse_distribute1")));
+}
+
 static void
 applyMatmulToVectorPatterns(FuncOp funcOp,
                             bool testMatmulToVectorPatterns1dTiling,
@@ -546,10 +561,11 @@ static void applyVectorTransferForwardingPatterns(FuncOp funcOp) {
 
 static void applyLinalgToVectorPatterns(FuncOp funcOp) {
   RewritePatternSet patterns(funcOp.getContext());
+  auto *ctx = funcOp.getContext();
   patterns.add<LinalgVectorizationPattern>(
-      funcOp.getContext(),
-      LinalgTransformationFilter()
-          .addOpFilter<ContractionOpInterface, FillOp, CopyOp, GenericOp>());
+      ctx, LinalgTransformationFilter()
+               .addOpFilter<ContractionOpInterface, FillOp, GenericOp>());
+  patterns.add<CopyVectorizationPattern>(ctx);
   populatePadOpVectorizationPatterns(patterns);
   populateConvolutionVectorizationPatterns(patterns);
   (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
@@ -583,8 +599,7 @@ static void applyTilePattern(FuncOp funcOp, const std::string &loopType,
       llvm::StringSwitch<LinalgTilingLoopType>(loopType)
           .Case("for", LinalgTilingLoopType::Loops)
           .Case("affine", LinalgTilingLoopType::AffineLoops)
-          .Case("parallel", LinalgTilingLoopType::ParallelLoops)
-          .Case("tiled_loop", LinalgTilingLoopType::TiledLoops);
+          .Case("parallel", LinalgTilingLoopType::ParallelLoops);
   auto linalgTilingOptions = linalg::LinalgTilingOptions()
                                  .setPeeledLoops(peeledLoops)
                                  .setLoopType(type);
@@ -599,79 +614,6 @@ static void applyTilePattern(FuncOp funcOp, const std::string &loopType,
   TilingPatterns<linalg::MatmulOp, linalg::GenericOp>::insert(
       tilingPattern, linalgTilingOptions, f);
   (void)applyPatternsAndFoldGreedily(funcOp, std::move(tilingPattern));
-}
-
-static constexpr char kPeeledLoopsLabel[] = "__peeled_loops__";
-static constexpr char kPartialIterationLabel[] = "__partial_iteration__";
-
-namespace {
-/// Peel TiledLoopOps, i.e., split them into two loops: One loop where the
-/// `idx`-th loop contains only "full" iterations and a second loop for the
-/// remaining partial iteration (if any).
-struct TiledLoopPeelingPattern : public OpRewritePattern<TiledLoopOp> {
-  TiledLoopPeelingPattern(MLIRContext *ctx, int64_t idx, bool skipPartial)
-      : OpRewritePattern<TiledLoopOp>(ctx), idx(idx), skipPartial(skipPartial) {
-  }
-
-  LogicalResult matchAndRewrite(TiledLoopOp loopOp,
-                                PatternRewriter &rewriter) const override {
-    SmallVector<int64_t> peeledLoops;
-    if (loopOp->hasAttr(kPeeledLoopsLabel)) {
-      auto attr = loopOp->getAttr(kPeeledLoopsLabel).cast<ArrayAttr>();
-      peeledLoops =
-          llvm::to_vector<4>(llvm::map_range(attr, [](Attribute attr) {
-            return attr.cast<IntegerAttr>().getInt();
-          }));
-      // Check if the loop was already peeled.
-      if (llvm::find(peeledLoops, idx) != peeledLoops.end())
-        return failure();
-    }
-    if (skipPartial && loopOp->hasAttr(kPartialIterationLabel))
-      // No peeling of loop nests with a partial iteration.
-      return failure();
-
-    if (static_cast<int64_t>(loopOp.iterator_types().size()) <= idx)
-      return failure();
-
-    // Peel loop and canonicalize.
-    TiledLoopOp result;
-    if (failed(linalg::peelAndCanonicalizeTiledLoop(rewriter, loopOp, idx,
-                                                    result)))
-      return failure();
-
-    // Apply label, so that the same loop is not rewritten a second time.
-    peeledLoops.push_back(idx);
-    rewriter.updateRootInPlace(loopOp, [&]() {
-      loopOp->setAttr(kPeeledLoopsLabel, rewriter.getI64ArrayAttr(peeledLoops));
-    });
-    result->setAttr(kPeeledLoopsLabel, rewriter.getI64ArrayAttr(peeledLoops));
-    result->setAttr(kPartialIterationLabel, rewriter.getUnitAttr());
-
-    return success();
-  }
-
-  /// Index of loop to peel.
-  int64_t idx;
-
-  /// If set to true, do not peel TiledLoopOps with a partial iteration.
-  bool skipPartial;
-};
-} // namespace
-
-static void applyTiledLoopPeelingPattern(FuncOp funcOp,
-                                         ArrayRef<unsigned> loops,
-                                         bool skipPartial) {
-  MLIRContext *ctx = funcOp.getContext();
-  RewritePatternSet patterns(ctx);
-  for (unsigned idx : loops)
-    patterns.add<TiledLoopPeelingPattern>(ctx, idx, skipPartial);
-  (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
-
-  // Drop the markers.
-  funcOp.walk([](TiledLoopOp op) {
-    op->removeAttr(kPeeledLoopsLabel);
-    op->removeAttr(kPartialIterationLabel);
-  });
 }
 
 /// Apply transformations specified as patterns.
@@ -695,6 +637,12 @@ void TestLinalgTransforms::runOnOperation() {
     (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
     return;
   }
+  if (testTileFuseAndDistributionOptions) {
+    RewritePatternSet patterns(&getContext());
+    fillTileFuseAndDistributePatterns(&getContext(), patterns);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+    return;
+  }
   if (testPatterns)
     return applyPatterns(getOperation());
   if (testMatmulToVectorPatterns1dTiling || testMatmulToVectorPatterns2dTiling)
@@ -711,9 +659,6 @@ void TestLinalgTransforms::runOnOperation() {
     return applyGeneralizePadTensorPatterns(getOperation());
   if (testSwapSubTensorPadTensor)
     return applyExtractSliceOfPadTensorSwapPattern(getOperation());
-  if (testTiledLoopPeeling.hasValue())
-    return applyTiledLoopPeelingPattern(getOperation(), testTiledLoopPeeling,
-                                        skipPartial);
   if (testTilePattern)
     return applyTilePattern(getOperation(), loopType, tileSizes, peeledLoops,
                             /*scalarizeDynamicDims=*/false);

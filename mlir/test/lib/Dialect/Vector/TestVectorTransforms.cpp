@@ -10,14 +10,14 @@
 
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Dialect/Vector/VectorTransforms.h"
+#include "mlir/Dialect/Vector/Transforms/VectorTransforms.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -65,7 +65,7 @@ struct TestVectorToVectorLowering
 private:
   // Return the target shape based on op type.
   static Optional<SmallVector<int64_t, 4>> getShape(Operation *op) {
-    if (isa<arith::AddFOp, SelectOp, arith::CmpFOp>(op))
+    if (isa<arith::AddFOp, arith::SelectOp, arith::CmpFOp>(op))
       return SmallVector<int64_t, 4>(2, 2);
     if (isa<vector::ContractionOp>(op))
       return SmallVector<int64_t, 4>(3, 2);
@@ -96,8 +96,8 @@ private:
   }
 
   static LogicalResult filter(Operation *op) {
-    return success(isa<arith::AddFOp, SelectOp, arith::CmpFOp, ContractionOp,
-                       TransferReadOp, TransferWriteOp>(op));
+    return success(isa<arith::AddFOp, arith::SelectOp, arith::CmpFOp,
+                       ContractionOp, TransferReadOp, TransferWriteOp>(op));
   }
 };
 
@@ -391,7 +391,7 @@ struct TestVectorToLoopPatterns
           type.getNumElements() % multiplicity != 0)
         return mlir::WalkResult::advance();
       auto filterAlloc = [](Operation *op) {
-        return !isa<arith::ConstantOp, memref::AllocOp, CallOp>(op);
+        return !isa<arith::ConstantOp, memref::AllocOp, func::CallOp>(op);
       };
       auto dependentOps = getSlice(op, filterAlloc);
       // Create a loop and move instructions from the Op slice into the loop.
@@ -470,9 +470,9 @@ struct TestVectorTransferFullPartialSplitPatterns
   }
 
   Option<bool> useLinalgOps{
-      *this, "use-linalg-copy",
+      *this, "use-memref-copy",
       llvm::cl::desc("Split using a unmasked vector.transfer + linalg.fill + "
-                     "linalg.copy operations."),
+                     "memref.copy operations."),
       llvm::cl::init(false)};
   void runOnOperation() override {
     MLIRContext *ctx = &getContext();
@@ -627,6 +627,20 @@ struct TestFlattenVectorTransferPatterns
   }
 };
 
+struct TestVectorScanLowering
+    : public PassWrapper<TestVectorScanLowering, OperationPass<FuncOp>> {
+  StringRef getArgument() const final { return "test-vector-scan-lowering"; }
+  StringRef getDescription() const final {
+    return "Test lowering patterns that lower the scan op in the vector "
+           "dialect";
+  }
+  void runOnOperation() override {
+    RewritePatternSet patterns(&getContext());
+    populateVectorScanLoweringPatterns(patterns);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+  }
+};
+
 } // namespace
 
 namespace mlir {
@@ -661,6 +675,8 @@ void registerTestVectorLowerings() {
   PassRegistration<TestVectorTransferDropUnitDimsPatterns>();
 
   PassRegistration<TestFlattenVectorTransferPatterns>();
+
+  PassRegistration<TestVectorScanLowering>();
 }
 } // namespace test
 } // namespace mlir

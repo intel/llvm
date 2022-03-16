@@ -15,6 +15,7 @@ if(MLIR_INCLUDE_TESTS)
     MLIRTestStandardToLLVM
     MLIRAffineTransformsTestPasses
     MLIRDLTITestPasses
+    MLIRFuncTestPasses
     MLIRGPUTestPasses
     MLIRLinalgTestPasses
     MLIRMathTestPasses
@@ -22,8 +23,7 @@ if(MLIR_INCLUDE_TESTS)
     MLIRSCFTestPasses
     MLIRShapeTestPasses
     MLIRSPIRVTestPasses
-    MLIRStandardOpsTestPasses
-    MLIRVectorTestPasses
+    MLIRTensorTestPasses
     MLIRTestAnalysis
     MLIRTestDialect
     MLIRTestIR
@@ -31,6 +31,7 @@ if(MLIR_INCLUDE_TESTS)
     MLIRTestReducer
     MLIRTestRewrite
     MLIRTestTransforms
+    MLIRVectorTestPasses
     )
 endif()
 

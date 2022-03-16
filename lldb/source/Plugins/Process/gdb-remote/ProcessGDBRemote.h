@@ -143,9 +143,6 @@ public:
   lldb::addr_t DoAllocateMemory(size_t size, uint32_t permissions,
                                 Status &error) override;
 
-  Status GetMemoryRegionInfo(lldb::addr_t load_addr,
-                             MemoryRegionInfo &region_info) override;
-
   Status DoDeallocateMemory(lldb::addr_t ptr) override;
 
   // Process STDIO
@@ -345,12 +342,11 @@ protected:
 
   void StopAsyncThread();
 
-  static lldb::thread_result_t AsyncThread(void *arg);
+  lldb::thread_result_t AsyncThread();
 
-  static bool
+  static void
   MonitorDebugserverProcess(std::weak_ptr<ProcessGDBRemote> process_wp,
-                            lldb::pid_t pid, bool exited, int signo,
-                            int exit_status);
+                            lldb::pid_t pid, int signo, int exit_status);
 
   lldb::StateType SetThreadStopInfo(StringExtractor &stop_packet);
 
@@ -414,6 +410,9 @@ protected:
 
   Status DoWriteMemoryTags(lldb::addr_t addr, size_t len, int32_t type,
                            const std::vector<uint8_t> &tags) override;
+
+  Status DoGetMemoryRegionInfo(lldb::addr_t load_addr,
+                               MemoryRegionInfo &region_info) override;
 
 private:
   // For ProcessGDBRemote only

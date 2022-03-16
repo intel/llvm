@@ -10,7 +10,7 @@
 #define FORTRAN_OPTIMIZER_DIALECT_FIROPSSUPPORT_H
 
 #include "flang/Optimizer/Dialect/FIROps.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 
 namespace fir {
@@ -25,7 +25,7 @@ inline bool nonVolatileLoad(mlir::Operation *op) {
 /// return true iff the Operation is a call
 inline bool isaCall(mlir::Operation *op) {
   return isa<fir::CallOp>(op) || isa<fir::DispatchOp>(op) ||
-         isa<mlir::CallOp>(op) || isa<mlir::CallIndirectOp>(op);
+         isa<mlir::func::CallOp>(op) || isa<mlir::func::CallIndirectOp>(op);
 }
 
 /// return true iff the Operation is a fir::CallOp, fir::DispatchOp,
@@ -74,6 +74,14 @@ static constexpr llvm::StringRef getCharacterProcedureDummyAttrName() {
   return "fir.char_proc";
 }
 
+/// Attribute to keep track of Fortran scoping information for a symbol.
+static constexpr llvm::StringRef getSymbolAttrName() { return "fir.sym_name"; }
+
+/// Attribute to mark a function that takes a host associations argument.
+static constexpr llvm::StringRef getHostAssocAttrName() {
+  return "fir.host_assoc";
+}
+
 /// Tell if \p value is:
 ///   - a function argument that has attribute \p attributeName
 ///   - or, the result of fir.alloca/fir.allocamem op that has attribute \p
@@ -83,6 +91,11 @@ static constexpr llvm::StringRef getCharacterProcedureDummyAttrName() {
 ///   - or, a fir.box loaded from a fir.ref<fir.box> that matches one of the
 ///     previous cases.
 bool valueHasFirAttribute(mlir::Value value, llvm::StringRef attributeName);
+
+/// Scan the arguments of a FuncOp to determine if any arguments have the
+/// attribute `attr` placed on them. This can be used to determine if the
+/// function has any host associations, for example.
+bool anyFuncArgsHaveAttr(mlir::FuncOp func, llvm::StringRef attr);
 
 } // namespace fir
 

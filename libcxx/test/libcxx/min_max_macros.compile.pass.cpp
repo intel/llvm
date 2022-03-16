@@ -329,10 +329,6 @@ TEST_MACROS();
 #    endif
 #    include <experimental/deque>
 TEST_MACROS();
-#    ifndef _LIBCPP_HAS_NO_FILESYSTEM_LIBRARY
-#        include <experimental/filesystem>
-TEST_MACROS();
-#    endif
 #    include <experimental/forward_list>
 TEST_MACROS();
 #    include <experimental/functional>
@@ -368,12 +364,6 @@ TEST_MACROS();
 #    include <experimental/vector>
 TEST_MACROS();
 #endif // __cplusplus >= 201103L
-
-// extended headers
-#include <ext/hash_map>
-TEST_MACROS();
-#include <ext/hash_set>
-TEST_MACROS();
 
 // clang-format on
 

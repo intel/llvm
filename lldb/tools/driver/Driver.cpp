@@ -86,6 +86,8 @@ static void reset_stdin_termios();
 static bool g_old_stdin_termios_is_valid = false;
 static struct termios g_old_stdin_termios;
 
+static bool disable_color(const raw_ostream &OS) { return false; }
+
 static Driver *g_driver = nullptr;
 
 // In the Driver::MainLoop, we change the terminal settings.  This function is
@@ -186,6 +188,12 @@ SBError Driver::ProcessArgs(const opt::InputArgList &args, bool &exiting) {
   m_debugger.SkipLLDBInitFiles(false);
   m_debugger.SkipAppInitFiles(false);
 
+  if (args.hasArg(OPT_no_use_colors)) {
+    m_debugger.SetUseColor(false);
+    WithColor::setAutoDetectFunction(disable_color);
+    m_option_data.m_debug_mode = true;
+  }
+
   if (args.hasArg(OPT_version)) {
     m_option_data.m_print_version = true;
   }
@@ -225,11 +233,6 @@ SBError Driver::ProcessArgs(const opt::InputArgList &args, bool &exiting) {
   if (args.hasArg(OPT_local_lldbinit)) {
     lldb::SBDebugger::SetInternalVariable("target.load-cwd-lldbinit", "true",
                                           m_debugger.GetInstanceName());
-  }
-
-  if (args.hasArg(OPT_no_use_colors)) {
-    m_debugger.SetUseColor(false);
-    m_option_data.m_debug_mode = true;
   }
 
   if (auto *arg = args.getLastArg(OPT_file)) {
@@ -452,9 +455,14 @@ int Driver::MainLoop() {
 
   SBCommandInterpreter sb_interpreter = m_debugger.GetCommandInterpreter();
 
-  // Before we handle any options from the command line, we parse the
-  // REPL init file or the default file in the user's home directory.
+  // Process lldbinit files before handling any options from the command line.
   SBCommandReturnObject result;
+  sb_interpreter.SourceInitFileInGlobalDirectory(result);
+  if (m_option_data.m_debug_mode) {
+    result.PutError(m_debugger.GetErrorFile());
+    result.PutOutput(m_debugger.GetOutputFile());
+  }
+
   sb_interpreter.SourceInitFileInHomeDirectory(result, m_option_data.m_repl);
   if (m_option_data.m_debug_mode) {
     result.PutError(m_debugger.GetErrorFile());
@@ -679,14 +687,6 @@ void sigcont_handler(int signo) {
   signal(signo, SIG_DFL);
   kill(getpid(), signo);
   signal(signo, sigcont_handler);
-}
-
-void reproducer_handler(void *finalize_cmd) {
-  if (SBReproducer::Generate()) {
-    int result = std::system(static_cast<const char *>(finalize_cmd));
-    (void)result;
-    fflush(stdout);
-  }
 }
 
 static void printHelp(LLDBOptTable &table, llvm::StringRef tool_name) {

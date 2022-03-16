@@ -26,6 +26,7 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
@@ -254,7 +255,7 @@ public:
 
 } // end anonymous namespace
 
-MemProfilerPass::MemProfilerPass() {}
+MemProfilerPass::MemProfilerPass() = default;
 
 PreservedAnalyses MemProfilerPass::run(Function &F,
                                        AnalysisManager<Function> &AM) {
@@ -265,7 +266,7 @@ PreservedAnalyses MemProfilerPass::run(Function &F,
   return PreservedAnalyses::all();
 }
 
-ModuleMemProfilerPass::ModuleMemProfilerPass() {}
+ModuleMemProfilerPass::ModuleMemProfilerPass() = default;
 
 PreservedAnalyses ModuleMemProfilerPass::run(Module &M,
                                              AnalysisManager<Module> &AM) {
