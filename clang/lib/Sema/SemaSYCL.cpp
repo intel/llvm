@@ -93,10 +93,6 @@ public:
   static bool isSyclSpecialType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
-  /// half class.
-  static bool isSyclHalfType(QualType Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
   /// accessor_property_list class.
   static bool isAccessorPropertyListType(QualType Ty);
 
@@ -1313,8 +1309,6 @@ class KernelObjVisitor {
                   QualType FieldTy, HandlerTys &... Handlers) {
     if (Util::isSyclSpecialType(FieldTy))
       KF_FOR_EACH(handleSyclSpecialType, Field, FieldTy);
-    else if (Util::isSyclHalfType(FieldTy))
-      KF_FOR_EACH(handleSyclHalfType, Field, FieldTy);
     else if (Util::isSyclSpecConstantType(FieldTy))
       KF_FOR_EACH(handleSyclSpecConstantType, Field, FieldTy);
     else if (FieldTy->isStructureOrClassType()) {
@@ -1383,11 +1377,6 @@ public:
     return true;
   }
 
-  virtual bool handleSyclHalfType(const CXXRecordDecl *,
-                                  const CXXBaseSpecifier &, QualType) {
-    return true;
-  }
-  virtual bool handleSyclHalfType(FieldDecl *, QualType) { return true; }
   virtual bool handleStructType(FieldDecl *, QualType) { return true; }
   virtual bool handleUnionType(FieldDecl *, QualType) { return true; }
   virtual bool handleReferenceType(FieldDecl *, QualType) { return true; }
@@ -1815,16 +1804,6 @@ public:
     return true;
   }
 
-  bool handleSyclHalfType(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                          QualType) final {
-    CollectionStack.back() = true;
-    return true;
-  }
-  bool handleSyclHalfType(FieldDecl *, QualType) final {
-    CollectionStack.back() = true;
-    return true;
-  }
-
   bool handlePointerType(FieldDecl *, QualType) final {
     CollectionStack.back() = true;
     return true;
@@ -2230,11 +2209,6 @@ public:
     return handleScalarType(FD, FieldTy);
   }
 
-  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy);
-    return true;
-  }
-
   // Generate kernel argument to initialize specialization constants.
   void handleSyclKernelHandlerType() {
     ASTContext &Context = SemaRef.getASTContext();
@@ -2251,7 +2225,6 @@ public:
     return ArrayRef<ParmVarDecl *>(std::begin(Params) + LastParamIndex,
                                    std::end(Params));
   }
-  using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
 class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
@@ -2328,12 +2301,6 @@ public:
   bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
     return handleScalarType(FD, FieldTy);
   }
-
-  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FieldTy);
-    return true;
-  }
-  using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
 std::string getKernelArgDesc(StringRef KernelArgDescription) {
@@ -2476,16 +2443,10 @@ public:
     return handleScalarType(FD, FieldTy);
   }
 
-  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy);
-    return true;
-  }
-
   void handleSyclKernelHandlerType() {
     addParam(DC.getParamVarDeclsForCurrentField()[0]->getType(),
              "SYCL2020 specialization constant");
   }
-  using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
 static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
@@ -2940,11 +2901,6 @@ public:
     return handleSpecialType(FD, Ty);
   }
 
-  bool handleSyclHalfType(FieldDecl *FD, QualType Ty) final {
-    addSimpleFieldInit(FD, Ty);
-    return true;
-  }
-
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     Expr *PointerRef =
         createPointerParamReferenceExpr(FieldTy, StructDepth != 0);
@@ -3102,8 +3058,6 @@ public:
     removeFieldMemberExpr(FD, ArrayType);
     return true;
   }
-
-  using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
 // Kernels are only the unnamed-lambda feature if the feature is enabled, AND
@@ -3263,11 +3217,6 @@ public:
     return handleScalarType(FD, FieldTy);
   }
 
-  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
-    return true;
-  }
-
   void handleSyclKernelHandlerType(QualType Ty) {
     // The compiler generated kernel argument used to initialize SYCL 2020
     // specialization constants, `specialization_constants_buffer`, should
@@ -3321,7 +3270,6 @@ public:
   }
 
   using SyclKernelFieldHandler::enterStruct;
-  using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::leaveStruct;
 };
 
@@ -5156,16 +5104,6 @@ bool Util::isSyclSpecialType(const QualType Ty) {
   if (!RecTy)
     return false;
   return RecTy->hasAttr<SYCLSpecialClassAttr>();
-}
-
-bool Util::isSyclHalfType(QualType Ty) {
-  std::array<DeclContextDesc, 5> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "detail"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "half_impl"),
-      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "half")};
-  return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isSyclSpecConstantType(QualType Ty) {

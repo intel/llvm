@@ -300,6 +300,12 @@ BUILTIN(__nvvm_sin_approx_f, "ff", "")
 BUILTIN(__nvvm_cos_approx_ftz_f, "ff", "")
 BUILTIN(__nvvm_cos_approx_f, "ff", "")
 
+// Tanh
+
+TARGET_BUILTIN(__nvvm_tanh_approx_f, "ff", "", AND(SM_75,PTX70))
+TARGET_BUILTIN(__nvvm_tanh_approx_f16, "hh", "", AND(SM_75, PTX70))
+TARGET_BUILTIN(__nvvm_tanh_approx_f16x2, "V2hV2h", "", AND(SM_75, PTX70))
+
 // Fma
 
 TARGET_BUILTIN(__nvvm_fma_rn_f16, "hhhh", "", AND(SM_53, PTX42))
