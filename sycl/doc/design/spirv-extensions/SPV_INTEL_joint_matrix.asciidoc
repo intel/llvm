@@ -301,7 +301,7 @@ specifying the <<Memory_Operands,*memory operand*>> *None*. +
 
 Modify *OpVectorExtractDynamic* and *OpVectorInsertDynamic* to accept
 <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> as the 'Vector' operand.
-In this case the instructions operate on an implicit vector which repesents
+In this case the instructions operate on an implicit vector which represents
 part of the joint matrix and holds components owned by the current work-item.
 If the 'index' operand of these instructions exceeds the value returned by
 <<OpJointMatrixWorkItemLengthINTEL,*OpJointMatrixWorkItemLengthINTEL*>>,
