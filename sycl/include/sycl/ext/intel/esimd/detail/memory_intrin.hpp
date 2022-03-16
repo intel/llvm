@@ -427,8 +427,7 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
   // determine the original element's type size (as __esimd_scatter_scaled
   // requires vals to be a vector of 4-byte integers)
   constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
-  using RestoredTy = std::conditional_t<sizeof(Ty) == OrigSize, Ty,
-                                        __ESIMD_DNS::uint_type_t<OrigSize>>;
+  using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
 
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
@@ -643,8 +642,7 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
   // determine the original element's type size (as __esimd_scatter_scaled
   // requires vals to be a vector of 4-byte integers)
   constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
-  using RestoredTy = std::conditional_t<sizeof(Ty) == OrigSize, Ty,
-                                        __ESIMD_DNS::uint_type_t<OrigSize>>;
+  using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
 
   __ESIMD_DNS::vector_type_t<Ty, N> retv = 0;
   sycl::detail::ESIMDDeviceInterface *I =
