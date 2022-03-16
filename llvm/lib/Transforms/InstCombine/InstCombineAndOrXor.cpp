@@ -24,32 +24,6 @@ using namespace PatternMatch;
 
 #define DEBUG_TYPE "instcombine"
 
-/// Similar to getICmpCode but for FCmpInst. This encodes a fcmp predicate into
-/// a four bit mask.
-static unsigned getFCmpCode(FCmpInst::Predicate CC) {
-  assert(FCmpInst::FCMP_FALSE <= CC && CC <= FCmpInst::FCMP_TRUE &&
-         "Unexpected FCmp predicate!");
-  // Take advantage of the bit pattern of FCmpInst::Predicate here.
-  //                                                 U L G E
-  static_assert(FCmpInst::FCMP_FALSE ==  0, "");  // 0 0 0 0
-  static_assert(FCmpInst::FCMP_OEQ   ==  1, "");  // 0 0 0 1
-  static_assert(FCmpInst::FCMP_OGT   ==  2, "");  // 0 0 1 0
-  static_assert(FCmpInst::FCMP_OGE   ==  3, "");  // 0 0 1 1
-  static_assert(FCmpInst::FCMP_OLT   ==  4, "");  // 0 1 0 0
-  static_assert(FCmpInst::FCMP_OLE   ==  5, "");  // 0 1 0 1
-  static_assert(FCmpInst::FCMP_ONE   ==  6, "");  // 0 1 1 0
-  static_assert(FCmpInst::FCMP_ORD   ==  7, "");  // 0 1 1 1
-  static_assert(FCmpInst::FCMP_UNO   ==  8, "");  // 1 0 0 0
-  static_assert(FCmpInst::FCMP_UEQ   ==  9, "");  // 1 0 0 1
-  static_assert(FCmpInst::FCMP_UGT   == 10, "");  // 1 0 1 0
-  static_assert(FCmpInst::FCMP_UGE   == 11, "");  // 1 0 1 1
-  static_assert(FCmpInst::FCMP_ULT   == 12, "");  // 1 1 0 0
-  static_assert(FCmpInst::FCMP_ULE   == 13, "");  // 1 1 0 1
-  static_assert(FCmpInst::FCMP_UNE   == 14, "");  // 1 1 1 0
-  static_assert(FCmpInst::FCMP_TRUE  == 15, "");  // 1 1 1 1
-  return CC;
-}
-
 /// This is the complement of getICmpCode, which turns an opcode and two
 /// operands into either a constant true or false, or a brand new ICmp
 /// instruction. The sign is passed in to determine which kind of predicate to
@@ -66,14 +40,10 @@ static Value *getNewICmpValue(unsigned Code, bool Sign, Value *LHS, Value *RHS,
 /// operands into either a FCmp instruction, or a true/false constant.
 static Value *getFCmpValue(unsigned Code, Value *LHS, Value *RHS,
                            InstCombiner::BuilderTy &Builder) {
-  const auto Pred = static_cast<FCmpInst::Predicate>(Code);
-  assert(FCmpInst::FCMP_FALSE <= Pred && Pred <= FCmpInst::FCMP_TRUE &&
-         "Unexpected FCmp predicate!");
-  if (Pred == FCmpInst::FCMP_FALSE)
-    return ConstantInt::get(CmpInst::makeCmpResultType(LHS->getType()), 0);
-  if (Pred == FCmpInst::FCMP_TRUE)
-    return ConstantInt::get(CmpInst::makeCmpResultType(LHS->getType()), 1);
-  return Builder.CreateFCmp(Pred, LHS, RHS);
+  FCmpInst::Predicate NewPred;
+  if (Constant *TorF = getPredForFCmpCode(Code, LHS->getType(), NewPred))
+    return TorF;
+  return Builder.CreateFCmp(NewPred, LHS, RHS);
 }
 
 /// Transform BITWISE_OP(BSWAP(A),BSWAP(B)) or
@@ -1251,7 +1221,8 @@ Value *InstCombinerImpl::foldAndOfICmps(ICmpInst *LHS, ICmpInst *RHS,
     if (LHS->getOperand(0) == RHS->getOperand(0) &&
         LHS->getOperand(1) == RHS->getOperand(1)) {
       Value *Op0 = LHS->getOperand(0), *Op1 = LHS->getOperand(1);
-      unsigned Code = getICmpCode(LHS) & getICmpCode(RHS);
+      unsigned Code =
+          getICmpCode(LHS->getPredicate()) & getICmpCode(RHS->getPredicate());
       bool IsSigned = LHS->isSigned() || RHS->isSigned();
       return getNewICmpValue(Code, IsSigned, Op0, Op1, Builder);
     }
@@ -2570,7 +2541,8 @@ Value *InstCombinerImpl::foldOrOfICmps(ICmpInst *LHS, ICmpInst *RHS,
     if (LHS0 == RHS1 && LHS1 == RHS0)
       LHS->swapOperands();
     if (LHS0 == RHS0 && LHS1 == RHS1) {
-      unsigned Code = getICmpCode(LHS) | getICmpCode(RHS);
+      unsigned Code =
+          getICmpCode(LHS->getPredicate()) | getICmpCode(RHS->getPredicate());
       bool IsSigned = LHS->isSigned() || RHS->isSigned();
       return getNewICmpValue(Code, IsSigned, LHS0, LHS1, Builder);
     }
@@ -3094,7 +3066,8 @@ Value *InstCombinerImpl::foldXorOfICmps(ICmpInst *LHS, ICmpInst *RHS,
         LHS->getOperand(1) == RHS->getOperand(1)) {
       // (icmp1 A, B) ^ (icmp2 A, B) --> (icmp3 A, B)
       Value *Op0 = LHS->getOperand(0), *Op1 = LHS->getOperand(1);
-      unsigned Code = getICmpCode(LHS) ^ getICmpCode(RHS);
+      unsigned Code =
+          getICmpCode(LHS->getPredicate()) ^ getICmpCode(RHS->getPredicate());
       bool IsSigned = LHS->isSigned() || RHS->isSigned();
       return getNewICmpValue(Code, IsSigned, Op0, Op1, Builder);
     }
@@ -3465,51 +3438,7 @@ Instruction *InstCombinerImpl::foldNot(BinaryOperator &I) {
     }
   }
 
-  // TODO: Remove folds if we canonicalize to intrinsics (see above).
-  // Eliminate a bitwise 'not' op of 'not' min/max by inverting the min/max:
-  //
-  //   %notx = xor i32 %x, -1
-  //   %cmp1 = icmp sgt i32 %notx, %y
-  //   %smax = select i1 %cmp1, i32 %notx, i32 %y
-  //   %res = xor i32 %smax, -1
-  // =>
-  //   %noty = xor i32 %y, -1
-  //   %cmp2 = icmp slt %x, %noty
-  //   %res = select i1 %cmp2, i32 %x, i32 %noty
-  //
-  // Same is applicable for smin/umax/umin.
   if (NotOp->hasOneUse()) {
-    Value *LHS, *RHS;
-    SelectPatternFlavor SPF = matchSelectPattern(NotOp, LHS, RHS).Flavor;
-    if (SelectPatternResult::isMinOrMax(SPF)) {
-      // It's possible we get here before the not has been simplified, so make
-      // sure the input to the not isn't freely invertible.
-      if (match(LHS, m_Not(m_Value(X))) && !isFreeToInvert(X, X->hasOneUse())) {
-        Value *NotY = Builder.CreateNot(RHS);
-        return SelectInst::Create(
-            Builder.CreateICmp(getInverseMinMaxPred(SPF), X, NotY), X, NotY);
-      }
-
-      // It's possible we get here before the not has been simplified, so make
-      // sure the input to the not isn't freely invertible.
-      if (match(RHS, m_Not(m_Value(Y))) && !isFreeToInvert(Y, Y->hasOneUse())) {
-        Value *NotX = Builder.CreateNot(LHS);
-        return SelectInst::Create(
-            Builder.CreateICmp(getInverseMinMaxPred(SPF), NotX, Y), NotX, Y);
-      }
-
-      // If both sides are freely invertible, then we can get rid of the xor
-      // completely.
-      if (isFreeToInvert(LHS, !LHS->hasNUsesOrMore(3)) &&
-          isFreeToInvert(RHS, !RHS->hasNUsesOrMore(3))) {
-        Value *NotLHS = Builder.CreateNot(LHS);
-        Value *NotRHS = Builder.CreateNot(RHS);
-        return SelectInst::Create(
-            Builder.CreateICmp(getInverseMinMaxPred(SPF), NotLHS, NotRHS),
-            NotLHS, NotRHS);
-      }
-    }
-
     // Pull 'not' into operands of select if both operands are one-use compares
     // or one is one-use compare and the other one is a constant.
     // Inverting the predicates eliminates the 'not' operation.

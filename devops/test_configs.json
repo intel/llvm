@@ -37,6 +37,18 @@
       "cmake_args": ""
     },
     {
+      "config": "esimd_emu",
+      "name": "ESIMD Emu LLVM Test Suite",
+      "runs-on": [
+        "Linux",
+        "x64"
+      ],
+      "image": "${{ inputs.intel_drivers_image }}",
+      "container_options": "-u 1001",
+      "check_sycl_all": "ext_intel_esimd_emulator:gpu",
+      "cmake_args": ""
+    },
+    {
       "config": "hip_amdgpu",
       "name": "HIP AMDGPU LLVM Test Suite",
       "runs-on": [

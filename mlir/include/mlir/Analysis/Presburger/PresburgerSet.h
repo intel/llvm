@@ -13,9 +13,10 @@
 #ifndef MLIR_ANALYSIS_PRESBURGER_PRESBURGERSET_H
 #define MLIR_ANALYSIS_PRESBURGER_PRESBURGERSET_H
 
-#include "mlir/Analysis/Presburger/IntegerPolyhedron.h"
+#include "mlir/Analysis/Presburger/IntegerRelation.h"
 
 namespace mlir {
+namespace presburger {
 
 /// This class can represent a union of IntegerPolyhedrons, with support for
 /// union, intersection, subtraction and complement operations, as well as
@@ -121,6 +122,7 @@ private:
   SmallVector<IntegerPolyhedron, 2> integerPolyhedrons;
 };
 
+} // namespace presburger
 } // namespace mlir
 
 #endif // MLIR_ANALYSIS_PRESBURGER_PRESBURGERSET_H

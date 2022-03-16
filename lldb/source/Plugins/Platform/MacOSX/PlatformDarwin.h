@@ -24,7 +24,7 @@
 
 class PlatformDarwin : public PlatformPOSIX {
 public:
-  PlatformDarwin(bool is_host);
+  using PlatformPOSIX::PlatformPOSIX;
 
   ~PlatformDarwin() override;
 
@@ -173,6 +173,9 @@ protected:
 
   static std::string FindComponentInPath(llvm::StringRef path,
                                          llvm::StringRef component);
+
+  // The OSType where lldb is running.
+  static llvm::Triple::OSType GetHostOSType();
 
   std::string m_developer_directory;
   llvm::StringMap<std::string> m_sdk_path;
