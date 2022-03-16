@@ -15,6 +15,7 @@
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
+#include <CL/sycl/backend_types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -609,6 +610,27 @@ private:
       return newRange[0] == 1 && newRange[2] == parentRange[2];
     return newRange[1] == parentRange[1] && newRange[2] == parentRange[2];
   }
+
+  template <backend BackendName, typename DataT, int Dimensions, typename Allocator>
+  friend auto get_native(const buffer<DataT, Dimensions, Allocator> &Obj)
+      -> backend_return_t<BackendName, buffer<DataT, Dimensions, Allocator>>;
+
+  template <backend BackendName>
+  backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>> get_native() const {
+    auto NativeVec = impl->getNative(BackendName);
+    backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>> ReturnValue{};
+    //ReturnValue.reserve(std::distance(begin(), end()));
+    for (auto &i : NativeVec) {
+      ReturnValue.push_back(
+          detail::pi::cast<typename decltype(ReturnValue)::value_type>(i));
+    }
+    return ReturnValue;
+  }
+
+  // std::vector<pi_native_handle> getNativeVector() const {
+  //   std::vector<pi_native_handle> ReturnVector = {impl->getNative()};
+  //   return ReturnVector;
+  // }
 };
 
 #ifdef __cpp_deduction_guides

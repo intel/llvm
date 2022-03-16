@@ -48,6 +48,70 @@ void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
 void buffer_impl::destructorNotification(void *UserObj) {
   XPTIRegistry::bufferDestructorNotification(UserObj);
 }
+
+// backend buffer_impl::getBackend() const noexcept {
+//   auto &Plugin = getPlugin();
+//   return Plugin.getBackend();
+// }
+
+std::vector<pi_native_handle> buffer_impl::getNative(backend BackendName) const {
+  /*if (MInteropContext == nullptr) {
+    static context SyclContext;
+    MInteropContext = getSyclObjImpl(SyclContext);
+  }*/
+
+  //auto &Plugin = getPlugin();
+  // std::vector<RT::PiMem> MemAllocations;
+  // MemAllocations.reserve(MRecord->MAllocaCommands.size());
+  // for (auto &Cmd : MRecord->MAllocaCommands) {
+  //   MemAllocations.push_back(pi::cast<RT::PiMem>(Cmd->getMemAllocation()));
+  // }
+  
+  // if (Plugin.getBackend() == backend::opencl) {
+    // for (auto &Alloca : MemAllocations) {
+    //   Plugin.call<PiApiKind::piMemRetain>(Alloca);
+    // }
+  std::vector<pi_native_handle> Handles{};
+  if (!MRecord)
+    return Handles;
+  Handles.reserve(MRecord->MAllocaCommands.size());
+  
+  std::vector<RT::PiMem> MemAllocations;
+  MemAllocations.reserve(MRecord->MAllocaCommands.size());
+
+  for (auto &Cmd : MRecord->MAllocaCommands) {
+    RT::PiMem NativeMem = pi::cast<RT::PiMem>(Cmd->getMemAllocation());
+    MemAllocations.push_back(NativeMem);
+    auto Ctx = Cmd->getWorkerContext();
+    auto Plugin = Ctx->getPlugin();
+
+    if (Plugin.getBackend() != BackendName) 
+      continue;
+    if (Plugin.getBackend() == backend::opencl) {
+      Plugin.call<PiApiKind::piMemRetain>(NativeMem);
+    }
+
+    pi_native_handle Handle;
+    Plugin.call<PiApiKind::piextMemGetNativeHandle>(NativeMem, &Handle);
+    Handles.push_back(Handle);
+  }
+
+  //if (Plugin.getBackend() == backend::opencl)
+  //  Plugin.call<PiApiKind::piMemRetain>(pi_mem mem);       // how to get RT::PiMem
+  // MInteropMemObject - OpenCL's memory object handle passed by user to interoperability constructor. Should it be checked (it seems it is deprecated)?
+  // Get vector<AllocaBaseCommand> from MRecord (MemObjRecord::MAllocaCommands) and use for every getMemAllocation() - it returns raw pointer
+  // pi::cast<RT::PiMem>(MemAllocation)
+
+  //std::vector<pi_native_handle> Handles;
+  //Handles.reserve(MemAllocations.size());
+  // for (auto &Alloc : MemAllocations) {
+  //   pi_native_handle Handle;
+  //   Plugin.call<PiApiKind::piextMemGetNativeHandle>(Alloc, &Handle);
+  //   Handles.push_back(Handle);
+  // }
+
+  return Handles;
+}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

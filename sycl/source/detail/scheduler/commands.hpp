@@ -428,6 +428,7 @@ public:
                       std::vector<Command *> &ToEnqueue,
                       std::vector<Command *> &ToCleanUp);
 
+  // should I return allocation with offset here?
   void *getMemAllocation() const final;
   void printDot(std::ostream &Stream) const final;
   AllocaCommandBase *getParentAlloca() { return MParentAlloca; }

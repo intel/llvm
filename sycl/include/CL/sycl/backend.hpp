@@ -75,6 +75,13 @@ auto get_native(const SyclObjectT &Obj)
   return Obj.template get_native<BackendName>();
 }
 
+template <backend BackendName, typename DataT, int Dimensions, typename AllocatorT>
+auto get_native(const buffer<DataT, Dimensions, AllocatorT> &Obj)
+    -> backend_return_t<BackendName, buffer<DataT, Dimensions, AllocatorT>> {
+  // No check for backend because buffer is just a placeholder, so allocations can be on any backend
+  return Obj.template get_native<BackendName>();
+}
+
 // define SYCL2020_CONFORMANT_APIS to correspond SYCL 2020 spec and return
 // vector<cl_event> from get_native instead of just cl_event
 #ifdef SYCL2020_CONFORMANT_APIS
