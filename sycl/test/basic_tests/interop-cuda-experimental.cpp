@@ -5,8 +5,8 @@
 // Test for experimental CUDA interop API
 
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL 1
-#include <sycl/sycl.hpp>
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cuda.h>
 
@@ -95,14 +95,20 @@ int main() {
   // behavior of these template functions is defined by the SYCL backend
   // specification document.
 
-  backend_input_t<backend::ext_oneapi_cuda, platform> InteropPlatformInput{cu_platform};
-  platform InteropPlatform = make_platform<backend::ext_oneapi_cuda>(InteropPlatformInput);
+  backend_input_t<backend::ext_oneapi_cuda, platform> InteropPlatformInput{
+      cu_platform};
+  platform InteropPlatform =
+      make_platform<backend::ext_oneapi_cuda>(InteropPlatformInput);
 
-  backend_input_t<backend::ext_oneapi_cuda, device> InteropDeviceInput{cu_device};
-  device InteropDevice = make_device<backend::ext_oneapi_cuda>(InteropDeviceInput);
+  backend_input_t<backend::ext_oneapi_cuda, device> InteropDeviceInput{
+      cu_device};
+  device InteropDevice =
+      make_device<backend::ext_oneapi_cuda>(InteropDeviceInput);
 
-  backend_input_t<backend::ext_oneapi_cuda, context> InteropContextInput{cu_context[0]};
-  context InteropContext = make_context<backend::ext_oneapi_cuda>(InteropContextInput);
+  backend_input_t<backend::ext_oneapi_cuda, context> InteropContextInput{
+      cu_context[0]};
+  context InteropContext =
+      make_context<backend::ext_oneapi_cuda>(InteropContextInput);
 
   queue InteropQueue = make_queue<backend::ext_oneapi_cuda>(cu_queue, Context);
   event InteropEvent = make_event<backend::ext_oneapi_cuda>(cu_event, Context);

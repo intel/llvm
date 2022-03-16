@@ -10,6 +10,7 @@
 
 #include <CL/sycl/backend.hpp>
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/interop_handle.hpp>
 
 #include <vector>
 
@@ -79,6 +80,18 @@ platform make_platform<backend::ext_oneapi_cuda>(
   pi_native_handle NativeHandle =
       detail::pi::cast<pi_native_handle>(&BackendObject);
   return ext::oneapi::cuda::make_platform(NativeHandle);
+}
+
+// Specialisation of interop_handles get_native_context
+template <>
+backend_return_t<backend::ext_oneapi_cuda, context>
+interop_handle::get_native_context<backend::ext_oneapi_cuda>() const {
+#ifndef __SYCL_DEVICE_ONLY__
+  return std::vector{reinterpret_cast<CUcontext>(getNativeContext())};
+#else
+  // we believe this won't be ever called on device side
+  return {};
+#endif
 }
 
 } // namespace sycl

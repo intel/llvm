@@ -27,8 +27,8 @@ constexpr auto Backend = sycl::backend::ext_oneapi_cuda;
 
 #ifdef USE_CUDA_EXPERIMENTAL
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL 1
-#include <sycl/sycl.hpp>
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
+#include <sycl/sycl.hpp>
 
 constexpr auto Backend = sycl::backend::ext_oneapi_cuda;
 #endif
