@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Symbols.h"
+#include "Driver.h"
 #include "InputFiles.h"
 #include "InputSection.h"
 #include "OutputSections.h"
@@ -48,10 +49,6 @@ Defined *ElfSym::relaIpltStart;
 Defined *ElfSym::relaIpltEnd;
 Defined *ElfSym::riscvGlobalPointer;
 Defined *ElfSym::tlsModuleBase;
-DenseMap<const Symbol *, std::pair<const InputFile *, const InputFile *>>
-    elf::backwardReferences;
-SmallVector<std::tuple<std::string, const InputFile *, const Symbol &>, 0>
-    elf::whyExtract;
 SmallVector<SymbolAux, 0> elf::symAux;
 
 static uint64_t getSymVA(const Symbol &sym, int64_t addend) {
@@ -288,7 +285,7 @@ void elf::printTraceSymbol(const Symbol &sym, StringRef name) {
 
 static void recordWhyExtract(const InputFile *reference,
                              const InputFile &extracted, const Symbol &sym) {
-  whyExtract.emplace_back(toString(reference), &extracted, sym);
+  driver->whyExtract.emplace_back(toString(reference), &extracted, sym);
 }
 
 void elf::maybeWarnUnorderableSymbol(const Symbol *sym) {
@@ -351,24 +348,6 @@ bool elf::computeIsPreemptible(const Symbol &sym) {
   return true;
 }
 
-void elf::reportBackrefs() {
-  for (auto &it : backwardReferences) {
-    const Symbol &sym = *it.first;
-    std::string to = toString(it.second.second);
-    // Some libraries have known problems and can cause noise. Filter them out
-    // with --warn-backrefs-exclude=. to may look like *.o or *.a(*.o).
-    bool exclude = false;
-    for (const llvm::GlobPattern &pat : config->warnBackrefsExclude)
-      if (pat.match(to)) {
-        exclude = true;
-        break;
-      }
-    if (!exclude)
-      warn("backward reference detected: " + sym.getName() + " in " +
-           toString(it.second.first) + " refers to " + to);
-  }
-}
-
 static uint8_t getMinVisibility(uint8_t va, uint8_t vb) {
   if (va == STV_DEFAULT)
     return vb;
@@ -385,8 +364,6 @@ static uint8_t getMinVisibility(uint8_t va, uint8_t vb) {
 void Symbol::mergeProperties(const Symbol &other) {
   if (other.exportDynamic)
     exportDynamic = true;
-  if (other.isUsedInRegularObj)
-    isUsedInRegularObj = true;
 
   // DSO symbols do not affect visibility in the output.
   if (!other.isShared())
@@ -512,7 +489,8 @@ void Symbol::resolveUndefined(const Undefined &other) {
     // definition. this->file needs to be saved because in the case of LTO it
     // may be reset to nullptr or be replaced with a file named lto.tmp.
     if (backref && !isWeak())
-      backwardReferences.try_emplace(this, std::make_pair(other.file, file));
+      driver->backwardReferences.try_emplace(this,
+                                             std::make_pair(other.file, file));
     return;
   }
 
@@ -529,50 +507,28 @@ void Symbol::resolveUndefined(const Undefined &other) {
   }
 }
 
-// Compare two symbols. Return 1 if the new symbol should win, -1 if
-// the new symbol should lose, or 0 if there is a conflict.
-int Symbol::compare(const Symbol *other) const {
-  assert(other->isDefined() || other->isCommon());
-
-  if (!isDefined() && !isCommon())
-    return 1;
+// Compare two symbols. Return true if the new symbol should win.
+bool Symbol::shouldReplace(const Defined &other) const {
+  if (LLVM_UNLIKELY(isCommon())) {
+    if (config->warnCommon)
+      warn("common " + getName() + " is overridden");
+    return !other.isWeak();
+  }
+  if (!isDefined())
+    return true;
 
   // .symver foo,foo@@VER unfortunately creates two defined symbols: foo and
   // foo@@VER. In GNU ld, if foo and foo@@VER are in the same file, foo is
   // ignored. In our implementation, when this is foo, this->getName() may still
-  // contain @@, return 1 in this case as well.
-  if (file == other->file) {
-    if (other->getName().contains("@@"))
-      return 1;
+  // contain @@, return true in this case as well.
+  if (LLVM_UNLIKELY(file == other.file)) {
+    if (other.getName().contains("@@"))
+      return true;
     if (getName().contains("@@"))
-      return -1;
+      return false;
   }
 
-  if (other->isWeak())
-    return -1;
-
-  if (isWeak())
-    return 1;
-
-  if (isCommon() && other->isCommon()) {
-    if (config->warnCommon)
-      warn("multiple common of " + getName());
-    return 0;
-  }
-
-  if (isCommon()) {
-    if (config->warnCommon)
-      warn("common " + getName() + " is overridden");
-    return 1;
-  }
-
-  if (other->isCommon()) {
-    if (config->warnCommon)
-      warn("common " + getName() + " is overridden");
-    return -1;
-  }
-
-  return 0;
+  return isWeak() && !other.isWeak();
 }
 
 void elf::reportDuplicate(const Symbol &sym, InputFile *newFile,
@@ -610,71 +566,64 @@ void elf::reportDuplicate(const Symbol &sym, InputFile *newFile,
 }
 
 void Symbol::checkDuplicate(const Defined &other) const {
-  if (compare(&other) == 0)
+  if (isDefined() && !isWeak() && !other.isWeak())
     reportDuplicate(*this, other.file,
                     dyn_cast_or_null<InputSectionBase>(other.section),
                     other.value);
 }
 
 void Symbol::resolveCommon(const CommonSymbol &other) {
-  int cmp = compare(&other);
-  if (cmp < 0)
+  if (isDefined() && !isWeak()) {
+    if (config->warnCommon)
+      warn("common " + getName() + " is overridden");
     return;
+  }
 
-  if (cmp > 0) {
-    if (auto *s = dyn_cast<SharedSymbol>(this)) {
-      // Increase st_size if the shared symbol has a larger st_size. The shared
-      // symbol may be created from common symbols. The fact that some object
-      // files were linked into a shared object first should not change the
-      // regular rule that picks the largest st_size.
-      uint64_t size = s->size;
-      replace(other);
-      if (size > cast<CommonSymbol>(this)->size)
-        cast<CommonSymbol>(this)->size = size;
-    } else {
-      replace(other);
+  if (CommonSymbol *oldSym = dyn_cast<CommonSymbol>(this)) {
+    if (config->warnCommon)
+      warn("multiple common of " + getName());
+    oldSym->alignment = std::max(oldSym->alignment, other.alignment);
+    if (oldSym->size < other.size) {
+      oldSym->file = other.file;
+      oldSym->size = other.size;
     }
     return;
   }
 
-  CommonSymbol *oldSym = cast<CommonSymbol>(this);
-
-  oldSym->alignment = std::max(oldSym->alignment, other.alignment);
-  if (oldSym->size < other.size) {
-    oldSym->file = other.file;
-    oldSym->size = other.size;
+  if (auto *s = dyn_cast<SharedSymbol>(this)) {
+    // Increase st_size if the shared symbol has a larger st_size. The shared
+    // symbol may be created from common symbols. The fact that some object
+    // files were linked into a shared object first should not change the
+    // regular rule that picks the largest st_size.
+    uint64_t size = s->size;
+    replace(other);
+    if (size > cast<CommonSymbol>(this)->size)
+      cast<CommonSymbol>(this)->size = size;
+  } else {
+    replace(other);
   }
 }
 
 void Symbol::resolveDefined(const Defined &other) {
-  int cmp = compare(&other);
-  if (cmp > 0)
+  if (shouldReplace(other))
     replace(other);
 }
 
-template <class LazyT>
-static void replaceCommon(Symbol &oldSym, const LazyT &newSym) {
-  backwardReferences.erase(&oldSym);
-  oldSym.replace(newSym);
-  newSym.extract();
-}
-
-template <class LazyT> void Symbol::resolveLazy(const LazyT &other) {
+void Symbol::resolveLazy(const LazyObject &other) {
   // For common objects, we want to look for global or weak definitions that
   // should be extracted as the canonical definition instead.
-  if (isCommon() && elf::config->fortranCommon) {
-    if (auto *loSym = dyn_cast<LazyObject>(&other)) {
-      if (loSym->file->shouldExtractForCommon(getName())) {
-        replaceCommon(*this, other);
-        return;
-      }
-    }
+  if (LLVM_UNLIKELY(isCommon()) && elf::config->fortranCommon &&
+      other.file->shouldExtractForCommon(getName())) {
+    driver->backwardReferences.erase(this);
+    replace(other);
+    other.extract();
+    return;
   }
 
   if (!isUndefined()) {
     // See the comment in resolveUndefined().
     if (isDefined())
-      backwardReferences.erase(this);
+      driver->backwardReferences.erase(this);
     return;
   }
 

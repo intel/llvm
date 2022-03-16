@@ -438,11 +438,9 @@ def FeatureEnhancedCounterVirtualization :
 def FeatureRME : SubtargetFeature<"rme", "HasRME",
     "true", "Enable Realm Management Extension">;
 
-// A subset of SVE(2) instructions are legal in Streaming SVE execution mode
-// defined by SME.
-def FeatureStreamingSVE : SubtargetFeature<"streaming-sve",
-                                           "HasStreamingSVE", "true",
-  "Enable subset of SVE(2) instructions for Streaming SVE execution mode">;
+def FeatureStreamingSVE : SubtargetFeature<"streaming-sve", "HasStreamingSVE", "true",
+  "Enable instructions that are valid in Streaming SVE execution mode">;
+
 def FeatureSME : SubtargetFeature<"sme", "HasSME", "true",
   "Enable Scalable Matrix Extension (SME)", [FeatureStreamingSVE, FeatureBF16]>;
 
@@ -818,8 +816,9 @@ def TuneExynosM3 : SubtargetFeature<"exynosm3", "ARMProcFamily", "ExynosM3",
                                      FeaturePostRAScheduler,
                                      FeaturePredictableSelectIsExpensive]>;
 
-def TuneExynosM4 : SubtargetFeature<"exynosm3", "ARMProcFamily", "ExynosM3",
-                                    "Samsung Exynos-M3 processors",
+// Re-uses some scheduling and tunings from the ExynosM3 proc family.
+def TuneExynosM4 : SubtargetFeature<"exynosm4", "ARMProcFamily", "ExynosM3",
+                                    "Samsung Exynos-M4 processors",
                                     [FeatureArithmeticBccFusion,
                                      FeatureArithmeticCbzFusion,
                                      FeatureExynosCheapAsMoveHandling,

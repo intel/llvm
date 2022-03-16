@@ -40,6 +40,7 @@
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/FMF.h"
 #include "llvm/Support/InstructionCost.h"
 #include <algorithm>
 #include <cassert>
@@ -700,6 +701,9 @@ public:
   /// Insert an unlinked recipe into a basic block immediately before
   /// the specified recipe.
   void insertBefore(VPRecipeBase *InsertPos);
+  /// Insert an unlinked recipe into \p BB immediately before the insertion
+  /// point \p IP;
+  void insertBefore(VPBasicBlock &BB, iplist<VPRecipeBase>::iterator IP);
 
   /// Insert an unlinked Recipe into a basic block immediately after
   /// the specified Recipe.
@@ -1102,6 +1106,8 @@ public:
   const TruncInst *getTruncInst() const {
     return dyn_cast_or_null<TruncInst>(getVPValue(0)->getUnderlyingValue());
   }
+
+  PHINode *getPHINode() { return IV; }
 
   /// Returns the induction descriptor for the recipe.
   const InductionDescriptor &getInductionDescriptor() const { return IndDesc; }
@@ -1720,6 +1726,36 @@ public:
   }
 };
 
+/// Recipe to expand a SCEV expression.
+/// TODO: Currently the recipe always expands the expression in the loop
+/// pre-header, but the recipe is currently placed in the header; place it in
+/// the pre-header once the latter is modeled in VPlan as a VPBasicBlock.
+class VPExpandSCEVRecipe : public VPRecipeBase, public VPValue {
+  const SCEV *Expr;
+  ScalarEvolution &SE;
+
+public:
+  VPExpandSCEVRecipe(const SCEV *Expr, ScalarEvolution &SE)
+      : VPRecipeBase(VPExpandSCEVSC, {}), VPValue(nullptr, this), Expr(Expr),
+        SE(SE) {}
+
+  ~VPExpandSCEVRecipe() override = default;
+
+  /// Method to support type inquiry through isa, cast, and dyn_cast.
+  static inline bool classof(const VPDef *D) {
+    return D->getVPDefID() == VPExpandSCEVSC;
+  }
+
+  /// Generate a canonical vector induction variable of the vector loop, with
+  void execute(VPTransformState &State) override;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Print the recipe.
+  void print(raw_ostream &O, const Twine &Indent,
+             VPSlotTracker &SlotTracker) const override;
+#endif
+};
+
 /// Canonical scalar induction phi of the vector loop. Starting at the specified
 /// start value (either 0 or the resume value when vectorizing the epilogue
 /// loop). VPWidenCanonicalIVRecipe represents the vector version of the
@@ -1738,6 +1774,12 @@ public:
   /// Method to support type inquiry through isa, cast, and dyn_cast.
   static inline bool classof(const VPDef *D) {
     return D->getVPDefID() == VPCanonicalIVPHISC;
+  }
+  static inline bool classof(const VPHeaderPHIRecipe *D) {
+    return D->getVPDefID() == VPCanonicalIVPHISC;
+  }
+  static inline bool classof(const VPValue *V) {
+    return V->getVPValueID() == VPValue::VPVCanonicalIVPHISC;
   }
 
   /// Generate the canonical scalar induction phi of the vector loop.
@@ -1802,6 +1844,57 @@ public:
     return cast<VPCanonicalIVPHIRecipe>(getOperand(0)->getDef())
         ->getScalarType();
   }
+};
+
+/// A recipe for handling phi nodes of integer and floating-point inductions,
+/// producing their scalar values.
+class VPScalarIVStepsRecipe : public VPRecipeBase, public VPValue {
+  /// Scalar type to use for the generated values.
+  Type *Ty;
+  /// If not nullptr, truncate the generated values to TruncToTy.
+  Type *TruncToTy;
+  const InductionDescriptor &IndDesc;
+
+public:
+  VPScalarIVStepsRecipe(Type *Ty, const InductionDescriptor &IndDesc,
+                        VPValue *CanonicalIV, VPValue *Start, VPValue *Step,
+                        Type *TruncToTy)
+      : VPRecipeBase(VPScalarIVStepsSC, {CanonicalIV, Start, Step}),
+        VPValue(nullptr, this), Ty(Ty), TruncToTy(TruncToTy), IndDesc(IndDesc) {
+  }
+
+  ~VPScalarIVStepsRecipe() override = default;
+
+  /// Method to support type inquiry through isa, cast, and dyn_cast.
+  static inline bool classof(const VPDef *D) {
+    return D->getVPDefID() == VPRecipeBase::VPScalarIVStepsSC;
+  }
+  /// Extra classof implementations to allow directly casting from VPUser ->
+  /// VPScalarIVStepsRecipe.
+  static inline bool classof(const VPUser *U) {
+    auto *R = dyn_cast<VPRecipeBase>(U);
+    return R && R->getVPDefID() == VPRecipeBase::VPScalarIVStepsSC;
+  }
+  static inline bool classof(const VPRecipeBase *R) {
+    return R->getVPDefID() == VPRecipeBase::VPScalarIVStepsSC;
+  }
+
+  /// Generate the scalarized versions of the phi node as needed by their users.
+  void execute(VPTransformState &State) override;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Print the recipe.
+  void print(raw_ostream &O, const Twine &Indent,
+             VPSlotTracker &SlotTracker) const override;
+#endif
+
+  /// Returns true if the induction is canonical, i.e. starting at 0 and
+  /// incremented by UF * VF (= the original IV is incremented by 1).
+  bool isCanonical() const;
+
+  VPCanonicalIVPHIRecipe *getCanonicalIV() const;
+  VPValue *getStartValue() const { return getOperand(1); }
+  VPValue *getStepValue() const { return getOperand(2); }
 };
 
 /// VPBasicBlock serves as the leaf of the Hierarchical Control-Flow Graph. It
