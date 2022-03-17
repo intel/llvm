@@ -76,6 +76,16 @@ public:
   /// Get the mlir instance of a symbol.
   virtual mlir::Value getSymbolAddress(SymbolRef sym) = 0;
 
+  /// Get the binding of an implied do variable by name.
+  virtual mlir::Value impliedDoBinding(llvm::StringRef name) = 0;
+
+  /// Copy the binding of src to target symbol.
+  virtual void copySymbolBinding(SymbolRef src, SymbolRef target) = 0;
+
+  /// Binds the symbol to an fir extended value. The symbol binding will be
+  /// added or replaced at the inner-most level of the local symbol map.
+  virtual void bindSymbol(SymbolRef sym, const fir::ExtendedValue &exval) = 0;
+
   /// Get the label set associated with a symbol.
   virtual bool lookupLabelSet(SymbolRef sym, pft::LabelSet &labelSet) = 0;
 
@@ -126,12 +136,14 @@ public:
   /// which is itself a reference. Use bindTuple() to set this value.
   virtual mlir::Value hostAssocTupleValue() = 0;
 
+  /// Record a binding for the ssa-value of the host assoications tuple for this
+  /// function.
+  virtual void bindHostAssocTuple(mlir::Value val) = 0;
+
   //===--------------------------------------------------------------------===//
   // Types
   //===--------------------------------------------------------------------===//
 
-  /// Generate the type of a DataRef
-  virtual mlir::Type genType(const Fortran::evaluate::DataRef &) = 0;
   /// Generate the type of an Expr
   virtual mlir::Type genType(const SomeExpr &) = 0;
   /// Generate the type of a Symbol
@@ -142,6 +154,8 @@ public:
   virtual mlir::Type
   genType(Fortran::common::TypeCategory tc, int kind,
           llvm::ArrayRef<std::int64_t> lenParameters = llvm::None) = 0;
+  /// Generate the type from a DerivedTypeSpec.
+  virtual mlir::Type genType(const Fortran::semantics::DerivedTypeSpec &) = 0;
   /// Generate the type from a Variable
   virtual mlir::Type genType(const pft::Variable &) = 0;
 

@@ -364,16 +364,16 @@ mlir::Value
 fir::factory::createUnallocatedBox(fir::FirOpBuilder &builder,
                                    mlir::Location loc, mlir::Type boxType,
                                    mlir::ValueRange nonDeferredParams) {
-  auto heapType = boxType.dyn_cast<fir::BoxType>().getEleTy();
-  auto type = fir::dyn_cast_ptrEleTy(heapType);
-  auto eleTy = type;
-  if (auto seqType = eleTy.dyn_cast<fir::SequenceType>())
-    eleTy = seqType.getEleTy();
+  auto baseAddrType = boxType.dyn_cast<fir::BoxType>().getEleTy();
+  if (!fir::isa_ref_type(baseAddrType))
+    baseAddrType = builder.getRefType(baseAddrType);
+  auto type = fir::unwrapRefType(baseAddrType);
+  auto eleTy = fir::unwrapSequenceType(type);
   if (auto recTy = eleTy.dyn_cast<fir::RecordType>())
     if (recTy.getNumLenParams() > 0)
       TODO(loc, "creating unallocated fir.box of derived type with length "
                 "parameters");
-  auto nullAddr = builder.createNullConstant(loc, heapType);
+  auto nullAddr = builder.createNullConstant(loc, baseAddrType);
   mlir::Value shape;
   if (auto seqTy = type.dyn_cast<fir::SequenceType>()) {
     auto zero = builder.createIntegerConstant(loc, builder.getIndexType(), 0);
@@ -586,9 +586,9 @@ void fir::factory::associateMutableBoxWithRemap(
     for (auto [lb, ub] : llvm::zip(lbounds, ubounds)) {
       auto lbi = builder.createConvert(loc, idxTy, lb);
       auto ubi = builder.createConvert(loc, idxTy, ub);
-      auto diff = builder.create<arith::SubIOp>(loc, idxTy, ubi, lbi);
+      auto diff = builder.create<mlir::arith::SubIOp>(loc, idxTy, ubi, lbi);
       extents.emplace_back(
-          builder.create<arith::AddIOp>(loc, idxTy, diff, one));
+          builder.create<mlir::arith::AddIOp>(loc, idxTy, diff, one));
     }
   } else {
     // lbounds are default. Upper bounds and extents are the same.

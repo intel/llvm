@@ -56,7 +56,8 @@ def ConditionOp : SCF_Op<"condition", [
 // ExecuteRegionOp
 //===----------------------------------------------------------------------===//
 
-def ExecuteRegionOp : SCF_Op<"execute_region"> {
+def ExecuteRegionOp : SCF_Op<"execute_region", [
+    DeclareOpInterfaceMethods<RegionBranchOpInterface>]> {
   let summary = "operation that executes its region exactly once";
   let description = [{
     The `execute_region` operation is used to allow multiple blocks within SCF
@@ -308,6 +309,7 @@ def ForOp : SCF_Op<"for",
   let hasCanonicalizer = 1;
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 def IfOp : SCF_Op<"if",
@@ -535,7 +537,7 @@ def ReduceOp : SCF_Op<"reduce", [HasParent<"ParallelOp">]> {
   let arguments = (ins AnyType:$operand);
   let hasCustomAssemblyFormat = 1;
   let regions = (region SizedRegion<1>:$reductionOperator);
-  let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 def ReduceReturnOp :
@@ -688,7 +690,7 @@ def WhileOp : SCF_Op<"while",
 
   let hasCanonicalizer = 1;
   let hasCustomAssemblyFormat = 1;
-  let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 def YieldOp : SCF_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
