@@ -2862,6 +2862,17 @@ void CodeGenModule::AddGlobalAnnotations(const ValueDecl *D,
     Annotations.push_back(EmitAnnotateAttr(GV, I, D->getLocation()));
 }
 
+void CodeGenModule::AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
+                                              const RecordDecl *RD) {
+  const auto *A = RD->getAttr<SYCLAddIRAttributesGlobalVariableAttr>();
+  assert(A && "no add_ir_attributes_global_variable attribute");
+  SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+      A->getFilteredAttributeNameValuePairs(Context);
+  for (const std::pair<std::string, std::string> &NameValuePair :
+       NameValuePairs)
+    GV->addAttribute(NameValuePair.first, NameValuePair.second);
+}
+
 // Add "sycl-unique-id" llvm IR attribute that has a unique string generated
 // by __builtin_sycl_unique_stable_id for global variables marked with
 // SYCL device_global attribute.
@@ -4981,10 +4992,14 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
   if (getLangOpts().SYCLIsDevice)
     addGlobalIntelFPGAAnnotation(D, GV);
 
-  // If VarDecl has a type decorated with SYCL device_global attribute, emit IR
-  // attribute 'sycl-unique-id'.
   if (getLangOpts().SYCLIsDevice) {
     const RecordDecl *RD = D->getType()->getAsRecordDecl();
+    // Add IR attributes if add_ir_attribute_global_variable is attached to
+    // type.
+    if (RD && RD->hasAttr<SYCLAddIRAttributesGlobalVariableAttr>())
+      AddGlobalSYCLIRAttributes(GV, RD);
+    // If VarDecl has a type decorated with SYCL device_global attribute, emit
+    // IR attribute 'sycl-unique-id'.
     if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>())
       addSYCLUniqueID(GV, D, Context);
   }
