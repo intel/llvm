@@ -60,25 +60,20 @@ pi_result map_error(CUresult result) {
 
 // Global variables for PI_PLUGIN_SPECIFIC_ERROR
 static const size_t MaxMessageSize = 256;
-static bool isWarning;
-static char *ErrorMessage = new char[MaxMessageSize];
-static sycl::detail::SpinLock *ErrorMessageMutex = new sycl::detail::SpinLock;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
-static void setErrorMessage(const char *message, bool is_warning) {
+static void setErrorMessage(const char *message, pi_result error_code) {
   assert(strlen(message) <= MaxMessageSize);
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*ErrorMessageMutex};
   strcpy(ErrorMessage, message);
-  isWarning = is_warning;
+  ErrorMessageCode = error_code;
 }
 
 // Returns plugin specific error and warning messages
-pi_result cuda_piPluginGetLastError(char *message, size_t message_size,
-                                    bool *is_warning) {
-  assert(message_size >= MaxMessageSize);
-  strcpy(message, ErrorMessage);
-  *is_warning = isWarning;
-  return PI_SUCCESS;
+pi_result cuda_piPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
 }
 
 // Iterates over the event wait list, returns correct pi_result error codes.
@@ -4764,7 +4759,7 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
   if (!isConcurrentManagedAccessAvailable) {
     setErrorMessage("Prefetch hint ignored as device does not support "
                     "concurrent managed access",
-                    /*is_warning*/ true);
+                    PI_SUCCESS);
     return PI_PLUGIN_SPECIFIC_ERROR;
   }
 
@@ -4973,11 +4968,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
-pi_result cuda_piTearDown(void *) {
-  delete[] ErrorMessage;
-  delete ErrorMessageMutex;
-  return PI_SUCCESS;
-}
+pi_result cuda_piTearDown(void *) { return PI_SUCCESS; }
 
 const char SupportedVersion[] = _PI_H_VERSION_STRING;
 

@@ -94,19 +94,14 @@ public:
          void *LibraryHandle)
       : MPlugin(Plugin), MBackend(UseBackend), MLibraryHandle(LibraryHandle),
         TracingMutex(std::make_shared<std::mutex>()),
-        MPluginMutex(std::make_shared<std::mutex>()) {
-    message = new char[message_size];
-  }
+        MPluginMutex(std::make_shared<std::mutex>()) {}
 
   plugin &operator=(const plugin &) = default;
   plugin(const plugin &) = default;
   plugin &operator=(plugin &&other) noexcept = default;
   plugin(plugin &&other) noexcept = default;
 
-  ~plugin() {
-    if (message == nullptr)
-      delete[] message;
-  }
+  ~plugin() {}
 
   const RT::PiPlugin &getPiPlugin() const { return *MPlugin; }
   RT::PiPlugin &getPiPlugin() { return *MPlugin; }
@@ -120,16 +115,15 @@ public:
   template <typename Exception = cl::sycl::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
     if (pi_result == PI_PLUGIN_SPECIFIC_ERROR) {
-      bool isWarning;
-      call_nocheck<PiApiKind::piPluginGetLastError>(message, message_size,
-                                                    &isWarning);
+      char *message;
+      pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
 
       // If the warning level is greater then 2 emit the message
       if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
         std::clog << message << std::endl;
 
       // If it is a warning do not throw code
-      if (isWarning)
+      if (pi_result == PI_SUCCESS)
         return;
     }
     __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
@@ -138,16 +132,15 @@ public:
   /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
   template <sycl::errc errc> void checkPiResult(RT::PiResult pi_result) const {
     if (pi_result == PI_PLUGIN_SPECIFIC_ERROR) {
-      bool isWarning;
-      call_nocheck<PiApiKind::piPluginGetLastError>(message, message_size,
-                                                    &isWarning);
+      char *message;
+      pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
 
       // If the warning level is greater then 2 emit the message
       if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
         std::clog << message << std::endl;
 
       // If it is a warning do not throw code
-      if (isWarning)
+      if (pi_result == PI_SUCCESS)
         return;
     }
     __SYCL_CHECK_CODE_THROW_VIA_ERRC(pi_result, errc);
@@ -301,9 +294,6 @@ private:
   // represents the unique ids of the last device of each platform
   // index of this vector corresponds to the index in PiPlatforms vector.
   std::vector<int> LastDeviceIds;
-
-  const size_t message_size = 256;
-  char *message = nullptr;
 
 }; // class plugin
 } // namespace detail

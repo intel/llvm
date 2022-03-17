@@ -7958,11 +7958,8 @@ pi_result piextPluginGetOpaqueData(void *opaque_data_param,
   return PI_ERROR_UNKNOWN;
 }
 
-pi_result piPluginGetLastError(char *message, size_t message_size,
-                               bool *is_warning) {
+pi_result piPluginGetLastError(char **message) {
   (void)message;
-  (void)message_size;
-  (void)is_warning;
   return PI_SUCCESS;
 }
 

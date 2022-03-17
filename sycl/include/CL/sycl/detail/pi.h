@@ -1804,8 +1804,7 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 /// with the error message. \param message_size is the size of the array message
 /// points to. \param is_warning is a bool indicating if the message is a
 /// non-failing error.
-__SYCL_EXPORT pi_result piPluginGetLastError(char *message, size_t message_size,
-                                             bool *is_warning);
+__SYCL_EXPORT pi_result piPluginGetLastError(char **message);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
