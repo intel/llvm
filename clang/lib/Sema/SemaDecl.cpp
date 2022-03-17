@@ -2797,6 +2797,14 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLIntelPipeIOAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(Attr))
     NewAttr = S.MergeSYCLIntelMaxWorkGroupSizeAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLAddIRAttributesFunctionAttr>(Attr))
+    NewAttr = S.MergeSYCLAddIRAttributesFunctionAttr(D, *A);
+  else if (const auto *A =
+               dyn_cast<SYCLAddIRAttributesKernelParameterAttr>(Attr))
+    NewAttr = S.MergeSYCLAddIRAttributesKernelParameterAttr(D, *A);
+  else if (const auto *A =
+               dyn_cast<SYCLAddIRAttributesGlobalVariableAttr>(Attr))
+    NewAttr = S.MergeSYCLAddIRAttributesGlobalVariableAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -7414,12 +7422,23 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       NewVD->setTSCSpec(TSCS);
   }
 
-  // Static variables declared inside SYCL device code must be const or
-  // constexpr
-  if (getLangOpts().SYCLIsDevice)
-    if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context))
+  // Global variables with types decorated with device_global attribute must be
+  // static if they are declared in SYCL device code.
+  if (getLangOpts().SYCLIsDevice) {
+    if (SCSpec != DeclSpec::SCS_static && !NewVD->hasGlobalStorage() &&
+        isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            NewVD->getType()))
+      Diag(D.getIdentifierLoc(), diag::err_sycl_device_global_incorrect_scope);
+
+    // Static variables declared inside SYCL device code must be const or
+    // constexpr unless their types are decorated with global_variable_allowed
+    // attribute.
+    if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context) &&
+        !isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
+            NewVD->getType()))
       SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
           << Sema::KernelNonConstStaticDataVariable;
+  }
 
   switch (D.getDeclSpec().getConstexprSpecifier()) {
   case ConstexprSpecKind::Unspecified:
