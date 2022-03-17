@@ -92,9 +92,6 @@ struct _pi_context : _pi_object {
   // A lock guarding access to Addr2CmBufferSVM
   std::mutex Addr2CmBufferSVMLock;
 
-  // Thread-safe CM-Surface Creation/Deletion
-  std::mutex CmSurfaceManageLock;
-
   bool checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr);
 };
 
@@ -126,8 +123,10 @@ struct _pi_mem : _pi_object {
 
   _pi_mem_type getMemType() const { return MemType; };
 
-  pi_result addMapping(void *MappedTo);
-  pi_result removeMapping(void *MappedTo);
+  // TODO: Runtime guarantees LIFO across multiple threads for
+  // piEnqueueMemBufferMap/Unmap? No duplicated mappings for same
+  // (base, offset)?
+  std::stack<void *> Mappings;
 
 protected:
   _pi_mem(pi_context ctxt, char *HostPtr, _pi_mem_type MemTypeArg,
@@ -137,14 +136,12 @@ protected:
 
 private:
   _pi_mem_type MemType;
-
-  // TODO: Runtime guarantees LIFO across multiple threads for
-  // piEnqueueMemBufferMap/Unmap? No duplicated mappings for same
-  // (base, offset)?
-  std::stack<void *> Mappings;
 };
 
 struct cm_buffer_ptr_slot {
+  // 'UP' means 'User-Provided' in CM Lib - corresponding to
+  // Host-created buffer in SYCL
+
   enum type { type_none, type_regular, type_user_provided };
   type tag = type_none;
 
@@ -152,20 +149,12 @@ struct cm_buffer_ptr_slot {
     cm_support::CmBuffer *RegularBufPtr = nullptr;
     cm_support::CmBufferUP *UPBufPtr;
   };
-
-  type getBufType() { return tag; }
-
-  cm_support::CmBuffer *getBuffer() {
-    assert(tag == type_regular);
-    return RegularBufPtr;
-  }
-  cm_support::CmBufferUP *getBufferUP() {
-    assert(tag == type_user_provided);
-    return UPBufPtr;
-  }
 };
 
 struct cm_image_ptr_slot {
+  // 'UP' means 'User-Provided' in CM Lib - corresponding to
+  // Host-created image in SYCL
+
   enum type { type_none, type_regular, type_user_provided };
   type tag = type_none;
 
@@ -173,17 +162,6 @@ struct cm_image_ptr_slot {
     cm_support::CmSurface2D *RegularImgPtr = nullptr;
     cm_support::CmSurface2DUP *UPImgPtr;
   };
-
-  type getImgType() { return tag; }
-
-  cm_support::CmSurface2D *getImage() {
-    assert(tag == type_regular);
-    return RegularImgPtr;
-  }
-  cm_support::CmSurface2DUP *getImageUP() {
-    assert(tag == type_user_provided);
-    return UPImgPtr;
-  }
 };
 
 struct _pi_buffer final : _pi_mem {
