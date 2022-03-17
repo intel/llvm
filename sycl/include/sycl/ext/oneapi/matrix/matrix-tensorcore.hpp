@@ -21,69 +21,71 @@ enum class matrix_layout { row_major, col_major, packed_a, packed_b };
 template <typename T, matrix_use Use, size_t Rows = sycl::dynamic_extent,
           size_t Cols = sycl::dynamic_extent,
           matrix_layout Layout = matrix_layout::row_major,
-          typename Group = sycl::sub_group, typename Cond = void>
+          typename Group = sycl::sub_group, bool use_tf32 = false,
+          typename Cond = void>
 struct joint_matrix;
 
-#define __SYCL_JOINT_MATRIX_OVERLOAD(type, use, M, N, frag_type, frag_size)    \
+#define __SYCL_JOINT_MATRIX_OVERLOAD(type, use, M, N, frag_type, frag_size,    \
+                                     use_tf32)                                 \
   template <matrix_layout Layout>                                              \
   struct joint_matrix<                                                         \
-      type, matrix_use::use, M, N, Layout, sycl::sub_group,                    \
+      type, matrix_use::use, M, N, Layout, sycl::sub_group, use_tf32,          \
       typename std::enable_if_t<Layout == matrix_layout::row_major ||          \
                                 Layout == matrix_layout::col_major>> {         \
     frag_type data[frag_size];                                                 \
   };
 
 // m8n8k4 double only
-__SYCL_JOINT_MATRIX_OVERLOAD(double, a, 8, 4, double, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD(double, b, 4, 8, double, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD(double, accumulator, 8, 8, double, 2)
+__SYCL_JOINT_MATRIX_OVERLOAD(double, a, 8, 4, double, 1, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(double, b, 4, 8, double, 1, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(double, accumulator, 8, 8, double, 2, false)
 
 // m8n32k16
 // bf16 data format uses uint16_t data type
-__SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, a, 8, 16, int32_t, 2)
-__SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, b, 16, 32, int32_t, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD(half, a, 8, 16, int32_t, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD(half, b, 16, 32, int32_t, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD(float, accumulator, 8, 32, float, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD(half, accumulator, 8, 32, int32_t, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, a, 8, 16, int32_t, 2, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, b, 16, 32, int32_t, 8, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(half, a, 8, 16, int32_t, 8, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(half, b, 16, 32, int32_t, 8, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(float, accumulator, 8, 32, float, 8, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(half, accumulator, 8, 32, int32_t, 4, false)
 
-__SYCL_JOINT_MATRIX_OVERLOAD(int8_t, a, 8, 16, int32_t, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD(int8_t, b, 16, 32, int32_t, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, a, 8, 16, int32_t, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, b, 16, 32, int32_t, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 8, 32, int32_t, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD(int8_t, a, 8, 16, int32_t, 1, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(int8_t, b, 16, 32, int32_t, 4, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, a, 8, 16, int32_t, 1, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, b, 16, 32, int32_t, 4, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 8, 32, int32_t, 8, false)
 
 // m32n8k16
-__SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, a, 32, 16, int32_t, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, b, 16, 8, int32_t, 2)
-__SYCL_JOINT_MATRIX_OVERLOAD(half, a, 32, 16, int32_t, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD(half, b, 16, 8, int32_t, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD(float, accumulator, 32, 8, float, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD(half, accumulator, 32, 8, int32_t, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, a, 32, 16, int32_t, 8, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, b, 16, 8, int32_t, 2, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(half, a, 32, 16, int32_t, 8, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(half, b, 16, 8, int32_t, 8, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(float, accumulator, 32, 8, float, 8, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(half, accumulator, 32, 8, int32_t, 4, false)
 
-__SYCL_JOINT_MATRIX_OVERLOAD(int8_t, a, 32, 16, int32_t, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD(int8_t, b, 16, 8, int32_t, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, a, 32, 16, int32_t, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, b, 16, 8, int32_t, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 32, 8, int32_t, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD(int8_t, a, 32, 16, int32_t, 4, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(int8_t, b, 16, 8, int32_t, 1, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, a, 32, 16, int32_t, 4, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, b, 16, 8, int32_t, 1, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 32, 8, int32_t, 8, false)
 
 // m16n16k16
-__SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, a, 16, 16, int32_t, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, b, 16, 16, int32_t, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD(half, a, 16, 16, int32_t, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD(half, b, 16, 16, int32_t, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD(float, accumulator, 16, 16, float, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD(half, accumulator, 16, 16, int32_t, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, a, 16, 16, int32_t, 4, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, b, 16, 16, int32_t, 4, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(half, a, 16, 16, int32_t, 8, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(half, b, 16, 16, int32_t, 8, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(float, accumulator, 16, 16, float, 8, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(half, accumulator, 16, 16, int32_t, 4, false)
 
-__SYCL_JOINT_MATRIX_OVERLOAD(int8_t, a, 16, 16, int32_t, 2)
-__SYCL_JOINT_MATRIX_OVERLOAD(int8_t, b, 16, 16, int32_t, 2)
-__SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, a, 16, 16, int32_t, 2)
-__SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, b, 16, 16, int32_t, 2)
-__SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 16, 16, int32_t, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD(int8_t, a, 16, 16, int32_t, 2, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(int8_t, b, 16, 16, int32_t, 2, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, a, 16, 16, int32_t, 2, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, b, 16, 16, int32_t, 2, false)
+__SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 16, 16, int32_t, 8, false)
 
 // m16n16k8 tf32
-__SYCL_JOINT_MATRIX_OVERLOAD(uint32_t, a, 16, 8, int32_t, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD(uint32_t, b, 8, 16, int32_t, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD(float, a, 16, 8, float, 4, true)
+__SYCL_JOINT_MATRIX_OVERLOAD(float, b, 8, 16, float, 4, true)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD
 } // namespace experimental::matrix
@@ -93,11 +95,13 @@ namespace detail {
 template <typename T, sycl::ext::oneapi::experimental::matrix::matrix_use Use,
           size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
-          access::address_space Space, typename Cond = void>
+          access::address_space Space, bool use_tf32 = false,
+          typename Cond = void>
 struct joint_matrix_load_impl {
-  void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-                T, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
-            multi_ptr<T, Space> src, size_t stride);
+  void
+  load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+           T, Use, NumRows, NumCols, Layout, sycl::sub_group, use_tf32> &res,
+       multi_ptr<T, Space> src, size_t stride);
 };
 
 template <sycl::ext::oneapi::experimental::matrix::matrix_layout Layout>
@@ -118,16 +122,17 @@ constexpr int get_layout_id<
 template <typename T, sycl::ext::oneapi::experimental::matrix::matrix_use Use,
           size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
-          access::address_space Space>
+          access::address_space Space, bool use_tf32>
 struct joint_matrix_load_impl<
-    T, Use, NumRows, NumCols, Layout, Space,
+    T, Use, NumRows, NumCols, Layout, Space, use_tf32,
     typename std::enable_if_t<Layout == sycl::ext::oneapi::experimental::
                                             matrix::matrix_layout::row_major ||
                               Layout == sycl::ext::oneapi::experimental::
                                             matrix::matrix_layout::col_major>> {
-  void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-                T, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
-            multi_ptr<T, Space> src, size_t stride) {
+  void
+  load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+           T, Use, NumRows, NumCols, Layout, sycl::sub_group, use_tf32> &res,
+       multi_ptr<T, Space> src, size_t stride) {
     if constexpr (std::is_same<T, uint16_t>::value) {
       int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
       if constexpr (NumRows == 16 && NumCols == 16) {
@@ -251,15 +256,28 @@ struct joint_matrix_load_impl<
                              get_layout_id<Layout>());
       }
     } else if constexpr (std::is_same<T, float>::value) {
-      if constexpr (NumRows == 16 && NumCols == 16) {
-        __hmma_m16n16k16_ld_c_f32(res.data, src.get(), stride,
-                                  get_layout_id<Layout>());
-      } else if constexpr (NumRows == 8 && NumCols == 32) {
-        __hmma_m8n32k16_ld_c_f32(res.data, src.get(), stride,
-                                 get_layout_id<Layout>());
-      } else if constexpr (NumRows == 32 && NumCols == 8) {
-        __hmma_m32n8k16_ld_c_f32(res.data, src.get(), stride,
-                                 get_layout_id<Layout>());
+      if constexpr (use_tf32) {
+        // TODO make sure I am casting from float to tf32 correctly
+        int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
+        if constexpr (NumRows == 16 && NumCols == 8) {
+          __mma_tf32_m16n16k8_ld_a(reinterpret_cast<int32_t *>(res.data),
+                                   tileptr, stride, get_layout_id<Layout>());
+        } else if constexpr (NumRows == 8 && NumCols == 16) {
+          __mma_tf32_m16n16k8_ld_b(reinterpret_cast<int32_t *>(res.data),
+                                   tileptr, stride, get_layout_id<Layout>());
+        }
+        // END TODO
+      } else {
+        if constexpr (NumRows == 16 && NumCols == 16) {
+          __hmma_m16n16k16_ld_c_f32(res.data, src.get(), stride,
+                                    get_layout_id<Layout>());
+        } else if constexpr (NumRows == 8 && NumCols == 32) {
+          __hmma_m8n32k16_ld_c_f32(res.data, src.get(), stride,
+                                   get_layout_id<Layout>());
+        } else if constexpr (NumRows == 32 && NumCols == 8) {
+          __hmma_m32n8k16_ld_c_f32(res.data, src.get(), stride,
+                                   get_layout_id<Layout>());
+        }
       }
     } else if constexpr (std::is_same<T, double>::value) {
       if constexpr (Use ==
@@ -274,15 +292,6 @@ struct joint_matrix_load_impl<
                                       matrix_use::accumulator) {
         __dmma_m8n8k4_ld_c(res.data, src.get(), stride,
                            get_layout_id<Layout>());
-      }
-    } else if constexpr (std::is_same<T, uint32_t>::value) {
-      int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
-      if constexpr (NumRows == 16 && NumCols == 8) {
-        __mma_tf32_m16n16k8_ld_a(res.data, tileptr, stride,
-                                 get_layout_id<Layout>());
-      } else if constexpr (NumRows == 8 && NumCols == 16) {
-        __mma_tf32_m16n16k8_ld_b(res.data, tileptr, stride,
-                                 get_layout_id<Layout>());
       }
     }
   }
@@ -360,18 +369,18 @@ template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutB,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutC,
-          typename Cond = void>
+          bool use_tf32, typename Cond = void>
 struct joint_matrix_mad_impl {
   sycl::ext::oneapi::experimental::matrix::joint_matrix<
       T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M,
       N, LayoutC, sycl::sub_group>
   mad(sycl::ext::oneapi::experimental::matrix::joint_matrix<
           T1, sycl::ext::oneapi::experimental::matrix::matrix_use::a, M, K,
-          LayoutA, sycl::sub_group>
+          LayoutA, sycl::sub_group, use_tf32>
           A,
       sycl::ext::oneapi::experimental::matrix::joint_matrix<
           T1, sycl::ext::oneapi::experimental::matrix::matrix_use::b, K, N,
-          LayoutB, sycl::sub_group>
+          LayoutB, sycl::sub_group, use_tf32>
           B,
       sycl::ext::oneapi::experimental::matrix::joint_matrix<
           T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
@@ -414,9 +423,10 @@ constexpr int get_layout_pair_id<
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutB,
-          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutC>
+          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutC,
+          bool use_tf32>
 struct joint_matrix_mad_impl<
-    T1, T2, M, K, N, LayoutA, LayoutB, LayoutC,
+    T1, T2, M, K, N, LayoutA, LayoutB, LayoutC, use_tf32,
     typename std::enable_if_t<
         (LayoutA == sycl::ext::oneapi::experimental::matrix::matrix_layout::
                         row_major ||
@@ -435,11 +445,11 @@ struct joint_matrix_mad_impl<
       N, LayoutC, sycl::sub_group>
   mad(sycl::ext::oneapi::experimental::matrix::joint_matrix<
           T1, sycl::ext::oneapi::experimental::matrix::matrix_use::a, M, K,
-          LayoutA, sycl::sub_group>
+          LayoutA, sycl::sub_group, use_tf32>
           A,
       sycl::ext::oneapi::experimental::matrix::joint_matrix<
           T1, sycl::ext::oneapi::experimental::matrix::matrix_use::b, K, N,
-          LayoutB, sycl::sub_group>
+          LayoutB, sycl::sub_group, use_tf32>
           B,
       sycl::ext::oneapi::experimental::matrix::joint_matrix<
           T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
@@ -508,8 +518,9 @@ struct joint_matrix_mad_impl<
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
       }
-    } else if constexpr (M == 16 && N == 16 && K == 8) {
-      __mma_tf32_m16n16k8_mma_f32(D.data, A.data, B.data, C.data,
+    } else if constexpr (M == 16 && N == 16 && K == 8 && use_tf32) {
+      __mma_tf32_m16n16k8_mma_f32(D.data, reinterpret_cast<int32_t *>(A.data),
+                                  reinterpret_cast<int *>(B.data), C.data,
                                   get_layout_pair_id<LayoutA, LayoutB>(), 0);
     } else if constexpr (std::is_same<T1, double>::value) {
       __dmma_m8n8k4_mma_f64(D.data, A.data, B.data, C.data,
@@ -524,13 +535,15 @@ struct joint_matrix_mad_impl<
 namespace experimental::matrix {
 
 template <typename Group, typename T, matrix_use Use, size_t NumRows,
-          size_t NumCols, matrix_layout Layout, access::address_space Space>
+          size_t NumCols, matrix_layout Layout, access::address_space Space,
+          bool use_tf32 = false>
 void joint_matrix_load(
-    Group sg, joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &res,
+    Group sg,
+    joint_matrix<T, Use, NumRows, NumCols, Layout, Group, use_tf32> &res,
     multi_ptr<T, Space> src, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::ext::oneapi::detail::joint_matrix_load_impl<T, Use, NumRows, NumCols,
-                                                    Layout, Space>{}
+                                                    Layout, Space, use_tf32>{}
       .load(res, src, stride);
 #else
   (void)sg;
@@ -568,15 +581,15 @@ void joint_matrix_store(Group sg,
 
 template <typename Group, typename T1, typename T2, std::size_t M,
           std::size_t K, std::size_t N, matrix_layout LayoutA,
-          matrix_layout LayoutB, matrix_layout LayoutC>
+          matrix_layout LayoutB, matrix_layout LayoutC, bool use_tf32>
 joint_matrix<T2, matrix_use::accumulator, M, N, LayoutC, Group>
 joint_matrix_mad(
-    Group sg, joint_matrix<T1, matrix_use::a, M, K, LayoutA, Group> A,
-    joint_matrix<T1, matrix_use::b, K, N, LayoutB, Group> B,
+    Group sg, joint_matrix<T1, matrix_use::a, M, K, LayoutA, Group, use_tf32> A,
+    joint_matrix<T1, matrix_use::b, K, N, LayoutB, Group, use_tf32> B,
     joint_matrix<T2, matrix_use::accumulator, M, N, LayoutC, Group> C) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return sycl::ext::oneapi::detail::joint_matrix_mad_impl<
-             T1, T2, M, K, N, LayoutA, LayoutB, LayoutC>{}
+             T1, T2, M, K, N, LayoutA, LayoutB, LayoutC, use_tf32>{}
       .mad(A, B, C);
 #else
   (void)sg;
