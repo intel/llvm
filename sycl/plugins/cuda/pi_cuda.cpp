@@ -1732,6 +1732,15 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     }
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
+  case PI_DEVICE_INFO_BACKEND_VERSION: {
+    int major =
+        getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
+    int minor =
+        getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
+    std::string result = std::to_string(major) + "." + std::to_string(minor);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   result.c_str());
+  }
 
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
