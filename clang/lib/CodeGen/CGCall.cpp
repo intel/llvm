@@ -2740,6 +2740,18 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
     if (Arg->hasAttr<SYCLAccessorReadonlyAttr>())
       Fn->getArg(FirstIRArg)->addAttr(llvm::Attribute::ReadOnly);
 
+    if (const auto *AddIRAttr =
+            Arg->getAttr<SYCLAddIRAttributesKernelParameterAttr>()) {
+      SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+          AddIRAttr->getFilteredAttributeNameValuePairs(CGM.getContext());
+
+      llvm::AttrBuilder KernelParamAttrBuilder(Fn->getContext());
+      for (const auto &NameValuePair : NameValuePairs)
+        KernelParamAttrBuilder.addAttribute(NameValuePair.first,
+                                            NameValuePair.second);
+      Fn->addParamAttrs(ArgNo, KernelParamAttrBuilder);
+    }
+
     switch (ArgI.getKind()) {
     case ABIArgInfo::InAlloca: {
       assert(NumIRArgs == 0);

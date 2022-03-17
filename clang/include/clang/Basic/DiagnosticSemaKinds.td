@@ -9983,8 +9983,13 @@ def warn_duplicate_attribute_exact : Warning<
 def warn_duplicate_attribute : Warning<
   "attribute %0 is already applied with different arguments">,
   InGroup<IgnoredAttributes>;
+def err_duplicate_attribute : Error<warn_duplicate_attribute.Text>;
 def err_disallowed_duplicate_attribute : Error<
   "attribute %0 cannot appear more than once on a declaration">;
+
+def err_disallow_attribute_on_func : Error<
+  "attribute %0 cannot be applied to a "
+  "%select{virtual, overridden, or final|defaulted|deleted}1 function">;
 
 def warn_sync_fetch_and_nand_semantics_change : Warning<
   "the semantics of this intrinsic changed with GCC "
@@ -11706,6 +11711,21 @@ def err_sycl_taking_address_of_wrong_function : Error<
   "taking address of a function not marked with "
   "'intel::device_indirectly_callable' attribute is not allowed in SYCL device "
   "code">;
+def err_sycl_add_ir_attr_filter_list_invalid_arg : Error<
+  "only the first argument of attribute %0 can be an initializer list">;
+def err_sycl_add_ir_attribute_must_have_pairs : Error<
+  "attribute %0 must specify a value for each specified name in the argument "
+  "list">;
+def err_sycl_add_ir_attribute_invalid_name : Error<
+  "each name argument in %0 must be a 'const char *' usable in a constant "
+  "expression">;
+def err_sycl_add_ir_attribute_invalid_value : Error<
+  "each value argument in %0 must be an integer, a floating point, a "
+  "character, a boolean, 'const char *', or an enumerator usable as a constant "
+  "expression">;
+def err_sycl_add_ir_attribute_invalid_filter : Error<
+  "initializer list in the first argument of %0 must contain only string "
+  "literals">;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<

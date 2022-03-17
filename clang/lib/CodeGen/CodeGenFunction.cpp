@@ -1099,6 +1099,18 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
                     llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
   }
 
+  if (getLangOpts().SYCLIsDevice && D &&
+      D->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
+    const auto *A = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
+    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+        A->getFilteredAttributeNameValuePairs(CGM.getContext());
+
+    llvm::AttrBuilder FnAttrBuilder(Fn->getContext());
+    for (const auto &NameValuePair : NameValuePairs)
+      FnAttrBuilder.addAttribute(NameValuePair.first, NameValuePair.second);
+    Fn->addFnAttrs(FnAttrBuilder);
+  }
+
   if (FD && (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice)) {
     // Add metadata for a kernel function.
     EmitOpenCLKernelMetadata(FD, Fn);
