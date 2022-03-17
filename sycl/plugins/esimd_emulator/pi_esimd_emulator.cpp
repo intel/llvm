@@ -28,6 +28,7 @@
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
+#include <sycl/ext/intel/esimd/common.hpp> // SLM_BTI
 
 #include <esimdemu_support.h>
 
@@ -890,7 +891,7 @@ pi_result piContextRelease(pi_context Context) {
   }
 
   if (--(Context->RefCount) == 0) {
-    std::lock_guard<std::mutex> Lock(Context->CmSVMMapMutex);
+    std::lock_guard<std::mutex> Lock(Context->Addr2CmBufferSVMLock);
     for (auto &Entry : Context->Addr2CmBufferSVM) {
       Context->Device->CmDevicePtr->DestroyBufferSVM(Entry.second);
     }
@@ -1778,7 +1779,7 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
     return PI_OUT_OF_HOST_MEMORY;
   }
   *ResultPtr = SystemMemPtr;
-  std::lock_guard<std::mutex> Lock(Context->CmSVMMapMutex);
+  std::lock_guard<std::mutex> Lock(Context->Addr2CmBufferSVMLock);
   auto Iter = Context->Addr2CmBufferSVM.find(SystemMemPtr);
   if (Context->Addr2CmBufferSVM.end() != Iter) {
     return PI_INVALID_MEM_OBJECT;
@@ -1795,7 +1796,7 @@ pi_result piextUSMFree(pi_context Context, void *Ptr) {
     return PI_INVALID_OPERATION;
   }
 
-  std::lock_guard<std::mutex> Lock(Context->CmSVMMapMutex);
+  std::lock_guard<std::mutex> Lock(Context->Addr2CmBufferSVMLock);
   cm_support::CmBufferSVM *Buf = Context->Addr2CmBufferSVM[Ptr];
   if (Buf == nullptr) {
     return PI_INVALID_MEM_OBJECT;
@@ -1937,7 +1938,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
       reinterpret_cast<void *>(new sycl::detail::ESIMDDeviceInterface());
 
   // Surface Index 254 is pre-defined surface index for SLM
-  (*PiESimdSurfaceMap)[254 /* __ESIMD_DNS::SLM_BTI */] = nullptr;
+  (*PiESimdSurfaceMap)[__ESIMD_DNS::SLM_BTI] = nullptr;
 
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);

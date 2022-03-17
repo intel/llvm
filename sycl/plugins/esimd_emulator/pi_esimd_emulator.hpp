@@ -89,8 +89,8 @@ struct _pi_context : _pi_object {
   // Map SVM memory starting address to corresponding
   // CmBufferSVM object. CmBufferSVM object is needed to release memory.
   std::unordered_map<void *, cm_support::CmBufferSVM *> Addr2CmBufferSVM;
-  // Thread-safe mapping management of Addr2CmBufferSVM
-  std::mutex CmSVMMapMutex;
+  // A lock guarding access to Addr2CmBufferSVM
+  std::mutex Addr2CmBufferSVMLock;
 
   // Thread-safe CM-Surface Creation/Deletion
   std::mutex CmSurfaceManageLock;
@@ -115,8 +115,8 @@ struct _pi_mem : _pi_object {
   // To be used for piEnqueueMemBufferMap
   char *MapHostPtr = nullptr;
 
-  // Mutex for load/store accessing from memory instrinsic
-  // implementations
+  // Mutex for load/store accessing to CM-managed surfaces from memory
+  // instrinsic implementations
   std::mutex mutexLock;
 
   // Surface index
@@ -132,8 +132,8 @@ struct _pi_mem : _pi_object {
 protected:
   _pi_mem(pi_context ctxt, char *HostPtr, _pi_mem_type MemTypeArg,
           unsigned int SurfaceIdxArg)
-      : Context{ctxt}, MapHostPtr{HostPtr}, SurfaceIndex{SurfaceIdxArg},
-        MemType{MemTypeArg} {}
+      : Context{ctxt}, MapHostPtr{HostPtr},
+        SurfaceIndex{SurfaceIdxArg}, MemType{MemTypeArg} {}
 
 private:
   _pi_mem_type MemType;
@@ -202,7 +202,7 @@ struct _pi_image final : _pi_mem {
   _pi_image(pi_context ctxt, char *HostPtr, cm_image_ptr_slot ImagePtrArg,
             unsigned int SurfaceIdxArg, size_t WidthArg, size_t HeightArg,
             size_t BPPArg)
-    : _pi_mem(ctxt, HostPtr, PI_MEM_TYPE_IMAGE2D, SurfaceIdxArg),
+      : _pi_mem(ctxt, HostPtr, PI_MEM_TYPE_IMAGE2D, SurfaceIdxArg),
         ImagePtr(ImagePtrArg), Width{WidthArg}, Height{HeightArg},
         BytesPerPixel{BPPArg} {}
 
