@@ -4,6 +4,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 #include "xpti/xpti_trace_framework.hpp"
+#include "spin_lock.hpp"
+#include "xpti/xpti_data_types.h"
+#include "xpti/xpti_trace_framework.h"
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_object_table.hpp"
 #include "xpti_string_table.hpp"
@@ -14,8 +17,10 @@
 #include <cassert>
 #include <cstdio>
 #include <iostream>
+#include <list>
 #include <map>
 #include <mutex>
+#include <shared_mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -50,6 +55,16 @@ static_assert(
 static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
 
 namespace xpti {
+
+struct reserved_data_t {
+  /// Shared lock to allow thread-safe access.
+  xpti::SharedSpinLock lock;
+  /// Metadata storage.
+  std::unordered_map<xpti::object_id_t, xpti::object_id_t> metadata;
+  /// Has a reference to the associated payload field for an event.
+  payload_t *payload = nullptr;
+};
+
 constexpr const char *env_subscribers = "XPTI_SUBSCRIBERS";
 xpti::utils::PlatformHelper g_helper;
 xpti::utils::SpinLock g_framework_mutex;
@@ -323,12 +338,12 @@ public:
     // Scoped lock until the information is retrieved from the map
     {
       std::lock_guard<std::mutex> Lock(MEventMutex);
-      if (Event->reserved.payload)
-        return Event->reserved.payload;
+      if (Event->reserved->payload)
+        return Event->reserved->payload;
       else {
         // Cache it in case it is not already cached
-        Event->reserved.payload = &MPayloads[Event->unique_id];
-        return Event->reserved.payload;
+        Event->reserved->payload = &MPayloads[Event->unique_id];
+        return Event->reserved->payload;
       }
     }
   }
@@ -361,25 +376,58 @@ public:
   // column_no fields that may already be present. Since we are not sure of the
   // data types, we will allow them to add these pairs as strings. Internally,
   // we will store key-value pairs as a map of string ids.
-  xpti::result_t addMetadata(xpti::trace_event_data_t *Event, const char *Key,
-                             object_id_t ValueID) {
-    if (!Event || !Key)
+  xpti::result_t addMetadata(xpti::trace_event_data_t *Event,
+                             xpti::object_id_t Key, object_id_t ValueID) {
+    if (!Event || Key == xpti::invalid_id || ValueID == xpti::invalid_id)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
-    string_id_t KeyID = MStringTableRef.add(Key);
-    if (KeyID == xpti::invalid_id) {
-      return xpti::result_t::XPTI_RESULT_INVALIDARG;
+    std::unique_lock Lock{Event->reserved->lock};
+
+    if (Event->reserved->metadata.count(Key)) {
+      return xpti::result_t::XPTI_RESULT_DUPLICATE;
     }
 
-    // Protect simultaneous insert operations on the metadata tables
-    {
-      std::lock_guard<std::mutex> HashLock(MMetadataMutex);
-      if (Event->reserved.metadata.count(KeyID)) {
-        return xpti::result_t::XPTI_RESULT_DUPLICATE;
-      }
-      Event->reserved.metadata[KeyID] = ValueID;
-      return xpti::result_t::XPTI_RESULT_SUCCESS;
+    Event->reserved->metadata[Key] = ValueID;
+
+    return xpti::result_t::XPTI_RESULT_SUCCESS;
+  }
+
+  xpti_metadata_t queryMetadata(xpti::trace_event_data_t *Event,
+                                xpti::object_id_t Key) {
+    if (Event == nullptr || Key == xpti::invalid_id) {
+      return xpti_metadata_t{xpti::invalid_id, xpti::invalid_id};
     }
+
+    std::shared_lock Lock{Event->reserved->lock};
+    if (Event->reserved->metadata.count(Key)) {
+      return xpti_metadata_t{Key, Event->reserved->metadata.at(Key)};
+    }
+    return xpti_metadata_t{xpti::invalid_id, xpti::invalid_id};
+  }
+
+  xpti_metadata_t getMetadataByIndex(xpti::trace_event_data_t *Event,
+                                     size_t Idx) {
+    if (Event == nullptr) {
+      return xpti_metadata_t{xpti::invalid_id, xpti::invalid_id};
+    }
+
+    std::shared_lock Lock{Event->reserved->lock};
+    if (Event->reserved->metadata.size() >= Idx) {
+      return xpti_metadata_t{xpti::invalid_id, xpti::invalid_id};
+    }
+
+    auto It = std::next(Event->reserved->metadata.begin(), Idx);
+
+    return xpti_metadata_t{It->first, It->second};
+  }
+
+  size_t getNumMetadata(xpti::trace_event_data_t *Event) {
+    if (Event == nullptr) {
+      return 0;
+    }
+
+    std::shared_lock Lock{Event->reserved->lock};
+    return Event->reserved->metadata.size();
   }
 
   // Method to get the access statistics of the tracepoints.
@@ -522,7 +570,9 @@ private:
       // the newly generated unique id (uid)
       Event->unique_id = HashValue;
       Event->unused = 0;
-      Event->reserved.payload = &CurrentPayload;
+      auto &Reserved = MEventData.emplace_back();
+      Event->reserved = &Reserved;
+      Reserved.payload = &CurrentPayload;
       Event->data_id = Event->source_id = Event->target_id = 0;
       Event->instance_id = 1;
       Event->global_user_data = nullptr;
@@ -538,8 +588,10 @@ private:
   xpti::StringTable &MStringTableRef;
   xpti::safe_uint64_t MInsertions, MRetrievals;
   uid_payload_lut MPayloads;
+  // This is a storage for events' additional data. Must always stay before
+  // MEvents to ensure correct resource free order.
+  std::list<reserved_data_t> MEventData;
   uid_event_lut MEvents;
-  std::mutex MMetadataMutex;
   std::mutex MEventMutex;
 };
 
@@ -834,9 +886,23 @@ public:
 
   void setUniversalID(uint64_t uid) noexcept { g_tls_uid = uid; }
 
-  xpti::result_t addMetadata(xpti::trace_event_data_t *Event, const char *Key,
-                             object_id_t ValueID) {
+  xpti::result_t addMetadata(xpti::trace_event_data_t *Event,
+                             xpti::object_id_t Key, object_id_t ValueID) {
     return MTracepoints.addMetadata(Event, Key, ValueID);
+  }
+
+  xpti_metadata_t queryMetadata(xpti::trace_event_data_t *Event,
+                                xpti::object_id_t Key) {
+    return MTracepoints.queryMetadata(Event, Key);
+  }
+
+  xpti_metadata_t getMetadataByIndex(xpti::trace_event_data_t *Event,
+                                     size_t Idx) {
+    return MTracepoints.getMetadataByIndex(Event, Idx);
+  }
+
+  size_t getNumMetadata(xpti::trace_event_data_t *Event) {
+    return MTracepoints.getNumMetadata(Event);
   }
 
   xpti::trace_event_data_t *
@@ -898,25 +964,6 @@ public:
 
   uint8_t registerVendor(const char *StreamName) {
     return (uint8_t)MVendorStringTable.add(StreamName);
-  }
-
-  string_id_t registerString(const char *String, char **TableString) {
-    if (!TableString || !String)
-      return xpti::invalid_id;
-
-    *TableString = 0;
-
-    const char *RefStr;
-    auto ID = MStringTableRef.add(String, &RefStr);
-    *TableString = const_cast<char *>(RefStr);
-
-    return ID;
-  }
-
-  const char *lookupString(string_id_t ID) {
-    if (ID < 0)
-      return nullptr;
-    return MStringTableRef.query(ID);
   }
 
   object_id_t registerObject(const char *Object, size_t Size, uint8_t Type) {
@@ -1124,11 +1171,18 @@ XPTI_EXPORT_API uint64_t xptiGetUniqueId() {
 
 XPTI_EXPORT_API xpti::string_id_t xptiRegisterString(const char *String,
                                                      char **RefTableStr) {
-  return xpti::Framework::instance().registerString(String, RefTableStr);
+  size_t Len = std::strlen(String);
+  xpti::object_id_t ID = xpti::Framework::instance().registerObject(
+      String, Len, static_cast<uint8_t>(xpti::metadata_type_t::string));
+  xpti::object_data_t Data = xpti::Framework::instance().lookupObject(ID);
+  if (RefTableStr)
+    *RefTableStr = const_cast<char *>(Data.data);
+  return ID;
 }
 
-XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t ID) {
-  return xpti::Framework::instance().lookupString(ID);
+XPTI_EXPORT_API const char *xptiLookupString(xpti::object_id_t ID) {
+  xpti::object_data_t Data = xpti::Framework::instance().lookupObject(ID);
+  return Data.data;
 }
 
 XPTI_EXPORT_API xpti::object_id_t
@@ -1201,14 +1255,23 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
 }
 
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *Event,
-                                               const char *Key,
+                                               xpti::object_id_t Key,
                                                xpti::object_id_t ID) {
   return xpti::Framework::instance().addMetadata(Event, Key, ID);
 }
 
-XPTI_EXPORT_API xpti::metadata_t *
-xptiQueryMetadata(xpti::trace_event_data_t *Event) {
-  return &Event->reserved.metadata;
+XPTI_EXPORT_API xpti_metadata_t
+xptiQueryMetadata(xpti::trace_event_data_t *Event, xpti::object_id_t Key) {
+  return xpti::Framework::instance().queryMetadata(Event, Key);
+}
+
+XPTI_EXPORT_API xpti_metadata_t
+xptiGetMetadataByIndex(xpti::trace_event_data_t *Event, size_t Idx) {
+  return xpti::Framework::instance().getMetadataByIndex(Event, Idx);
+}
+
+XPTI_EXPORT_API size_t xptiGetNumMetadata(xpti::trace_event_data_t *Event) {
+  return xpti::Framework::instance().getNumMetadata(Event);
 }
 
 XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool YesOrNo) {

@@ -29,6 +29,7 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/ext/oneapi/experimental/tracing/metadata.hpp>
 
 #include <cassert>
 #include <optional>
@@ -48,6 +49,8 @@
 #include "xpti/xpti_trace_framework.hpp"
 #include <detail/xpti_registry.hpp>
 #endif
+
+using namespace sycl::ext::oneapi::experimental::tracing;
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -419,12 +422,13 @@ void Command::emitEdgeEventForCommandDependence(
     EdgeEvent->source_id = SrcEvent->unique_id;
     EdgeEvent->target_id = TgtEvent->unique_id;
     if (IsCommand) {
-      xpti::addMetadata(EdgeEvent, "access_mode",
+      xpti::addMetadata(EdgeEvent, metadata_access_mode,
                         static_cast<int>(AccMode.value()));
-      xpti::addMetadata(EdgeEvent, "memory_object",
+      xpti::addMetadata(EdgeEvent, metadata_memory_object,
                         reinterpret_cast<size_t>(ObjAddr));
     } else {
-      xpti::addMetadata(EdgeEvent, "event", reinterpret_cast<size_t>(ObjAddr));
+      xpti::addMetadata(EdgeEvent, metadata_event,
+                        reinterpret_cast<size_t>(ObjAddr));
     }
     xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
                           detail::GSYCLGraphEvent, EdgeEvent, EdgeInstanceNo,
@@ -469,7 +473,7 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
         xptiMakeEvent(NodeName.c_str(), &VNPayload, xpti::trace_graph_event,
                       xpti_at::active, &VNodeInstanceNo);
     // Emit the virtual node first
-    xpti::addMetadata(NodeEvent, "kernel_name", NodeName);
+    xpti::addMetadata(NodeEvent, metadata_kernel_name, NodeName);
     xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
                           detail::GSYCLGraphEvent, NodeEvent, VNodeInstanceNo,
                           nullptr);
@@ -486,7 +490,7 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
       xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
       EdgeEvent->source_id = NodeEvent->unique_id;
       EdgeEvent->target_id = TgtEvent->unique_id;
-      xpti::addMetadata(EdgeEvent, "event",
+      xpti::addMetadata(EdgeEvent, metadata_event,
                         reinterpret_cast<size_t>(PiEventAddr));
       xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
                             detail::GSYCLGraphEvent, EdgeEvent, EdgeInstanceNo,
@@ -774,7 +778,7 @@ void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
         xpti_td *SrcTraceEvent = static_cast<xpti_td *>(Item->MTraceEvent);
         EdgeEvent->target_id = TgtTraceEvent->unique_id;
         EdgeEvent->source_id = SrcTraceEvent->unique_id;
-        xpti::addMetadata(EdgeEvent, "memory_object",
+        xpti::addMetadata(EdgeEvent, metadata_memory_object,
                           reinterpret_cast<size_t>(MAddress));
         xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
                               detail::GSYCLGraphEvent, EdgeEvent,
@@ -817,12 +821,13 @@ void AllocaCommandBase::emitInstrumentationData() {
   // Set the relevant meta data properties for this command
   if (MTraceEvent && MFirstInstance) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_type",
+    xpti::addMetadata(TE, metadata_device, deviceToID(MQueue->get_device()));
+    xpti::addMetadata(TE, metadata_device_type,
                       deviceToString(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_name",
+    xpti::addMetadata(TE, metadata_device_name,
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(TE, metadata_memory_object,
+                      reinterpret_cast<size_t>(MAddress));
   }
 #endif
 }
@@ -935,10 +940,10 @@ void AllocaSubBufCommand::emitInstrumentationData() {
   // data that is available for the command
   if (MFirstInstance) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(TE, "offset", this->MRequirement.MOffsetInBytes);
-    xpti::addMetadata(TE, "access_range_start",
+    xpti::addMetadata(TE, metadata_offset, this->MRequirement.MOffsetInBytes);
+    xpti::addMetadata(TE, metadata_access_range_start,
                       this->MRequirement.MAccessRange[0]);
-    xpti::addMetadata(TE, "access_range_end",
+    xpti::addMetadata(TE, metadata_access_range_end,
                       this->MRequirement.MAccessRange[1]);
     makeTraceEventEpilog();
   }
@@ -1010,12 +1015,12 @@ void ReleaseCommand::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_type",
+    xpti::addMetadata(TE, metadata_device, deviceToID(MQueue->get_device()));
+    xpti::addMetadata(TE, metadata_device_type,
                       deviceToString(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_name",
+    xpti::addMetadata(TE, metadata_device_name,
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(TE, "allocation_type",
+    xpti::addMetadata(TE, metadata_allocation_type,
                       commandToName(MAllocaCmd->getType()));
     makeTraceEventEpilog();
   }
@@ -1127,12 +1132,13 @@ void MapMemObject::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_type",
+    xpti::addMetadata(TE, metadata_device, deviceToID(MQueue->get_device()));
+    xpti::addMetadata(TE, metadata_device_type,
                       deviceToString(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_name",
+    xpti::addMetadata(TE, metadata_device_name,
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(TE, metadata_memory_object,
+                      reinterpret_cast<size_t>(MAddress));
     makeTraceEventEpilog();
   }
 #endif
@@ -1188,12 +1194,13 @@ void UnMapMemObject::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_type",
+    xpti::addMetadata(TE, metadata_device, deviceToID(MQueue->get_device()));
+    xpti::addMetadata(TE, metadata_device_type,
                       deviceToString(MQueue->get_device()));
-    xpti::addMetadata(TE, "sycl_device_name",
+    xpti::addMetadata(TE, metadata_device_name,
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(TE, metadata_memory_object,
+                      reinterpret_cast<size_t>(MAddress));
     makeTraceEventEpilog();
   }
 #endif
@@ -1276,19 +1283,19 @@ void MemCpyCommand::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(CmdTraceEvent, "sycl_device",
+    xpti::addMetadata(CmdTraceEvent, metadata_device,
                       deviceToID(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+    xpti::addMetadata(CmdTraceEvent, metadata_device_type,
                       deviceToString(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+    xpti::addMetadata(CmdTraceEvent, metadata_device_name,
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
+    xpti::addMetadata(CmdTraceEvent, metadata_memory_object,
                       reinterpret_cast<size_t>(MAddress));
-    xpti::addMetadata(CmdTraceEvent, "copy_from",
+    xpti::addMetadata(CmdTraceEvent, metadata_copy_from,
                       reinterpret_cast<size_t>(
                           getSyclObjImpl(MSrcQueue->get_device()).get()));
     xpti::addMetadata(
-        CmdTraceEvent, "copy_to",
+        CmdTraceEvent, metadata_copy_to,
         reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
     makeTraceEventEpilog();
   }
@@ -1445,19 +1452,19 @@ void MemCpyCommandHost::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(CmdTraceEvent, "sycl_device",
+    xpti::addMetadata(CmdTraceEvent, metadata_device,
                       deviceToID(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+    xpti::addMetadata(CmdTraceEvent, metadata_device_type,
                       deviceToString(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+    xpti::addMetadata(CmdTraceEvent, metadata_device_name,
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
+    xpti::addMetadata(CmdTraceEvent, metadata_memory_object,
                       reinterpret_cast<size_t>(MAddress));
-    xpti::addMetadata(CmdTraceEvent, "copy_from",
+    xpti::addMetadata(CmdTraceEvent, metadata_copy_from,
                       reinterpret_cast<size_t>(
                           getSyclObjImpl(MSrcQueue->get_device()).get()));
     xpti::addMetadata(
-        CmdTraceEvent, "copy_to",
+        CmdTraceEvent, metadata_copy_to,
         reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
     makeTraceEventEpilog();
   }
@@ -1543,13 +1550,13 @@ void EmptyCommand::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(CmdTraceEvent, "sycl_device",
+    xpti::addMetadata(CmdTraceEvent, metadata_device,
                       deviceToID(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+    xpti::addMetadata(CmdTraceEvent, metadata_device_type,
                       deviceToString(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+    xpti::addMetadata(CmdTraceEvent, metadata_device_name,
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
+    xpti::addMetadata(CmdTraceEvent, metadata_memory_object,
                       reinterpret_cast<size_t>(MAddress));
     makeTraceEventEpilog();
   }
@@ -1613,13 +1620,13 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(CmdTraceEvent, "sycl_device",
+    xpti::addMetadata(CmdTraceEvent, metadata_device,
                       deviceToID(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+    xpti::addMetadata(CmdTraceEvent, metadata_device_type,
                       deviceToString(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+    xpti::addMetadata(CmdTraceEvent, metadata_device_name,
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
+    xpti::addMetadata(CmdTraceEvent, metadata_memory_object,
                       reinterpret_cast<size_t>(MAddress));
     makeTraceEventEpilog();
   }
@@ -1745,24 +1752,26 @@ void ExecCGCommand::emitInstrumentationData() {
     if (CGKernelInstanceNo > 1)
       return;
 
-    xpti::addMetadata(CmdTraceEvent, "sycl_device",
+    xpti::addMetadata(CmdTraceEvent, metadata_device,
                       deviceToID(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+    xpti::addMetadata(CmdTraceEvent, metadata_device_type,
                       deviceToString(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+    xpti::addMetadata(CmdTraceEvent, metadata_device_name,
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     if (!KernelName.empty()) {
-      xpti::addMetadata(CmdTraceEvent, "kernel_name", KernelName);
+      xpti::addMetadata(CmdTraceEvent, metadata_kernel_name, KernelName);
     }
     if (FromSource.has_value()) {
-      xpti::addMetadata(CmdTraceEvent, "from_source", FromSource.value());
+      xpti::addMetadata(CmdTraceEvent, metadata_from_source,
+                        FromSource.value());
     }
     if (HasSourceInfo) {
-      xpti::addMetadata(CmdTraceEvent, "sym_function_name", KernelName);
-      xpti::addMetadata(CmdTraceEvent, "sym_source_file_name",
+      xpti::addMetadata(CmdTraceEvent, metadata_function_name, KernelName);
+      xpti::addMetadata(CmdTraceEvent, metadata_source_file_name,
                         MCommandGroup->MFileName);
-      xpti::addMetadata(CmdTraceEvent, "sym_line_no", MCommandGroup->MLine);
-      xpti::addMetadata(CmdTraceEvent, "sym_column_no", MCommandGroup->MColumn);
+      xpti::addMetadata(CmdTraceEvent, metadata_line_no, MCommandGroup->MLine);
+      xpti::addMetadata(CmdTraceEvent, metadata_column_no,
+                        MCommandGroup->MColumn);
     }
 
     xptiNotifySubscribers(MStreamID, xpti::trace_node_create,

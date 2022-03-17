@@ -12,6 +12,7 @@
 #include <CL/sycl/device.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/ext/oneapi/experimental/tracing/metadata.hpp>
 
 #include <cstring>
 #include <utility>
@@ -21,6 +22,8 @@
 #include <detail/xpti_registry.hpp>
 #include <sstream>
 #endif
+
+using namespace sycl::ext::oneapi::experimental::tracing;
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -231,12 +234,18 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
       DevStr = "ACCELERATOR";
     else
       DevStr = "UNKNOWN";
-    xpti::addMetadata(WaitEvent, "sycl_device", DevStr);
+    xpti::addMetadata(
+        WaitEvent, metadata_device,
+        reinterpret_cast<size_t>(detail::getSyclObjImpl(get_device()).get()));
+    xpti::addMetadata(WaitEvent, metadata_device_name,
+                      detail::getSyclObjImpl(get_device())->getDeviceName());
+    xpti::addMetadata(WaitEvent, metadata_device_type, DevStr);
     if (HasSourceInfo) {
-      xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
-      xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
-      xpti::addMetadata(WaitEvent, "sym_line_no",
-                        std::to_string(CodeLoc.lineNumber()));
+      xpti::addMetadata(WaitEvent, metadata_function_name,
+                        CodeLoc.functionName());
+      xpti::addMetadata(WaitEvent, metadata_source_file_name,
+                        CodeLoc.fileName());
+      xpti::addMetadata(WaitEvent, metadata_line_no, CodeLoc.lineNumber());
     }
     xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
                           QWaitInstanceNo,

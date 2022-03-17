@@ -119,8 +119,9 @@ private:
 
     char *Dest = nullptr;
 
-    if (V.MSize > SmallSize) {
-      V.MItem = std::vector<char>(V.MSize, 0);
+    // +1 for trailing C-style string zeros
+    if (V.MSize + 1 > SmallSize) {
+      V.MItem = std::vector<char>(V.MSize + 1, 0);
       Dest = std::get<1>(V.MItem).data();
 #ifdef XPTI_STATISTICS
       MLargeObjects++;

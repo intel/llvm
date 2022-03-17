@@ -114,7 +114,6 @@ using safe_uint16_t = std::atomic<uint16_t>;
 using safe_int64_t = std::atomic<int64_t>;
 using safe_int32_t = std::atomic<int32_t>;
 using safe_int16_t = std::atomic<int16_t>;
-using metadata_t = std::unordered_map<string_id_t, object_id_t>;
 
 #define XPTI_EVENT(val) xpti::event_type_t(val)
 #define XPTI_TRACE_POINT_BEGIN(val) xpti::trace_point_t(val << 1 | 0)
@@ -496,13 +495,7 @@ enum class metadata_type_t {
   boolean = 5
 };
 
-struct reserved_data_t {
-  /// Has a reference to the associated payload field for an event
-  payload_t *payload = nullptr;
-  /// Has additional metadata that may be defined by the user as key-value
-  /// pairs
-  metadata_t metadata;
-};
+struct reserved_data_t;
 
 struct trace_event_data_t {
   /// Unique id that corresponds to an event type or event group type
@@ -527,7 +520,7 @@ struct trace_event_data_t {
   /// target ID is set
   int64_t target_id = invalid_id;
   /// A reserved slot for memory growth, if required by the framework
-  reserved_data_t reserved;
+  reserved_data_t *reserved;
   /// User defined data, if required; owned by the user shared object and will
   /// not be deleted when event data is destroyed
   void *global_user_data = nullptr;
@@ -703,6 +696,12 @@ using xpti_at = xpti::trace_activity_type_t;
 using xpti_td = xpti::trace_event_data_t;
 
 extern "C" {
+/// Base data structure for key-value metadata storage.
+struct xpti_metadata_t {
+  xpti::object_id_t key;
+  xpti::object_id_t value;
+};
+
 /// @brief The framework loads the tool which implements xptiTraceInit() and
 /// calls it when the runtime is being initialized
 /// @details When tools implement callbacks and want to register them with

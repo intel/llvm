@@ -421,7 +421,7 @@ xptiNotifySubscribers(uint8_t stream_id, uint16_t trace_type,
 ///            2. XPTI_RESULT_INVALIDARG when the inputs are invalid
 ///            3. XPTI_RESULT_DUPLICATE when the key-value pair already exists
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,
-                                               const char *key,
+                                               xpti::object_id_t key,
                                                xpti::object_id_t value_id);
 
 /// @brief Query the metadata table for a given event
@@ -446,8 +446,13 @@ XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,
 ///
 /// @param e The event for which the metadata is being requested
 /// @return The metadata table of type xpti::metadata_t *
-XPTI_EXPORT_API xpti::metadata_t *
-xptiQueryMetadata(xpti::trace_event_data_t *e);
+XPTI_EXPORT_API xpti_metadata_t xptiQueryMetadata(xpti::trace_event_data_t *e,
+                                                  xpti::object_id_t);
+
+XPTI_EXPORT_API size_t xptiGetNumMetadata(xpti::trace_event_data_t *e);
+
+XPTI_EXPORT_API xpti_metadata_t
+xptiGetMetadataByIndex(xpti::trace_event_data_t *e, size_t index);
 
 /// @brief Returns a bool that indicates whether tracing is enabled or not
 /// @details If the tracing is enabled by the XPTI_TRACE_ENABLE=1 environment
@@ -502,7 +507,12 @@ typedef xpti::result_t (*xpti_notify_subscribers_t)(
     uint8_t, uint16_t, xpti::trace_event_data_t *, xpti::trace_event_data_t *,
     uint64_t instance, const void *temporal_user_data);
 typedef xpti::result_t (*xpti_add_metadata_t)(xpti::trace_event_data_t *,
-                                              const char *, xpti::object_id_t);
-typedef xpti::metadata_t *(*xpti_query_metadata_t)(xpti::trace_event_data_t *);
+                                              xpti::object_id_t,
+                                              xpti::object_id_t);
+typedef xpti_metadata_t (*xpti_query_metadata_t)(xpti::trace_event_data_t *,
+                                                 xpti::object_id_t);
+typedef xpti_metadata_t (*xpti_get_metadata_by_index_t)(
+    xpti::trace_event_data_t *, size_t);
+typedef size_t (*xpti_get_num_metadata_t)(xpti::trace_event_data_t *);
 typedef bool (*xpti_trace_enabled_t)();
 }

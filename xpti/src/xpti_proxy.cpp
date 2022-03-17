@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //
+#include "xpti/xpti_data_types.h"
+#include "xpti/xpti_trace_framework.h"
 #include "xpti/xpti_trace_framework.hpp"
 
 #include <atomic>
@@ -40,6 +42,8 @@ enum functions_t {
   XPTI_TRACE_ENABLED,
   XPTI_REGISTER_PAYLOAD,
   XPTI_QUERY_PAYLOAD_BY_UID,
+  XPTI_GET_METADATA_BY_INDEX,
+  XPTI_GET_NUM_METADATA,
 
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
@@ -74,6 +78,8 @@ class ProxyLoader {
       {XPTI_NOTIFY_SUBSCRIBERS, "xptiNotifySubscribers"},
       {XPTI_ADD_METADATA, "xptiAddMetadata"},
       {XPTI_QUERY_METADATA, "xptiQueryMetadata"},
+      {XPTI_GET_NUM_METADATA, "xptiGetNumMetadata"},
+      {XPTI_GET_METADATA_BY_INDEX, "xptiGetMetadataByIndex"},
       {XPTI_TRACE_ENABLED, "xptiTraceEnabled"}};
 
 public:
@@ -421,7 +427,7 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
 }
 
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,
-                                               const char *key,
+                                               xpti::object_id_t key,
                                                xpti::object_id_t value_id) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_ADD_METADATA);
@@ -432,13 +438,37 @@ XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,
   return xpti::result_t::XPTI_RESULT_FAIL;
 }
 
-XPTI_EXPORT_API xpti::metadata_t *
-xptiQueryMetadata(xpti::trace_event_data_t *lookup_object) {
+XPTI_EXPORT_API xpti_metadata_t xptiQueryMetadata(
+    xpti::trace_event_data_t *lookup_object, xpti::object_id_t key) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_QUERY_METADATA);
     if (f) {
-      return (*(xpti_query_metadata_t)f)(lookup_object);
+      return (*(xpti_query_metadata_t)f)(lookup_object, key);
     }
   }
-  return nullptr;
+  return {};
+}
+
+XPTI_EXPORT_API size_t xptiGetNumMetadata(xpti::trace_event_data_t *e) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_GET_NUM_METADATA);
+    if (f) {
+      return (*(xpti_get_num_metadata_t)f)(e);
+    }
+  }
+
+  return 0;
+}
+
+XPTI_EXPORT_API xpti_metadata_t
+xptiGetMetadataByIndex(xpti::trace_event_data_t *lookup_object, size_t id) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_GET_METADATA_BY_INDEX);
+    if (f) {
+      return (*(xpti_get_metadata_by_index_t)f)(lookup_object, id);
+    }
+  }
+  return {};
 }

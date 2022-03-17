@@ -7,13 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #include "writer.hpp"
-#include "xpti/xpti_data_types.h"
+#include "xpti/xpti_trace_framework.hpp"
+#include <sycl/ext/oneapi/experimental/tracing/metadata.hpp>
 
-#include <cstdint>
-#include <cstdlib>
+#include <xpti/xpti_data_types.h>
 #include <xpti/xpti_trace_framework.h>
 
 #include <chrono>
+#include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <stdio.h>
 #include <thread>
@@ -114,15 +116,22 @@ XPTI_CALLBACK_API void taskBeginEndCallback(uint16_t TraceType,
                                             xpti::trace_event_data_t *Event,
                                             uint64_t /*Instance*/,
                                             const void *) {
-  std::string_view Name = "unknown";
+  std::string_view Name = [&]() {
+    using namespace sycl::ext::oneapi::experimental::tracing;
+    std::optional<std::string_view> KernelName =
+        xpti::getMetadata(metadata_kernel_name, Event);
 
-  xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
-  for (auto &Item : *Metadata) {
-    std::string_view Key{xptiLookupString(Item.first)};
-    if (Key == "kernel_name" || Key == "memory_object") {
-      Name = xptiLookupString(Item.second);
-    }
-  }
+    if (KernelName.has_value())
+      return KernelName.value();
+
+    std::optional<std::string_view> FunctionName =
+        xpti::getMetadata(metadata_function_name, Event);
+
+    if (FunctionName.has_value())
+      return FunctionName.value();
+
+    return std::string_view{"unknown"};
+  }();
 
   auto [TID, PID, TS] = measure();
   if (TraceType == xpti::trace_task_begin) {

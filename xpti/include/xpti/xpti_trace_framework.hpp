@@ -14,6 +14,11 @@
 #include <memory>
 #include <sstream>
 #include <thread>
+#include <type_traits>
+#if __cplusplus >= 201703L
+#include <optional>
+#include <string_view>
+#endif
 
 #include "xpti/xpti_data_types.h"
 #include "xpti/xpti_trace_framework.h"
@@ -308,98 +313,117 @@ struct finally {
 
 } // namespace utils
 
-template <typename T>
-inline result_t addMetadata(trace_event_data_t *Event, const std::string &Key,
-                            const T &Data) {
-  static_assert(std::is_trivially_copyable_v<T>,
-                "T must be trivially copyable");
-  static_assert(!std::is_same_v<T, const char *>);
+namespace detail {
+template <typename MetadataT, typename T> struct MDHelper {
+  static result_t addMetadata(trace_event_data_t *Event, const T &Data) {
+    static_assert(std::is_trivially_copyable<T>::value,
+                  "T must be trivially copyable");
+    static_assert(!std::is_same<T, const char *>::value);
 
-  const uint8_t Type = [] {
-    if (std::is_same_v<bool, T>) {
-      return static_cast<uint8_t>(metadata_type_t::boolean);
-    }
-    if (std::numeric_limits<T>::is_integer &&
-        std::numeric_limits<T>::is_signed) {
-      return static_cast<uint8_t>(metadata_type_t::signed_integer);
-    }
-    if (std::numeric_limits<T>::is_integer &&
-        !std::numeric_limits<T>::is_signed) {
-      return static_cast<uint8_t>(metadata_type_t::unsigned_integer);
-    }
-    if (std::numeric_limits<T>::is_specialized &&
-        !std::numeric_limits<T>::is_integer) {
-      return static_cast<uint8_t>(metadata_type_t::floating);
-    }
+    const uint8_t Type = [] {
+      if (std::is_same<bool, T>::value) {
+        return static_cast<uint8_t>(metadata_type_t::boolean);
+      }
+      if (std::numeric_limits<T>::is_integer &&
+          std::numeric_limits<T>::is_signed) {
+        return static_cast<uint8_t>(metadata_type_t::signed_integer);
+      }
+      if (std::numeric_limits<T>::is_integer &&
+          !std::numeric_limits<T>::is_signed) {
+        return static_cast<uint8_t>(metadata_type_t::unsigned_integer);
+      }
+      if (std::numeric_limits<T>::is_specialized &&
+          !std::numeric_limits<T>::is_integer) {
+        return static_cast<uint8_t>(metadata_type_t::floating);
+      }
 
-    return static_cast<uint8_t>(metadata_type_t::binary);
-  }();
+      return static_cast<uint8_t>(metadata_type_t::binary);
+    }();
 
-  object_id_t Value = xptiRegisterObject(reinterpret_cast<const char *>(&Data),
-                                         sizeof(Data), Type);
-  return xptiAddMetadata(Event, Key.c_str(), Value);
+    object_id_t Value = xptiRegisterObject(
+        reinterpret_cast<const char *>(&Data), sizeof(Data), Type);
+    xpti::object_id_t Key = xptiRegisterString(MetadataT::name, nullptr);
+    return xptiAddMetadata(Event, Key, Value);
+  }
+};
+
+#if __cplusplus >= 201703L
+template <typename MetadataT> struct MDHelper<MetadataT, std::string_view> {
+  static result_t addMetadata(trace_event_data_t *Event,
+                              const std::string_view &Data) {
+    const uint8_t Type = static_cast<uint8_t>(metadata_type_t::string);
+    object_id_t Value = xptiRegisterObject(Data.data(), Data.size(), Type);
+    xpti::object_id_t Key = xptiRegisterString(MetadataT::name, nullptr);
+    return xptiAddMetadata(Event, Key, Value);
+  }
+};
+#endif
+
+template <typename MetadataT> struct MDHelper<MetadataT, const char *> {
+  static result_t addMetadata(trace_event_data_t *Event, const char *Data) {
+    const uint8_t Type = static_cast<uint8_t>(metadata_type_t::string);
+    size_t Len = std::strlen(Data);
+    object_id_t Value = xptiRegisterObject(Data, Len, Type);
+    xpti::object_id_t Key = xptiRegisterString(MetadataT::name, nullptr);
+    return xptiAddMetadata(Event, Key, Value);
+  }
+};
+} // namespace detail
+
+template <typename MetadataT>
+inline result_t addMetadata(trace_event_data_t *Event, MetadataT,
+                            const typename MetadataT::type &Data) {
+  return detail::MDHelper<MetadataT, typename MetadataT::type>::addMetadata(
+      Event, Data);
 }
 
-template <>
-inline result_t addMetadata<std::string>(trace_event_data_t *Event,
-                                         const std::string &Key,
-                                         const std::string &Data) {
-  const uint8_t Type = static_cast<uint8_t>(metadata_type_t::string);
-  object_id_t Value = xptiRegisterObject(Data.c_str(), Data.size(), Type);
-  return xptiAddMetadata(Event, Key.c_str(), Value);
+#if __cplusplus >= 201703L
+template <typename MetadataT>
+std::optional<typename MetadataT::type> getMetadata(const MetadataT &,
+                                                    trace_event_data_t *Event) {
+  using T = typename MetadataT::type;
+
+  xpti::object_id_t Key = xptiRegisterString(MetadataT::name, nullptr);
+  xpti_metadata_t MDValue = xptiQueryMetadata(Event, Key);
+
+  if (MDValue.key == xpti::invalid_id)
+    return std::nullopt;
+
+  xpti::object_data_t RawData = xptiLookupObject(MDValue.value);
+  if constexpr (!std::is_same_v<T, const std::string_view> &&
+                !std::is_same_v<T, const char *>) {
+    T Value = *reinterpret_cast<const T *>(RawData.data);
+    return std::make_optional(Value);
+  } else if constexpr (std::is_same_v<T, const std::string_view>) {
+    return std::make_optional(std::string_view{RawData.data, RawData.size});
+  } else {
+    return std::make_optional(RawData.data);
+  }
 }
+#else
+template <typename MetadataT>
+typename MetadataT::type getMetadata(const MetadataT &MD,
+                                     trace_event_data_t *Event) {
+  using T = typename MetadataT::type;
 
-template <>
-inline result_t addMetadata<const char *>(trace_event_data_t *Event,
-                                          const std::string &Key,
-                                          const char *const &Data) {
-  const uint8_t Type = static_cast<uint8_t>(metadata_type_t::string);
-  object_id_t Value = xptiRegisterObject(Data, strlen(Data), Type);
-  return xptiAddMetadata(Event, Key.c_str(), Value);
+  xpti_metadata_t MDValue = xptiQueryMetadata(Event, MD.key);
+
+  if (MDValue.key == xpti::invalid_id)
+    throw std::runtime_error("Unknonw metadata is queried");
+
+  xpti::object_data_t RawData = xptiLookupObject(MDValue.value);
+
+  if (!std::is_same<T, const char *>::value) {
+    T Value = *reinterpret_cast<const T *>(RawData.data);
+    return Value;
+  } else {
+    return RawData.data;
+  }
 }
+#endif
 
-template <typename T>
-inline std::pair<std::string_view, T>
-getMetadata(const metadata_t::value_type &MD) {
-  static_assert(std::is_trivially_copyable<T>::value,
-                "T must be trivially copyable");
-
-  object_data_t RawData = xptiLookupObject(MD.second);
-  assert(RawData.size == sizeof(T));
-
-  T Value = *reinterpret_cast<const T *>(RawData.data);
-
-  const char *Key = xptiLookupString(MD.first);
-
-  return std::make_pair(std::string_view(Key), Value);
-}
-
-template <>
-inline std::pair<std::string_view, std::string>
-getMetadata(const metadata_t::value_type &MD) {
-  object_data_t RawData = xptiLookupObject(MD.second);
-
-  std::string Value(RawData.data, RawData.size);
-
-  const char *Key = xptiLookupString(MD.first);
-
-  return std::make_pair(std::string_view(Key), Value);
-}
-
-template <>
-inline std::pair<std::string_view, std::string_view>
-getMetadata(const metadata_t::value_type &MD) {
-  object_data_t RawData = xptiLookupObject(MD.second);
-
-  std::string_view Value(RawData.data, RawData.size);
-
-  const char *Key = xptiLookupString(MD.first);
-
-  return std::make_pair(std::string_view(Key), Value);
-}
-
-inline std::string readMetadata(const metadata_t::value_type &MD) {
-  object_data_t RawData = xptiLookupObject(MD.second);
+inline std::string readMetadata(const xpti_metadata_t &MD) {
+  object_data_t RawData = xptiLookupObject(MD.value);
 
   if (RawData.type == static_cast<uint8_t>(metadata_type_t::binary)) {
     return std::string("Binary data, size: ") + std::to_string(RawData.size);
