@@ -39,13 +39,14 @@ target triple = "spir-unknown-unknown"
 %opencl.image2d_array_depth_ro_t = type opaque
 
 ; CHECK-SPIRV: TypeInt [[INT:[0-9]+]] 32
-; CHECK-SPIRV: TypeImage [[IMAGE1D_T:[0-9]+]] 2 0 0 0 0 0 0 0
-; CHECK-SPIRV: TypeImage [[IMAGE2D_T:[0-9]+]] 2 1 0 0 0 0 0 0
-; CHECK-SPIRV: TypeImage [[IMAGE3D_T:[0-9]+]] 2 2 0 0 0 0 0 0
-; CHECK-SPIRV: TypeImage [[IMAGE1D_ARRAY_T:[0-9]+]] 2 0 0 1 0 0 0 0
-; CHECK-SPIRV: TypeImage [[IMAGE2D_ARRAY_T:[0-9]+]] 2 1 0 1 0 0 0 0
-; CHECK-SPIRV: TypeImage [[IMAGE2D_DEPTH_T:[0-9]+]] 2 1 1 0 0 0 0 0
-; CHECK-SPIRV: TypeImage [[IMAGE2D_ARRAY_DEPTH_T:[0-9]+]] 2 1 1 1 0 0 0 0
+; CHECK-SPIRV: TypeVoid [[VOID:[0-9]+]]
+; CHECK-SPIRV: TypeImage [[IMAGE1D_T:[0-9]+]] [[VOID]] 0 0 0 0 0 0 0
+; CHECK-SPIRV: TypeImage [[IMAGE2D_T:[0-9]+]] [[VOID]] 1 0 0 0 0 0 0
+; CHECK-SPIRV: TypeImage [[IMAGE3D_T:[0-9]+]] [[VOID]] 2 0 0 0 0 0 0
+; CHECK-SPIRV: TypeImage [[IMAGE1D_ARRAY_T:[0-9]+]] [[VOID]] 0 0 1 0 0 0 0
+; CHECK-SPIRV: TypeImage [[IMAGE2D_ARRAY_T:[0-9]+]] [[VOID]] 1 0 1 0 0 0 0
+; CHECK-SPIRV: TypeImage [[IMAGE2D_DEPTH_T:[0-9]+]] [[VOID]] 1 1 0 0 0 0 0
+; CHECK-SPIRV: TypeImage [[IMAGE2D_ARRAY_DEPTH_T:[0-9]+]] [[VOID]] 1 1 1 0 0 0 0
 
 ; CHECK-LLVM: %opencl.image1d_ro_t = type opaque
 ; CHECK-LLVM: %opencl.image2d_ro_t = type opaque

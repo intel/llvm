@@ -108,7 +108,7 @@ int main() {
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: %"struct.cl::sycl::id"* noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
-// CHECK-SAME: !kernel_arg_runtime_aligned !14
+// CHECK-SAME: !kernel_arg_runtime_aligned ![[#RTALIGNED2:]]
 
 // Check kernel_B parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_B
@@ -130,7 +130,7 @@ int main() {
 // CHECK-SAME: %"struct.cl::sycl::range.5"* noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
 // CHECK-SAME: %"struct.cl::sycl::range.5"* noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: %"struct.cl::sycl::id.6"* noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
-// CHECK-SAME: !kernel_arg_runtime_aligned ![[#RTALIGNED2:]]
+// CHECK-SAME: !kernel_arg_runtime_aligned ![[#RTALIGNED2]]
 
 // Check kernel_acc_raw_ptr parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_acc_raw_ptr

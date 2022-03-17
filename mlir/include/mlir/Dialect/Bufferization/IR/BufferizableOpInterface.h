@@ -28,8 +28,8 @@ class FuncOp;
 namespace bufferization {
 
 class BufferizableOpInterface;
-struct BufferizationOptions;
 class BufferizationState;
+struct DialectBufferizationState;
 
 /// Options for ComprehensiveBufferize.
 struct BufferizationOptions {
@@ -44,6 +44,11 @@ struct BufferizationOptions {
   /// Memcpy function: Generate a memcpy between two buffers.
   using MemCpyFn =
       std::function<LogicalResult(OpBuilder &, Location, Value, Value)>;
+  /// Initializer function for bufferization state.
+  using BufferizationStateInitFn = std::function<void(BufferizationState &)>;
+  /// Initializer function for dialect-specific bufferization state.
+  using DialectStateInitFn =
+      std::function<std::unique_ptr<DialectBufferizationState>()>;
 
   /// An op filter entry. Filters can be used to specify which ops should be
   /// processed by the bufferization.
@@ -202,6 +207,20 @@ struct BufferizationOptions {
   /// For debugging only. Should be used together with `testAnalysisOnly`.
   bool printConflicts = false;
 
+  /// If set to `true`, an `getAliasingOpResult` will return the corresponding
+  /// "out"/"dest" OpOperand for every op that has the notion of an "out"/"dest"
+  /// operand. I.e., the aliasing OpOperand of the i-th tensor OpResult is
+  /// usually the i-th "out" tensor OpOperand. This is in line with
+  /// destination-passing style and the default behavior. Op interface
+  /// implementations must follow this contract to avoid surprising behavior.
+  ///
+  /// If set to `false`, BufferizableOpInterface implementations can try to be
+  /// smart and choose to alias with "in" operands or other operands. E.g., the
+  /// result of a `linalg.generic` op could bufferize in-place with an "in"
+  /// OpOperand if the corresponding "out" operand is not used within the
+  /// computation. Whether this pays off or not can be very input IR-specific.
+  bool alwaysAliasingWithDest = true;
+
   /// Buffer alignment for new memory allocations.
   unsigned int bufferAlignment = 128;
 
@@ -213,6 +232,14 @@ struct BufferizationOptions {
   /// ignored by the bufferization. If `hasFilter`, only ops that are not
   /// DENY-filtered and have at least one matching ALLOW filter are processed.
   SmallVector<OpFilterEntry> opFilter;
+
+  /// Initializer functions for bufferization state. These can be used to
+  /// initialize dialect-specific bufferization state.
+  SmallVector<BufferizationStateInitFn> stateInitializers;
+
+  /// Add a bufferization state initializer that initializes the specified
+  /// dialect-specific bufferization state.
+  void addDialectStateInitializer(StringRef name, const DialectStateInitFn &fn);
 
 private:
   /// Allow a dialect.
@@ -348,6 +375,12 @@ public:
     return static_cast<StateT &>(*dialectState[name]);
   }
 
+  void insertDialectState(StringRef name,
+                          std::unique_ptr<DialectBufferizationState> state) {
+    assert(!dialectState.count(name) && "dialect state already initialized");
+    dialectState[name] = std::move(state);
+  }
+
   /// Return a reference to the BufferizationOptions.
   const BufferizationOptions &getOptions() const { return options; }
 
@@ -389,6 +422,17 @@ public:
 /// must be replaced with memref values.
 void replaceOpWithBufferizedValues(RewriterBase &rewriter, Operation *op,
                                    ValueRange values);
+
+/// Lookup the buffer for the given value. If the value was not bufferized yet,
+/// wrap it in a ToMemrefOp. Otherwise, it is the result of a ToTensorOp, from
+/// which the memref operand is returned.
+///
+/// Note: Use `BufferizationState::getBuffer` during bufferization.
+/// `lookupBuffer` is just for compatibility and gradual migration of
+/// bufferization patterns to BufferizableOpInterface-based bufferization. It
+/// does not insert any buffer copies.
+Value lookupBuffer(RewriterBase &rewriter, Value tensor,
+                   const BufferizationOptions &options);
 
 /// Replace an op with a new op. The new op must have the same number of
 /// results as the replaced op. The new op may not return any tensor values.

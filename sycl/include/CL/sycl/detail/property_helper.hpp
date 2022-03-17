@@ -48,7 +48,7 @@ enum PropWithDataKind {
   ImageContextBound = 3,
   BufferMemChannel = 4,
   AccPropBufferLocation = 5,
-  PropWithDataKindSize = 6
+  PropWithDataKindSize = 6,
 };
 
 // Base class for dataless properties, needed to check that the type of an

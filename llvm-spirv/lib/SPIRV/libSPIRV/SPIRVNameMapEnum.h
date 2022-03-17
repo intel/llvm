@@ -591,6 +591,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityHWThreadQueryINTEL, "HWThreadQueryINTEL");
   add(internal::CapabilityGlobalVariableDecorationsINTEL,
       "GlobalVariableDecorationsINTEL");
+  add(internal::CapabilityNonConstantAddrspacePrintfINTEL,
+      "NonConstantAddrspacePrintfINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

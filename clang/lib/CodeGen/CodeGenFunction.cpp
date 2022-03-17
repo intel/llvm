@@ -871,6 +871,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   } while (false);
 
   if (D) {
+    const bool SanitizeBounds = SanOpts.hasOneOf(SanitizerKind::Bounds);
     bool NoSanitizeCoverage = false;
 
     for (auto Attr : D->specific_attrs<NoSanitizeAttr>()) {
@@ -890,6 +891,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       if (Attr->hasCoverage())
         NoSanitizeCoverage = true;
     }
+
+    if (SanitizeBounds && !SanOpts.hasOneOf(SanitizerKind::Bounds))
+      Fn->addFnAttr(llvm::Attribute::NoSanitizeBounds);
 
     if (NoSanitizeCoverage && CGM.getCodeGenOpts().hasSanitizeCoverage())
       Fn->addFnAttr(llvm::Attribute::NoSanitizeCoverage);
@@ -1084,6 +1088,18 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
     Fn->setMetadata("stall_enable",
                     llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
+  }
+
+  if (getLangOpts().SYCLIsDevice && D &&
+      D->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
+    const auto *A = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
+    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+        A->getFilteredAttributeNameValuePairs(CGM.getContext());
+
+    llvm::AttrBuilder FnAttrBuilder(Fn->getContext());
+    for (const auto &NameValuePair : NameValuePairs)
+      FnAttrBuilder.addAttribute(NameValuePair.first, NameValuePair.second);
+    Fn->addFnAttrs(FnAttrBuilder);
   }
 
   if (FD && (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice)) {

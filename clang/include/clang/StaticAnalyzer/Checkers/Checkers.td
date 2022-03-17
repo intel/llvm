@@ -348,6 +348,10 @@ def NullableReturnedFromNonnullChecker : Checker<"NullableReturnedFromNonnull">,
 
 let ParentPackage = APIModeling in {
 
+def ErrnoModeling : Checker<"Errno">,
+  HelpText<"Make the special value 'errno' available to other checkers.">,
+  Documentation<NotDocumented>;
+
 def StdCLibraryFunctionsChecker : Checker<"StdCLibraryFunctions">,
   HelpText<"Improve modeling of the C standard library functions">,
   // Uninitialized value check is a mandatory dependency. This Checker asserts
@@ -471,7 +475,12 @@ def CStringNotNullTerm : Checker<"NotNullTerminated">,
   HelpText<"Check for arguments which are not null-terminating strings">,
   Dependencies<[CStringModeling]>,
   Documentation<HasAlphaDocumentation>;
-
+ 
+def CStringUninitializedRead : Checker<"UninitializedRead">,
+  HelpText<"Checks if the string manipulation function would read uninitialized bytes">,
+  Dependencies<[CStringModeling]>,
+  Documentation<HasAlphaDocumentation>;
+  
 } // end "alpha.unix.cstring"
 
 let ParentPackage = Unix in {
@@ -1554,6 +1563,11 @@ def TaintTesterChecker : Checker<"TaintTest">,
 def StreamTesterChecker : Checker<"StreamTester">,
   HelpText<"Add test functions to StreamChecker for test and debugging "
            "purposes.">,
+  Documentation<NotDocumented>;
+
+def ErrnoTesterChecker : Checker<"ErrnoTest">,
+  HelpText<"Check modeling aspects of 'errno'.">,
+  Dependencies<[ErrnoModeling]>,
   Documentation<NotDocumented>;
 
 def ExprInspectionChecker : Checker<"ExprInspection">,

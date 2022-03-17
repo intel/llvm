@@ -639,7 +639,7 @@ func @scf_for_deps(
     %lb : index,
     %ub : index,
     %step : index)
-  -> (tensor<?xf32>, tensor<?xf32>)
+  -> (tensor<?xf32>)
 {
   // %r0 must be out of place because one use of %t in the subsequent production
   // of %r1 is read.
@@ -666,38 +666,9 @@ func @scf_for_deps(
     scf.yield %t : tensor<?xf32>
   }
 
-  // %r2 must be out of place because one use of %t in the subsequent production
-  // of %r3 is read.
-  //      CHECK: linalg.tiled_loop
-  // CHECK-NEXT: call
-  // CHECK-SAME: {__inplace_operands_attr__ = ["false"]}
-  // CHECK-NEXT: linalg.yield
-  // CHECK-SAME: {__inplace_operands_attr__ = ["true"]}
-  //      CHECK: } {__inplace_operands_attr__ = ["none", "none", "none", "false"]}
-  %r2 = linalg.tiled_loop (%i) = (%lb) to (%ub) step (%step)
-        ins()
-        outs(%t = %B: tensor<?xf32>) {
-    call @some_use(%t) : (tensor<?xf32>) -> ()
-    linalg.yield %t : tensor<?xf32>
-  }
-
-  // %r3 bufferizes inplace fine.
-  //      CHECK: linalg.tiled_loop
-  // CHECK-NEXT: call
-  // CHECK-SAME: {__inplace_operands_attr__ = ["false"]}
-  // CHECK-NEXT: linalg.yield
-  // CHECK-SAME: {__inplace_operands_attr__ = ["true"]}
-  //      CHECK: } {__inplace_operands_attr__ = ["none", "none", "none", "true"]}
-  %r3 = linalg.tiled_loop (%i) = (%lb) to (%ub) step (%step)
-        ins()
-        outs(%t = %B: tensor<?xf32>) {
-    call @some_use(%t) : (tensor<?xf32>) -> ()
-    linalg.yield %t : tensor<?xf32>
-  }
-
   //      CHECK: return
-  // CHECK-SAME: __equivalent_func_args__ = [0, 1]
-  return %r1, %r3: tensor<?xf32>, tensor<?xf32>
+  // CHECK-SAME: __equivalent_func_args__ = [0]
+  return %r1: tensor<?xf32>
 }
 
 // -----
@@ -990,13 +961,13 @@ func @ip(%t: tensor<10x20xf32> {linalg.inplaceable = true},
 // CHECK-LABEL: func @linalg_op_same_out_tensors(
 func @linalg_op_same_out_tensors(
     %t1: tensor<?xf32> {linalg.inplaceable = true},
-// CHECK-SAME:          bufferization.access = "read-write"
+// CHECK-SAME:          bufferization.access = "read"
     %t2: tensor<?xf32> {linalg.inplaceable = true})
 // CHECK-SAME:          bufferization.access = "write"
   -> (tensor<?xf32>, tensor<?xf32>){
 
   //      CHECK: linalg.generic
-  // CHECK-SAME: {__inplace_operands_attr__ = ["true", "true", "true"]
+  // CHECK-SAME: {__inplace_operands_attr__ = ["true", "true", "false"]
   %o:2 = linalg.generic #trait ins(%t1 : tensor<?xf32>)
                                outs (%t2, %t2 : tensor<?xf32>, tensor<?xf32>) {
       ^bb(%0: f32, %1: f32, %2 : f32) :
@@ -1004,7 +975,7 @@ func @linalg_op_same_out_tensors(
     } -> (tensor<?xf32>, tensor<?xf32>)
 
   //      CHECK: return
-  // CHECK-SAME: __equivalent_func_args__ = [0, 1]
+  // CHECK-SAME: __equivalent_func_args__ = [1, -1]
   return %o#0, %o#1 : tensor<?xf32>, tensor<?xf32>
 }
 
@@ -1024,13 +995,13 @@ func @linalg_op_same_out_tensors(
 // CHECK-LABEL: func @linalg_op_same_out_tensors_2(
 func @linalg_op_same_out_tensors_2(
     %t1: tensor<?xf32> {linalg.inplaceable = true},
-// CHECK-SAME:          bufferization.access = "read-write"
+// CHECK-SAME:          bufferization.access = "read"
     %t2: tensor<?xf32> {linalg.inplaceable = true})
 // CHECK-SAME:          bufferization.access = "write"
         -> (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>){
 
   //      CHECK: linalg.generic
-  // CHECK-SAME: {__inplace_operands_attr__ = ["true", "true", "true", "false"]
+  // CHECK-SAME: {__inplace_operands_attr__ = ["true", "true", "false", "false"]
   %o:3 = linalg.generic #trait
           ins(%t1 : tensor<?xf32>)
           outs (%t2, %t2, %t2 : tensor<?xf32>, tensor<?xf32>, tensor<?xf32>) {
@@ -1039,7 +1010,7 @@ func @linalg_op_same_out_tensors_2(
     } -> (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>)
 
   //      CHECK: return
-  // CHECK-SAME: __equivalent_func_args__ = [0, 1, -1]
+  // CHECK-SAME: __equivalent_func_args__ = [1, -1, -1]
   return %o#0, %o#1, %o#2 : tensor<?xf32>, tensor<?xf32>, tensor<?xf32>
 }
 

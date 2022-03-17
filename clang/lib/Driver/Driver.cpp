@@ -3245,6 +3245,9 @@ class OffloadingActionBuilder final {
   /// Map between an input argument and the offload kinds used to process it.
   std::map<const Arg *, unsigned> InputArgToOffloadKindMap;
 
+  /// Map between a host action and its originating input argument.
+  std::map<Action *, const Arg *> HostActionToInputArgMap;
+
   /// Builder interface. It doesn't build anything or keep any state.
   class DeviceActionBuilder {
   public:
@@ -3479,6 +3482,7 @@ class OffloadingActionBuilder final {
           UA->registerDependentActionInfo(ToolChains[0], Arch,
                                           AssociatedOffloadKind);
         }
+        IsActive = true;
         return ABRT_Success;
       }
 
@@ -3825,6 +3829,9 @@ class OffloadingActionBuilder final {
     getDeviceDependences(OffloadAction::DeviceDependences &DA,
                          phases::ID CurPhase, phases::ID FinalPhase,
                          PhasesTy &Phases) override {
+      if (!IsActive)
+        return ABRT_Inactive;
+
       // amdgcn does not support linking of object files, therefore we skip
       // backend and assemble phases to output LLVM IR. Except for generating
       // non-relocatable device coee, where we generate fat binary for device
@@ -5314,6 +5321,17 @@ public:
       delete SB;
   }
 
+  /// Record a host action and its originating input argument.
+  void recordHostAction(Action *HostAction, const Arg *InputArg) {
+    assert(HostAction && "Invalid host action");
+    assert(InputArg && "Invalid input argument");
+    auto Loc = HostActionToInputArgMap.find(HostAction);
+    if (Loc == HostActionToInputArgMap.end())
+      HostActionToInputArgMap[HostAction] = InputArg;
+    assert(HostActionToInputArgMap[HostAction] == InputArg &&
+           "host action mapped to multiple input arguments");
+  }
+
   /// Generate an action that adds device dependences (if any) to a host action.
   /// If no device dependence actions exist, just return the host action \a
   /// HostAction. If an error is found or if no builder requires the host action
@@ -5329,6 +5347,7 @@ public:
       return HostAction;
 
     assert(HostAction && "Invalid host action!");
+    recordHostAction(HostAction, InputArg);
 
     OffloadAction::DeviceDependences DDeps;
     // Check if all the programming models agree we should not emit the host
@@ -5431,6 +5450,8 @@ public:
     if (HostAction->getType() == types::TY_FPGA_AOCX)
       return false;
 
+    recordHostAction(HostAction, InputArg);
+
     // If we are supporting bundling/unbundling and the current action is an
     // input action of non-source file, we replace the host action by the
     // unbundling action. The bundler tool has the logic to detect if an input
@@ -5470,6 +5491,7 @@ public:
           C.getSingleOffloadToolChain<Action::OFK_Host>(),
           /*BoundArch=*/StringRef(), Action::OFK_Host);
       HostAction = UnbundlingHostAction;
+      recordHostAction(HostAction, InputArg);
     }
 
     assert(HostAction && "Invalid host action!");
@@ -5529,6 +5551,9 @@ public:
   /// programming models allow it.
   bool appendTopLevelActions(ActionList &AL, Action *HostAction,
                              const Arg *InputArg) {
+    if (HostAction)
+      recordHostAction(HostAction, InputArg);
+
     // Get the device actions to be appended.
     ActionList OffloadAL;
     for (auto *SB : SpecializedBuilders) {
@@ -5550,6 +5575,7 @@ public:
       // before this method was called.
       assert(HostAction == AL.back() && "Host action not in the list??");
       HostAction = C.MakeAction<OffloadBundlingJobAction>(OffloadAL);
+      recordHostAction(HostAction, InputArg);
       AL.back() = HostAction;
     } else
       AL.append(OffloadAL.begin(), OffloadAL.end());
@@ -5605,11 +5631,18 @@ public:
       return;
 
     // Let builders add host linking actions.
+    Action* HA = nullptr;
     for (DeviceActionBuilder *SB : SpecializedBuilders) {
       if (!SB->isValid())
         continue;
-      if (Action *HA = SB->appendLinkHostActions(DeviceAL))
+      HA = SB->appendLinkHostActions(DeviceAL);
+      // This created host action has no originating input argument, therefore
+      // needs to set its offloading kind directly.
+      if (HA) {
+        HA->propagateHostOffloadInfo(SB->getAssociatedOffloadKind(),
+                                     /*BoundArch=*/nullptr);
         LinkerInputs.push_back(HA);
+      }
     }
   }
 
@@ -5635,10 +5668,22 @@ public:
     // If we don't have device dependencies, we don't have to create an offload
     // action.
     if (DDeps.getActions().empty()) {
-      // Propagate all the active kinds to host action. Given that it is a link
-      // action it is assumed to depend on all actions generated so far.
-      HostAction->propagateHostOffloadInfo(ActiveOffloadKinds,
-                                           /*BoundArch=*/nullptr);
+      // Set all the active offloading kinds to the link action. Given that it
+      // is a link action it is assumed to depend on all actions generated so
+      // far.
+      HostAction->setHostOffloadInfo(ActiveOffloadKinds,
+                                     /*BoundArch=*/nullptr);
+      // Propagate active offloading kinds for each input to the link action.
+      // Each input may have different active offloading kind.
+      for (auto A : HostAction->inputs()) {
+        auto ArgLoc = HostActionToInputArgMap.find(A);
+        if (ArgLoc == HostActionToInputArgMap.end())
+          continue;
+        auto OFKLoc = InputArgToOffloadKindMap.find(ArgLoc->second);
+        if (OFKLoc == InputArgToOffloadKindMap.end())
+          continue;
+        A->propagateHostOffloadInfo(OFKLoc->second, /*BoundArch=*/nullptr);
+      }
       return HostAction;
     }
 
@@ -6100,8 +6145,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         Arg *InputArg = MakeInputArg(Args, getOpts(), FileName);
         OffloadBuilder.addHostDependenceToDeviceActions(UnbundlerInput,
                                                         InputArg, Args);
-        OffloadBuilder.addDeviceDependencesToHostAction(
-            UnbundlerInput, InputArg, phases::Link, PL.back(), PL);
       }
     }
   }
