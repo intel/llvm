@@ -52,6 +52,7 @@
 ??$get_info@$0BABBB@@device@sycl@cl@@QEBA?AV?$vector@W4memory_order@sycl@cl@@V?$allocator@W4memory_order@sycl@cl@@@std@@@std@@XZ
 ??$get_info@$0BABBC@@device@sycl@cl@@QEBAIXZ
 ??$get_info@$0BABBC@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
+??$get_info@$0BABBD@@device@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@$0BABC@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0BABD@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0BABE@@device@sycl@cl@@QEBA_KXZ
@@ -135,7 +136,6 @@
 ??$get_info@$0BBLK@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@$0BBNC@@event@sycl@cl@@QEBAIXZ
 ??$get_info@$0BBND@@event@sycl@cl@@QEBA?AW4event_command_status@info@12@XZ
-??$get_info@$0BPAAA@@device@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@$0CAAAA@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0CAAAB@@device@sycl@cl@@QEBA?AV?$id@$00@12@XZ
 ??$get_info@$0CAAAC@@device@sycl@cl@@QEBA?AV?$id@$01@12@XZ
