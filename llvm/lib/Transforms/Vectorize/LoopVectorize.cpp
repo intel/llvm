@@ -4275,7 +4275,9 @@ void InnerLoopVectorizer::widenPHIInstruction(Instruction *PN,
     // Handle the pointer induction variable case.
     assert(P->getType()->isPointerTy() && "Unexpected type.");
 
-    if (Cost->isScalarAfterVectorization(P, State.VF)) {
+    if (all_of(PhiR->users(), [PhiR](const VPUser *U) {
+          return cast<VPRecipeBase>(U)->usesScalars(PhiR);
+        })) {
       // This is the normalized GEP that starts counting at zero.
       Value *PtrInd =
           Builder.CreateSExtOrTrunc(CanonicalIV, II.getStep()->getType());
@@ -4454,6 +4456,14 @@ void LoopVectorizationCostModel::collectLoopScalars(ElementCount VF) {
   // this check. Collecting Scalars for VF=1 does not make any sense.
   assert(VF.isVector() && Scalars.find(VF) == Scalars.end() &&
          "This function should not be visited twice for the same VF");
+
+  // This avoids any chances of creating a REPLICATE recipe during planning
+  // since that would result in generation of scalarized code during execution,
+  // which is not supported for scalable vectors.
+  if (VF.isScalable()) {
+    Scalars[VF].insert(Uniforms[VF].begin(), Uniforms[VF].end());
+    return;
+  }
 
   SmallSetVector<Instruction *, 8> Worklist;
 
