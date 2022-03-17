@@ -380,16 +380,16 @@ struct _pi_mem {
 struct _pi_queue {
   using native_type = CUstream;
 
-  native_type stream_;
+  native_type stream_h2d_, stream_d2h_, stream_compute_;
   _pi_context *context_;
   _pi_device *device_;
   pi_queue_properties properties_;
   std::atomic_uint32_t refCount_;
   std::atomic_uint32_t eventCount_;
 
-  _pi_queue(CUstream stream, _pi_context *context, _pi_device *device,
+  _pi_queue(CUstream stream_h2d, CUstream stream_d2h, CUstream stream_compute, _pi_context *context, _pi_device *device,
             pi_queue_properties properties)
-      : stream_{stream}, context_{context}, device_{device},
+      : stream_h2d_{stream_h2d}, stream_d2h_{stream_d2h}, stream_compute_(stream_compute), context_{context}, device_{device},
         properties_{properties}, refCount_{1}, eventCount_{0} {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
@@ -400,7 +400,10 @@ struct _pi_queue {
     cuda_piDeviceRelease(device_);
   }
 
-  native_type get() const noexcept { return stream_; };
+  native_type get() const noexcept { return stream_compute_; };
+  native_type get_h2d() const noexcept { return stream_h2d_; };
+  native_type get_d2h() const noexcept { return stream_d2h_; };
+  native_type get_compute() const noexcept { return stream_compute_; };
 
   _pi_context *get_context() const { return context_; };
 
@@ -430,6 +433,8 @@ public:
   native_type get() const noexcept { return evEnd_; };
 
   pi_queue get_queue() const noexcept { return queue_; }
+
+  CUstream get_stream() const noexcept { return stream_; }
 
   pi_command_type get_command_type() const noexcept { return commandType_; }
 
@@ -474,8 +479,8 @@ public:
   pi_uint64 get_end_time() const;
 
   // construct a native CUDA. This maps closely to the underlying CUDA event.
-  static pi_event make_native(pi_command_type type, pi_queue queue) {
-    return new _pi_event(type, queue->get_context(), queue);
+  static pi_event make_native(pi_command_type type, pi_queue queue, CUstream stream) {
+    return new _pi_event(type, queue->get_context(), queue, stream);
   }
 
   pi_result release();
@@ -485,7 +490,7 @@ public:
 private:
   // This constructor is private to force programmers to use the make_native /
   // make_user static members in order to create a pi_event for CUDA.
-  _pi_event(pi_command_type type, pi_context context, pi_queue queue);
+  _pi_event(pi_command_type type, pi_context context, pi_queue queue, CUstream stream);
 
   pi_command_type commandType_; // The type of command associated with event.
 
@@ -513,6 +518,9 @@ private:
 
   pi_queue queue_; // pi_queue associated with the event. If this is a user
                    // event, this will be nullptr.
+
+  CUstream stream_; // CUstream associated with the event. If this is a user
+                   // event, this will be uninitialized.
 
   pi_context context_; // pi_context associated with the event. If this is a
                        // native event, this will be the same context associated
