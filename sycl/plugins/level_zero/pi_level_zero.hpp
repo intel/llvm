@@ -310,6 +310,7 @@ struct _pi_platform {
   // Current number of L0 Command Lists created on this platform.
   // this number must not exceed ZeMaxCommandListCache.
   std::atomic<int> ZeGlobalCommandListCount{0};
+  std::atomic<int> ZeGlobalImmCommandListCount{0};
 
   // Keep track of all contexts in the platform. This is needed to manage
   // a lifetime of memory allocations in each context when there are kernels
@@ -594,7 +595,7 @@ struct _pi_context : _pi_object {
   // support of the multiple devices per context will be added.
   ze_command_list_handle_t ZeCommandListInit;
 
-  // Mutex Lock for the Command List Cache. This lock is used to control both
+  // Mutex Locks for the Command List Cache. This locks is used to control both
   // compute and copy command list caches.
   std::mutex ZeCommandListCacheMutex;
   // Cache of all currently available/completed command/copy lists.
@@ -610,24 +611,13 @@ struct _pi_context : _pi_object {
   std::unordered_map<ze_device_handle_t, std::list<ze_command_list_handle_t>>
       ZeCopyCommandListCache;
 
-  // Retrieves a command list for executing on this device along with
-  // a fence to be used in tracking the execution of this command list.
-  // If a command list has been created on this device which has
-  // completed its commands, then that command list and its associated fence
-  // will be reused. Otherwise, a new command list and fence will be created for
-  // running on this device. L0 fences are created on a L0 command queue so the
-  // caller must pass a command queue to create a new fence for the new command
-  // list if a command list/fence pair is not available. All Command Lists &
-  // associated fences are destroyed at Device Release.
-  // If UseCopyEngine is true, the command will eventually be executed in a
-  // copy engine. Otherwise, the command will be executed in a compute engine.
-  // If AllowBatching is true, then the command list returned may already have
-  // command in it, if AllowBatching is false, any open command lists that
-  // already exist in Queue will be closed and executed.
+  // Retrieves a command list for executing on this device.
+  // Depending on setting, this could be a standard, non-immediate list
+  // or an immediate commandlist.
   pi_result getAvailableCommandList(pi_queue Queue,
                                     pi_command_list_ptr_t &CommandList,
                                     bool UseCopyEngine = false,
-                                    bool AllowBatching = false);
+                                    bool AllowBatching = false); 
 
   // Get index of the free slot in the available pool. If there is no available
   // pool then create new one. The HostVisible parameter tells if we need a
@@ -657,6 +647,35 @@ struct _pi_context : _pi_object {
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
 private:
+  // Retrieves a standard (non-immediate) command list for executing on this
+  // device along with a fence to be used in tracking the execution of the list.
+  // If a command list has been created on this device which has
+  // completed its commands, then that command list and its associated fence
+  // will be reused. Otherwise, a new command list and fence will be created for
+  // running on this device. L0 fences are created on a L0 command queue so the
+  // caller must pass a command queue to create a new fence for the new command
+  // list if a command list/fence pair is not available. All Command Lists &
+  // associated fences are destroyed at Device Release.
+  // If UseCopyEngine is true, the command will eventually be executed in a
+  // copy engine. Otherwise, the command will be executed in a compute engine.
+  // If AllowBatching is true, then the command list returned may already have
+  // command in it, if AllowBatching is false, any open command lists that
+  // already exist in Queue will be closed and executed.
+  pi_result getAvailableNonImmCommandList(pi_queue Queue,
+                                          pi_command_list_ptr_t &CommandList,
+                                          bool UseCopyEngine = false,
+                                          bool AllowBatching = false);
+
+  // Retrieves an immediate command list for executing on this device.
+  // If an immediate command list has been created on this device then that
+  // command list will be reused. Otherwise, a new command list will be created
+  // for running on this device.
+  // If UseCopyEngine is true, the command will eventually be executed in a
+  // copy engine. Otherwise, the command will be executed in a compute engine.
+  pi_result getAvailableImmCommandList(pi_queue Queue,
+                                       pi_command_list_ptr_t &CommandList,
+                                       bool UseCopyEngine = false);
+
   // Following member variables are used to manage assignment of events
   // to event pools.
   //
@@ -723,10 +742,17 @@ struct _pi_queue : _pi_object {
     // Level Zero command queue handles.
     std::vector<ze_command_queue_handle_t> ZeQueues;
 
+    // Immediate commandlist handles, one per Level Zero command queue handle.
+    std::vector<pi_command_list_ptr_t> ImmCmdLists;
+
     // This function will return one of possibly multiple available native
     // queues. Currently, a round robin strategy is used. This function also
     // sends back the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
+
+    // This function returns an immediate commandlist that corresponds
+    // to the ZeQueue returned by getZeQueue.
+    pi_command_list_ptr_t &getImmCmdList(bool UseCopyEngine);
 
     // These indices are to filter specific range of the queues to use,
     // and to organize round-robin across them.
@@ -781,6 +807,7 @@ struct _pi_queue : _pi_object {
 
   // Map of all command lists used in this queue.
   pi_command_list_map_t CommandListMap;
+  pi_command_list_map_t ImmCommandListMap;
 
   // Helper data structure to hold all variables related to batching
   typedef struct CommandBatch {
@@ -854,6 +881,16 @@ struct _pi_queue : _pi_object {
   // batched into.
   // If IsBlocking is true, then batching will not be allowed regardless
   // of the value of OKToBatchCommand
+  pi_result executeNonImmCommandList(pi_command_list_ptr_t CommandList,
+                                     bool IsBlocking = false,
+                                     bool OKToBatchCommand = false);
+  // Attach an immediate command list to this queue.
+  // The "IsBlocking" tells if the wait for completion is required.
+  pi_result executeImmCommandList(pi_command_list_ptr_t CommandList,
+                                  bool IsBlocking = false);
+  // Attach a command list to this queue.
+  // For non-immediate commandlist also close and execute it.
+  // For immediate commandlists, no close and execute is necessary.
   pi_result executeCommandList(pi_command_list_ptr_t CommandList,
                                bool IsBlocking = false,
                                bool OKToBatchCommand = false);
