@@ -16,8 +16,8 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Verifier.h"
-#include "mlir/Parser.h"
 #include "mlir/Parser/AsmParserState.h"
+#include "mlir/Parser/Parser.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringSet.h"
@@ -1672,8 +1672,9 @@ FailureOr<OperationName> OperationParser::parseCustomOperationName() {
       // default dialect (set through OpAsmOpInterface).
       opInfo = RegisteredOperationName::lookup(
           Twine(defaultDialect + "." + opName).str(), getContext());
-      if (!opInfo && getContext()->getOrLoadDialect("std")) {
-        opInfo = RegisteredOperationName::lookup(Twine("std." + opName).str(),
+      // FIXME: Remove this in favor of using default dialects.
+      if (!opInfo && getContext()->getOrLoadDialect("func")) {
+        opInfo = RegisteredOperationName::lookup(Twine("func." + opName).str(),
                                                  getContext());
       }
       if (opInfo) {

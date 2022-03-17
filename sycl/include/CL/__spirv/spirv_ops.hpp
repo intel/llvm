@@ -755,6 +755,68 @@ __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
 extern SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
 #endif
 
+// Native builtin extension
+
+extern SYCL_EXTERNAL float __clc_native_tanh(float);
+extern SYCL_EXTERNAL __ocl_vec_t<float, 2>
+    __clc_native_tanh(__ocl_vec_t<float, 2>);
+extern SYCL_EXTERNAL __ocl_vec_t<float, 3>
+    __clc_native_tanh(__ocl_vec_t<float, 3>);
+extern SYCL_EXTERNAL __ocl_vec_t<float, 4>
+    __clc_native_tanh(__ocl_vec_t<float, 4>);
+extern SYCL_EXTERNAL __ocl_vec_t<float, 8>
+    __clc_native_tanh(__ocl_vec_t<float, 8>);
+extern SYCL_EXTERNAL __ocl_vec_t<float, 16>
+    __clc_native_tanh(__ocl_vec_t<float, 16>);
+
+extern SYCL_EXTERNAL _Float16 __clc_native_tanh(_Float16);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 2>
+    __clc_native_tanh(__ocl_vec_t<_Float16, 2>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 3>
+    __clc_native_tanh(__ocl_vec_t<_Float16, 3>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 4>
+    __clc_native_tanh(__ocl_vec_t<_Float16, 4>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 8>
+    __clc_native_tanh(__ocl_vec_t<_Float16, 8>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 16>
+    __clc_native_tanh(__ocl_vec_t<_Float16, 16>);
+
+extern SYCL_EXTERNAL _Float16 __clc_native_exp2(_Float16);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 2>
+    __clc_native_exp2(__ocl_vec_t<_Float16, 2>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 3>
+    __clc_native_exp2(__ocl_vec_t<_Float16, 3>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 4>
+    __clc_native_exp2(__ocl_vec_t<_Float16, 4>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 8>
+    __clc_native_exp2(__ocl_vec_t<_Float16, 8>);
+extern SYCL_EXTERNAL __ocl_vec_t<_Float16, 16>
+    __clc_native_exp2(__ocl_vec_t<_Float16, 16>);
+
+#define __CLC_BF16(...)                                                        \
+  extern SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fabs(                   \
+      __VA_ARGS__) noexcept;                                                   \
+  extern SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fmin(                   \
+      __VA_ARGS__, __VA_ARGS__) noexcept;                                      \
+  extern SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fmax(                   \
+      __VA_ARGS__, __VA_ARGS__) noexcept;                                      \
+  extern SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fma(                    \
+      __VA_ARGS__, __VA_ARGS__, __VA_ARGS__) noexcept;
+
+#define __CLC_BF16_SCAL_VEC(TYPE)                                              \
+  __CLC_BF16(TYPE)                                                             \
+  __CLC_BF16(__ocl_vec_t<TYPE, 2>)                                             \
+  __CLC_BF16(__ocl_vec_t<TYPE, 3>)                                             \
+  __CLC_BF16(__ocl_vec_t<TYPE, 4>)                                             \
+  __CLC_BF16(__ocl_vec_t<TYPE, 8>)                                             \
+  __CLC_BF16(__ocl_vec_t<TYPE, 16>)
+
+__CLC_BF16_SCAL_VEC(uint16_t)
+__CLC_BF16_SCAL_VEC(uint32_t)
+
+#undef __CLC_BF16_SCAL_VEC
+#undef __CLC_BF16
+
 #else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>

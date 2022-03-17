@@ -1,10 +1,10 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
-using namespace sycl::ext::intel::experimental::esimd;
-using namespace sycl::ext::intel::experimental;
+using namespace sycl::ext::intel::esimd;
+using namespace sycl::ext::intel;
 using namespace cl::sycl;
 
 using simd_mask_elem_t = simd_mask<1>::element_type;

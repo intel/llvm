@@ -6,7 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
+
 #include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/ext/oneapi/properties/property_value.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -39,7 +42,7 @@ struct init_mode_key {
 struct implement_in_csr_key {
   template <bool Enable>
   using value_t =
-      property_value<implement_in_csr_key, std::bool_constant<Enable>>;
+      property_value<implement_in_csr_key, sycl::detail::bool_constant<Enable>>;
 };
 
 inline constexpr device_image_scope_key::value_t device_image_scope;

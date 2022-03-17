@@ -224,6 +224,12 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeRight(
     rotateTokens(SourceMgr, Fixes, Tok, LastQual, /*Left=*/false);
     Tok = LastQual;
   } else if (Tok->startsSequence(QualifierType, tok::identifier,
+                                 TT_TemplateCloser)) {
+    FormatToken *Closer = Tok->Next->Next;
+    rotateTokens(SourceMgr, Fixes, Tok, Tok->Next, /*Left=*/false);
+    Tok = Closer;
+    return Tok;
+  } else if (Tok->startsSequence(QualifierType, tok::identifier,
                                  TT_TemplateOpener)) {
     // Read from the TemplateOpener to
     // TemplateCloser as in const ArrayRef<int> a; const ArrayRef<int> &a;
@@ -307,6 +313,11 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeLeft(
         rotateTokens(SourceMgr, Fixes, Tok, Tok->Next, /*Left=*/true);
         Tok = Tok->Next;
       }
+    } else if (Tok->startsSequence(tok::identifier, QualifierType,
+                                   TT_TemplateCloser)) {
+      FormatToken *Closer = Tok->Next->Next;
+      rotateTokens(SourceMgr, Fixes, Tok, Tok->Next, /*Left=*/true);
+      Tok = Closer;
     }
   }
   if (Tok->is(TT_TemplateOpener) && Tok->Next &&
@@ -328,14 +339,21 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeLeft(
       if (Next->is(tok::comment) && Next->getNextNonComment())
         Next = Next->getNextNonComment();
       assert(Next->MatchingParen && "Missing template closer");
-      Next = Next->MatchingParen->Next;
+      Next = Next->MatchingParen;
+
+      // If the template closer is closing the requires clause,
+      // then stop and go back to the TemplateOpener and do whatever is
+      // inside the <>.
+      if (Next->ClosesRequiresClause)
+        return Next->MatchingParen;
+      Next = Next->Next;
 
       // Move to the end of any template class members e.g.
       // `Foo<int>::iterator`.
       if (Next && Next->startsSequence(tok::coloncolon, tok::identifier))
         Next = Next->Next->Next;
       if (Next && Next->is(QualifierType)) {
-        // Remove the const.
+        // Move the qualifier.
         insertQualifierBefore(SourceMgr, Fixes, Tok, Qualifier);
         removeToken(SourceMgr, Fixes, Next);
         return Next;
@@ -344,7 +362,7 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeLeft(
     if (Next && Next->Next &&
         Next->Next->isOneOf(tok::amp, tok::ampamp, tok::star)) {
       if (Next->is(QualifierType)) {
-        // Remove the qualifier.
+        // Move the qualifier.
         insertQualifierBefore(SourceMgr, Fixes, Tok, Qualifier);
         removeToken(SourceMgr, Fixes, Next);
         return Next;
@@ -458,7 +476,8 @@ bool LeftRightQualifierAlignmentFixer::isPossibleMacro(const FormatToken *Tok) {
   if (!Tok->is(tok::identifier))
     return false;
   if (Tok->TokenText.upper() == Tok->TokenText.str())
-    return true;
+    // T,K,U,V likely could be template arguments
+    return (Tok->TokenText.size() != 1);
   return false;
 }
 

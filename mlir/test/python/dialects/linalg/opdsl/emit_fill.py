@@ -2,8 +2,8 @@
 
 from mlir.ir import *
 from mlir.dialects import builtin
+from mlir.dialects import func
 from mlir.dialects import linalg
-from mlir.dialects import std
 
 from mlir.dialects.linalg.opdsl.lang import *
 
@@ -13,7 +13,7 @@ T2 = TV.T2
 
 @linalg_structured_op
 def fill_poly(value=ScalarDef(T1), O=TensorDef(U, output=True)):
-  O[None] = TypeFn.cast(U, value)
+  O[None] = TypeFn.cast_signed(U, value)
 
 
 with Context() as ctx, Location.unknown():
