@@ -851,10 +851,8 @@ static bool removeSYCLKernelsConstRefArray(GlobalVariable *GV) {
 
   // Destroy the initializer and all operands of it.
   SmallVector<Constant *, 8> IOperands;
-  for (auto It = Initializer->op_begin(); It != Initializer->op_end(); It++) {
-    assert(isa<Constant>(*It) && "Unexpected initializer of llvm.used");
-    IOperands.push_back(dyn_cast<Constant>(*It));
-  }
+  for (auto It = Initializer->op_begin(); It != Initializer->op_end(); It++)
+    IOperands.push_back(cast<Constant>(*It));
   assert(llvm::isSafeToDestroyConstant(Initializer) &&
          "Cannot remove initializer of llvm.used global");
   Initializer->destroyConstant();
