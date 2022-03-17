@@ -58,6 +58,7 @@
 #include "llvm/Transforms/Vectorize.h"
 
 using namespace llvm;
+using namespace llvm::PatternMatch;
 
 namespace {
 class SGPRRegisterRegAlloc : public RegisterRegAllocBase<SGPRRegisterRegAlloc> {
