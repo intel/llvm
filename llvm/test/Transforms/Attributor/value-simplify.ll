@@ -903,7 +903,9 @@ define void @test_callee_is_undef(void (i32)* %fn) {
 ;
 ; IS__CGSCC____-LABEL: define {{[^@]+}}@test_callee_is_undef
 ; IS__CGSCC____-SAME: (void (i32)* nocapture nofree [[FN:%.*]]) {
-; IS__CGSCC____-NEXT:    unreachable
+; IS__CGSCC____-NEXT:    call void @callee_is_undef()
+; IS__CGSCC____-NEXT:    call void @unknown_calle_arg_is_undef(void (i32)* nocapture nofree noundef nonnull [[FN]])
+; IS__CGSCC____-NEXT:    ret void
 ;
   call void @callee_is_undef(void ()* undef)
   call void @unknown_calle_arg_is_undef(void (i32)* %fn, i32 undef)
@@ -911,14 +913,9 @@ define void @test_callee_is_undef(void (i32)* %fn) {
 }
 define internal void @callee_is_undef(void ()* %fn) {
 ;
-; IS__TUNIT____-LABEL: define {{[^@]+}}@callee_is_undef() {
-; IS__TUNIT____-NEXT:    call void undef()
-; IS__TUNIT____-NEXT:    ret void
-;
-; IS__CGSCC____-LABEL: define {{[^@]+}}@callee_is_undef
-; IS__CGSCC____-SAME: (void ()* nocapture nofree noundef nonnull [[FN:%.*]]) {
-; IS__CGSCC____-NEXT:    call void [[FN]]()
-; IS__CGSCC____-NEXT:    ret void
+; CHECK-LABEL: define {{[^@]+}}@callee_is_undef() {
+; CHECK-NEXT:    call void undef()
+; CHECK-NEXT:    ret void
 ;
   call void %fn()
   ret void
@@ -1100,24 +1097,103 @@ join:
 }
 
 define i1 @test_liveness(i1 %c) {
+; IS__TUNIT_OPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; IS__TUNIT_OPM-LABEL: define {{[^@]+}}@test_liveness
+; IS__TUNIT_OPM-SAME: (i1 [[C:%.*]]) #[[ATTR1]] {
+; IS__TUNIT_OPM-NEXT:  entry:
+; IS__TUNIT_OPM-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
+; IS__TUNIT_OPM:       t:
+; IS__TUNIT_OPM-NEXT:    br label [[F]]
+; IS__TUNIT_OPM:       f:
+; IS__TUNIT_OPM-NEXT:    [[P:%.*]] = phi i1 [ true, [[ENTRY:%.*]] ], [ false, [[T]] ]
+; IS__TUNIT_OPM-NEXT:    [[RC1:%.*]] = call noundef i1 @ret(i1 noundef [[P]]) #[[ATTR5]]
+; IS__TUNIT_OPM-NEXT:    ret i1 [[RC1]]
+;
+; IS__TUNIT_NPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; IS__TUNIT_NPM-LABEL: define {{[^@]+}}@test_liveness
+; IS__TUNIT_NPM-SAME: (i1 [[C:%.*]]) #[[ATTR1]] {
+; IS__TUNIT_NPM-NEXT:  entry:
+; IS__TUNIT_NPM-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
+; IS__TUNIT_NPM:       t:
+; IS__TUNIT_NPM-NEXT:    br label [[F]]
+; IS__TUNIT_NPM:       f:
+; IS__TUNIT_NPM-NEXT:    [[P:%.*]] = phi i1 [ true, [[ENTRY:%.*]] ], [ false, [[T]] ]
+; IS__TUNIT_NPM-NEXT:    [[RC1:%.*]] = call noundef i1 @ret(i1 noundef [[P]]) #[[ATTR4]]
+; IS__TUNIT_NPM-NEXT:    ret i1 [[RC1]]
+;
+; IS__CGSCC_OPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@test_liveness
+; IS__CGSCC_OPM-SAME: (i1 [[C:%.*]]) #[[ATTR1]] {
+; IS__CGSCC_OPM-NEXT:  entry:
+; IS__CGSCC_OPM-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
+; IS__CGSCC_OPM:       t:
+; IS__CGSCC_OPM-NEXT:    br label [[F]]
+; IS__CGSCC_OPM:       f:
+; IS__CGSCC_OPM-NEXT:    [[P:%.*]] = phi i1 [ true, [[ENTRY:%.*]] ], [ false, [[T]] ]
+; IS__CGSCC_OPM-NEXT:    [[RC1:%.*]] = call noundef i1 @ret(i1 noundef [[P]]) #[[ATTR7:[0-9]+]]
+; IS__CGSCC_OPM-NEXT:    ret i1 [[RC1]]
+;
+; IS__CGSCC_NPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@test_liveness
+; IS__CGSCC_NPM-SAME: (i1 [[C:%.*]]) #[[ATTR1]] {
+; IS__CGSCC_NPM-NEXT:  entry:
+; IS__CGSCC_NPM-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
+; IS__CGSCC_NPM:       t:
+; IS__CGSCC_NPM-NEXT:    br label [[F]]
+; IS__CGSCC_NPM:       f:
+; IS__CGSCC_NPM-NEXT:    ret i1 false
+;
 entry:
-    br i1 %c, label %t, label %f
+  br i1 %c, label %t, label %f
 t:
-    br label %f
+  br label %f
 f:
-    %p = phi i1 [true, %entry], [false, %t]
-    %rc1 = call i1 @ret(i1 %p)
-    ret i1 %rc1
+  %p = phi i1 [true, %entry], [false, %t]
+  %rc1 = call i1 @ret(i1 %p)
+  ret i1 %rc1
 }
 
 define internal i1 @ret(i1 %c) {
+; IS________OPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; IS________OPM-LABEL: define {{[^@]+}}@ret
+; IS________OPM-SAME: (i1 noundef [[C:%.*]]) #[[ATTR1]] {
+; IS________OPM-NEXT:  entry:
+; IS________OPM-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
+; IS________OPM:       t:
+; IS________OPM-NEXT:    br label [[F]]
+; IS________OPM:       f:
+; IS________OPM-NEXT:    [[P:%.*]] = phi i1 [ [[C]], [[ENTRY:%.*]] ], [ false, [[T]] ]
+; IS________OPM-NEXT:    ret i1 [[P]]
+;
+; IS__TUNIT_NPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; IS__TUNIT_NPM-LABEL: define {{[^@]+}}@ret
+; IS__TUNIT_NPM-SAME: (i1 noundef [[C:%.*]]) #[[ATTR1]] {
+; IS__TUNIT_NPM-NEXT:  entry:
+; IS__TUNIT_NPM-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
+; IS__TUNIT_NPM:       t:
+; IS__TUNIT_NPM-NEXT:    br label [[F]]
+; IS__TUNIT_NPM:       f:
+; IS__TUNIT_NPM-NEXT:    [[P:%.*]] = phi i1 [ [[C]], [[ENTRY:%.*]] ], [ false, [[T]] ]
+; IS__TUNIT_NPM-NEXT:    ret i1 false
+;
+; IS__CGSCC_NPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@ret
+; IS__CGSCC_NPM-SAME: (i1 noundef [[C:%.*]]) #[[ATTR1]] {
+; IS__CGSCC_NPM-NEXT:  entry:
+; IS__CGSCC_NPM-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
+; IS__CGSCC_NPM:       t:
+; IS__CGSCC_NPM-NEXT:    br label [[F]]
+; IS__CGSCC_NPM:       f:
+; IS__CGSCC_NPM-NEXT:    [[P:%.*]] = phi i1 [ [[C]], [[ENTRY:%.*]] ], [ false, [[T]] ]
+; IS__CGSCC_NPM-NEXT:    ret i1 undef
+;
 entry:
-    br i1 %c, label %t, label %f
+  br i1 %c, label %t, label %f
 t:
-    br label %f
+  br label %f
 f:
-    %p = phi i1 [%c, %entry], [false, %t]
-    ret i1 %p
+  %p = phi i1 [%c, %entry], [false, %t]
+  ret i1 %p
 }
 
 ;.
@@ -1145,6 +1221,7 @@ f:
 ; IS__CGSCC_OPM: attributes #[[ATTR4]] = { nofree norecurse nosync nounwind willreturn writeonly }
 ; IS__CGSCC_OPM: attributes #[[ATTR5]] = { willreturn }
 ; IS__CGSCC_OPM: attributes #[[ATTR6]] = { nounwind willreturn writeonly }
+; IS__CGSCC_OPM: attributes #[[ATTR7]] = { readnone willreturn }
 ;.
 ; IS__CGSCC_NPM: attributes #[[ATTR0]] = { nofree nosync nounwind willreturn }
 ; IS__CGSCC_NPM: attributes #[[ATTR1]] = { nofree norecurse nosync nounwind readnone willreturn }

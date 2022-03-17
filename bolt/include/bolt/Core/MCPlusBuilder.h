@@ -424,9 +424,7 @@ public:
 
   /// Return a register number that is guaranteed to not match with
   /// any real register on the underlying architecture.
-  virtual MCPhysReg getNoRegister() const {
-    llvm_unreachable("not implemented");
-  }
+  MCPhysReg getNoRegister() const { return MCRegister::NoRegister; }
 
   /// Return a register corresponding to a function integer argument \p ArgNo
   /// if the argument is passed in a register. Or return the result of
@@ -1325,6 +1323,16 @@ public:
                         const MCExpr *&DispExpr, MCInst *&PCRelBaseOut) const {
     llvm_unreachable("not implemented");
     return IndirectBranchType::UNKNOWN;
+  }
+
+  /// Analyze branch \p Instruction in PLT section and try to determine
+  /// associated got entry address.
+  virtual uint64_t analyzePLTEntry(MCInst &Instruction,
+                                   InstructionIterator Begin,
+                                   InstructionIterator End,
+                                   uint64_t BeginPC) const {
+    llvm_unreachable("not implemented");
+    return 0;
   }
 
   virtual bool analyzeVirtualMethodCall(InstructionIterator Begin,

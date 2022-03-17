@@ -591,6 +591,8 @@ constexpr pi_map_flags PI_MAP_WRITE_INVALIDATE_REGION =
 // make the translation to OpenCL transparent.
 using pi_mem_properties = pi_bitfield;
 constexpr pi_mem_properties PI_MEM_PROPERTIES_CHANNEL = CL_MEM_CHANNEL_INTEL;
+constexpr pi_mem_properties PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION =
+    CL_MEM_ALLOC_BUFFER_LOCATION_INTEL;
 
 // NOTE: this is made 64-bit to match the size of cl_mem_properties_intel to
 // make the translation to OpenCL transparent.
