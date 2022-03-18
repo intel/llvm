@@ -29,6 +29,7 @@ def SIEncodingFamily {
   int GFX10 = 6;
   int SDWA10 = 7;
   int GFX90A = 8;
+  int GFX940 = 9;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1427,6 +1428,8 @@ def VOP3OMods : ComplexPattern<untyped, 3, "SelectVOP3OMods">;
 
 def VOP3PMods  : ComplexPattern<untyped, 2, "SelectVOP3PMods">;
 
+def VOP3PModsDOT  : ComplexPattern<untyped, 2, "SelectVOP3PModsDOT">;
+
 def VOP3OpSel  : ComplexPattern<untyped, 2, "SelectVOP3OpSel">;
 
 def VOP3OpSelMods  : ComplexPattern<untyped, 2, "SelectVOP3OpSelMods">;
@@ -2543,7 +2546,8 @@ def getMCOpcodeGen : InstrMapping {
                    [!cast<string>(SIEncodingFamily.GFX9)],
                    [!cast<string>(SIEncodingFamily.GFX10)],
                    [!cast<string>(SIEncodingFamily.SDWA10)],
-                   [!cast<string>(SIEncodingFamily.GFX90A)]];
+                   [!cast<string>(SIEncodingFamily.GFX90A)],
+                   [!cast<string>(SIEncodingFamily.GFX940)]];
 }
 
 // Get equivalent SOPK instruction.
@@ -2639,6 +2643,14 @@ def getFlatScratchInstSSfromSV : InstrMapping {
   let ColFields = ["Mode"];
   let KeyCol = ["SV"];
   let ValueCols = [["SS"]];
+}
+
+def getFlatScratchInstSVfromSVS : InstrMapping {
+  let FilterClass = "FlatScratchInst";
+  let RowFields = ["SVOp"];
+  let ColFields = ["Mode"];
+  let KeyCol = ["SVS"];
+  let ValueCols = [["SV"]];
 }
 
 def getFlatScratchInstSVfromSS : InstrMapping {

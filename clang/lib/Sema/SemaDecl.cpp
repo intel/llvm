@@ -14308,9 +14308,6 @@ ShouldWarnAboutMissingPrototype(const FunctionDecl *FD,
   if (!FD->isGlobal())
     return false;
 
-  if (!FD->isExternallyVisible())
-    return false;
-
   // Don't warn about C++ member functions.
   if (isa<CXXMethodDecl>(FD))
     return false;

@@ -352,7 +352,6 @@ static std::optional<std::string> GetSuffixIfTypeKindParameters(
                 *suffix += "."s + std::to_string(*instantiatedValue);
               } else {
                 suffix = "."s + std::to_string(*instantiatedValue);
-                ;
               }
             }
           }
@@ -369,7 +368,7 @@ const Symbol *RuntimeTableBuilder::DescribeType(Scope &dtScope) {
     return info;
   }
   const DerivedTypeSpec *derivedTypeSpec{dtScope.derivedTypeSpec()};
-  if (!derivedTypeSpec && !dtScope.IsKindParameterizedDerivedType() &&
+  if (!derivedTypeSpec && !dtScope.IsDerivedTypeWithKindParameter() &&
       dtScope.symbol()) {
     // This derived type was declared (obviously, there's a Scope) but never
     // used in this compilation (no instantiated DerivedTypeSpec points here).
@@ -433,7 +432,7 @@ const Symbol *RuntimeTableBuilder::DescribeType(Scope &dtScope) {
   AddValue(dtValues, derivedTypeSchema_, "name"s,
       SaveNameAsPointerTarget(scope, typeName));
   bool isPDTdefinitionWithKindParameters{
-      !derivedTypeSpec && dtScope.IsKindParameterizedDerivedType()};
+      !derivedTypeSpec && dtScope.IsDerivedTypeWithKindParameter()};
   if (!isPDTdefinitionWithKindParameters) {
     auto sizeInBytes{static_cast<common::ConstantSubscript>(dtScope.size())};
     if (auto alignment{dtScope.alignment().value_or(0)}) {
@@ -795,9 +794,10 @@ evaluate::StructureConstructor RuntimeTableBuilder::DescribeComponent(
     std::vector<evaluate::StructureConstructor> bounds;
     evaluate::NamedEntity entity{symbol};
     for (int j{0}; j < rank; ++j) {
-      bounds.emplace_back(GetValue(std::make_optional(evaluate::GetLowerBound(
-                                       foldingContext, entity, j)),
-          parameters));
+      bounds.emplace_back(
+          GetValue(std::make_optional(
+                       evaluate::GetRawLowerBound(foldingContext, entity, j)),
+              parameters));
       bounds.emplace_back(GetValue(
           evaluate::GetUpperBound(foldingContext, entity, j), parameters));
     }

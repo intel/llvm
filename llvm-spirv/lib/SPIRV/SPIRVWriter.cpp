@@ -231,6 +231,18 @@ bool LLVMToSPIRVBase::isBuiltinTransToExtInst(
   return true;
 }
 
+bool isUniformGroupOperation(Function *F) {
+  auto Name = F->getName();
+  if (Name.contains("GroupIMulKHR") || Name.contains("GroupFMulKHR") ||
+      Name.contains("GroupBitwiseAndKHR") ||
+      Name.contains("GroupBitwiseOrKHR") ||
+      Name.contains("GroupBitwiseXorKHR") ||
+      Name.contains("GroupLogicalAndKHR") ||
+      Name.contains("GroupLogicalOrKHR") || Name.contains("GroupLogicalXorKHR"))
+    return true;
+  return false;
+}
+
 static bool recursiveType(const StructType *ST, const Type *Ty) {
   SmallPtrSet<const StructType *, 4> Seen;
 
@@ -560,6 +572,8 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVJointMatrixINTELType(
     ElemTy = Type::getFloatTy(M->getContext());
   else if (Ty == "double")
     ElemTy = Type::getDoubleTy(M->getContext());
+  else if (Ty == "bfloat16")
+    ElemTy = Type::getInt16Ty(M->getContext());
   else
     llvm_unreachable("Unexpected type for matrix!");
 
@@ -651,8 +665,15 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
   SPIRVFunction *BF =
       static_cast<SPIRVFunction *>(mapValue(F, BM->addFunction(BFT)));
   BF->setFunctionControlMask(transFunctionControlMask(F));
-  if (F->hasName())
+  if (F->hasName()) {
+    if (isUniformGroupOperation(F))
+      BM->getErrorLog().checkError(
+          BM->isAllowedToUseExtension(
+              ExtensionID::SPV_KHR_uniform_group_instructions),
+          SPIRVEC_RequiresExtension, "SPV_KHR_uniform_group_instructions\n");
+
     BM->setName(BF, F->getName().str());
+  }
   if (isKernel(F))
     BM->addEntryPoint(ExecutionModelKernel, BF->getId());
   else if (F->getLinkage() != GlobalValue::InternalLinkage)

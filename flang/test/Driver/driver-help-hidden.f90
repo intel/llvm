@@ -47,6 +47,7 @@
 ! CHECK-NEXT: -fxor-operator         Enable .XOR. as a synonym of .NEQV.
 ! CHECK-NEXT: -help     Display available options
 ! CHECK-NEXT: -I <dir>               Add directory to the end of the list of include search paths
+! CHECK-NEXT: -mllvm <value>         Additional arguments to forward to LLVM's option processing
 ! CHECK-NEXT: -module-dir <dir>      Put MODULE files in <dir>
 ! CHECK-NEXT: -nocpp                 Disable predefined and command line preprocessor macros
 ! CHECK-NEXT: -o <file> Write output to <file>
@@ -55,6 +56,7 @@
 ! CHECK-NEXT: -print-target-triple    Print the normalized target triple
 ! CHECK-NEXT: -P                     Disable linemarker output in -E mode
 ! CHECK-NEXT: -std=<value>           Language standard to compile for
+! CHECK-NEXT: -S                     Only run preprocess and compilation steps
 ! CHECK-NEXT: --target=<value>        Generate code for the given target
 ! CHECK-NEXT: -U <macro>             Undefine macro <macro>
 ! CHECK-NEXT: --version Print version information

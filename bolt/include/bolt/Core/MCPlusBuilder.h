@@ -526,11 +526,6 @@ public:
     return false;
   }
 
-  virtual bool isMOVSX64rm32(const MCInst &Inst) const {
-    llvm_unreachable("not implemented");
-    return false;
-  }
-
   virtual bool isLeave(const MCInst &Inst) const {
     llvm_unreachable("not implemented");
     return false;
@@ -1288,6 +1283,16 @@ public:
   /// Replace instruction with a shorter version that could be relaxed later
   /// if needed.
   virtual bool shortenInstruction(MCInst &Inst) const {
+    llvm_unreachable("not implemented");
+    return false;
+  }
+
+  /// Convert a move instruction into a conditional move instruction, given a
+  /// condition code.
+  virtual bool
+  convertMoveToConditionalMove(MCInst &Inst, unsigned CC,
+                               bool AllowStackMemOp = false,
+                               bool AllowBasePtrStackMemOp = false) const {
     llvm_unreachable("not implemented");
     return false;
   }
