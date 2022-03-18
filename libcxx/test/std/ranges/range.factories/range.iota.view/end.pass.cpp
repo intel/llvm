@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 #include "test_macros.h"
@@ -21,8 +20,9 @@
 // constexpr auto end() const;
 // constexpr iterator end() const requires same_as<W, Bound>;
 
-#include <ranges>
 #include <cassert>
+#include <ranges>
+#include <utility>
 
 #include "types.h"
 

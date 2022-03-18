@@ -666,19 +666,34 @@ void CodeGenFunction::EmitLabelStmt(const LabelStmt &S) {
 
 void CodeGenFunction::EmitAttributedStmt(const AttributedStmt &S) {
   bool nomerge = false;
+  bool noinline = false;
+  bool alwaysinline = false;
   const CallExpr *musttail = nullptr;
 
   for (const auto *A : S.getAttrs()) {
-    if (A->getKind() == attr::NoMerge) {
+    switch (A->getKind()) {
+    default:
+      break;
+    case attr::NoMerge:
       nomerge = true;
-    }
-    if (A->getKind() == attr::MustTail) {
+      break;
+    case attr::NoInline:
+      noinline = true;
+      break;
+    case attr::AlwaysInline:
+      alwaysinline = true;
+      break;
+    case attr::MustTail:
       const Stmt *Sub = S.getSubStmt();
       const ReturnStmt *R = cast<ReturnStmt>(Sub);
       musttail = cast<CallExpr>(R->getRetValue()->IgnoreParens());
+      break;
     }
   }
   SaveAndRestore<bool> save_nomerge(InNoMergeAttributedStmt, nomerge);
+  SaveAndRestore<bool> save_noinline(InNoInlineAttributedStmt, noinline);
+  SaveAndRestore<bool> save_alwaysinline(InAlwaysInlineAttributedStmt,
+                                         alwaysinline);
   SaveAndRestore<const CallExpr *> save_musttail(MustTailCall, musttail);
   EmitStmt(S.getSubStmt(), S.getAttrs());
 }
@@ -2513,10 +2528,8 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
           Arg = Builder.CreateZExt(Arg, OutputTy);
         else if (isa<llvm::PointerType>(OutputTy))
           Arg = Builder.CreateZExt(Arg, IntPtrTy);
-        else {
-          assert(OutputTy->isFloatingPointTy() && "Unexpected output type");
+        else if (OutputTy->isFloatingPointTy())
           Arg = Builder.CreateFPExt(Arg, OutputTy);
-        }
       }
       // Deal with the tied operands' constraint code in adjustInlineAsmType.
       ReplaceConstraint = OutputConstraints[Output];

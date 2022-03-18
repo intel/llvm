@@ -114,6 +114,9 @@ PrintingPolicy Sema::getPrintingPolicy(const ASTContext &Context,
     }
   }
 
+  // Shorten the data output if needed
+  Policy.EntireContentsOfLargeArray = false;
+
   return Policy;
 }
 
@@ -231,6 +234,9 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
   // Tell diagnostics how to render things from the AST library.
   Diags.SetArgToStringFn(&FormatASTNodeDiagnosticArgument, &Context);
 
+  // This evaluation context exists to ensure that there's always at least one
+  // valid evaluation context available. It is never removed from the
+  // evaluation stack.
   ExprEvalContexts.emplace_back(
       ExpressionEvaluationContext::PotentiallyEvaluated, 0, CleanupInfo{},
       nullptr, ExpressionEvaluationContextRecord::EK_Other);
@@ -1703,7 +1709,9 @@ public:
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
     if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
       if (auto *VD = dyn_cast<VarDecl>(D)) {
-        if (!S.checkAllowedSYCLInitializer(VD)) {
+        if (!S.checkAllowedSYCLInitializer(VD) &&
+            !S.isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
+                VD->getType())) {
           S.Diag(Loc, diag::err_sycl_restrict)
               << Sema::KernelConstStaticVariable;
           return;

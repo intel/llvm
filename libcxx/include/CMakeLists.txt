@@ -66,7 +66,12 @@ set(files
   __algorithm/pop_heap.h
   __algorithm/prev_permutation.h
   __algorithm/push_heap.h
+  __algorithm/ranges_find.h
+  __algorithm/ranges_find_if.h
+  __algorithm/ranges_find_if_not.h
+  __algorithm/ranges_max_element.h
   __algorithm/ranges_min_element.h
+  __algorithm/ranges_mismatch.h
   __algorithm/ranges_swap_ranges.h
   __algorithm/remove.h
   __algorithm/remove_copy.h
@@ -313,6 +318,7 @@ set(files
   __random/geometric_distribution.h
   __random/independent_bits_engine.h
   __random/is_seed_sequence.h
+  __random/is_valid.h
   __random/knuth_b.h
   __random/linear_congruential_engine.h
   __random/log2.h
@@ -447,6 +453,7 @@ set(files
   ctgmath
   ctime
   ctype.h
+  cuchar
   cwchar
   cwctype
   deque
@@ -540,6 +547,7 @@ set(files
   type_traits
   typeindex
   typeinfo
+  uchar.h
   unordered_map
   unordered_set
   utility

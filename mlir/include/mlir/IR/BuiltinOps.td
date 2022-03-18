@@ -76,7 +76,7 @@ def FuncOp : Builtin_Op<"func", [
   }];
 
   let arguments = (ins SymbolNameAttr:$sym_name,
-                       TypeAttr:$type,
+                       TypeAttrOf<FunctionType>:$type,
                        OptionalAttr<StrAttr>:$sym_visibility);
   let regions = (region AnyRegion:$body);
 
@@ -110,12 +110,6 @@ def FuncOp : Builtin_Op<"func", [
     /// compatible.
     void cloneInto(FuncOp dest, BlockAndValueMapping &mapper);
 
-    /// Returns the type of this function.
-    /// FIXME: We should drive this via the ODS `type` param.
-    FunctionType getType() { 
-      return getTypeAttr().getValue().cast<FunctionType>();
-    }
-
     //===------------------------------------------------------------------===//
     // CallableOpInterface
     //===------------------------------------------------------------------===//
@@ -139,16 +133,6 @@ def FuncOp : Builtin_Op<"func", [
     /// Returns the result types of this function.
     ArrayRef<Type> getResultTypes() { return getType().getResults(); }
 
-    /// Verify the type attribute of this function. Returns failure and emits
-    /// an error if the attribute is invalid.
-    LogicalResult verifyType() {
-      auto type = getTypeAttr().getValue();
-      if (!type.isa<FunctionType>())
-        return emitOpError("requires '" + getTypeAttrName() +
-                           "' attribute of function type");
-      return success();
-    }
-
     //===------------------------------------------------------------------===//
     // SymbolOpInterface Methods
     //===------------------------------------------------------------------===//
@@ -156,7 +140,6 @@ def FuncOp : Builtin_Op<"func", [
     bool isDeclaration() { return isExternal(); }
   }];
   let hasCustomAssemblyFormat = 1;
-  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -188,16 +171,16 @@ def ModuleOp : Builtin_Op<"module", [
 
   let arguments = (ins OptionalAttr<SymbolNameAttr>:$sym_name,
                        OptionalAttr<StrAttr>:$sym_visibility);
-  let regions = (region SizedRegion<1>:$body);
+  let regions = (region SizedRegion<1>:$bodyRegion);
 
-  let assemblyFormat = "($sym_name^)? attr-dict-with-keyword $body";
+  let assemblyFormat = "($sym_name^)? attr-dict-with-keyword $bodyRegion";
   let builders = [OpBuilder<(ins CArg<"Optional<StringRef>", "{}">:$name)>];
   let extraClassDeclaration = [{
     /// Construct a module from the given location with an optional name.
     static ModuleOp create(Location loc, Optional<StringRef> name = llvm::None);
 
     /// Return the name of this module if present.
-    Optional<StringRef> getName() { return sym_name(); }
+    Optional<StringRef> getName() { return getSymName(); }
 
     //===------------------------------------------------------------------===//
     // SymbolOpInterface Methods

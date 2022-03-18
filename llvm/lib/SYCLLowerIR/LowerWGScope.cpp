@@ -963,8 +963,7 @@ Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
       Align Alignment = M.getDataLayout().getPreferredAlign(G);
       G->setAlignment(MaybeAlign(Alignment));
     }
-    Value *Res =
-        new LoadInst(G->getType()->getPointerElementType(), G, "", &Before);
+    Value *Res = new LoadInst(G->getValueType(), G, "", &Before);
     return Res;
   }
 }

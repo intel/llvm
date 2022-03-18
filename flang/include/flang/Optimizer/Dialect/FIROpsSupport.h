@@ -10,22 +10,23 @@
 #define FORTRAN_OPTIMIZER_DIALECT_FIROPSSUPPORT_H
 
 #include "flang/Optimizer/Dialect/FIROps.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 
 namespace fir {
 
 /// return true iff the Operation is a non-volatile LoadOp
 inline bool nonVolatileLoad(mlir::Operation *op) {
-  if (auto load = dyn_cast<fir::LoadOp>(op))
+  if (auto load = mlir::dyn_cast<fir::LoadOp>(op))
     return !load->getAttr("volatile");
   return false;
 }
 
 /// return true iff the Operation is a call
 inline bool isaCall(mlir::Operation *op) {
-  return isa<fir::CallOp>(op) || isa<fir::DispatchOp>(op) ||
-         isa<mlir::CallOp>(op) || isa<mlir::CallIndirectOp>(op);
+  return mlir::isa<fir::CallOp>(op) || llvm::isa<fir::DispatchOp>(op) ||
+         mlir::isa<mlir::func::CallOp>(op) ||
+         mlir::isa<mlir::func::CallIndirectOp>(op);
 }
 
 /// return true iff the Operation is a fir::CallOp, fir::DispatchOp,
@@ -81,6 +82,10 @@ static constexpr llvm::StringRef getSymbolAttrName() { return "fir.sym_name"; }
 static constexpr llvm::StringRef getHostAssocAttrName() {
   return "fir.host_assoc";
 }
+
+/// Does the function, \p func, have a host-associations tuple argument?
+/// Some internal procedures may have access to host procedure variables.
+bool hasHostAssociationArgument(mlir::FuncOp func);
 
 /// Tell if \p value is:
 ///   - a function argument that has attribute \p attributeName

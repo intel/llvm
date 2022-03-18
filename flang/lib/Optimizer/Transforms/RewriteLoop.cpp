@@ -12,12 +12,13 @@
 #include "flang/Optimizer/Transforms/Passes.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/CommandLine.h"
 
 using namespace fir;
+using namespace mlir;
 
 namespace {
 
@@ -304,7 +305,7 @@ public:
         context, forceLoopToExecuteOnce);
     mlir::ConversionTarget target(*context);
     target.addLegalDialect<mlir::AffineDialect, mlir::cf::ControlFlowDialect,
-                           FIROpsDialect, mlir::StandardOpsDialect>();
+                           FIROpsDialect, mlir::func::FuncDialect>();
 
     // apply the patterns
     target.addIllegalOp<ResultOp, DoLoopOp, IfOp, IterWhileOp>();

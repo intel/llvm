@@ -77,13 +77,13 @@ add_mlir_library(MLIRJitRunner
   LINK_LIBS PUBLIC
   ${dialect_libs}
   MLIRExecutionEngine
+  MLIRFunc
+  MLIRFuncToLLVM
   MLIRIR
   MLIRParser
-  MLIRStandard
   MLIRLLVMToLLVMIRTranslation
   MLIRTargetLLVMIRExport
   MLIRTransforms
-  MLIRStandardToLLVM
   MLIRSupport
 )
 
