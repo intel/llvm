@@ -432,6 +432,17 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
+  __ESIMD_DNS::vector_type_t<RestoredTy, N> TypeAdjustedVals = 0;
+  if constexpr (OrigSize == 4) {
+    TypeAdjustedVals = __ESIMD_DNS::bitcast<RestoredTy, Ty, N>(vals);
+  } else {
+    static_assert(OrigSize == 1 || OrigSize == 2);
+    // TODO : Built-in function??
+    for (int idx = 0; idx < N; idx += 1) {
+      TypeAdjustedVals[idx] = static_cast<RestoredTy>(vals[idx]);
+    }
+  }
+
   if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
     // Scattered-store for Shared Local Memory
     // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
@@ -441,7 +452,7 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
       if (pred[i]) {
         RestoredTy *addr =
             reinterpret_cast<RestoredTy *>(elem_offsets[i] + SlmBase);
-        *addr = vals[i];
+        *addr = TypeAdjustedVals[i];
       }
     }
   } else {
@@ -460,7 +471,7 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
       if (pred[idx]) {
         RestoredTy *addr =
             reinterpret_cast<RestoredTy *>(elem_offsets[idx] + writeBase);
-        *addr = vals[idx];
+        *addr = TypeAdjustedVals[idx];
       }
     }
 
@@ -644,7 +655,7 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
   constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
   using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
 
-  __ESIMD_DNS::vector_type_t<Ty, N> retv = 0;
+  __ESIMD_DNS::vector_type_t<RestoredTy, N> retv = 0;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
@@ -680,7 +691,17 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     // TODO : Optimize
     I->cm_fence_ptr();
   }
-  return retv;
+  // return retv;
+  if constexpr (OrigSize == 4) {
+    return __ESIMD_DNS::bitcast<Ty, RestoredTy, N>(retv);
+  } else {
+    __ESIMD_DNS::vector_type_t<Ty, N> Adjusted = 0;
+    // TODO : Built-in function??
+    for (int idx = 0; idx < N; idx += 1) {
+      Adjusted[idx] = static_cast<Ty>(retv[idx]);
+    }
+    return Adjusted;
+  }
 }
 #endif // __SYCL_DEVICE_ONLY__
 
