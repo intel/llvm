@@ -202,6 +202,11 @@ public:
   /// diagnostics.
   void setDiagnosticsHotnessRequested(bool Requested);
 
+  bool getMisExpectWarningRequested() const;
+  void setMisExpectWarningRequested(bool Requested);
+  void setDiagnosticsMisExpectTolerance(Optional<uint64_t> Tolerance);
+  uint64_t getDiagnosticsMisExpectTolerance() const;
+
   /// Return the minimum hotness value a diagnostic would need in order
   /// to be included in optimization diagnostics.
   ///
@@ -304,6 +309,9 @@ public:
   /// The lifetime of the object must be guaranteed to extend as long as the
   /// LLVMContext is used by compilation.
   void setOptPassGate(OptPassGate&);
+
+  /// Whether we've decided on using opaque pointers or typed pointers yet.
+  bool hasSetOpaquePointersValue() const;
 
   /// Enable opaque pointers. Can only be called before creating the first
   /// pointer type.

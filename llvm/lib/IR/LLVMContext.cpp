@@ -138,9 +138,21 @@ bool LLVMContext::getDiagnosticsHotnessRequested() const {
 void LLVMContext::setDiagnosticsHotnessThreshold(Optional<uint64_t> Threshold) {
   pImpl->DiagnosticsHotnessThreshold = Threshold;
 }
-
+void LLVMContext::setMisExpectWarningRequested(bool Requested) {
+  pImpl->MisExpectWarningRequested = Requested;
+}
+bool LLVMContext::getMisExpectWarningRequested() const {
+  return pImpl->MisExpectWarningRequested;
+}
 uint64_t LLVMContext::getDiagnosticsHotnessThreshold() const {
   return pImpl->DiagnosticsHotnessThreshold.getValueOr(UINT64_MAX);
+}
+void LLVMContext::setDiagnosticsMisExpectTolerance(
+    Optional<uint64_t> Tolerance) {
+  pImpl->DiagnosticsMisExpectTolerance = Tolerance;
+}
+uint64_t LLVMContext::getDiagnosticsMisExpectTolerance() const {
+  return pImpl->DiagnosticsMisExpectTolerance.getValueOr(0);
 }
 
 bool LLVMContext::isDiagnosticsHotnessThresholdSetFromPSI() const {
@@ -349,6 +361,10 @@ const DiagnosticHandler *LLVMContext::getDiagHandlerPtr() const {
 
 std::unique_ptr<DiagnosticHandler> LLVMContext::getDiagnosticHandler() {
   return std::move(pImpl->DiagHandler);
+}
+
+bool LLVMContext::hasSetOpaquePointersValue() const {
+  return pImpl->hasOpaquePointersValue();
 }
 
 void LLVMContext::enableOpaquePointers() const {

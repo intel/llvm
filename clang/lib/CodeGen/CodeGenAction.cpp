@@ -444,6 +444,9 @@ namespace clang {
     void OptimizationFailureHandler(
         const llvm::DiagnosticInfoOptimizationFailure &D);
     void DontCallDiagHandler(const DiagnosticInfoDontCall &D);
+    /// Specialized handler for misexpect warnings.
+    /// Note that misexpect remarks are emitted through ORE
+    void MisExpectDiagHandler(const llvm::DiagnosticInfoMisExpect &D);
   };
 
   void BackendConsumer::anchor() {}
@@ -825,6 +828,25 @@ void BackendConsumer::DontCallDiagHandler(const DiagnosticInfoDontCall &D) {
       << llvm::demangle(D.getFunctionName().str()) << D.getNote();
 }
 
+void BackendConsumer::MisExpectDiagHandler(
+    const llvm::DiagnosticInfoMisExpect &D) {
+  StringRef Filename;
+  unsigned Line, Column;
+  bool BadDebugInfo = false;
+  FullSourceLoc Loc =
+      getBestLocationFromDebugLoc(D, BadDebugInfo, Filename, Line, Column);
+
+  Diags.Report(Loc, diag::warn_profile_data_misexpect) << D.getMsg().str();
+
+  if (BadDebugInfo)
+    // If we were not able to translate the file:line:col information
+    // back to a SourceLocation, at least emit a note stating that
+    // we could not translate this location. This can happen in the
+    // case of #line directives.
+    Diags.Report(Loc, diag::note_fe_backend_invalid_loc)
+        << Filename << Line << Column;
+}
+
 /// This function is invoked when the backend needs
 /// to report something to the user.
 void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
@@ -898,6 +920,9 @@ void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
     return;
   case llvm::DK_DontCall:
     DontCallDiagHandler(cast<DiagnosticInfoDontCall>(DI));
+    return;
+  case llvm::DK_MisExpect:
+    MisExpectDiagHandler(cast<DiagnosticInfoMisExpect>(DI));
     return;
   default:
     // Plugin IDs are not bound to any value as they are set dynamically.
@@ -1137,6 +1162,15 @@ struct OptRecordFileRAII {
     if (OptRecordFile &&
         CodeGenOpts.getProfileUse() != CodeGenOptions::ProfileNone)
       Ctx.setDiagnosticsHotnessRequested(true);
+
+    if (CodeGenOpts.MisExpect) {
+      Ctx.setMisExpectWarningRequested(true);
+    }
+
+    if (CodeGenOpts.DiagnosticsMisExpectTolerance) {
+      Ctx.setDiagnosticsMisExpectTolerance(
+          CodeGenOpts.DiagnosticsMisExpectTolerance);
+    }
   }
   ~OptRecordFileRAII() {
     Ctx.setDiagnosticHandler(std::move(OldDiagnosticHandler));
