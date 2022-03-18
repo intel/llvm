@@ -11,12 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/Presburger/Utils.h"
-#include "mlir/Analysis/Presburger/IntegerPolyhedron.h"
+#include "mlir/Analysis/Presburger/IntegerRelation.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Support/MathExtras.h"
 
 using namespace mlir;
-using namespace presburger_utils;
+using namespace presburger;
 
 /// Normalize a division's `dividend` and the `divisor` by their GCD. For
 /// example: if the dividend and divisor are [2,0,4] and 4 respectively,
@@ -87,7 +87,7 @@ static void normalizeDivisionByGCD(SmallVectorImpl<int64_t> &dividend,
 /// If successful, `expr` is set to dividend of the division and `divisor` is
 /// set to the denominator of the division. The final division expression is
 /// normalized by GCD.
-static LogicalResult getDivRepr(const IntegerPolyhedron &cst, unsigned pos,
+static LogicalResult getDivRepr(const IntegerRelation &cst, unsigned pos,
                                 unsigned ubIneq, unsigned lbIneq,
                                 SmallVector<int64_t, 8> &expr,
                                 unsigned &divisor) {
@@ -151,7 +151,7 @@ static LogicalResult getDivRepr(const IntegerPolyhedron &cst, unsigned pos,
 /// If successful, `expr` is set to dividend of the division and `divisor` is
 /// set to the denominator of the division. The final division expression is
 /// normalized by GCD.
-static LogicalResult getDivRepr(const IntegerPolyhedron &cst, unsigned pos,
+static LogicalResult getDivRepr(const IntegerRelation &cst, unsigned pos,
                                 unsigned eqInd, SmallVector<int64_t, 8> &expr,
                                 unsigned &divisor) {
 
@@ -182,7 +182,7 @@ static LogicalResult getDivRepr(const IntegerPolyhedron &cst, unsigned pos,
 
 // Returns `false` if the constraints depends on a variable for which an
 // explicit representation has not been found yet, otherwise returns `true`.
-static bool checkExplicitRepresentation(const IntegerPolyhedron &cst,
+static bool checkExplicitRepresentation(const IntegerRelation &cst,
                                         ArrayRef<bool> foundRepr,
                                         ArrayRef<int64_t> dividend,
                                         unsigned pos) {
@@ -213,8 +213,8 @@ static bool checkExplicitRepresentation(const IntegerPolyhedron &cst,
 /// the representation could be computed, `dividend` and `denominator` are set.
 /// If the representation could not be computed, the kind attribute in
 /// `MaybeLocalRepr` is set to None.
-MaybeLocalRepr presburger_utils::computeSingleVarRepr(
-    const IntegerPolyhedron &cst, ArrayRef<bool> foundRepr, unsigned pos,
+MaybeLocalRepr presburger::computeSingleVarRepr(
+    const IntegerRelation &cst, ArrayRef<bool> foundRepr, unsigned pos,
     SmallVector<int64_t, 8> &dividend, unsigned &divisor) {
   assert(pos < cst.getNumIds() && "invalid position");
   assert(foundRepr.size() == cst.getNumIds() &&
@@ -253,7 +253,7 @@ MaybeLocalRepr presburger_utils::computeSingleVarRepr(
   return repr;
 }
 
-void presburger_utils::removeDuplicateDivs(
+void presburger::removeDuplicateDivs(
     std::vector<SmallVector<int64_t, 8>> &divs,
     SmallVectorImpl<unsigned> &denoms, unsigned localOffset,
     llvm::function_ref<bool(unsigned i, unsigned j)> merge) {
