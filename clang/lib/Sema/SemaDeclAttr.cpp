@@ -3793,7 +3793,7 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
     // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
     if (checkWorkGroupSizeAttrValues<std::not_equal_to<int>>(
             *this, Existing->getXDim(), Existing->getYDim(),
-	    Existing->getZDim(), XDim, YDim, ZDim)) {
+            Existing->getZDim(), XDim, YDim, ZDim)) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << CI << Existing;
       Diag(Existing->getLoc(), diag::note_conflicting_attribute);

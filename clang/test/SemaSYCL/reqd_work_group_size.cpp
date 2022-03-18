@@ -24,8 +24,8 @@ f4() {}
 // Catch the easy case where the attributes are all specified at once with
 // different arguments.
 struct TRIFuncObjGood1 {
-  // expected-note@+4 {{conflicting attribute is here}}	
-  // expected-error@+3 {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}	
+  // expected-note@+4 {{conflicting attribute is here}}
+  // expected-error@+3 {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
   // expected-note@+2 {{previous attribute is here}}
   // expected-warning@+1 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
   [[sycl::reqd_work_group_size(64)]] [[sycl::reqd_work_group_size(128)]] void operator()() const {}
@@ -60,8 +60,9 @@ public:
 class FunctorC {
 public:
   [[intel::max_work_group_size(64, 64, 64)]] [[sycl::reqd_work_group_size(64, 64, 64)]] void operator()() const;
-  [[intel::max_work_group_size(16, 16, 16)]] // expected-note {{conflicting attribute is here}}
-  [[sycl::reqd_work_group_size(64, 64, 64)]] void operator()(int) const;  // expected-error {{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}
+  [[intel::max_work_group_size(16, 16, 16)]]      // expected-note {{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(64, 64, 64)]] void // expected-error {{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}
+  operator()(int) const;
 };
 
 // Ensure that template arguments behave appropriately based on instantiations.
