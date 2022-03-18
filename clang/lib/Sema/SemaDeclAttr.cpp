@@ -3417,50 +3417,42 @@ static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
 //
 // If the 'reqd_work_group_size' attribute is specified on a declaration along
 // with 'max_work_group_size' attribute, check to see if values of
-// 'reqd_work_group_size' attribute arguments are greater than values of
+// 'reqd_work_group_size' attribute arguments are equal and less than values of
 // 'max_work_group_size' attribute arguments.
-//
-// If the 'reqd_work_group_size' attribute is specified multiple times on a
-// declaration, check if the values of 'reqd_work_group_size' attribute
-// arguments specified earlier are less than or greater than the values of
-// 'reqd_work_group_size' attribute arguments specified after.
-template <typename Comparator>
 static bool checkWorkGroupSizeAttrValues(
     Sema &S, const Expr *RWGSXDim, const Expr *RWGSYDim, const Expr *RWGSZDim,
-    const Expr *WGSXDim, const Expr *WGSYDim, const Expr *WGSZDim) {
+    const Expr *MWGSXDim, const Expr *MWGSYDim, const Expr *MWGSZDim) {
   // If any of the operand is still value dependent, we can't test anything.
   const auto *RWGSXDimExpr = dyn_cast<ConstantExpr>(RWGSXDim);
   const auto *RWGSYDimExpr = dyn_cast<ConstantExpr>(RWGSYDim);
   const auto *RWGSZDimExpr = dyn_cast<ConstantExpr>(RWGSZDim);
-  const auto *WGSXDimExpr = dyn_cast<ConstantExpr>(WGSXDim);
-  const auto *WGSYDimExpr = dyn_cast<ConstantExpr>(WGSYDim);
-  const auto *WGSZDimExpr = dyn_cast<ConstantExpr>(WGSZDim);
+  const auto *MWGSXDimExpr = dyn_cast<ConstantExpr>(MWGSXDim);
+  const auto *MWGSYDimExpr = dyn_cast<ConstantExpr>(MWGSYDim);
+  const auto *MWGSZDimExpr = dyn_cast<ConstantExpr>(MWGSZDim);
 
-  if (!RWGSXDimExpr || !RWGSYDimExpr || !RWGSZDimExpr || !WGSXDimExpr ||
-      !WGSYDimExpr || !WGSZDimExpr)
+  if (!RWGSXDimExpr || !RWGSYDimExpr || !RWGSZDimExpr || !MWGSXDimExpr ||
+      !MWGSYDimExpr || !MWGSZDimExpr)
     return false;
 
-  // Otherwise, compare the first set of X, Y, and Z dimension values with the
-  // second set of values passed in. The comparison is made using the operator
-  // passed as the template parameter.
-
+  // Otherwise, check if values of 'reqd_work_group_size' attribute arguments
+  // are greater than values of 'max_work_group_size' attribute arguments.
   bool CheckFirstArgument =
       S.getLangOpts().OpenCL
-          ? Comparator()(RWGSXDimExpr->getResultAsAPSInt().getZExtValue(),
-                         WGSZDimExpr->getResultAsAPSInt().getZExtValue())
-          : Comparator()(RWGSXDimExpr->getResultAsAPSInt().getZExtValue(),
-                         WGSXDimExpr->getResultAsAPSInt().getZExtValue());
+          ? RWGSXDimExpr->getResultAsAPSInt().getZExtValue() >
+            MWGSZDimExpr->getResultAsAPSInt().getZExtValue()
+          : RWGSXDimExpr->getResultAsAPSInt().getZExtValue() >
+            MWGSXDimExpr->getResultAsAPSInt().getZExtValue();
 
   bool CheckSecondArgument =
-      Comparator()(RWGSYDimExpr->getResultAsAPSInt().getZExtValue(),
-                   WGSYDimExpr->getResultAsAPSInt().getZExtValue());
+      RWGSYDimExpr->getResultAsAPSInt().getZExtValue() >
+      MWGSYDimExpr->getResultAsAPSInt().getZExtValue();
 
   bool CheckThirdArgument =
       S.getLangOpts().OpenCL
-          ? Comparator()(RWGSZDimExpr->getResultAsAPSInt().getZExtValue(),
-                         WGSXDimExpr->getResultAsAPSInt().getZExtValue())
-          : Comparator()(RWGSZDimExpr->getResultAsAPSInt().getZExtValue(),
-                         WGSZDimExpr->getResultAsAPSInt().getZExtValue());
+          ? RWGSZDimExpr->getResultAsAPSInt().getZExtValue() >
+            MWGSXDimExpr->getResultAsAPSInt().getZExtValue()
+          : RWGSZDimExpr->getResultAsAPSInt().getZExtValue() >
+            MWGSZDimExpr->getResultAsAPSInt().getZExtValue();
 
   return CheckFirstArgument || CheckSecondArgument || CheckThirdArgument;
 }
@@ -3504,8 +3496,7 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // of 'max_work_group_size' attribute arguments.
   //
   // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
-  // are greater than values of 'max_work_group_size' attribute arguments. The
-  // comparison is made using the operator passed as the template parameter.
+  // are greater than values of 'max_work_group_size' attribute arguments.
   //
   // The arguments to reqd_work_group_size are ordered based on which index
   // increments the fastest. In OpenCL, the first argument is the index that
@@ -3517,7 +3508,7 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
   // and follows the OpenCL rules.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues<std::greater<int>>(
+    if (checkWorkGroupSizeAttrValues(
             *this, DeclAttr->getXDim(), DeclAttr->getYDim(),
             DeclAttr->getZDim(), XDim, YDim, ZDim)) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
@@ -3593,8 +3584,7 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // of 'max_work_group_size' attribute arguments.
   //
   // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
-  // are greater than values of 'max_work_group_size' attribute arguments. The
-  // comparison is made using the operator passed as the template parameter.
+  // are greater than values of 'max_work_group_size' attribute arguments.
   //
   // The arguments to reqd_work_group_size are ordered based on which index
   // increments the fastest. In OpenCL, the first argument is the index that
@@ -3606,7 +3596,7 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
   // and follows the OpenCL rules.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues<std::greater<int>>(
+    if (checkWorkGroupSizeAttrValues(
             *this, DeclAttr->getXDim(), DeclAttr->getYDim(),
             DeclAttr->getZDim(), A.getXDim(), A.getYDim(), A.getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
@@ -3720,8 +3710,7 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
   // of 'max_work_group_size' attribute arguments.
   //
   // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
-  // are greater than values of 'max_work_group_size' attribute arguments. The
-  // comparison is made using the operator passed as the template parameter.
+  // are greater than values of 'max_work_group_size' attribute arguments.
   //
   // The arguments to reqd_work_group_size are ordered based on which index
   // increments the fastest. In OpenCL, the first argument is the index that
@@ -3732,7 +3721,7 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
   // mode. All spellings of reqd_work_group_size attribute (regardless of
   // syntax used) follow the SYCL rules when in SYCL mode.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues<std::greater<int>>(
+    if (checkWorkGroupSizeAttrValues(
             *this, XDim, YDim, ZDim, DeclAttr->getXDim(), DeclAttr->getYDim(),
             DeclAttr->getZDim())) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
@@ -3773,30 +3762,8 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
     if (llvm::is_contained(Results, DupArgResult::Different)) {
-      Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+      Diag(CI.getLoc(), diag::err_duplicate_attribute) << CI;
       Diag(Existing->getLoc(), diag::note_previous_attribute);
-    }
-
-    // If the 'reqd_work_group_size' attribute is specified multiple times on a
-    // declaration, check if the values of 'reqd_work_group_size' attribute
-    // arguments specified earlier are less than or greater than the values of
-    // 'reqd_work_group_size' attribute arguments specified after. The
-    // comparison is made using the operator passed as the template parameter.
-    //
-    // The arguments to reqd_work_group_size are ordered based on which index
-    // increments the fastest. In OpenCL, the first argument is the index that
-    // increments the fastest, and in SYCL, the last argument is the index that
-    // increments the fastest.
-    //
-    // __attribute__((reqd_work_group_size)) follows the OpenCL rules in OpenCL
-    // mode. All spellings of reqd_work_group_size attribute
-    // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
-    if (checkWorkGroupSizeAttrValues<std::not_equal_to<int>>(
-            *this, Existing->getXDim(), Existing->getYDim(),
-            Existing->getZDim(), XDim, YDim, ZDim)) {
-      Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << CI << Existing;
-      Diag(Existing->getLoc(), diag::note_conflicting_attribute);
       return;
     }
 
@@ -3833,8 +3800,7 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
   // of 'max_work_group_size' attribute arguments.
   //
   // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
-  // are greater than values of 'max_work_group_size' attribute arguments. The
-  // comparison is made using the operator passed as the template parameter.
+  // are greater than values of 'max_work_group_size' attribute arguments.
   //
   // The arguments to reqd_work_group_size are ordered based on which index
   // increments the fastest. In OpenCL, the first argument is the index that
@@ -3845,7 +3811,7 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
   // mode. All spellings of reqd_work_group_size attribute (regardless of
   // syntax used) follow the SYCL rules when in SYCL mode.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues<std::greater<int>>(
+    if (checkWorkGroupSizeAttrValues(
             *this, A.getXDim(), A.getYDim(), A.getZDim(), DeclAttr->getXDim(),
             DeclAttr->getYDim(), DeclAttr->getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
@@ -3888,30 +3854,8 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
     if (llvm::is_contained(Results, DupArgResult::Different)) {
-      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(DeclAttr->getLoc(), diag::err_duplicate_attribute) << &A;
       Diag(A.getLoc(), diag::note_previous_attribute);
-    }
-
-    // If the 'reqd_work_group_size' attribute is specified multiple times on a
-    // declaration, check if the values of 'reqd_work_group_size' attribute
-    // arguments specified earlier are less than or greater than the values of
-    // 'reqd_work_group_size' attribute arguments specified after. The
-    // comparison is made using the operator passed as the template parameter.
-    //
-    // The arguments to reqd_work_group_size are ordered based on which index
-    // increments the fastest. In OpenCL, the first argument is the index that
-    // increments the fastest, and in SYCL, the last argument is the index that
-    // increments the fastest.
-    //
-    // __attribute__((reqd_work_group_size)) follows the OpenCL rules in OpenCL
-    // mode. All spellings of reqd_work_group_size attribute
-    // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
-    if (checkWorkGroupSizeAttrValues<std::not_equal_to<int>>(
-            *this, DeclAttr->getXDim(), DeclAttr->getYDim(),
-            DeclAttr->getZDim(), A.getXDim(), A.getYDim(), A.getZDim())) {
-      Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << DeclAttr << &A;
-      Diag(A.getLoc(), diag::note_conflicting_attribute);
       return nullptr;
     }
 

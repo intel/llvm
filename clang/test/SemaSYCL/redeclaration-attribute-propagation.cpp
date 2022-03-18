@@ -24,10 +24,9 @@ func1();
 [[sycl::reqd_work_group_size(8, 8, 8)]] void func2() {} // expected-error {{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}
 
 //third case - expect error
-[[sycl::reqd_work_group_size(4, 4, 4)]] void func3();   // expected-note {{previous attribute is here}} \
-		                                        // expected-note {{conflicting attribute is here}}
-[[sycl::reqd_work_group_size(1, 1, 1)]] void func3() {} // expected-warning {{attribute 'reqd_work_group_size' is already applied with different arguments}} \
-		                                        // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+[[sycl::reqd_work_group_size(4, 4, 4)]] void func3();   // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(1, 1, 1)]] void func3() {} // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+
 // fourth case - expect warning.
 [[intel::max_work_group_size(4, 4, 4)]] void func4();   // expected-note {{previous attribute is here}}
 [[intel::max_work_group_size(8, 8, 8)]] void func4() {} // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}}
