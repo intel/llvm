@@ -14,17 +14,14 @@
 // RUN: %clangxx -fsycl %s -g -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS-DBG -DPATH=%s
 
 // CHECK-WARNINGS: warning: function 'func1(int)' uses aspect 'fp16' not listed in `sycl::device_has()`
-// CHECK-WARNINGS-NEXT: use is from this call chain:
-// CHECK-WARNINGS-NEXT:  func1(int)
-// CHECK-WARNINGS-NEXT:  func2(int, int)
-// CHECK-WARNINGS-NEXT:  func3(int, int, int)
-// CHECK-WARNINGS-NEXT: compile with '-g' to get source location
-
+// CHECK-WARNINGS-NEXT: note: the actual use is in func3(int, int, int), compile with '-g' to get source location
+// CHECK-WARNINGS-NEXT: note: which is called by func2(int, int), compile with '-g' to get source location
+// CHECK-WARNINGS-NEXT: note: which is called by func1(int), compile with '-g' to get source location
+//
 // CHECK-WARNINGS-DBG: warning: function 'func1(int)' uses aspect 'fp16' not listed in `sycl::device_has()`
-// CHECK-WARNINGS-DBG-NEXT: use is from this call chain:
-// CHECK-WARNINGS-DBG-NEXT:  func1(int) (defined at [[PATH]]:45:62)
-// CHECK-WARNINGS-DBG-NEXT:  func2(int, int) (defined at [[PATH]]:43:34)
-// CHECK-WARNINGS-DBG-NEXT:  func3(int, int, int) (defined at [[PATH]]:39:5)
+// CHECK-WARNINGS-DBG-NEXT: note: the actual use is in func3(int, int, int) at [[PATH]]:36:5
+// CHECK-WARNINGS-DBG-NEXT: note: which is called by func2(int, int) at [[PATH]]:40:34
+// CHECK-WARNINGS-DBG-NEXT: note: which is called by func1(int) at [[PATH]]:42:62
 
 #include <CL/sycl.hpp>
 

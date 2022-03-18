@@ -1105,12 +1105,13 @@ public:
 class DiagnosticInfoSYCLUnspecAspect : public DiagnosticInfo {
   SmallString<16> FunctionName;
   SmallString<5> AspectStr;
-  std::string CallChain;
+  SmallVector<std::string, 8> CallChain;
   bool IsFullDebugMode = false;
 
 public:
   DiagnosticInfoSYCLUnspecAspect(StringRef FunctionName, StringRef AspectStr,
-                                 std::string CallChain, bool IsFullDebugMode)
+                                 const SmallVector<std::string, 8> &CallChain,
+                                 bool IsFullDebugMode)
       : DiagnosticInfo(DK_SYCLWarning, DiagnosticSeverity::DS_Warning),
         FunctionName(FunctionName), AspectStr(AspectStr),
         CallChain(std::move(CallChain)), IsFullDebugMode(IsFullDebugMode) {}
@@ -1119,7 +1120,7 @@ public:
 
   StringRef getAspect() const { return AspectStr; }
 
-  const std::string &getCallChain() const { return CallChain; }
+  const SmallVector<std::string, 8> &getCallChain() const { return CallChain; }
 
   int isFullDebugMode() const { return IsFullDebugMode; }
 

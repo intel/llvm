@@ -828,10 +828,23 @@ void BackendConsumer::DontCallDiagHandler(const DiagnosticInfoDontCall &D) {
 
 void BackendConsumer::SYCLWarningDiagHandler(
     const DiagnosticInfoSYCLUnspecAspect &D) {
+  // FIXME: instead of querying source location from debug info, we should
+  // re-use existing mechanism with srcloc metadata, see D106030, D110364.
   SourceLocation Loc;
   Diags.Report(Loc, diag::warn_sycl_wrong_aspect_usage)
-      << D.getFunctionName() << D.getAspect() << D.getCallChain()
-      << !D.isFullDebugMode();
+      << D.getFunctionName() << D.getAspect();
+
+  if (!D.getCallChain().empty()) {
+    Diags.Report(Loc, diag::note_sycl_wrong_aspect_usage)
+        << /* the actual use */ 0 << D.getCallChain().back()
+        << !D.isFullDebugMode();
+
+    for (auto I = ++D.getCallChain().rbegin(), E = D.getCallChain().rend();
+         I != E; ++I) {
+      Diags.Report(Loc, diag::note_sycl_wrong_aspect_usage)
+          << /* called by */ 1 << *I << !D.isFullDebugMode();
+    }
+  }
 }
 
 /// This function is invoked when the backend needs

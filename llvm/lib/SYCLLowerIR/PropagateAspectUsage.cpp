@@ -228,10 +228,10 @@ using FunctionToAspectsMapTy = DenseMap<Function *, AspectToFunctionLinkMapTy>;
 using CallGraphTy =
     DenseMap<Function *, DenseMap<Function *, const DebugLoc *>>;
 
-std::string constructAspectUsageChain(const Function *F,
-                                      const FunctionToAspectsMapTy &Map,
-                                      int Aspect) {
-  std::string CallChain;
+SmallVector<std::string, 8>
+constructAspectUsageChain(const Function *F, const FunctionToAspectsMapTy &Map,
+                          int Aspect) {
+  SmallVector<std::string, 8> CallChain;
   while (F) {
     auto It = Map.find(F);
     if (It == Map.end())
@@ -242,17 +242,17 @@ std::string constructAspectUsageChain(const Function *F,
     assert(AspectIt != AspectsToFunctionLinkMap.end() &&
            "AspectIt is supposed to be determined");
     const DebugLoc *DL = AspectIt->second.DL;
-    CallChain += "  ";
-    CallChain += demangle(F->getName().str());
+    std::string Note;
+    Note += demangle(F->getName().str());
     if (DL && *DL) {
       DIScope *DS = cast<DIScope>(DL->getScope());
-      CallChain += formatv(" (defined at {0}:{1}:{2})",
-                           DS->getDirectory() + sys::path::get_separator() +
-                               DS->getFilename(),
-                           DL->getLine(), DL->getCol());
+      Note += formatv(" at {0}:{1}:{2}",
+                      DS->getDirectory() + sys::path::get_separator() +
+                          DS->getFilename(),
+                      DL->getLine(), DL->getCol());
     }
 
-    CallChain += "\n";
+    CallChain.push_back(Note);
     F = AspectIt->second.F;
   }
 

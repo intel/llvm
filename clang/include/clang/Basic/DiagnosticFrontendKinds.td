@@ -314,10 +314,10 @@ def warn_profile_data_unprofiled : Warning<
 } // end of instrumentation issue category
 
 def warn_sycl_wrong_aspect_usage : Warning<
-  "function '%0' uses aspect '%1' not listed in `sycl::device_has()`\n"
-  "use is from this call chain:\n"
-  "%2"
-  "%select{|compile with '-g' to get source location}3">,
+  "function '%0' uses aspect '%1' not listed in `sycl::device_has()`">,
   InGroup<SyclAspectUsage>;
+def note_sycl_wrong_aspect_usage : Note<
+  "%select{the actual use is in|which is called by}0 "
+  "%1%select{|, compile with '-g' to get source location}2">;
 
 }
