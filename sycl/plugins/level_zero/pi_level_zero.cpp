@@ -1143,7 +1143,8 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
       CopyQueueGroup.LowerIndex = FilterLowerIndex;
       CopyQueueGroup.UpperIndex = FilterUpperIndex;
       CopyQueueGroup.NextIndex = CopyQueueGroup.LowerIndex;
-      // Create space to hold immediate commandlists corresponding to the ZeQueues
+      // Create space to hold immediate commandlists corresponding to the
+      // ZeQueues
       if (UseImmediateCommandLists) {
         CopyQueueGroup.ImmCmdLists =
             std::vector<pi_command_list_ptr_t>(CopyQueueGroup.ZeQueues.size());
@@ -1643,8 +1644,8 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
                              &ZeCommandQueueDesc, &ZeQueue));
   if (ZeResult) {
     die("[L0] getZeQueue: failed to create queue");
-  }  
-  
+  }
+
   if (UseImmediateCommandLists) {
     ze_command_list_handle_t ZeCommandList;
     ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
