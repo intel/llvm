@@ -3419,7 +3419,7 @@ static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
 // with 'max_work_group_size' attribute, check to see if values of
 // 'reqd_work_group_size' attribute arguments are equal and less than values of
 // 'max_work_group_size' attribute arguments.
-static bool checkWorkGroupSizeAttrValues(
+static bool checkMaxAllowedWorkGroupSize(
     Sema &S, const Expr *RWGSXDim, const Expr *RWGSYDim, const Expr *RWGSZDim,
     const Expr *MWGSXDim, const Expr *MWGSYDim, const Expr *MWGSZDim) {
   // If any of the operand is still value dependent, we can't test anything.
@@ -3507,7 +3507,7 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
   // and follows the OpenCL rules.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues(*this, DeclAttr->getXDim(),
+    if (checkMaxAllowedWorkGroupSize(*this, DeclAttr->getXDim(),
                                      DeclAttr->getYDim(), DeclAttr->getZDim(),
                                      XDim, YDim, ZDim)) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
@@ -3595,7 +3595,7 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // __attribute__((reqd_work_group_size)) is only available in OpenCL mode
   // and follows the OpenCL rules.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues(*this, DeclAttr->getXDim(),
+    if (checkMaxAllowedWorkGroupSize(*this, DeclAttr->getXDim(),
                                      DeclAttr->getYDim(), DeclAttr->getZDim(),
                                      A.getXDim(), A.getYDim(), A.getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
@@ -3720,7 +3720,7 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
   // mode. All spellings of reqd_work_group_size attribute (regardless of
   // syntax used) follow the SYCL rules when in SYCL mode.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues(*this, XDim, YDim, ZDim,
+    if (checkMaxAllowedWorkGroupSize(*this, XDim, YDim, ZDim,
                                      DeclAttr->getXDim(), DeclAttr->getYDim(),
                                      DeclAttr->getZDim())) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
@@ -3810,7 +3810,7 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
   // mode. All spellings of reqd_work_group_size attribute (regardless of
   // syntax used) follow the SYCL rules when in SYCL mode.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (checkWorkGroupSizeAttrValues(
+    if (checkMaxAllowedWorkGroupSize(
             *this, A.getXDim(), A.getYDim(), A.getZDim(), DeclAttr->getXDim(),
             DeclAttr->getYDim(), DeclAttr->getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
