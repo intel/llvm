@@ -2,7 +2,7 @@
 # defined in these project's cmake files) within SYCL library w/o risk of
 # conflict with user program using another version of boost/mp11. Basically,
 # this transformation moves all APIs from boost namespace to sycl::boost and
-# adds SYCL_ prefix to boost macros names. See more specific commetns in the
+# adds SYCL_ prefix to boost macros names. See more specific comments in the
 # code below.
 # Variables which must be set by the caller to control behavior of this module:
 # - IN
