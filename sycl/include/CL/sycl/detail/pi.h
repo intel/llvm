@@ -311,6 +311,7 @@ typedef enum {
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
   PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
   PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 0x10112,
+  PI_DEVICE_INFO_BACKEND_VERSION = 0x10113,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
@@ -591,6 +592,8 @@ constexpr pi_map_flags PI_MAP_WRITE_INVALIDATE_REGION =
 // make the translation to OpenCL transparent.
 using pi_mem_properties = pi_bitfield;
 constexpr pi_mem_properties PI_MEM_PROPERTIES_CHANNEL = CL_MEM_CHANNEL_INTEL;
+constexpr pi_mem_properties PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION =
+    CL_MEM_ALLOC_BUFFER_LOCATION_INTEL;
 
 // NOTE: this is made 64-bit to match the size of cl_mem_properties_intel to
 // make the translation to OpenCL transparent.

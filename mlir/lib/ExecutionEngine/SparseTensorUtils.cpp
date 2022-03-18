@@ -264,7 +264,7 @@ public:
         indices[r].reserve(sz);
         sz = 1;
         allDense = false;
-        // Prepare the pointer structure.  We cannot use `addPointer`
+        // Prepare the pointer structure.  We cannot use `appendPointer`
         // here, because `isCompressedDim` won't work until after this
         // preparation has been done.
         pointers[r].push_back(0);
@@ -412,7 +412,7 @@ private:
   /// Appends the next free position of `indices[d]` to `pointers[d]`.
   /// Thus, when called after inserting the last element of a segment,
   /// it will append the position where the next segment begins.
-  inline void addPointer(uint64_t d) {
+  inline void appendPointer(uint64_t d) {
     assert(isCompressedDim(d)); // Entails `d < getRank()`.
     uint64_t p = indices[d].size();
     assert(p <= std::numeric_limits<P>::max() &&
@@ -421,7 +421,7 @@ private:
   }
 
   /// Appends the given index to `indices[d]`.
-  inline void addIndex(uint64_t d, uint64_t i) {
+  inline void appendIndex(uint64_t d, uint64_t i) {
     assert(isCompressedDim(d)); // Entails `d < getRank()`.
     assert(i <= std::numeric_limits<I>::max() &&
            "Index value is too large for the I-type");
@@ -455,7 +455,7 @@ private:
         seg++;
       // Handle segment in interval for sparse or dense dimension.
       if (isCompressedDim(d)) {
-        addIndex(d, i);
+        appendIndex(d, i);
       } else {
         // For dense storage we must fill in all the zero values between
         // the previous element (when last we ran this for-loop) and the
@@ -470,7 +470,7 @@ private:
     }
     // Finalize the sparse pointer structure at this dimension.
     if (isCompressedDim(d)) {
-      addPointer(d);
+      appendPointer(d);
     } else {
       // For dense storage we must fill in all the zero values after
       // the last element.
@@ -508,7 +508,7 @@ private:
     if (d == getRank()) {
       values.push_back(0);
     } else if (isCompressedDim(d)) {
-      addPointer(d);
+      appendPointer(d);
     } else {
       for (uint64_t full = 0, sz = sizes[d]; full < sz; full++)
         endDim(d + 1);
@@ -522,7 +522,7 @@ private:
     for (uint64_t i = 0; i < rank - diff; i++) {
       uint64_t d = rank - i - 1;
       if (isCompressedDim(d)) {
-        addPointer(d);
+        appendPointer(d);
       } else {
         for (uint64_t full = idx[d] + 1, sz = sizes[d]; full < sz; full++)
           endDim(d + 1);
@@ -537,7 +537,7 @@ private:
     for (uint64_t d = diff; d < rank; d++) {
       uint64_t i = cursor[d];
       if (isCompressedDim(d)) {
-        addIndex(d, i);
+        appendIndex(d, i);
       } else {
         for (uint64_t full = top; full < i; full++)
           endDim(d + 1);
@@ -750,24 +750,42 @@ void outSparseTensor(void *tensor, void *dest, bool sort) {
 template <typename V>
 SparseTensorStorage<uint64_t, uint64_t, V> *
 toMLIRSparseTensor(uint64_t rank, uint64_t nse, uint64_t *shape, V *values,
-                   uint64_t *indices) {
-  // Setup all-dims compressed and default ordering.
-  std::vector<DimLevelType> sparse(rank, DimLevelType::kCompressed);
-  std::vector<uint64_t> perm(rank);
-  std::iota(perm.begin(), perm.end(), 0);
+                   uint64_t *indices, uint64_t *perm, uint8_t *sparse) {
+  const DimLevelType *sparsity = (DimLevelType *)(sparse);
+#ifndef NDEBUG
+  // Verify that perm is a permutation of 0..(rank-1).
+  std::vector<uint64_t> order(perm, perm + rank);
+  std::sort(order.begin(), order.end());
+  for (uint64_t i = 0; i < rank; ++i) {
+    if (i != order[i]) {
+      fprintf(stderr, "Not a permutation of 0..%" PRIu64 "\n", rank);
+      exit(1);
+    }
+  }
+
+  // Verify that the sparsity values are supported.
+  for (uint64_t i = 0; i < rank; ++i) {
+    if (sparsity[i] != DimLevelType::kDense &&
+        sparsity[i] != DimLevelType::kCompressed) {
+      fprintf(stderr, "Unsupported sparsity value %d\n",
+              static_cast<int>(sparsity[i]));
+      exit(1);
+    }
+  }
+#endif
+
   // Convert external format to internal COO.
-  auto *tensor =
-      SparseTensorCOO<V>::newSparseTensorCOO(rank, shape, perm.data(), nse);
+  auto *tensor = SparseTensorCOO<V>::newSparseTensorCOO(rank, shape, perm, nse);
   std::vector<uint64_t> idx(rank);
   for (uint64_t i = 0, base = 0; i < nse; i++) {
     for (uint64_t r = 0; r < rank; r++)
-      idx[r] = indices[base + r];
+      idx[perm[r]] = indices[base + r];
     tensor->add(idx, values[i]);
     base += rank;
   }
   // Return sparse tensor storage format as opaque pointer.
   return SparseTensorStorage<uint64_t, uint64_t, V>::newSparseTensor(
-      rank, shape, perm.data(), sparse.data(), tensor);
+      rank, shape, perm, sparsity, tensor);
 }
 
 /// Converts a sparse tensor to an external COO-flavored format.
@@ -896,7 +914,7 @@ extern "C" {
     assert(tensor &&iref &&vref);                                              \
     assert(iref->strides[0] == 1);                                             \
     index_type *indx = iref->data + iref->offset;                              \
-    V *value = vref->data + vref->offset;                                      \
+    (V) *value = vref->data + vref->offset;                                    \
     const uint64_t isize = iref->sizes[0];                                     \
     auto iter = static_cast<SparseTensorCOO<V> *>(tensor);                     \
     const Element<V> *elem = iter->getNext();                                  \
@@ -932,7 +950,7 @@ extern "C" {
     assert(aref->strides[0] == 1);                                             \
     assert(vref->sizes[0] == fref->sizes[0]);                                  \
     index_type *cursor = cref->data + cref->offset;                            \
-    V *values = vref->data + vref->offset;                                     \
+    (V) *values = vref->data + vref->offset;                                   \
     bool *filled = fref->data + fref->offset;                                  \
     index_type *added = aref->data + aref->offset;                             \
     static_cast<SparseTensorStorageBase *>(tensor)->expInsert(                 \
@@ -1188,6 +1206,8 @@ void delSparseTensor(void *tensor) {
 ///   shape:   array with dimension size for each rank
 ///   values:  a "nse" array with values for all specified elements
 ///   indices: a flat "nse x rank" array with indices for all specified elements
+///   perm:    the permutation of the dimensions in the storage
+///   sparse:  the sparsity for the dimensions
 ///
 /// For example, the sparse matrix
 ///     | 1.0 0.0 0.0 |
@@ -1199,16 +1219,19 @@ void delSparseTensor(void *tensor) {
 ///      values  = [1.0, 5.0, 3.0]
 ///      indices = [ 0, 0,  1, 1,  1, 2]
 //
-// TODO: generalize beyond 64-bit indices, no dim ordering, all dimensions
-// compressed
+// TODO: generalize beyond 64-bit indices.
 //
 void *convertToMLIRSparseTensorF64(uint64_t rank, uint64_t nse, uint64_t *shape,
-                                   double *values, uint64_t *indices) {
-  return toMLIRSparseTensor<double>(rank, nse, shape, values, indices);
+                                   double *values, uint64_t *indices,
+                                   uint64_t *perm, uint8_t *sparse) {
+  return toMLIRSparseTensor<double>(rank, nse, shape, values, indices, perm,
+                                    sparse);
 }
 void *convertToMLIRSparseTensorF32(uint64_t rank, uint64_t nse, uint64_t *shape,
-                                   float *values, uint64_t *indices) {
-  return toMLIRSparseTensor<float>(rank, nse, shape, values, indices);
+                                   float *values, uint64_t *indices,
+                                   uint64_t *perm, uint8_t *sparse) {
+  return toMLIRSparseTensor<float>(rank, nse, shape, values, indices, perm,
+                                   sparse);
 }
 
 /// Converts a sparse tensor to COO-flavored format expressed using C-style
