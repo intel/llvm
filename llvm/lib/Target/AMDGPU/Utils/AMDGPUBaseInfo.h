@@ -60,6 +60,9 @@ unsigned getHostcallImplicitArgPosition();
 /// \returns The offset of the heap ptr argument from implicitarg_ptr
 unsigned getHeapPtrImplicitArgPosition();
 
+/// \returns The offset of the queue ptr argument from implicitarg_ptr
+unsigned getQueuePtrImplicitArgPosition();
+
 /// \returns Code object version.
 unsigned getAmdhsaCodeObjectVersion();
 
@@ -610,9 +613,6 @@ LLVM_READONLY
 int64_t getHwregId(const StringRef Name, const MCSubtargetInfo &STI);
 
 LLVM_READNONE
-bool isValidHwreg(int64_t Id, const MCSubtargetInfo &STI);
-
-LLVM_READNONE
 bool isValidHwreg(int64_t Id);
 
 LLVM_READNONE
@@ -772,6 +772,7 @@ bool isSI(const MCSubtargetInfo &STI);
 bool isCI(const MCSubtargetInfo &STI);
 bool isVI(const MCSubtargetInfo &STI);
 bool isGFX9(const MCSubtargetInfo &STI);
+bool isGFX9_GFX10(const MCSubtargetInfo &STI);
 bool isGFX9Plus(const MCSubtargetInfo &STI);
 bool isGFX10(const MCSubtargetInfo &STI);
 bool isGFX10Plus(const MCSubtargetInfo &STI);
@@ -780,6 +781,7 @@ bool isGFX10_AEncoding(const MCSubtargetInfo &STI);
 bool isGFX10_BEncoding(const MCSubtargetInfo &STI);
 bool hasGFX10_3Insts(const MCSubtargetInfo &STI);
 bool isGFX90A(const MCSubtargetInfo &STI);
+bool isGFX940(const MCSubtargetInfo &STI);
 bool hasArchitectedFlatScratch(const MCSubtargetInfo &STI);
 bool hasMAIInsts(const MCSubtargetInfo &STI);
 int getTotalNumVGPRs(bool has90AInsts, int32_t ArgNumAGPR, int32_t ArgNumVGPR);

@@ -5866,6 +5866,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                      types::isLLVMIR(InputType), CmdArgs, DebugInfoKind,
                      DwarfFission);
 
+  // This controls whether or not we perform JustMyCode instrumentation.
+  if (Args.hasFlag(options::OPT_fjmc, options::OPT_fno_jmc, false)) {
+    if (TC.getTriple().isOSBinFormatELF()) {
+      if (DebugInfoKind >= codegenoptions::DebugInfoConstructor)
+        CmdArgs.push_back("-fjmc");
+      else
+        D.Diag(clang::diag::warn_drv_jmc_requires_debuginfo) << "-fjmc"
+                                                             << "-g";
+    } else {
+      D.Diag(clang::diag::warn_drv_fjmc_for_elf_only);
+    }
+  }
+
   // Add the split debug info name to the command lines here so we
   // can propagate it to the backend.
   bool SplitDWARF = (DwarfFission != DwarfFissionKind::None) &&
@@ -7462,7 +7475,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       StringRef InputName = Clang::getBaseInputStem(Args, Inputs);
 
       CmdArgs.push_back(Args.MakeArgString(
-          "-fembed-offload-object=" + File + "," + TC->getTripleString() + "." +
+          "-fembed-offload-object=" + File + "," +
+          Action::GetOffloadKindName(Action::OFK_OpenMP) + "." +
+          TC->getTripleString() + "." +
           TCArgs.getLastArgValue(options::OPT_march_EQ) + "." + InputName));
     }
   }
@@ -8076,7 +8091,8 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     if (*EmitCodeView && *DebugInfoKind >= codegenoptions::DebugInfoConstructor)
       CmdArgs.push_back("-fjmc");
     else
-      D.Diag(clang::diag::warn_drv_jmc_requires_debuginfo);
+      D.Diag(clang::diag::warn_drv_jmc_requires_debuginfo) << "/JMC"
+                                                           << "'/Zi', '/Z7'";
   }
 
   EHFlags EH = parseClangCLEHFlags(D, Args);
@@ -9587,9 +9603,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         RocmTC.getCommonDeviceLibNames(TCArgs, Arch.str(), Action::OFK_OpenMP);
 
     for (StringRef LibName : BCLibs)
-      CmdArgs.push_back(
-          Args.MakeArgString("-target-library=" + TC->getTripleString() + "-" +
-                             Arch + "=" + LibName));
+      CmdArgs.push_back(Args.MakeArgString(
+          "-target-library=" + Action::GetOffloadKindName(Action::OFK_OpenMP) +
+          "-" + TC->getTripleString() + "-" + Arch + "=" + LibName));
   }
 
   if (D.isUsingLTO(/* IsOffload */ true)) {
@@ -9623,9 +9639,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                          TC->getTriple());
 
       if (!BitcodeLibrary.empty())
-        CmdArgs.push_back(
-            Args.MakeArgString("-target-library=" + TC->getTripleString() +
-                               "-" + Arch + "=" + BitcodeLibrary.back()));
+        CmdArgs.push_back(Args.MakeArgString(
+            "-target-library=" +
+            Action::GetOffloadKindName(Action::OFK_OpenMP) + "-" +
+            TC->getTripleString() + "-" + Arch + "=" + BitcodeLibrary.back()));
     }
 
     // Pass in the optimization level to use for LTO.

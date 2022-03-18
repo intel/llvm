@@ -409,7 +409,8 @@ void EhFrameSection::addRecords(EhInputSection *sec, ArrayRef<RelTy> rels) {
       return;
 
     size_t offset = piece.inputOff;
-    uint32_t id = read32(piece.data().data() + 4);
+    const uint32_t id =
+        endian::read32<ELFT::TargetEndianness>(piece.data().data() + 4);
     if (id == 0) {
       offsetToCie[offset] = addCie<ELFT>(piece, rels);
       continue;
@@ -2319,7 +2320,7 @@ bool SymtabShndxSection::isNeeded() const {
   // a .symtab_shndx section when the amount of output sections is huge.
   size_t size = 0;
   for (SectionCommand *cmd : script->sectionCommands)
-    if (isa<OutputSection>(cmd))
+    if (isa<OutputDesc>(cmd))
       ++size;
   return size >= SHN_LORESERVE;
 }
@@ -3178,15 +3179,24 @@ template <class ELFT> void VersionNeedSection<ELFT>::finalizeContents() {
     verneeds.emplace_back();
     Verneed &vn = verneeds.back();
     vn.nameStrTab = getPartition().dynStrTab->addString(f->soName);
+    bool isLibc = config->relrGlibc && f->soName.startswith("libc.so.");
+    bool isGlibc2 = false;
     for (unsigned i = 0; i != f->vernauxs.size(); ++i) {
       if (f->vernauxs[i] == 0)
         continue;
       auto *verdef =
           reinterpret_cast<const typename ELFT::Verdef *>(f->verdefs[i]);
-      vn.vernauxs.push_back(
-          {verdef->vd_hash, f->vernauxs[i],
-           getPartition().dynStrTab->addString(f->getStringTable().data() +
-                                               verdef->getAux()->vda_name)});
+      StringRef ver(f->getStringTable().data() + verdef->getAux()->vda_name);
+      if (isLibc && ver.startswith("GLIBC_2."))
+        isGlibc2 = true;
+      vn.vernauxs.push_back({verdef->vd_hash, f->vernauxs[i],
+                             getPartition().dynStrTab->addString(ver)});
+    }
+    if (isGlibc2) {
+      const char *ver = "GLIBC_ABI_DT_RELR";
+      vn.vernauxs.push_back({hashSysV(ver),
+                             ++SharedFile::vernauxNum + getVerDefNum(),
+                             getPartition().dynStrTab->addString(ver)});
     }
   }
 
@@ -3560,10 +3570,6 @@ void ARMExidxSyntheticSection::writeTo(uint8_t *buf) {
 bool ARMExidxSyntheticSection::isNeeded() const {
   return llvm::any_of(exidxSections,
                       [](InputSection *isec) { return isec->isLive(); });
-}
-
-bool ARMExidxSyntheticSection::classof(const SectionBase *d) {
-  return d->kind() == InputSectionBase::Synthetic && d->type == SHT_ARM_EXIDX;
 }
 
 ThunkSection::ThunkSection(OutputSection *os, uint64_t off)

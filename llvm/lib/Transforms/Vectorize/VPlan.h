@@ -772,6 +772,14 @@ public:
            "Op must be an operand of the recipe");
     return false;
   }
+
+  /// Returns true if the recipe uses scalars of operand \p Op. Conservatively
+  /// returns if only first (scalar) lane is used, as default.
+  virtual bool usesScalars(const VPValue *Op) const {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return onlyFirstLaneUsed(Op);
+  }
 };
 
 inline bool VPUser::classof(const VPDef *Def) {
@@ -1054,28 +1062,34 @@ public:
 };
 
 /// A recipe for handling phi nodes of integer and floating-point inductions,
-/// producing their vector and scalar values.
+/// producing their vector values.
 class VPWidenIntOrFpInductionRecipe : public VPRecipeBase, public VPValue {
   PHINode *IV;
   const InductionDescriptor &IndDesc;
   bool NeedsScalarIV;
   bool NeedsVectorIV;
 
+  /// SCEV used to expand step.
+  /// FIXME: move expansion of step to the pre-header, once it is modeled
+  /// explicitly.
+  ScalarEvolution &SE;
+
 public:
   VPWidenIntOrFpInductionRecipe(PHINode *IV, VPValue *Start,
                                 const InductionDescriptor &IndDesc,
-                                bool NeedsScalarIV, bool NeedsVectorIV)
+                                bool NeedsScalarIV, bool NeedsVectorIV,
+                                ScalarEvolution &SE)
       : VPRecipeBase(VPWidenIntOrFpInductionSC, {Start}), VPValue(IV, this),
         IV(IV), IndDesc(IndDesc), NeedsScalarIV(NeedsScalarIV),
-        NeedsVectorIV(NeedsVectorIV) {}
+        NeedsVectorIV(NeedsVectorIV), SE(SE) {}
 
   VPWidenIntOrFpInductionRecipe(PHINode *IV, VPValue *Start,
                                 const InductionDescriptor &IndDesc,
                                 TruncInst *Trunc, bool NeedsScalarIV,
-                                bool NeedsVectorIV)
+                                bool NeedsVectorIV, ScalarEvolution &SE)
       : VPRecipeBase(VPWidenIntOrFpInductionSC, {Start}), VPValue(Trunc, this),
         IV(IV), IndDesc(IndDesc), NeedsScalarIV(NeedsScalarIV),
-        NeedsVectorIV(NeedsVectorIV) {}
+        NeedsVectorIV(NeedsVectorIV), SE(SE) {}
 
   ~VPWidenIntOrFpInductionRecipe() override = default;
 
@@ -1558,6 +1572,13 @@ public:
            "Op must be an operand of the recipe");
     return isUniform();
   }
+
+  /// Returns true if the recipe uses scalars of operand \p Op.
+  bool usesScalars(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return true;
+  }
 };
 
 /// A recipe for generating conditional branches on the bits of a mask.
@@ -1626,6 +1647,13 @@ public:
   void print(raw_ostream &O, const Twine &Indent,
              VPSlotTracker &SlotTracker) const override;
 #endif
+
+  /// Returns true if the recipe uses scalars of operand \p Op.
+  bool usesScalars(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return true;
+  }
 };
 
 /// A Recipe for widening load/store operations.
@@ -1895,6 +1923,13 @@ public:
   VPCanonicalIVPHIRecipe *getCanonicalIV() const;
   VPValue *getStartValue() const { return getOperand(1); }
   VPValue *getStepValue() const { return getOperand(2); }
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return true;
+  }
 };
 
 /// VPBasicBlock serves as the leaf of the Hierarchical Control-Flow Graph. It

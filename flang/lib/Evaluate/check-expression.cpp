@@ -120,7 +120,7 @@ bool IsConstantExprHelper<INVARIANT>::operator()(
     } else if (intrinsic->name == "lbound" && call.arguments().size() == 1) {
       // LBOUND(x) without DIM=
       auto base{ExtractNamedEntity(call.arguments()[0]->UnwrapExpr())};
-      return base && IsConstantExprShape(GetLowerBounds(*base));
+      return base && IsConstantExprShape(GetLBOUNDs(*base));
     } else if (intrinsic->name == "ubound" && call.arguments().size() == 1) {
       // UBOUND(x) without DIM=
       auto base{ExtractNamedEntity(call.arguments()[0]->UnwrapExpr())};
@@ -174,6 +174,12 @@ struct IsActuallyConstantHelper {
   }
   template <typename T> bool operator()(const Expr<T> &x) {
     return std::visit([=](const auto &y) { return (*this)(y); }, x.u);
+  }
+  bool operator()(const Expr<SomeType> &x) {
+    if (IsNullPointer(x)) {
+      return true;
+    }
+    return std::visit([this](const auto &y) { return (*this)(y); }, x.u);
   }
   template <typename A> bool operator()(const A *x) { return x && (*this)(*x); }
   template <typename A> bool operator()(const std::optional<A> &x) {
@@ -404,7 +410,7 @@ std::optional<Expr<SomeType>> NonPointerInitializationExpr(const Symbol &symbol,
           symbol.owner().context().ShouldWarn(
               common::LanguageFeature::LogicalIntegerAssignment)) {
         context.messages().Say(
-            "nonstandard usage: initialization of %s with %s"_en_US,
+            "nonstandard usage: initialization of %s with %s"_port_en_US,
             symTS->type().AsFortran(), x.GetType().value().AsFortran());
       }
     }
@@ -428,7 +434,7 @@ std::optional<Expr<SomeType>> NonPointerInitializationExpr(const Symbol &symbol,
             // expand the scalar constant to an array
             return ScalarConstantExpander{std::move(*extents),
                 AsConstantExtents(
-                    context, GetLowerBounds(context, NamedEntity{symbol}))}
+                    context, GetRawLowerBounds(context, NamedEntity{symbol}))}
                 .Expand(std::move(folded));
           } else if (auto resultShape{GetShape(context, folded)}) {
             if (CheckConformance(context.messages(), symTS->shape(),
@@ -437,8 +443,8 @@ std::optional<Expr<SomeType>> NonPointerInitializationExpr(const Symbol &symbol,
                     .value_or(false /*fail if not known now to conform*/)) {
               // make a constant array with adjusted lower bounds
               return ArrayConstantBoundChanger{
-                  std::move(*AsConstantExtents(
-                      context, GetLowerBounds(context, NamedEntity{symbol})))}
+                  std::move(*AsConstantExtents(context,
+                      GetRawLowerBounds(context, NamedEntity{symbol})))}
                   .ChangeLbounds(std::move(folded));
             }
           }

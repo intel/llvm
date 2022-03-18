@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/MathExtras.h"
@@ -201,7 +202,7 @@ struct MultiBlockExecuteInliner : public OpRewritePattern<ExecuteRegionOp> {
 
   LogicalResult matchAndRewrite(ExecuteRegionOp op,
                                 PatternRewriter &rewriter) const override {
-    if (!isa<FuncOp, ExecuteRegionOp>(op->getParentOp()))
+    if (!isa<FunctionOpInterface, ExecuteRegionOp>(op->getParentOp()))
       return failure();
 
     Block *prevBlock = op->getBlock();
@@ -233,6 +234,24 @@ struct MultiBlockExecuteInliner : public OpRewritePattern<ExecuteRegionOp> {
 void ExecuteRegionOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                   MLIRContext *context) {
   results.add<SingleBlockExecuteInliner, MultiBlockExecuteInliner>(context);
+}
+
+/// Given the region at `index`, or the parent operation if `index` is None,
+/// return the successor regions. These are the regions that may be selected
+/// during the flow of control. `operands` is a set of optional attributes that
+/// correspond to a constant value for each operand, or null if that operand is
+/// not a constant.
+void ExecuteRegionOp::getSuccessorRegions(
+    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  // If the predecessor is the ExecuteRegionOp, branch into the body.
+  if (!index.hasValue()) {
+    regions.push_back(RegionSuccessor(&getRegion()));
+    return;
+  }
+
+  // Otherwise, the region branches back to the parent operation.
+  regions.push_back(RegionSuccessor(getResults()));
 }
 
 //===----------------------------------------------------------------------===//
@@ -281,6 +300,19 @@ LogicalResult ForOp::verify() {
     if (cst.value() <= 0)
       return emitOpError("constant step operand must be positive");
 
+  auto opNumResults = getNumResults();
+  if (opNumResults == 0)
+    return success();
+  // If ForOp defines values, check that the number and types of
+  // the defined values match ForOp initial iter operands and backedge
+  // basic block arguments.
+  if (getNumIterOperands() != opNumResults)
+    return emitOpError(
+        "mismatch in number of loop-carried values and defined values");
+  return success();
+}
+
+LogicalResult ForOp::verifyRegions() {
   // Check that the body defines as single block argument for the induction
   // variable.
   auto *body = getBody();
@@ -292,15 +324,11 @@ LogicalResult ForOp::verify() {
   auto opNumResults = getNumResults();
   if (opNumResults == 0)
     return success();
-  // If ForOp defines values, check that the number and types of
-  // the defined values match ForOp initial iter operands and backedge
-  // basic block arguments.
-  if (getNumIterOperands() != opNumResults)
-    return emitOpError(
-        "mismatch in number of loop-carried values and defined values");
+
   if (getNumRegionIterArgs() != opNumResults)
     return emitOpError(
         "mismatch in number of basic block args and defined values");
+
   auto iterOperands = getIterOperands();
   auto iterArgs = getRegionIterArgs();
   auto opResults = getResults();
@@ -2129,7 +2157,7 @@ void ReduceOp::build(
                   body->getArgument(1));
 }
 
-LogicalResult ReduceOp::verify() {
+LogicalResult ReduceOp::verifyRegions() {
   // The region of a ReduceOp has two arguments of the same type as its operand.
   auto type = getOperand().getType();
   Block &block = getReductionOperator().front();
@@ -2332,7 +2360,7 @@ static TerminatorTy verifyAndGetTerminator(scf::WhileOp op, Region &region,
   return nullptr;
 }
 
-LogicalResult scf::WhileOp::verify() {
+LogicalResult scf::WhileOp::verifyRegions() {
   auto beforeTerminator = verifyAndGetTerminator<scf::ConditionOp>(
       *this, getBefore(),
       "expects the 'before' region to terminate with 'scf.condition'");

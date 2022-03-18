@@ -1329,6 +1329,11 @@ def int_amdgcn_s_sethalt :
   Intrinsic<[], [llvm_i32_ty], [ImmArg<ArgIndex<0>>, IntrNoMem,
                                 IntrHasSideEffects, IntrWillReturn]>;
 
+def int_amdgcn_s_setprio :
+  GCCBuiltin<"__builtin_amdgcn_s_setprio">,
+  Intrinsic<[], [llvm_i16_ty], [ImmArg<ArgIndex<0>>, IntrNoMem,
+                                IntrHasSideEffects, IntrWillReturn]>;
+
 def int_amdgcn_s_getreg :
   GCCBuiltin<"__builtin_amdgcn_s_getreg">,
   Intrinsic<[llvm_i32_ty], [llvm_i32_ty],
@@ -1977,6 +1982,19 @@ def int_amdgcn_mfma_f32_16x16x16bf16_1k : AMDGPUMfmaIntrinsic<llvm_v4f32_ty,  ll
 
 def int_amdgcn_mfma_f64_16x16x4f64      : AMDGPUMfmaIntrinsic<llvm_v4f64_ty,  llvm_double_ty>;
 def int_amdgcn_mfma_f64_4x4x4f64        : AMDGPUMfmaIntrinsic<llvm_double_ty, llvm_double_ty>;
+
+//===----------------------------------------------------------------------===//
+// gfx940 intrinsics
+// ===----------------------------------------------------------------------===//
+
+// bf16 atomics use v2i16 argument since there is no bf16 data type in the llvm.
+def int_amdgcn_global_atomic_fadd_v2bf16 : AMDGPUGlobalAtomicRtn<llvm_v2i16_ty>;
+def int_amdgcn_flat_atomic_fadd_v2bf16   : AMDGPUGlobalAtomicRtn<llvm_v2i16_ty>;
+def int_amdgcn_ds_fadd_v2bf16 : Intrinsic<
+    [llvm_v2i16_ty],
+    [LLVMQualPointerType<llvm_v2i16_ty, 3>, llvm_v2i16_ty],
+    [IntrArgMemOnly, IntrWillReturn, NoCapture<ArgIndex<0>>]>,
+    GCCBuiltin<"__builtin_amdgcn_ds_atomic_fadd_v2bf16">;
 
 //===----------------------------------------------------------------------===//
 // Special Intrinsics for backend internal use only. No frontend

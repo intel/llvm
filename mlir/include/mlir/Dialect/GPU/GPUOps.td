@@ -112,6 +112,21 @@ def GPU_SubgroupIdOp : GPU_Op<"subgroup_id", [NoSideEffect]>,
   let assemblyFormat = "attr-dict `:` type($result)";
 }
 
+def GPU_GlobalIdOp : GPU_IndexOp<"global_id"> {
+  let description = [{
+    Returns the unique global workitem/thread id, i.e., the unique index of the
+    current workitem/thread within all workgroups / grid along the x, y, or z
+    `dimension`.
+
+    Example:
+
+    ```mlir
+    %gidX = gpu.global_id x
+    ```
+  }];
+}
+
+
 def GPU_NumSubgroupsOp : GPU_Op<"num_subgroups", [NoSideEffect]>,
     Arguments<(ins)>, Results<(outs Index:$result)> {
   let description = [{
@@ -556,7 +571,7 @@ def GPU_LaunchOp : GPU_Op<"launch", [AutomaticAllocationScope]>,
 
   let hasCanonicalizer = 1;
   let hasCustomAssemblyFormat = 1;
-  let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 def GPU_PrintfOp : GPU_Op<"printf", [MemoryEffects<[MemWrite]>]>,
@@ -677,7 +692,7 @@ def GPU_AllReduceOp : GPU_Op<"all_reduce",
   let regions = (region AnyRegion:$body);
   let assemblyFormat = [{ custom<AllReduceOperation>($op) $value $body attr-dict
                           `:` functional-type(operands, results) }];
-  let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 def GPU_ShuffleOpXor  : I32EnumAttrCase<"XOR",  0, "xor">;
@@ -901,7 +916,7 @@ def GPU_AllocOp : GPU_Op<"alloc", [
     `(` $dynamicSizes `)` (`` `[` $symbolOperands^ `]`)? attr-dict `:` type($memref)
   }];
 
-  let verifier = [{ return ::verify(*this); }];
+  let hasVerifier = 1;
   let hasCanonicalizer = 1;
 }
 
