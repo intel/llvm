@@ -3383,12 +3383,17 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   S.AddWorkGroupSizeHintAttr(D, AL, XDimExpr, YDimExpr, ZDimExpr);
 }
 
-// Handles max_work_group_size attribute.
-// If the [[intel::max_work_group_size(X, Y, Z)]] attribute is specified on a
-// declaration along with [[intel::max_global_work_dim()]] attribute,
-// check to see if all arguments of [[intel::max_work_group_size(X, Y, Z)]]
-// attribute hold value 1 in case the argument of
-// [[intel::max_global_work_dim()]] attribute equals to 0.
+// Checks correctness of mutual usage of different work_group_size attributes:
+// reqd_work_group_size, max_work_group_size, and max_global_work_dim.
+//
+// If [[intel::max_work_group_size(X, Y, Z)]] or
+// [[sycl::reqd_work_group_size(X, Y, Z)]] or
+// [[cl::reqd_work_group_size(X, Y, Z)]]
+// or __attribute__((reqd_work_group_size)) attribute is specified on a
+// declaration along with [[intel::max_global_work_dim()]] attribute, check to
+// see if all arguments of 'max_work_group_size' or different spellings of
+// 'reqd_work_group_size' attribute hold value 1 in case the argument of
+// [[intel::max_global_work_dim()]] attribute value equals to 0.
 static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
                                       const Expr *YDim, const Expr *ZDim) {
   // If any of the operand is still value dependent, we can't test anything.
@@ -3417,7 +3422,7 @@ static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
 //
 // If the 'reqd_work_group_size' attribute is specified multiple times on a
 // declaration, check if the values of 'reqd_work_group_size' attribute
-// arguments specified earlier are less than the values of
+// arguments specified earlier are less than or greater than the values of
 // 'reqd_work_group_size' attribute arguments specified after.
 template <typename Comparator>
 static bool checkWorkGroupSizeAttrValues(
@@ -3628,6 +3633,7 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
       Context, A, A.getXDim(), A.getYDim(), A.getZDim());
 }
 
+// Handles max_work_group_size attribute.
 static void handleSYCLIntelMaxWorkGroupSize(Sema &S, Decl *D,
                                             const ParsedAttr &AL) {
   S.AddSYCLIntelMaxWorkGroupSizeAttr(D, AL, AL.getArgAsExpr(0),
@@ -3773,7 +3779,7 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
 
     // If the 'reqd_work_group_size' attribute is specified multiple times on a
     // declaration, check if the values of 'reqd_work_group_size' attribute
-    // arguments specified earlier are less than the values of
+    // arguments specified earlier are less than or greater than the values of
     // 'reqd_work_group_size' attribute arguments specified after. The
     // comparison is made using the operator passed as the template parameter.
     //
@@ -3785,9 +3791,9 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
     // __attribute__((reqd_work_group_size)) follows the OpenCL rules in OpenCL
     // mode. All spellings of reqd_work_group_size attribute
     // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
-    if (checkWorkGroupSizeAttrValues<std::less<int>>(
-            *this, XDim, YDim, ZDim, Existing->getXDim(), Existing->getYDim(),
-            Existing->getZDim())) {
+    if (checkWorkGroupSizeAttrValues<std::not_equal_to<int>>(
+            *this, Existing->getXDim(), Existing->getYDim(),
+	    Existing->getZDim(), XDim, YDim, ZDim)) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << CI << Existing;
       Diag(Existing->getLoc(), diag::note_conflicting_attribute);
@@ -3888,7 +3894,7 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
 
     // If the 'reqd_work_group_size' attribute is specified multiple times on a
     // declaration, check if the values of 'reqd_work_group_size' attribute
-    // arguments specified earlier are less than the values of
+    // arguments specified earlier are less than or greater than the values of
     // 'reqd_work_group_size' attribute arguments specified after. The
     // comparison is made using the operator passed as the template parameter.
     //
@@ -3900,7 +3906,7 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
     // __attribute__((reqd_work_group_size)) follows the OpenCL rules in OpenCL
     // mode. All spellings of reqd_work_group_size attribute
     // (regardless of syntax used) follow the SYCL rules when in SYCL mode.
-    if (checkWorkGroupSizeAttrValues<std::less<int>>(
+    if (checkWorkGroupSizeAttrValues<std::not_equal_to<int>>(
             *this, DeclAttr->getXDim(), DeclAttr->getYDim(),
             DeclAttr->getZDim(), A.getXDim(), A.getYDim(), A.getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)

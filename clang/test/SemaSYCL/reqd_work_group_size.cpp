@@ -15,19 +15,25 @@
 [[sycl::reqd_work_group_size(32, 32, 32)]] void f3(); // OK
 
 // Produce a conflicting attribute warning when the args are different.
-[[sycl::reqd_work_group_size(6, 6, 6)]]         // expected-note {{previous attribute is here}}
-[[sycl::reqd_work_group_size(16, 16, 16)]] void // expected-warning {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+[[sycl::reqd_work_group_size(6, 6, 6)]]         // expected-note {{previous attribute is here}} \
+		                                // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(16, 16, 16)]] void // expected-warning {{attribute 'reqd_work_group_size' is already applied with different arguments}} \
+		                                // expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
 f4() {}
 
 // Catch the easy case where the attributes are all specified at once with
 // different arguments.
 struct TRIFuncObjGood1 {
+  // expected-note@+4 {{conflicting attribute is here}}	
+  // expected-error@+3 {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}	
   // expected-note@+2 {{previous attribute is here}}
   // expected-warning@+1 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
   [[sycl::reqd_work_group_size(64)]] [[sycl::reqd_work_group_size(128)]] void operator()() const {}
 };
 
 struct TRIFuncObjGood2 {
+  // expected-note@+4 {{conflicting attribute is here}}
+  // expected-error@+3 {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
   // expected-note@+2 {{previous attribute is here}}
   // expected-warning@+1 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
   [[sycl::reqd_work_group_size(64, 64)]] [[sycl::reqd_work_group_size(128, 128)]] void operator()() const {}
@@ -48,13 +54,14 @@ TRIFuncObjGood3::operator()() const {}
 class Functor {
 public:
   [[sycl::reqd_work_group_size(16, 16, 16)]] [[sycl::reqd_work_group_size(16, 16, 16)]] void operator()() const;
-  [[sycl::reqd_work_group_size(16, 16, 16)]] [[sycl::reqd_work_group_size(32, 32, 32)]] void operator()(int) const; // expected-warning {{attribute 'reqd_work_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
+  [[sycl::reqd_work_group_size(16, 16, 16)]] [[sycl::reqd_work_group_size(32, 32, 32)]] void operator()(int) const; // expected-warning {{attribute 'reqd_work_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}} expected-error {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}} // expected-note {{conflicting attribute is here}}
 };
 
 class FunctorC {
 public:
   [[intel::max_work_group_size(64, 64, 64)]] [[sycl::reqd_work_group_size(64, 64, 64)]] void operator()() const;
-  [[intel::max_work_group_size(16, 16, 16)]] [[sycl::reqd_work_group_size(64, 64, 64)]] void operator()(int) const; // expected-error {{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}} expected-note {{conflicting attribute is here}}
+  [[intel::max_work_group_size(16, 16, 16)]] // expected-note {{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(64, 64, 64)]] void operator()(int) const;  // expected-error {{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}
 };
 
 // Ensure that template arguments behave appropriately based on instantiations.
@@ -63,7 +70,8 @@ template <int N>
 
 // Test that template redeclarations also get diagnosed properly.
 template <int X, int Y, int Z>
-[[sycl::reqd_work_group_size(1, 1, 1)]] void f7(); // #f7prev
+[[sycl::reqd_work_group_size(1, 1, 1)]] void f7(); // #f7prev \
+		                                   // #f7conflict
 
 template <int X, int Y, int Z>
 [[sycl::reqd_work_group_size(X, Y, Z)]] void f7() {} // #f7
@@ -82,6 +90,8 @@ void instantiate() {
   // expected-error@#f6 {{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
   f6<0>();       // expected-note {{in instantiation}}
   f7<1, 1, 1>(); // OK, args are the same on the redecl.
+  // expected-note@#f7conflict {{conflicting attribute is here}}
+  // expected-error@#f7 {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
   // expected-warning@#f7 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
   // expected-note@#f7prev {{previous attribute is here}}
   f7<2, 2, 2>(); // expected-note {{in instantiation}}
