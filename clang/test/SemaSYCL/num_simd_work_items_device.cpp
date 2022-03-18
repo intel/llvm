@@ -181,54 +181,47 @@ struct TRIFuncObjBad13 {
 };
 
 struct TRIFuncObjBad14 {
-  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
-  [[sycl::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
-  void
-  operator()() const {}
+  [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[sycl::reqd_work_group_size(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  void operator()() const {}
 };
 
 struct TRIFuncObjBad15 {
-  [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   [[sycl::reqd_work_group_size(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   void operator()() const {}
 };
 
 struct TRIFuncObjBad16 {
-  [[sycl::reqd_work_group_size(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
-  [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
-  void operator()() const {}
-};
-
-struct TRIFuncObjBad17 {
   [[intel::num_simd_work_items(3)]]
   [[sycl::reqd_work_group_size(3, 3, 3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   void operator()() const {}
 };
 
-struct TRIFuncObjBad18 {
+struct TRIFuncObjBad17 {
   [[intel::num_simd_work_items(-1)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   [[sycl::reqd_work_group_size(-1)]] // expected-error{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
   void
   operator()() const {}
 };
 
-struct TRIFuncObjBad19 {
+struct TRIFuncObjBad18 {
   [[intel::num_simd_work_items(5)]] void // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   operator()() const;
 };
 
 [[sycl::reqd_work_group_size(10, 5, 9)]] // expected-note{{conflicting attribute is here}}
 void
-TRIFuncObjBad19::operator()() const {}
+TRIFuncObjBad18::operator()() const {}
 
-struct TRIFuncObjBad20 {
+struct TRIFuncObjBad19 {
   [[sycl::reqd_work_group_size(10, 5, 9)]] void // expected-note{{conflicting attribute is here}}
   operator()() const;
 };
 
 [[intel::num_simd_work_items(5)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 void
-TRIFuncObjBad20::operator()() const {}
+TRIFuncObjBad19::operator()() const {}
 #endif // TRIGGER_ERROR
 // If the declaration has a [[sycl::reqd_work_group_size()]]
 // or [[cl::reqd_work_group_size()]] or
@@ -420,11 +413,9 @@ int main() {
 
     h.single_task<class test_kernel29>(TRIFuncObjBad19());
 
-    h.single_task<class test_kernel30>(TRIFuncObjBad20());
-
 #endif // TRIGGER_ERROR
-    h.single_task<class test_kernel31>(TRIFuncObjGood5());
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel31
+    h.single_task<class test_kernel30>(TRIFuncObjGood5());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel30
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 5
@@ -440,8 +431,8 @@ int main() {
     // CHECK-NEXT:  value: Int 5
     // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
 
-    h.single_task<class test_kernel32>(TRIFuncObjGood6());
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel32
+    h.single_task<class test_kernel31>(TRIFuncObjGood6());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel31
     // CHECK:       ReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 3

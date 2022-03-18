@@ -6,6 +6,18 @@
 [[sycl::reqd_work_group_size("derp", 1, 2)]] void f1();   // expected-error {{integral constant expression must have integral or unscoped enumeration type, not 'const char[5]'}}
 [[sycl::reqd_work_group_size(1, 1, 1)]] int i;            // expected-error {{'reqd_work_group_size' attribute only applies to functions}}
 
+class Functor33 {
+public:
+  // expected-error@+1{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
+  [[sycl::reqd_work_group_size(32, -4)]] void operator()() const {}
+};
+
+class Functor30 {
+public:
+  // expected-error@+1 2{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
+  [[sycl::reqd_work_group_size(30, -30, -30)]] void operator()() const {}
+};
+
 // Tests for 'reqd_work_group_size' attribute duplication.
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
 [[sycl::reqd_work_group_size(6, 6, 6)]] [[sycl::reqd_work_group_size(6, 6, 6)]] void f2() {}

@@ -30,18 +30,6 @@ public:
                                                               // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
                                                               // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 };
-
-class Functor33 {
-public:
-  // expected-error@+1{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
-  [[sycl::reqd_work_group_size(32, -4)]] void operator()() const {}
-};
-
-class Functor30 {
-public:
-  // expected-error@+1 2{{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
-  [[sycl::reqd_work_group_size(30, -30, -30)]] void operator()() const {}
-};
 #endif // TRIGGER_ERROR
 
 class Functor16 {
@@ -109,13 +97,19 @@ int main() {
     FunctorAttr fattr;
     h.single_task<class kernel_name3>(fattr);
 
-#ifdef TRIGGER_ERROR
-    Functor33 f33;
-    h.single_task<class kernel_name4>(f33);
-
-    Functor30 f30;
-    h.single_task<class kernel_name5>(f30);
-#endif // TRIGGER_ERROR
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
+    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 64
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 64
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 1
+    Functor64 f64;
+    h.single_task<class kernel_name4>(f64);
   });
   return 0;
 }
