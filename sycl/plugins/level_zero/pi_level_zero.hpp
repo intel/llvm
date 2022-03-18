@@ -784,10 +784,6 @@ struct _pi_queue : _pi_object {
   // asked to not transfer the ownership to SYCL RT.
   bool OwnZeCommandQueue;
 
-  // It helps to skip creating a special service barrier with an event in
-  // command-list in eventless mode if we do QueueFinish or piQueueRelease
-  bool SkipLastEventInEventlessMode = false;
-
   // Indicates if the previous command was submitted into command-list of the
   // copy engine. it is used in eventless mode to identify that we switch
   // command-list of copy queue to command-list of compute queue or vice versa.

@@ -1272,6 +1272,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
                                         bool OKToBatchCommand) {
   bool UseCopyEngine = CommandList->second.isCopy(this);
   this->IsPrevCopyEngine = UseCopyEngine;
+  this->LastCommandList = CommandList;
 
   // If the current LastCommandEvent is the nullptr, then it means
   // either that no command has ever been issued to the queue
@@ -1407,7 +1408,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
       this->LastCommandEvent = HostVisibleEvent;
     }
   } else {
-    if (this->isEventlessMode() && !this->SkipLastEventInEventlessMode) {
+    if (this->isEventlessMode()) {
       pi_result Res = createEventAndAssociateQueue(
           this, &this->LastCommandEvent, PI_COMMAND_TYPE_USER, CommandList,
           false);
@@ -3231,7 +3232,9 @@ pi_result piQueueRelease(pi_queue Queue) {
 
     Queue->RefCountExternal--;
     if (Queue->RefCountExternal == 0) {
-      Queue->SkipLastEventInEventlessMode = true;
+      // TODO: we can skip the creation of last event since it will not
+      // participate in synchronization if we wait by zeCommandQueueSynchronize.
+      //
       // When external reference count goes to zero it is still possible
       // that internal references still exists, e.g. command-lists that
       // are not yet completed. So do full queue synchronization here
@@ -3329,12 +3332,12 @@ static pi_result QueueFinish(pi_queue Queue, pi_queue LockedQueue) {
     // Lock automatically releases when this goes out of scope.
     auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
                                         : std::unique_lock(Queue->Mutex));
-
-    Queue->SkipLastEventInEventlessMode = true;
+    // TODO: we can skip the creation of last event since it will not
+    // participate in synchronization if we wait by zeCommandQueueSynchronize.
+    //
     // execute any command list that may still be open.
     if (auto Res = Queue->executeAllOpenCommandLists())
       return Res;
-    Queue->SkipLastEventInEventlessMode = false;
 
     // Make a copy of queues to sync and release the lock.
     ZeQueues = Queue->CopyQueueGroup.ZeQueues;
@@ -4946,7 +4949,6 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, true /* AllowBatching */))
     return Res;
-  Queue->LastCommandList = CommandList;
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event PiEvent;
@@ -5732,7 +5734,6 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
                                                            UseCopyEngine))
       return Res;
-    Queue->LastCommandList = CommandList;
 
     ze_event_handle_t ZeEvent = nullptr;
     pi_event PiEvent;
@@ -5819,7 +5820,6 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
-  Queue->LastCommandList = CommandList;
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event PiEvent;
@@ -5917,7 +5917,6 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
-  Queue->LastCommandList = CommandList;
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event PiEvent;
@@ -5985,7 +5984,6 @@ static pi_result enqueueMemCopyRectHelper(
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
-  Queue->LastCommandList = CommandList;
 
   ze_event_handle_t ZeEvent = nullptr;
   auto Res =
@@ -6204,7 +6202,6 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
-  Queue->LastCommandList = CommandList;
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event PiEvent;
@@ -6371,7 +6368,6 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
                                                          UseCopyEngine))
     return Res;
-  Queue->LastCommandList = CommandList;
 
   // Set the commandlist in the event
   if (Event) {
@@ -6507,7 +6503,6 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
                                                          UseCopyEngine))
     return Res;
-  Queue->LastCommandList = CommandList;
 
   // Set the commandlist in the event
   (*Event)->ZeCommandList = CommandList->first;
@@ -6625,7 +6620,6 @@ static pi_result enqueueMemImageCommandHelper(
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
-  Queue->LastCommandList = CommandList;
 
   ze_event_handle_t ZeEvent = nullptr;
   auto Res =
@@ -7567,7 +7561,6 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
                                                          UseCopyEngine))
     return Res;
-  Queue->LastCommandList = CommandList;
 
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
@@ -7638,7 +7631,6 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
                                                          UseCopyEngine))
     return Res;
-  Queue->LastCommandList = CommandList;
 
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
