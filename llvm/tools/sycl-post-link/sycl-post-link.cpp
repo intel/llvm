@@ -47,6 +47,7 @@
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/GlobalStatus.h"
 
 #include <algorithm>
 #include <map>
@@ -833,6 +834,40 @@ public:
   size_t totalSplits() { return GMap.size(); }
 };
 
+// Removes the global variable "llvm.used" and returns true on success.
+// "llvm.used" is a global constant array containing references to kernels
+// available in the module and callable from host code. The elements of
+// the array are ConstantExpr bitcast to i8*.
+// The variable must be removed as it is a) has done the job to the moment
+// of this function call and b) the references to the kernels callable from
+// host must not have users.
+static bool removeSYCLKernelsConstRefArray(GlobalVariable *GV) {
+  assert(GV->getGlobalIdentifier() == "llvm.used" &&
+         "Unexpected global value is passed for removal, should be llvm.used");
+  assert(GV->user_empty() && "Unexpected llvm.used users");
+  Constant *Initializer = GV->getInitializer();
+  GV->setInitializer(nullptr);
+  GV->eraseFromParent();
+
+  // Destroy the initializer and all operands of it.
+  SmallVector<Constant *, 8> IOperands;
+  for (auto It = Initializer->op_begin(); It != Initializer->op_end(); It++)
+    IOperands.push_back(cast<Constant>(*It));
+  assert(llvm::isSafeToDestroyConstant(Initializer) &&
+         "Cannot remove initializer of llvm.used global");
+  Initializer->destroyConstant();
+  for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
+    assert(llvm::isSafeToDestroyConstant(*It) &&
+           "Cannot remove an element of initializer of llvm.used global");
+    auto F = cast<Function>((*It)->getOperand(0));
+    (*It)->destroyConstant();
+    // Remove unused kernel declarations to avoid LLVM IR check fails.
+    if (F->isDeclaration())
+      F->eraseFromParent();
+  }
+  return true;
+}
+
 using TableFiles = std::map<StringRef, string_vector>;
 
 TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
@@ -849,11 +884,8 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   // issue remove "llvm.used" from the input module before performing any other
   // actions.
   bool IsLLVMUsedRemoved = false;
-  if (GlobalVariable *GV = M->getGlobalVariable("llvm.used")) {
-    assert(GV->user_empty() && "unexpected llvm.used users");
-    GV->eraseFromParent();
-    IsLLVMUsedRemoved = true;
-  }
+  if (GlobalVariable *GV = M->getGlobalVariable("llvm.used"))
+    IsLLVMUsedRemoved = removeSYCLKernelsConstRefArray(GV);
 
   if (IsEsimd && LowerEsimd)
     lowerEsimdConstructs(*M);
