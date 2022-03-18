@@ -28,9 +28,7 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 using namespace llvm;
@@ -100,7 +98,7 @@ LLVMTargetMachine::LLVMTargetMachine(const Target &T,
 }
 
 TargetTransformInfo
-LLVMTargetMachine::getTargetTransformInfo(const Function &F) {
+LLVMTargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(BasicTTIImpl(this, F));
 }
 

@@ -1137,6 +1137,12 @@ struct _pi_event : _pi_object {
   // actions are performed only once.
   //
   bool CleanedUp = {false};
+
+  // Indicates that this PI event had already completed in the sense
+  // that no other synchromization is needed. Note that the underlying
+  // L0 event (if any) is not guranteed to have been signalled, or
+  // being visible to the host at all.
+  bool Completed = {false};
 };
 
 struct _pi_program : _pi_object {

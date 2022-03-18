@@ -47,6 +47,10 @@ class StrBoolAttr<string S> : Attr<S, []>;
 /// 0 means unaligned (different from align(1)).
 def Alignment : IntAttr<"align", [ParamAttr, RetAttr]>;
 
+/// Parameter of a function that tells us the alignment of an allocation, as in 
+/// aligned_alloc and aligned ::operator::new.
+def AllocAlign: EnumAttr<"allocalign", [ParamAttr]>;
+
 /// The result of the function is guaranteed to point to a number of bytes that
 /// we can determine if we know the value of the function's arguments.
 def AllocSize : IntAttr<"allocsize", [FnAttr]>;
@@ -174,6 +178,9 @@ def NoProfile : EnumAttr<"noprofile", [FnAttr]>;
 
 /// Function doesn't unwind stack.
 def NoUnwind : EnumAttr<"nounwind", [FnAttr]>;
+
+/// No SanitizeBounds instrumentation.
+def NoSanitizeBounds : EnumAttr<"nosanitize_bounds", [FnAttr]>;
 
 /// No SanitizeCoverage instrumentation.
 def NoSanitizeCoverage : EnumAttr<"nosanitize_coverage", [FnAttr]>;
@@ -347,6 +354,3 @@ def : MergeRule<"adjustCallerStackProbeSize">;
 def : MergeRule<"adjustMinLegalVectorWidth">;
 def : MergeRule<"adjustNullPointerValidAttr">;
 def : MergeRule<"setAND<MustProgressAttr>">;
-
-// Target dependent attributes
-include "llvm/IR/AttributesAMDGPU.td"

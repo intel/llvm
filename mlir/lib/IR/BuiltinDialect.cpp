@@ -101,7 +101,8 @@ void FuncOp::build(OpBuilder &builder, OperationState &state, StringRef name,
                    ArrayRef<DictionaryAttr> argAttrs) {
   state.addAttribute(SymbolTable::getSymbolAttrName(),
                      builder.getStringAttr(name));
-  state.addAttribute(getTypeAttrName(), TypeAttr::get(type));
+  state.addAttribute(function_interface_impl::getTypeAttrName(),
+                     TypeAttr::get(type));
   state.attributes.append(attrs.begin(), attrs.end());
   state.addRegion();
 
@@ -123,29 +124,7 @@ ParseResult FuncOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void FuncOp::print(OpAsmPrinter &p) {
-  FunctionType fnType = getType();
-  function_interface_impl::printFunctionOp(
-      p, *this, fnType.getInputs(), /*isVariadic=*/false, fnType.getResults());
-}
-
-LogicalResult FuncOp::verify() {
-  // If this function is external there is nothing to do.
-  if (isExternal())
-    return success();
-
-  // Verify that the argument list of the function and the arg list of the entry
-  // block line up.  The trait already verified that the number of arguments is
-  // the same between the signature and the block.
-  auto fnInputTypes = getType().getInputs();
-  Block &entryBlock = front();
-  for (unsigned i = 0, e = entryBlock.getNumArguments(); i != e; ++i)
-    if (fnInputTypes[i] != entryBlock.getArgument(i).getType())
-      return emitOpError("type of entry block argument #")
-             << i << '(' << entryBlock.getArgument(i).getType()
-             << ") must match the type of the corresponding argument in "
-             << "function signature(" << fnInputTypes[i] << ')';
-
-  return success();
+  function_interface_impl::printFunctionOp(p, *this, /*isVariadic=*/false);
 }
 
 /// Clone the internal blocks from this function into dest and all attributes
@@ -287,8 +266,8 @@ LogicalResult ModuleOp::verify() {
 LogicalResult
 UnrealizedConversionCastOp::fold(ArrayRef<Attribute> attrOperands,
                                  SmallVectorImpl<OpFoldResult> &foldResults) {
-  OperandRange operands = inputs();
-  ResultRange results = outputs();
+  OperandRange operands = getInputs();
+  ResultRange results = getOutputs();
 
   if (operands.getType() == results.getType()) {
     foldResults.append(operands.begin(), operands.end());

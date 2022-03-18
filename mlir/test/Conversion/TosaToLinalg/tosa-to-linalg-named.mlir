@@ -1,10 +1,10 @@
-// RUN: mlir-opt --split-input-file --tosa-to-linalg-named %s -verify-diagnostics -o -| FileCheck %s
+// RUN: mlir-opt --split-input-file -pass-pipeline="builtin.func(tosa-to-linalg-named)" %s -verify-diagnostics -o -| FileCheck %s
 
 // CHECK-LABEL: @matmul
 func @matmul(%arg0: tensor<1x5x3xf32>, %arg1: tensor<1x3x6xf32>) -> (tensor<1x5x6xf32>) {
   // CHECK: [[C0:%.+]] = arith.constant 0
   // CHECK: [[INIT:%.+]] = linalg.init_tensor [1, 5, 6]
-  // CHECK: [[FILLED:%.+]] = linalg.fill([[C0]], [[INIT]]) : f32, tensor<1x5x6xf32> -> tensor<1x5x6xf32>
+  // CHECK: [[FILLED:%.+]] = linalg.fill ins([[C0]] : f32) outs([[INIT]] : tensor<1x5x6xf32>) -> tensor<1x5x6xf32>
   // CHECK: linalg.batch_matmul ins(%arg0, %arg1 : tensor<1x5x3xf32>, tensor<1x3x6xf32>) outs([[FILLED]] : tensor<1x5x6xf32>) -> tensor<1x5x6xf32>
   %0 = "tosa.matmul"(%arg0, %arg1) : (tensor<1x5x3xf32>, tensor<1x3x6xf32>)  -> (tensor<1x5x6xf32>)
   return %0 : tensor<1x5x6xf32>
@@ -17,7 +17,7 @@ func @matmul(%arg0: tensor<1x5x3xf32>, %arg1: tensor<1x3x6xf32>) -> (tensor<1x5x
 func @matmul_quantized(%arg0: tensor<1x5x3xi8>, %arg1: tensor<1x3x6xi8>) -> (tensor<1x5x6xi32>) {
   // CHECK: [[C0:%.+]] = arith.constant 0
   // CHECK: [[INIT:%.+]] = linalg.init_tensor [1, 5, 6]
-  // CHECK: [[FILLED:%.+]] = linalg.fill([[C0]], [[INIT]]) : i32, tensor<1x5x6xi32> -> tensor<1x5x6xi32>
+  // CHECK: [[FILLED:%.+]] = linalg.fill ins([[C0]] : i32) outs([[INIT]] : tensor<1x5x6xi32>) -> tensor<1x5x6xi32>
   // CHECK: [[ONE:%.+]] = arith.constant 1
   // CHECK: [[TWO:%.+]] = arith.constant 2
   // CHECK: linalg.quantized_batch_matmul ins(%arg0, %arg1, [[ONE]], [[TWO]] : tensor<1x5x3xi8>, tensor<1x3x6xi8>, i32, i32) outs([[FILLED]] : tensor<1x5x6xi32>) -> tensor<1x5x6xi32>
@@ -33,7 +33,7 @@ func @matmul_dyn_batch(%arg0: tensor<?x5x3xf32>, %arg1: tensor<?x3x6xf32>) -> (t
   // CHECK: %[[DIM:.+]] = tensor.dim %arg0, %[[C0]]
   // CHECK: %[[C0_0:.+]] = arith.constant 0
   // CHECK: %[[INIT:.+]] = linalg.init_tensor [%[[DIM]], 5, 6]
-  // CHECK: %[[FILLED:.+]] = linalg.fill(%[[C0_0]], %[[INIT]]) : f32, tensor<?x5x6xf32> -> tensor<?x5x6xf32>
+  // CHECK: %[[FILLED:.+]] = linalg.fill ins(%[[C0_0]] : f32) outs(%[[INIT]] : tensor<?x5x6xf32>) -> tensor<?x5x6xf32>
   // CHECK: linalg.batch_matmul ins(%arg0, %arg1 : tensor<?x5x3xf32>, tensor<?x3x6xf32>) outs(%[[FILLED]] : tensor<?x5x6xf32>) -> tensor<?x5x6xf32>
   %0 = "tosa.matmul"(%arg0, %arg1) : (tensor<?x5x3xf32>, tensor<?x3x6xf32>)  -> (tensor<?x5x6xf32>)
   return %0 : tensor<?x5x6xf32>
@@ -47,7 +47,7 @@ func @matmul_dyn_independent_dim(%arg0: tensor<1x5x3xf32>, %arg1: tensor<1x3x?xf
   // CHECK: %[[DIM:.+]] = tensor.dim %arg1, %[[C2]]
   // CHECK: %[[C0:.+]] = arith.constant 0
   // CHECK: %[[INIT:.+]] = linalg.init_tensor [1, 5, %[[DIM]]]
-  // CHECK: %[[FILLED:.+]] = linalg.fill(%[[C0]], %[[INIT]]) : f32, tensor<1x5x?xf32> -> tensor<1x5x?xf32>
+  // CHECK: %[[FILLED:.+]] = linalg.fill ins(%[[C0]] : f32) outs(%[[INIT]] : tensor<1x5x?xf32>) -> tensor<1x5x?xf32>
   // CHECK: linalg.batch_matmul ins(%arg0, %arg1 : tensor<1x5x3xf32>, tensor<1x3x?xf32>) outs(%[[FILLED]] : tensor<1x5x?xf32>) -> tensor<1x5x?xf32>
   %0 = "tosa.matmul"(%arg0, %arg1) : (tensor<1x5x3xf32>, tensor<1x3x?xf32>)  -> (tensor<1x5x?xf32>)
   return %0 : tensor<1x5x?xf32>
@@ -59,7 +59,7 @@ func @matmul_dyn_independent_dim(%arg0: tensor<1x5x3xf32>, %arg1: tensor<1x3x?xf
 func @matmul_dyn_independent_dim(%arg0: tensor<1x5x?xf32>, %arg1: tensor<1x?x6xf32>) -> (tensor<1x5x6xf32>) {
   // CHECK: %[[C0:.+]] = arith.constant 0
   // CHECK: %[[INIT:.+]] = linalg.init_tensor [1, 5, 6]
-  // CHECK: %[[FILLED:.+]] = linalg.fill(%[[C0]], %[[INIT]]) : f32, tensor<1x5x6xf32> -> tensor<1x5x6xf32>
+  // CHECK: %[[FILLED:.+]] = linalg.fill ins(%[[C0]] : f32) outs(%[[INIT]] : tensor<1x5x6xf32>) -> tensor<1x5x6xf32>
   // CHECK: linalg.batch_matmul ins(%arg0, %arg1 : tensor<1x5x?xf32>, tensor<1x?x6xf32>) outs(%[[FILLED]] : tensor<1x5x6xf32>) -> tensor<1x5x6xf32>
   %0 = "tosa.matmul"(%arg0, %arg1) : (tensor<1x5x?xf32>, tensor<1x?x6xf32>)  -> (tensor<1x5x6xf32>)
   return %0 : tensor<1x5x6xf32>
@@ -74,7 +74,7 @@ func @matmul_dyn_independent_dim(%arg0: tensor<1x5x?xf32>, %arg1: tensor<1x?x6xf
 func @fully_connected(%arg0: tensor<5x3xf32>, %arg1: tensor<6x3xf32>, %arg2: tensor<6xf32>) -> (tensor<5x6xf32>) {
   // CHECK: [[INITT:%.+]] = linalg.init_tensor [5, 6]
   // CHECK: [[ZERO:%.+]] = arith.constant 0
-  // CHECK: [[FILL:%.+]] = linalg.fill([[ZERO]], [[INITT]])
+  // CHECK: [[FILL:%.+]] = linalg.fill ins([[ZERO]]{{.*}}outs([[INITT]]
   // CHECK: [[PERM:%.+]] = arith.constant dense<[1, 0]>
   // CHECK: [[TRANSPOSE:%.+]] = "tosa.transpose"(%arg1, [[PERM]])
   // CHECK: [[INITB:%.+]] = linalg.init_tensor [5, 6]
@@ -97,7 +97,7 @@ func @fully_connected(%arg0: tensor<5x3xf32>, %arg1: tensor<6x3xf32>, %arg2: ten
 func @quantized_fully_connected(%arg0: tensor<5x3xi8>, %arg1: tensor<6x3xi8>, %arg2: tensor<6xi32>) -> (tensor<5x6xi32>) {
   // CHECK: [[INITT:%.+]] = linalg.init_tensor [5, 6]
   // CHECK: [[ZERO:%.+]] = arith.constant 0
-  // CHECK: [[FILL:%.+]] = linalg.fill([[ZERO]], [[INITT]])
+  // CHECK: [[FILL:%.+]] = linalg.fill ins([[ZERO]]{{.*}}outs([[INITT]]
   // CHECK: [[PERM:%.+]] = arith.constant dense<[1, 0]>
   // CHECK: [[TRANSPOSE:%.+]] = "tosa.transpose"(%arg1, [[PERM]])
   // CHECK: [[INITB:%.+]] = linalg.init_tensor [5, 6]
@@ -123,7 +123,7 @@ func @fully_connected_dyn(%arg0: tensor<?x3xf32>, %arg1: tensor<6x3xf32>, %arg2:
   // CHECK: %[[DIM:.+]] = tensor.dim %arg0, %[[C0]]
   // CHECK: %[[INITT:.+]] = linalg.init_tensor [%[[DIM]], 6]
   // CHECK: %[[ZERO:.+]] = arith.constant 0
-  // CHECK: %[[FILL:.+]] = linalg.fill(%[[ZERO]], %[[INITT]])
+  // CHECK: %[[FILL:.+]] = linalg.fill ins(%[[ZERO]]{{.*}}outs(%[[INITT]]
   // CHECK: %[[PERM:.+]] = arith.constant dense<[1, 0]>
   // CHECK: %[[TRANSPOSE:.+]] = "tosa.transpose"(%arg1, %[[PERM]])
   // CHECK: %[[INITB:.+]] = linalg.init_tensor [%[[DIM]], 6]
@@ -143,7 +143,7 @@ func @fully_connected_dyn(%arg0: tensor<?x3xf32>, %arg1: tensor<6x3xf32>, %arg2:
 func @max_pool(%arg0: tensor<1x6x34x62xf32>) -> () {
   // CHECK-DAG: [[CONST:%.+]] = arith.constant -3.40282347E+38
   // CHECK-DAG: [[INIT:%.+]] = linalg.init_tensor [1, 4, 32, 62]
-  // CHECK-DAG: [[FILL:%.+]] = linalg.fill([[CONST]], [[INIT]])
+  // CHECK-DAG: [[FILL:%.+]] = linalg.fill ins([[CONST]]{{.*}}outs([[INIT]]
   // CHECK-DAG: [[KERNEL:%.+]] = linalg.init_tensor [3, 3]
   // CHECK: linalg.pooling_nhwc_max {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%arg0, [[KERNEL]] : tensor<1x6x34x62xf32>, tensor<3x3xf32>) outs([[FILL]] : tensor<1x4x32x62xf32>)
   %0 = "tosa.max_pool2d"(%arg0) {pad = [0, 0, 0, 0], kernel = [3, 3], stride = [1, 1]} : (tensor<1x6x34x62xf32>)  -> (tensor<1x4x32x62xf32>)
@@ -157,7 +157,7 @@ func @max_pool_padded(%arg0: tensor<1x6x34x62xf32>) -> () {
   // CHECK-DAG:   tensor.yield [[CONST]]
   // CHECK-DAG: [[INITVAL:%.+]] = arith.constant -3.40282347E+38 : f32
   // CHECK-DAG: [[INIT:%.+]] = linalg.init_tensor [1, 4, 33, 62]
-  // CHECK-DAG: [[FILL:%.+]] = linalg.fill([[INITVAL]], [[INIT]])
+  // CHECK-DAG: [[FILL:%.+]] = linalg.fill ins([[INITVAL]]{{.*}}outs([[INIT]]
   // CHECK-DAG: [[KERNEL:%.+]] = linalg.init_tensor [3, 3]
   // CHECK: linalg.pooling_nhwc_max {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins([[PAD]], [[KERNEL]] : tensor<1x6x35x62xf32>, tensor<3x3xf32>) outs([[FILL]] : tensor<1x4x33x62xf32>)
   %0 = "tosa.max_pool2d"(%arg0) {pad = [0, 0, 0, 1], kernel = [3, 3], stride = [1, 1]} : (tensor<1x6x34x62xf32>)  -> (tensor<1x4x33x62xf32>)
@@ -170,7 +170,7 @@ func @max_pool_dyn(%arg0: tensor<?x6x34x62xf32>) -> () {
   // CHECK: %[[BATCH:.+]] = tensor.dim %arg0, %[[C0]]
   // CHECK: %[[CONST:.+]] = arith.constant -3.40282347E+38
   // CHECK: %[[INIT:.+]] = linalg.init_tensor [%[[BATCH]], 4, 32, 62]
-  // CHECK: %[[FILL:.+]] = linalg.fill(%[[CONST]], %[[INIT]])
+  // CHECK: %[[FILL:.+]] = linalg.fill ins(%[[CONST]]{{.*}}outs(%[[INIT]]
   // CHECK: %[[KERNEL:.+]] = linalg.init_tensor [3, 3]
   // CHECK: linalg.pooling_nhwc_max {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%arg0, %[[KERNEL]] : tensor<?x6x34x62xf32>, tensor<3x3xf32>) outs(%[[FILL]] : tensor<?x4x32x62xf32>)
   %0 = "tosa.max_pool2d"(%arg0) {pad = [0, 0, 0, 0], kernel = [3, 3], stride = [1, 1]} : (tensor<?x6x34x62xf32>)  -> (tensor<?x4x32x62xf32>)
@@ -209,7 +209,7 @@ func @avg_pool(%arg0: tensor<1x6x34x62xf32>) -> (tensor<1x5x33x62xf32>) {
   // CHECK: [[PAD:%.+]] = tensor.pad %arg0 low[0, 1, 1, 0] high[0, 1, 1, 0]
   // CHECK: [[CONST:%.+]] = arith.constant 0
   // CHECK: [[POOLINIT:%.+]] = linalg.init_tensor [1, 5, 33, 62]
-  // CHECK: [[FILL:%.+]] = linalg.fill([[CONST]], [[POOLINIT]])
+  // CHECK: [[FILL:%.+]] = linalg.fill ins([[CONST]]{{.*}}outs([[POOLINIT]]
   // CHECK: [[KERNEL:%.+]] = linalg.init_tensor [4, 4]
   // CHECK: [[POOL:%.+]] = linalg.pooling_nhwc_sum {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins([[PAD]], [[KERNEL]] : tensor<1x8x36x62xf32>, tensor<4x4xf32>) outs([[FILL]] : tensor<1x5x33x62xf32>)
   // CHECK: [[INIT:%.+]] = linalg.init_tensor [1, 5, 33, 62]
@@ -383,6 +383,66 @@ func @conv2d_dyn(%input: tensor<?x49x42x27xf32>, %weights: tensor<28x3x3x27xf32>
 
 // -----
 
+// CHECK: #[[$MAP1:.+]] = affine_map<(d0, d1, d2, d3) -> (d3)>
+// CHECK: #[[$MAP2:.+]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+
+// CHECK-LABEL: @conv2d_dyn_w_h
+func @conv2d_dyn_w_h(%input: tensor<1x?x?x27xf32>, %weights: tensor<28x3x3x27xf32>, %bias: tensor<28xf32>) -> () {
+  // Computing output height
+  // CHECK: %[[C1:.+]] = arith.constant 1
+  // CHECK: %[[H:.+]] = tensor.dim %arg0, %[[C1]]
+  // CHECK: %[[C1_0:.+]] = arith.constant 1
+  // CHECK: %[[KH:.+]] = tensor.dim %arg1, %[[C1_0]]
+  // CHECK: %[[ONE:.+]] = arith.constant 1 : index
+  // CHECK: %[[PAD_0:.+]] = arith.constant 0 : index
+  // CHECK: %[[ADD_PAD_0:.+]] = arith.addi %[[H]], %[[PAD_0]] : index
+  // CHECK: %[[PAD_1:.+]] = arith.constant 0 : index
+  // CHECK: %[[ADD_PAD_1:.+]] = arith.addi %[[ADD_PAD_0]], %[[PAD_1]] : index
+  // CHECK: %[[SUB_ONE:.+]] = arith.subi %[[KH]], %[[ONE]] : index
+  // CHECK: %[[DIL_H:.+]] = arith.constant 2 : index
+  // CHECK: %[[DILATED:.+]] = arith.muli %[[DIL_H]], %[[SUB_ONE]] : index
+  // CHECK: %[[ADD_ONE:.+]] = arith.addi %[[DILATED]], %[[ONE]] : index
+  // CHECK: %[[SUBTRACTED:.+]] = arith.subi %[[ADD_PAD_1]], %[[ADD_ONE]] : index
+  // CHECK: %[[STRIDE_H:.+]] = arith.constant 1 : index
+  // CHECK: %[[DIVIDED:.+]] = arith.divui %[[SUBTRACTED]], %[[STRIDE_H]] : index
+  // CHECK: %[[H_OUT:.+]] = arith.subi %[[DIVIDED]], %[[ONE]] : index
+
+  // Computing output width
+  // CHECK: %[[C2:.+]] = arith.constant 2
+  // CHECK: %[[W:.+]] = tensor.dim %arg0, %[[C2]]
+  // CHECK: %[[C2_0:.+]] = arith.constant 2
+  // CHECK: %[[KW:.+]] = tensor.dim %arg1, %[[C2_0]]
+  // CHECK: %[[ONE_0:.+]] = arith.constant 1 : index
+  // CHECK: %[[PAD_2:.+]] = arith.constant 0 : index
+  // CHECK: %[[ADD_PAD_2:.+]] = arith.addi %[[W]], %[[PAD_2]] : index
+  // CHECK: %[[PAD_3:.+]] = arith.constant 0 : index
+  // CHECK: %[[ADD_PAD_3:.+]] = arith.addi %[[ADD_PAD_2]], %[[PAD_3]] : index
+  // CHECK: %[[SUB_ONE_0:.+]] = arith.subi %[[KW]], %[[ONE_0]] : index
+  // CHECK: %[[DIL_W:.+]] = arith.constant 1 : index
+  // CHECK: %[[DILATED_0:.+]] = arith.muli %[[DIL_W]], %[[SUB_ONE_0]] : index
+  // CHECK: %[[ADD_ONE_0:.+]] = arith.addi %[[DILATED_0]], %[[ONE_0]] : index
+  // CHECK: %[[SUBTRACTED_0:.+]] = arith.subi %[[ADD_PAD_3]], %[[ADD_ONE_0]] : index
+  // CHECK: %[[STRIDE_W:.+]] = arith.constant 1 : index
+  // CHECK: %[[DIVIDED_0:.+]] = arith.divui %[[SUBTRACTED_0]], %[[STRIDE_W]] : index
+  // CHECK: %[[W_OUT:.+]] = arith.subi %[[DIVIDED_0]], %[[ONE_0]] : index
+
+  // Running convolution
+  // CHECK: %[[PERM:.+]] = arith.constant dense<[1, 2, 3, 0]>
+  // CHECK: %[[WEIGHT:.+]] = "tosa.transpose"(%arg1, %[[PERM]])
+  // CHECK: %[[M_IN:.+]] = linalg.init_tensor [1, %[[H_OUT]], %[[W_OUT]], 28]
+  // CHECK: %[[CST:.+]] = arith.constant 0
+  // CHECK: %[[FILL:.+]] = linalg.fill
+  // CHECK: %[[B_IN:.+]] = linalg.init_tensor [1, %[[H_OUT]], %[[W_OUT]], 28]
+  // CHECK: %[[CONV:.+]] = linalg.conv_2d_nhwc_hwcf {dilations = dense<[2, 1]> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>} ins(%arg0, %[[WEIGHT]] : tensor<1x?x?x27xf32>, tensor<3x3x27x28xf32>) outs(%[[FILL]] : tensor<1x?x?x28xf32>)
+  // CHECK: %[[B:.+]] = linalg.generic {indexing_maps = [#[[$MAP1]], #[[$MAP2]], #[[$MAP2]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%arg2, %[[CONV]] : tensor<28xf32>, tensor<1x?x?x28xf32>) outs(%[[B_IN]] : tensor<1x?x?x28xf32>)
+  // CHECK:   %[[ADD:.+]] = arith.addf
+  // CHECK:   linalg.yield %[[ADD]] : f32
+  %0 = "tosa.conv2d"(%input, %weights, %bias) {pad = [0, 0, 0, 0], stride = [1, 1], dilation = [2, 1]} : (tensor<1x?x?x27xf32>, tensor<28x3x3x27xf32>, tensor<28xf32>)  -> (tensor<1x?x?x28xf32>)
+  return
+}
+
+// -----
+
 // CHECK-LABEL: @conv2d_padded_f32
 func @conv2d_padded_f32(%input: tensor<1x47x40x28xf32>, %weights: tensor<28x3x3x28xf32>, %bias: tensor<28xf32>) -> () {
   // CHECK: %[[C0:.+]] = arith.constant 0
@@ -414,7 +474,7 @@ func @conv2d_quant(%arg0 : tensor<1x12x12x1xi8>, %arg1 : tensor<1024x3x3x1xi8>, 
 func @depthwise_conv(%arg0 : tensor<1x7x5x3xf32>, %arg1 : tensor<3x1x3x11xf32>, %arg2 : tensor<33xf32>) -> () {
   // CHECK: [[INIT:%.+]] = linalg.init_tensor [1, 5, 5, 3, 11]
   // CHECK: [[CST0:%.+]] = arith.constant 0
-  // CHECK: [[FILL:%.+]] = linalg.fill([[CST0]], [[INIT]])
+  // CHECK: [[FILL:%.+]] = linalg.fill ins([[CST0]]{{.*}}outs([[INIT]]
   // CHECK: [[OUT:%.+]] = linalg.init_tensor [1, 5, 5, 33]
   // CHECK: [[DEPTH:%.+]] = linalg.depthwise_conv_2d_nhwc_hwcm {dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>} ins(%arg0, %arg1 : tensor<1x7x5x3xf32>, tensor<3x1x3x11xf32>) outs([[FILL]] : tensor<1x5x5x3x11xf32>)
   // CHECK: [[COLLAPSED:%.+]] = "tosa.reshape"([[DEPTH]]) {new_shape = [1, 5, 5, 33]}
@@ -460,7 +520,7 @@ func @depthwise_conv_dyn(%arg0 : tensor<?x7x5x3xf32>, %arg1 : tensor<3x1x3x11xf3
 func @depthwise_conv_strides(%arg0 : tensor<1x11x9x3xf32>, %arg1 : tensor<3x1x3x11xf32>, %arg2 : tensor<33xf32>) -> () {
   // CHECK: [[INIT:%.+]] = linalg.init_tensor [1, 5, 5, 3, 11]
   // CHECK: [[CST0:%.+]] = arith.constant 0
-  // CHECK: [[FILL:%.+]] = linalg.fill([[CST0]], [[INIT]])
+  // CHECK: [[FILL:%.+]] = linalg.fill ins([[CST0]]{{.*}}outs([[INIT]]
   // CHECK: [[OUT:%.+]] = linalg.init_tensor [1, 5, 5, 33]
   // CHECK: [[DEPTH:%.+]] = linalg.depthwise_conv_2d_nhwc_hwcm {dilations = dense<1> : tensor<2xi64>, strides = dense<2> : tensor<2xi64>} ins(%arg0, %arg1 : tensor<1x11x9x3xf32>, tensor<3x1x3x11xf32>) outs([[FILL]] : tensor<1x5x5x3x11xf32>)
   // CHECK: [[COLLAPSED:%.+]] = "tosa.reshape"([[DEPTH]]) {new_shape = [1, 5, 5, 33]}
@@ -486,7 +546,7 @@ func @depthwise_conv_quant(%arg0 : tensor<1x12x12x4xi8>, %arg1 : tensor<3x3x4x12
 
   // CHECK: [[INIT:%.+]] = linalg.init_tensor [1, 12, 12, 4, 128]
   // CHECK: [[CST0:%.+]] = arith.constant 0
-  // CHECK: [[FILL:%.+]] = linalg.fill([[CST0]], [[INIT]])
+  // CHECK: [[FILL:%.+]] = linalg.fill ins([[CST0]]{{.*}}outs([[INIT]]
   // CHECK: [[OUT:%.+]] = linalg.init_tensor [1, 12, 12, 512]
   // CHECK: [[C128:%.+]] = arith.constant -128
   // CHECK: [[C42:%.+]] = arith.constant 42
@@ -510,7 +570,7 @@ func @depthwise_conv_quant(%arg0 : tensor<1x12x12x4xi8>, %arg1 : tensor<3x3x4x12
 func @depthwise_conv_quant_dilations(%arg0 : tensor<1x14x14x4xi8>, %arg1 : tensor<3x3x4x128xi8>, %arg2 : tensor<512xi32>) -> () {
   // CHECK: [[INIT:%.+]] = linalg.init_tensor [1, 10, 10, 4, 128]
   // CHECK: [[CST0:%.+]] = arith.constant 0
-  // CHECK: [[FILL:%.+]] = linalg.fill([[CST0]], [[INIT]])
+  // CHECK: [[FILL:%.+]] = linalg.fill ins([[CST0]]{{.*}}outs([[INIT]]
   // CHECK: [[OUT:%.+]] = linalg.init_tensor [1, 10, 10, 512]
   // CHECK: [[C128:%.+]] = arith.constant -128
   // CHECK: [[C42:%.+]] = arith.constant 42

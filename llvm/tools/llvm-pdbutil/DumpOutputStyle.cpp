@@ -389,7 +389,7 @@ Error DumpOutputStyle::dumpStreamSummary() {
   uint32_t StreamCount = getPdb().getNumStreams();
   uint32_t MaxStreamSize = getPdb().getMaxStreamSize();
 
-  for (uint16_t StreamIdx = 0; StreamIdx < StreamCount; ++StreamIdx) {
+  for (uint32_t StreamIdx = 0; StreamIdx < StreamCount; ++StreamIdx) {
     P.formatLine(
         "Stream {0} ({1} bytes): [{2}]",
         fmt_align(StreamIdx, AlignStyle::Right, NumDigits(StreamCount)),
@@ -1352,10 +1352,16 @@ static void dumpPartialTypeStream(LinePrinter &Printer,
 
     for (const auto &I : TiList) {
       TypeIndex TI(I);
-      CVType Type = Types.getType(TI);
-      if (auto EC = codeview::visitTypeRecord(Type, TI, V))
-        Printer.formatLine("An error occurred dumping type record {0}: {1}", TI,
-                           toString(std::move(EC)));
+      if (TI.isSimple()) {
+        Printer.formatLine("{0} | {1}", fmt_align(I, AlignStyle::Right, Width),
+                           Types.getTypeName(TI));
+      } else if (Optional<CVType> Type = Types.tryGetType(TI)) {
+        if (auto EC = codeview::visitTypeRecord(*Type, TI, V))
+          Printer.formatLine("An error occurred dumping type record {0}: {1}",
+                             TI, toString(std::move(EC)));
+      } else {
+        Printer.formatLine("Type {0} doesn't exist in TPI stream", TI);
+      }
     }
   }
 }

@@ -1489,7 +1489,8 @@ def err_pragma_fp_invalid_argument : Error<
   "%select{"
   "'fast' or 'on' or 'off'|"
   "'on' or 'off'|"
-  "'ignore', 'maytrap' or 'strict'}2">;
+  "'ignore', 'maytrap' or 'strict'|"
+  "'source', 'double' or 'extended'}2">;
 
 def err_pragma_invalid_keyword : Error<
   "invalid argument; expected 'enable'%select{|, 'full'}0%select{|, 'assume_safety'}1 or 'disable'">;
@@ -1541,9 +1542,11 @@ def err_private_module_fragment_expected_semi : Error<
   "expected ';' after private module fragment declaration">;
 def err_missing_before_module_end : Error<"expected %0 at end of module">;
 def err_unsupported_module_partition : Error<
-  "sorry, module partitions are not yet supported">;
+  "module partitions are only supported for C++20 onwards">;
 def err_import_not_allowed_here : Error<
   "imports must immediately follow the module declaration">;
+def err_partition_import_outside_module : Error<
+  "module partition imports must be within a module purview">;
 def err_import_in_wrong_fragment : Error<
   "module%select{| partition}0 imports cannot be in the %select{global|private}1 module fragment">;
 

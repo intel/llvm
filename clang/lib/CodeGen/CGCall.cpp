@@ -2740,6 +2740,18 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
     if (Arg->hasAttr<SYCLAccessorReadonlyAttr>())
       Fn->getArg(FirstIRArg)->addAttr(llvm::Attribute::ReadOnly);
 
+    if (const auto *AddIRAttr =
+            Arg->getAttr<SYCLAddIRAttributesKernelParameterAttr>()) {
+      SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+          AddIRAttr->getFilteredAttributeNameValuePairs(CGM.getContext());
+
+      llvm::AttrBuilder KernelParamAttrBuilder(Fn->getContext());
+      for (const auto &NameValuePair : NameValuePairs)
+        KernelParamAttrBuilder.addAttribute(NameValuePair.first,
+                                            NameValuePair.second);
+      Fn->addParamAttrs(ArgNo, KernelParamAttrBuilder);
+    }
+
     switch (ArgI.getKind()) {
     case ABIArgInfo::InAlloca: {
       assert(NumIRArgs == 0);
@@ -5263,12 +5275,22 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   if (InNoMergeAttributedStmt)
     Attrs = Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::NoMerge);
 
+  // Add call-site noinline attribute if exists.
+  if (InNoInlineAttributedStmt)
+    Attrs = Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::NoInline);
+
+  // Add call-site always_inline attribute if exists.
+  if (InAlwaysInlineAttributedStmt)
+    Attrs =
+        Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::AlwaysInline);
+
   // Apply some call-site-specific attributes.
   // TODO: work this into building the attribute set.
 
   // Apply always_inline to all calls within flatten functions.
   // FIXME: should this really take priority over __try, below?
   if (CurCodeDecl && CurCodeDecl->hasAttr<FlattenAttr>() &&
+      !InNoInlineAttributedStmt &&
       !(TargetDecl && TargetDecl->hasAttr<NoInlineAttr>())) {
     Attrs =
         Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::AlwaysInline);

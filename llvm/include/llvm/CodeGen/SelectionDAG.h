@@ -20,7 +20,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/ilist.h"
@@ -33,17 +32,13 @@
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/IR/DebugLoc.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ArrayRecycler.h"
-#include "llvm/Support/AtomicOrdering.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/RecyclingAllocator.h"
-#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <functional>
@@ -55,6 +50,15 @@
 
 namespace llvm {
 
+class DIExpression;
+class DILabel;
+class DIVariable;
+class Function;
+class Pass;
+class Type;
+template <class GraphType> struct GraphTraits;
+template <typename T, unsigned int N> class SmallSetVector;
+template <typename T> struct FoldingSetTrait;
 class AAResults;
 class BlockAddress;
 class BlockFrequencyInfo;
@@ -1363,6 +1367,77 @@ public:
                           MachineMemOperand *MMO, bool IsCompressing = false);
   SDValue getIndexedStoreVP(SDValue OrigStore, const SDLoc &dl, SDValue Base,
                             SDValue Offset, ISD::MemIndexedMode AM);
+
+  SDValue getStridedLoadVP(ISD::MemIndexedMode AM, ISD::LoadExtType ExtType,
+                           EVT VT, const SDLoc &DL, SDValue Chain, SDValue Ptr,
+                           SDValue Offset, SDValue Stride, SDValue Mask,
+                           SDValue EVL, MachinePointerInfo PtrInfo, EVT MemVT,
+                           Align Alignment, MachineMemOperand::Flags MMOFlags,
+                           const AAMDNodes &AAInfo,
+                           const MDNode *Ranges = nullptr,
+                           bool IsExpanding = false);
+  inline SDValue getStridedLoadVP(
+      ISD::MemIndexedMode AM, ISD::LoadExtType ExtType, EVT VT, const SDLoc &DL,
+      SDValue Chain, SDValue Ptr, SDValue Offset, SDValue Stride, SDValue Mask,
+      SDValue EVL, MachinePointerInfo PtrInfo, EVT MemVT,
+      MaybeAlign Alignment = MaybeAlign(),
+      MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
+      const AAMDNodes &AAInfo = AAMDNodes(), const MDNode *Ranges = nullptr,
+      bool IsExpanding = false) {
+    // Ensures that codegen never sees a None Alignment.
+    return getStridedLoadVP(AM, ExtType, VT, DL, Chain, Ptr, Offset, Stride,
+                            Mask, EVL, PtrInfo, MemVT,
+                            Alignment.getValueOr(getEVTAlign(MemVT)), MMOFlags,
+                            AAInfo, Ranges, IsExpanding);
+  }
+  SDValue getStridedLoadVP(ISD::MemIndexedMode AM, ISD::LoadExtType ExtType,
+                           EVT VT, const SDLoc &DL, SDValue Chain, SDValue Ptr,
+                           SDValue Offset, SDValue Stride, SDValue Mask,
+                           SDValue EVL, EVT MemVT, MachineMemOperand *MMO,
+                           bool IsExpanding = false);
+  SDValue getStridedLoadVP(EVT VT, const SDLoc &DL, SDValue Chain, SDValue Ptr,
+                           SDValue Stride, SDValue Mask, SDValue EVL,
+                           MachinePointerInfo PtrInfo, MaybeAlign Alignment,
+                           MachineMemOperand::Flags MMOFlags,
+                           const AAMDNodes &AAInfo,
+                           const MDNode *Ranges = nullptr,
+                           bool IsExpanding = false);
+  SDValue getStridedLoadVP(EVT VT, const SDLoc &DL, SDValue Chain, SDValue Ptr,
+                           SDValue Stride, SDValue Mask, SDValue EVL,
+                           MachineMemOperand *MMO, bool IsExpanding = false);
+  SDValue
+  getExtStridedLoadVP(ISD::LoadExtType ExtType, const SDLoc &DL, EVT VT,
+                      SDValue Chain, SDValue Ptr, SDValue Stride, SDValue Mask,
+                      SDValue EVL, MachinePointerInfo PtrInfo, EVT MemVT,
+                      MaybeAlign Alignment, MachineMemOperand::Flags MMOFlags,
+                      const AAMDNodes &AAInfo, bool IsExpanding = false);
+  SDValue getExtStridedLoadVP(ISD::LoadExtType ExtType, const SDLoc &DL, EVT VT,
+                              SDValue Chain, SDValue Ptr, SDValue Stride,
+                              SDValue Mask, SDValue EVL, EVT MemVT,
+                              MachineMemOperand *MMO, bool IsExpanding = false);
+  SDValue getIndexedStridedLoadVP(SDValue OrigLoad, const SDLoc &DL,
+                                  SDValue Base, SDValue Offset,
+                                  ISD::MemIndexedMode AM);
+  SDValue getStridedStoreVP(SDValue Chain, const SDLoc &DL, SDValue Val,
+                            SDValue Ptr, SDValue Offset, SDValue Stride,
+                            SDValue Mask, SDValue EVL, EVT MemVT,
+                            MachineMemOperand *MMO, ISD::MemIndexedMode AM,
+                            bool IsTruncating = false,
+                            bool IsCompressing = false);
+  SDValue getTruncStridedStoreVP(SDValue Chain, const SDLoc &DL, SDValue Val,
+                                 SDValue Ptr, SDValue Stride, SDValue Mask,
+                                 SDValue EVL, MachinePointerInfo PtrInfo,
+                                 EVT SVT, Align Alignment,
+                                 MachineMemOperand::Flags MMOFlags,
+                                 const AAMDNodes &AAInfo,
+                                 bool IsCompressing = false);
+  SDValue getTruncStridedStoreVP(SDValue Chain, const SDLoc &DL, SDValue Val,
+                                 SDValue Ptr, SDValue Stride, SDValue Mask,
+                                 SDValue EVL, EVT SVT, MachineMemOperand *MMO,
+                                 bool IsCompressing = false);
+  SDValue getIndexedStridedStoreVP(SDValue OrigStore, const SDLoc &DL,
+                                   SDValue Base, SDValue Offset,
+                                   ISD::MemIndexedMode AM);
 
   SDValue getGatherVP(SDVTList VTs, EVT VT, const SDLoc &dl,
                       ArrayRef<SDValue> Ops, MachineMemOperand *MMO,
