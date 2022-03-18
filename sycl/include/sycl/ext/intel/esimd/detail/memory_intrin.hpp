@@ -421,13 +421,15 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 #else
 {
   static_assert(N == 1 || N == 8 || N == 16 || N == 32);
+  static_assert(sizeof(Ty) == 4);
   static_assert(TySizeLog2 <= 2);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
 
   // determine the original element's type size (as __esimd_scatter_scaled
   // requires vals to be a vector of 4-byte integers)
   constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
-  using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
+  using RestoredTy = std::conditional_t<sizeof(Ty) == OrigSize, Ty,
+                                        __ESIMD_DNS::uint_type_t<OrigSize>>;
 
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
@@ -638,11 +640,13 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 #else
 {
   static_assert(Scale == 0);
+  static_assert(sizeof(Ty) == 4);
 
   // determine the original element's type size (as __esimd_scatter_scaled
   // requires vals to be a vector of 4-byte integers)
   constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
-  using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
+  using RestoredTy = std::conditional_t<sizeof(Ty) == OrigSize, Ty,
+                                        __ESIMD_DNS::uint_type_t<OrigSize>>;
 
   __ESIMD_DNS::vector_type_t<Ty, N> retv = 0;
   sycl::detail::ESIMDDeviceInterface *I =
