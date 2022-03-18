@@ -384,7 +384,7 @@ pi_result _pi_event::start() {
     if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
       // NOTE: This relies on the default stream to be unused.
       result = PI_CHECK_ERROR(cuEventRecord(evQueued_, 0));
-      result = PI_CHECK_ERROR(cuEventRecord(evStart_, queue_->get()));
+      result = PI_CHECK_ERROR(cuEventRecord(evStart_, stream_));
     }
   } catch (pi_result error) {
     result = error;
@@ -448,15 +448,13 @@ pi_result _pi_event::record() {
     return PI_INVALID_QUEUE;
   }
 
-  CUstream cuStream = queue_->get();
-
   try {
     eventId_ = queue_->get_next_event_id();
     if (eventId_ == 0) {
       cl::sycl::detail::pi::die(
           "Unrecoverable program state reached in event identifier overflow");
     }
-    result = PI_CHECK_ERROR(cuEventRecord(evEnd_, cuStream));
+    result = PI_CHECK_ERROR(cuEventRecord(evEnd_, stream_));
   } catch (pi_result error) {
     result = error;
   }
@@ -4720,16 +4718,13 @@ pi_result cuda_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
   if((src_type==PI_MEM_TYPE_DEVICE || src_type==PI_MEM_TYPE_SHARED) && 
      (dst_type == PI_MEM_TYPE_UNKNOWN || dst_type == PI_MEM_TYPE_HOST)){
     cuStream = queue->get_d2h();
-    std::cout << "doing d2h"<< std::endl;
   }
   else if((dst_type==PI_MEM_TYPE_DEVICE || dst_type==PI_MEM_TYPE_SHARED) && 
      (src_type == PI_MEM_TYPE_UNKNOWN || src_type == PI_MEM_TYPE_HOST)){
     cuStream = queue->get_h2d();
-    std::cout << "doing h2d"<< std::endl;
   }
   else{
     cuStream = queue->get_compute();
-    std::cout << "doing other"<< std::endl;
   }
 
   std::unique_ptr<_pi_event> event_ptr{nullptr};
