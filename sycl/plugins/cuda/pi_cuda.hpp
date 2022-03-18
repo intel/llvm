@@ -36,12 +36,12 @@
 extern "C" {
 
 /// \cond IGNORE_BLOCK_IN_DOXYGEN
-pi_result cuda_piContextRetain(pi_context );
-pi_result cuda_piContextRelease(pi_context );
-pi_result cuda_piDeviceRelease(pi_device );
-pi_result cuda_piDeviceRetain(pi_device );
-pi_result cuda_piProgramRetain(pi_program );
-pi_result cuda_piProgramRelease(pi_program );
+pi_result cuda_piContextRetain(pi_context);
+pi_result cuda_piContextRelease(pi_context);
+pi_result cuda_piDeviceRelease(pi_device);
+pi_result cuda_piDeviceRetain(pi_device);
+pi_result cuda_piProgramRetain(pi_program);
+pi_result cuda_piProgramRelease(pi_program);
 pi_result cuda_piQueueRelease(pi_queue);
 pi_result cuda_piQueueRetain(pi_queue);
 pi_result cuda_piMemRetain(pi_mem);
@@ -380,17 +380,18 @@ struct _pi_mem {
 struct _pi_queue {
   using native_type = CUstream;
 
-  native_type stream_h2d_, stream_d2h_, stream_compute_;
+  std::vector<native_type> streams_;
   _pi_context *context_;
   _pi_device *device_;
   pi_queue_properties properties_;
   std::atomic_uint32_t refCount_;
   std::atomic_uint32_t eventCount_;
+  std::atomic_uint32_t stream_idx_;
 
-  _pi_queue(CUstream stream_h2d, CUstream stream_d2h, CUstream stream_compute, _pi_context *context, _pi_device *device,
-            pi_queue_properties properties)
-      : stream_h2d_{stream_h2d}, stream_d2h_{stream_d2h}, stream_compute_(stream_compute), context_{context}, device_{device},
-        properties_{properties}, refCount_{1}, eventCount_{0} {
+  _pi_queue(std::vector<CUstream> &&streams, _pi_context *context,
+            _pi_device *device, pi_queue_properties properties)
+      : streams_{std::move(streams)}, context_{context}, device_{device},
+        properties_{properties}, refCount_{1}, eventCount_{0}, stream_idx_{0} {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -400,10 +401,10 @@ struct _pi_queue {
     cuda_piDeviceRelease(device_);
   }
 
-  native_type get() const noexcept { return stream_compute_; };
-  native_type get_h2d() const noexcept { return stream_h2d_; };
-  native_type get_d2h() const noexcept { return stream_d2h_; };
-  native_type get_compute() const noexcept { return stream_compute_; };
+  native_type get() noexcept {
+    return streams_[stream_idx_++ % streams_.size()];
+  };
+  const std::vector<native_type> &get_all() const noexcept { return streams_; };
 
   _pi_context *get_context() const { return context_; };
 
@@ -479,7 +480,8 @@ public:
   pi_uint64 get_end_time() const;
 
   // construct a native CUDA. This maps closely to the underlying CUDA event.
-  static pi_event make_native(pi_command_type type, pi_queue queue, CUstream stream) {
+  static pi_event make_native(pi_command_type type, pi_queue queue,
+                              CUstream stream) {
     return new _pi_event(type, queue->get_context(), queue, stream);
   }
 
@@ -490,7 +492,8 @@ public:
 private:
   // This constructor is private to force programmers to use the make_native /
   // make_user static members in order to create a pi_event for CUDA.
-  _pi_event(pi_command_type type, pi_context context, pi_queue queue, CUstream stream);
+  _pi_event(pi_command_type type, pi_context context, pi_queue queue,
+            CUstream stream);
 
   pi_command_type commandType_; // The type of command associated with event.
 
@@ -520,7 +523,7 @@ private:
                    // event, this will be nullptr.
 
   CUstream stream_; // CUstream associated with the event. If this is a user
-                   // event, this will be uninitialized.
+                    // event, this will be uninitialized.
 
   pi_context context_; // pi_context associated with the event. If this is a
                        // native event, this will be the same context associated
@@ -555,7 +558,7 @@ struct _pi_program {
 
   pi_result set_binary(const char *binary, size_t binarySizeInBytes);
 
-  pi_result build_program(const char* build_options);
+  pi_result build_program(const char *build_options);
 
   pi_context get_context() const { return context_; };
 
@@ -696,8 +699,7 @@ struct _pi_kernel {
     assert(retError == PI_SUCCESS);
   }
 
-  ~_pi_kernel()
-  {
+  ~_pi_kernel() {
     cuda_piProgramRelease(program_);
     cuda_piContextRelease(context_);
   }
