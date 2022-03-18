@@ -157,7 +157,8 @@ struct TRIFuncObjBad6 {
 };
 
 [[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
-void TRIFuncObjBad6::operator()() const {}
+void
+TRIFuncObjBad6::operator()() const {}
 
 struct TRIFuncObjBad7 {
   [[intel::max_global_work_dim(0)]] void
@@ -165,7 +166,8 @@ struct TRIFuncObjBad7 {
 };
 
 [[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
-void TRIFuncObjBad7::operator()() const {}
+void
+TRIFuncObjBad7::operator()() const {}
 
 struct TRIFuncObjBad8 {
   [[intel::max_global_work_dim(0)]] void
@@ -173,7 +175,8 @@ struct TRIFuncObjBad8 {
 };
 
 [[intel::max_work_group_size(4, 4, 4)]] // expected-error{{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
-void TRIFuncObjBad8::operator()() const {}
+void
+TRIFuncObjBad8::operator()() const {}
 
 // Tests for incorrect argument values for Intel FPGA function attributes:
 // reqd_work_group_size, max_work_group_size and max_global_work_dim.
@@ -454,7 +457,7 @@ int main() {
     h.single_task<class test_kernel28>(TRIFuncObjBad14());
 
     h.single_task<class test_kernel28>(
-        []() [[intel::max_global_work_dim(4)]]{}); // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
+        []() [[intel::max_global_work_dim(4)]] {}); // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
 #endif // TRIGGER_ERROR
   });
   return 0;
