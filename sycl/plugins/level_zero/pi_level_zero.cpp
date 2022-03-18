@@ -76,10 +76,11 @@ static const bool UseCopyEngineForInOrderQueue = [] {
 // for kernel launches and copies. The default is normal commandlists.
 // A setting on a value >=1 specifies use of immediate commandlists.
 static const bool UseImmediateCommandLists = [] {
-  return true;
   const char *ImmediateFlag =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
-  return ImmediateFlag && std::stoi(ImmediateFlag) > 0;
+  if (!ImmediateFlag)
+    return true;
+  return std::stoi(ImmediateFlag) > 0;
 }();
 
 // This class encapsulates actions taken along with a call to Level Zero API.
@@ -279,7 +280,7 @@ static const enum EventsScope {
   const auto DeviceEventsStr =
       std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
 
-  auto Default = LastCommandInBatchHostVisible;
+  auto Default = AllHostVisible;
   switch (DeviceEventsStr ? std::atoi(DeviceEventsStr) : Default) {
   case 0:
     return AllHostVisible;
@@ -5092,6 +5093,9 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // the reference count on the kernel, using the kernel saved
   // in CommandData.
   PI_CALL(piKernelRetain(Kernel));
+  
+  if (UseImmediateCommandLists && IndirectAccessTrackingEnabled)
+    Queue->KernelsToBeSubmitted.push_back(Kernel);
 
   // Add the command to the command list
   ZE_CALL(zeCommandListAppendLaunchKernel,
@@ -5103,7 +5107,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList((*Event)->WaitList);
 
-  if (IndirectAccessTrackingEnabled)
+  if (!UseImmediateCommandLists && IndirectAccessTrackingEnabled)
     Queue->KernelsToBeSubmitted.push_back(Kernel);
 
   // Execute command list asynchronously, as the event will be used
