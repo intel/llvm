@@ -411,25 +411,53 @@ void processFunctionInstructions(Function &F,
   }
 }
 
+// Return true if the function is a SPIRV or SYCL builtin, e.g.
+// _Z28__spirv_GlobalInvocationId_xv
+bool isSpirvSyclBuiltin(StringRef FName) {
+  if (!FName.consume_front("_Z"))
+    return false;
+  // now skip the digits
+  FName = FName.drop_while([](char C) { return std::isdigit(C); });
+
+  return FName.startswith("__spirv_") || FName.startswith("__sycl_");
+}
+
+bool isEntryPoint(const Function &F) {
+  // Skip declarations, we can't analyze them
+  if (F.isDeclaration())
+    return false;
+
+  // Kernels are always considered to be entry points
+  if (CallingConv::SPIR_KERNEL == F.getCallingConv())
+    return true;
+
+  // FIXME: sycl-post-link allows t disable treating SYCL_EXTERNAL's as entry
+  // points - do we need similar flag here?
+  // SYCL_EXTERNAL functions with sycl-module-id attribute
+  // are also considered as entry points (except __spirv_* and __sycl_*
+  // functions)
+  return F.hasFnAttribute("sycl-module-id") && !isSpirvSyclBuiltin(F.getName());
+}
+
 /// Returns a map of functions with corresponding used aspects.
 FunctionToAspectsMapTy
 buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
   FunctionToAspectsMapTy FunctionToAspects;
   CallGraphTy CG;
-  std::vector<Function *> Kernels;
+  std::vector<Function *> EntryPoints;
   for (Function &F : M.functions()) {
     auto CC = F.getCallingConv();
     if (CC != CallingConv::SPIR_FUNC && CC != CallingConv::SPIR_KERNEL)
       continue;
 
-    if (CC == CallingConv::SPIR_KERNEL)
-      Kernels.push_back(&F);
+    if (isEntryPoint(F))
+      EntryPoints.push_back(&F);
 
     processFunctionInstructions(F, FunctionToAspects, TypesWithAspects, CG);
   }
 
   SmallPtrSet<Function *, 16> Visited;
-  for (Function *F : Kernels)
+  for (Function *F : EntryPoints)
     propagateAspectsThroughCG(F, CG, FunctionToAspects, Visited);
 
   return FunctionToAspects;
