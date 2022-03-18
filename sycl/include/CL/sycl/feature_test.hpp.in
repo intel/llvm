@@ -38,7 +38,7 @@ namespace sycl {
 // 2- provides JIT implementation (target agnostic) for the
 // experimental matrix extension
 #ifndef SYCL_EXT_ONEAPI_MATRIX
-#define SYCL_EXT_ONEAPI_MATRIX 2
+#define SYCL_EXT_ONEAPI_MATRIX 3
 #endif
 #define SYCL_EXT_ONEAPI_ASSERT 1
 #define SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS 1
