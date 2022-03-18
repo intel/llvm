@@ -1321,27 +1321,6 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     CommandBatch.OpenCommandList = CommandListMap.end();
   }
 
-  if (this->isEventlessMode() && !this->SkipLastEventInEventlessMode) {
-    pi_result Res =
-        createEventAndAssociateQueue(this, &this->LastCommandEvent,
-                                     PI_COMMAND_TYPE_USER, CommandList, false);
-    if (Res != PI_SUCCESS)
-      return Res;
-    // Decrement the reference count of the event as this event will not be
-    // waited/released by SYCL RT, so it must be destroyed by EventRelease in
-    // resetCommandList.
-    PI_CALL(piEventRelease(this->LastCommandEvent));
-
-    // Add a special barrier with an event into command-list to ensure in-order
-    // semantics between command-lists
-    auto &ZeEvent = this->LastCommandEvent->ZeEvent;
-    ZE_CALL(zeCommandListAppendBarrier,
-            (CommandList->first, ZeEvent, 0, nullptr));
-
-    zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
-            pi_cast<std::uintptr_t>(ZeEvent));
-  }
-
   auto &ZeCommandQueue = CommandList->second.ZeQueue;
   // Scope of the lock must be till the end of the function, otherwise new mem
   // allocs can be created between the moment when we made a snapshot and the
@@ -1423,6 +1402,31 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // the batch).
     ZE_CALL(zeCommandListAppendSignalEvent,
             (CommandList->first, HostVisibleEvent->ZeEvent));
+
+    if (isEventlessMode()) {
+      this->LastCommandEvent = HostVisibleEvent;
+    }
+  } else {
+    if (this->isEventlessMode() && !this->SkipLastEventInEventlessMode) {
+      pi_result Res = createEventAndAssociateQueue(
+          this, &this->LastCommandEvent, PI_COMMAND_TYPE_USER, CommandList,
+          false);
+      if (Res != PI_SUCCESS)
+        return Res;
+      // Decrement the reference count of the event as this event will not be
+      // waited/released by SYCL RT, so it must be destroyed by EventRelease in
+      // resetCommandList.
+      PI_CALL(piEventRelease(this->LastCommandEvent));
+
+      // Add a special barrier with an event into command-list to ensure
+      // in-order semantics between command-lists
+      auto &ZeEvent = this->LastCommandEvent->ZeEvent;
+      ZE_CALL(zeCommandListAppendBarrier,
+              (CommandList->first, ZeEvent, 0, nullptr));
+
+      zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
+              pi_cast<std::uintptr_t>(ZeEvent));
+    }
   }
 
   // Close the command list and have it ready for dispatch.
