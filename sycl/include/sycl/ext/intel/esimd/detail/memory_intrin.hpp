@@ -432,15 +432,12 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
-  __ESIMD_DNS::vector_type_t<RestoredTy, N> TypeAdjustedVals = 0;
+  __ESIMD_DNS::vector_type_t<RestoredTy, N> TypeAdjustedVals;
   if constexpr (OrigSize == 4) {
     TypeAdjustedVals = __ESIMD_DNS::bitcast<RestoredTy, Ty, N>(vals);
   } else {
     static_assert(OrigSize == 1 || OrigSize == 2);
-    // TODO : Built-in function??
-    for (int idx = 0; idx < N; idx += 1) {
-      TypeAdjustedVals[idx] = static_cast<RestoredTy>(vals[idx]);
-    }
+    TypeAdjustedVals = __ESIMD_DNS::convert_vector<RestoredTy, Ty, N>(vals);
   }
 
   if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
@@ -691,16 +688,11 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     // TODO : Optimize
     I->cm_fence_ptr();
   }
-  // return retv;
+
   if constexpr (OrigSize == 4) {
     return __ESIMD_DNS::bitcast<Ty, RestoredTy, N>(retv);
   } else {
-    __ESIMD_DNS::vector_type_t<Ty, N> Adjusted = 0;
-    // TODO : Built-in function??
-    for (int idx = 0; idx < N; idx += 1) {
-      Adjusted[idx] = static_cast<Ty>(retv[idx]);
-    }
-    return Adjusted;
+    return __ESIMD_DNS::convert_vector<Ty, RestoredTy, N>(retv);
   }
 }
 #endif // __SYCL_DEVICE_ONLY__
