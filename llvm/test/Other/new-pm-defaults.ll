@@ -63,7 +63,7 @@
 ; RUN:     -passes='lto-pre-link<O3>' -S  %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK-O,CHECK-LTO,CHECK-O3,%llvmcheckext,CHECK-EP-PIPELINE-START,CHECK-O23SZ
 ; RUN: opt -disable-verify -verify-cfg-preserved=1 -eagerly-invalidate-analyses=0 -debug-pass-manager \
-; RUN:     -passes-ep-optimizer-last='no-op-function' \
+; RUN:     -passes-ep-optimizer-last='no-op-module' \
 ; RUN:     -passes='default<O3>' -S  %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK-O,CHECK-DEFAULT,CHECK-O3,%llvmcheckext,CHECK-EP-OPTIMIZER-LAST,CHECK-O23SZ
 
@@ -217,7 +217,7 @@
 ; CHECK-DEFAULT-NEXT: Running pass: EliminateAvailableExternallyPass
 ; CHECK-LTO-NOT: Running pass: EliminateAvailableExternallyPass
 ; CHECK-O-NEXT: Running pass: ReversePostOrderFunctionAttrsPass
-; CHECK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}GlobalsAA
+; CHECK-O-NEXT: Running pass: RecomputeGlobalsAAPass
 ; CHECK-O-NEXT: Running pass: Float2IntPass
 ; CHECK-O-NEXT: Running pass: LowerConstantIntrinsicsPass on foo
 ; CHECK-MATRIX: Running pass: LowerMatrixIntrinsicsPass on f
@@ -256,7 +256,7 @@
 ; CHECK-O-NEXT: Running pass: DivRemPairsPass
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O-NEXT: Running pass: CoroCleanupPass
-; CHECK-EP-OPTIMIZER-LAST: Running pass: NoOpFunctionPass
+; CHECK-EP-OPTIMIZER-LAST: Running pass: NoOpModulePass
 ; CHECK-HOT-COLD-SPLIT-NEXT: Running pass: HotColdSplittingPass
 ; CHECK-IR-OUTLINER-NEXT: Running pass: IROutlinerPass
 ; CHECK-IR-OUTLINER-NEXT: Running analysis: IRSimilarityAnalysis
@@ -266,8 +266,6 @@
 ; CHECK-O-NEXT: Running pass: ConstantMergePass
 ; CHECK-DEFAULT-NEXT: Running pass: RelLookupTableConverterPass
 ; CHECK-LTO-NOT: Running pass: RelLookupTableConverterPass
-; CHECK-DEFAULT-NEXT: Running analysis: TargetIRAnalysis
-; CHECK-LTO-NOT: Running analysis: TargetIRAnalysis
 ; CHECK-O-NEXT: Running pass: AnnotationRemarksPass on foo
 ; CHECK-LTO-NEXT: Running pass: CanonicalizeAliasesPass
 ; CHECK-LTO-NEXT: Running pass: NameAnonGlobalPass

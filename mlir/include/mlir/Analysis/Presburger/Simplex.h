@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Functionality to perform analysis on an IntegerPolyhedron. In particular,
+// Functionality to perform analysis on an IntegerRelation. In particular,
 // support for performing emptiness checks, redundancy checks and obtaining the
 // lexicographically minimum rational element in a set.
 //
@@ -16,7 +16,7 @@
 #define MLIR_ANALYSIS_PRESBURGER_SIMPLEX_H
 
 #include "mlir/Analysis/Presburger/Fraction.h"
-#include "mlir/Analysis/Presburger/IntegerPolyhedron.h"
+#include "mlir/Analysis/Presburger/IntegerRelation.h"
 #include "mlir/Analysis/Presburger/Matrix.h"
 #include "mlir/Analysis/Presburger/Utils.h"
 #include "mlir/Support/LogicalResult.h"
@@ -27,6 +27,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 namespace mlir {
+namespace presburger {
 
 class GBRSimplex;
 
@@ -40,8 +41,8 @@ class GBRSimplex;
 /// these constraints that are redundant, i.e. a subset of constraints that
 /// doesn't constrain the affine set further after adding the non-redundant
 /// constraints. The LexSimplex class provides support for computing the
-/// lexicographical minimum of an IntegerPolyhedron. Both these classes can be
-/// constructed from an IntegerPolyhedron, and both inherit common
+/// lexicographical minimum of an IntegerRelation. Both these classes can be
+/// constructed from an IntegerRelation, and both inherit common
 /// functionality from SimplexBase.
 ///
 /// The implementations of the Simplex and SimplexBase classes, other than the
@@ -200,8 +201,8 @@ public:
   /// Rollback to a snapshot. This invalidates all later snapshots.
   void rollback(unsigned snapshot);
 
-  /// Add all the constraints from the given IntegerPolyhedron.
-  void intersectIntegerPolyhedron(const IntegerPolyhedron &poly);
+  /// Add all the constraints from the given IntegerRelation.
+  void intersectIntegerRelation(const IntegerRelation &rel);
 
   /// Print the tableau's internal state.
   void print(raw_ostream &os) const;
@@ -308,7 +309,7 @@ protected:
   unsigned getNumFixedCols() const { return usingBigM ? 3u : 2u; }
 
   /// Stores whether or not a big M column is present in the tableau.
-  const bool usingBigM;
+  bool usingBigM;
 
   /// The number of rows in the tableau.
   unsigned nRow;
@@ -418,9 +419,9 @@ class LexSimplex : public SimplexBase {
 public:
   explicit LexSimplex(unsigned nVar)
       : SimplexBase(nVar, /*mustUseBigM=*/true) {}
-  explicit LexSimplex(const IntegerPolyhedron &constraints)
+  explicit LexSimplex(const IntegerRelation &constraints)
       : LexSimplex(constraints.getNumIds()) {
-    intersectIntegerPolyhedron(constraints);
+    intersectIntegerRelation(constraints);
   }
   ~LexSimplex() override = default;
 
@@ -438,13 +439,13 @@ public:
   unsigned getSnapshot() { return SimplexBase::getSnapshotBasis(); }
 
   /// Return the lexicographically minimum rational solution to the constraints.
-  presburger_utils::MaybeOptimum<SmallVector<Fraction, 8>> findRationalLexMin();
+  MaybeOptimum<SmallVector<Fraction, 8>> findRationalLexMin();
 
   /// Return the lexicographically minimum integer solution to the constraints.
   ///
   /// Note: this should be used only when the lexmin is really needed. To obtain
   /// any integer sample, use Simplex::findIntegerSample as that is more robust.
-  presburger_utils::MaybeOptimum<SmallVector<int64_t, 8>> findIntegerLexMin();
+  MaybeOptimum<SmallVector<int64_t, 8>> findIntegerLexMin();
 
 protected:
   /// Returns the current sample point, which may contain non-integer (rational)
@@ -453,8 +454,7 @@ protected:
   /// Returns an unbounded optimum when the big M parameter is used and a
   /// variable has a non-zero big M coefficient, meaning its value is infinite
   /// or unbounded.
-  presburger_utils::MaybeOptimum<SmallVector<Fraction, 8>>
-  getRationalSample() const;
+  MaybeOptimum<SmallVector<Fraction, 8>> getRationalSample() const;
 
   /// Given a row that has a non-integer sample value, add an inequality such
   /// that this fractional sample value is cut away from the polytope. The added
@@ -515,9 +515,9 @@ public:
 
   Simplex() = delete;
   explicit Simplex(unsigned nVar) : SimplexBase(nVar, /*mustUseBigM=*/false) {}
-  explicit Simplex(const IntegerPolyhedron &constraints)
+  explicit Simplex(const IntegerRelation &constraints)
       : Simplex(constraints.getNumIds()) {
-    intersectIntegerPolyhedron(constraints);
+    intersectIntegerRelation(constraints);
   }
   ~Simplex() override = default;
 
@@ -535,16 +535,15 @@ public:
   ///
   /// Returns a Fraction denoting the optimum, or a null value if no optimum
   /// exists, i.e., if the expression is unbounded in this direction.
-  presburger_utils::MaybeOptimum<Fraction>
-  computeRowOptimum(Direction direction, unsigned row);
+  MaybeOptimum<Fraction> computeRowOptimum(Direction direction, unsigned row);
 
   /// Compute the maximum or minimum value of the given expression, depending on
   /// direction. Should not be called when the Simplex is empty.
   ///
   /// Returns a Fraction denoting the optimum, or a null value if no optimum
   /// exists, i.e., if the expression is unbounded in this direction.
-  presburger_utils::MaybeOptimum<Fraction>
-  computeOptimum(Direction direction, ArrayRef<int64_t> coeffs);
+  MaybeOptimum<Fraction> computeOptimum(Direction direction,
+                                        ArrayRef<int64_t> coeffs);
 
   /// Returns whether the perpendicular of the specified constraint is a
   /// is a direction along which the polytope is bounded.
@@ -565,8 +564,7 @@ public:
   /// Returns a (min, max) pair denoting the minimum and maximum integer values
   /// of the given expression. If no integer value exists, both results will be
   /// of kind Empty.
-  std::pair<presburger_utils::MaybeOptimum<int64_t>,
-            presburger_utils::MaybeOptimum<int64_t>>
+  std::pair<MaybeOptimum<int64_t>, MaybeOptimum<int64_t>>
   computeIntegerBounds(ArrayRef<int64_t> coeffs);
 
   /// Returns true if the polytope is unbounded, i.e., extends to infinity in
@@ -597,9 +595,9 @@ public:
   /// Check if the specified equality already holds in the polytope.
   bool isRedundantEquality(ArrayRef<int64_t> coeffs);
 
-  /// Returns true if this Simplex's polytope is a rational subset of `poly`.
+  /// Returns true if this Simplex's polytope is a rational subset of `rel`.
   /// Otherwise, returns false.
-  bool isRationalSubsetOf(const IntegerPolyhedron &poly);
+  bool isRationalSubsetOf(const IntegerRelation &rel);
 
   /// Returns the current sample point if it is integral. Otherwise, returns
   /// None.
@@ -650,8 +648,7 @@ private:
   ///
   /// Returns a Fraction denoting the optimum, or a null value if no optimum
   /// exists, i.e., if the expression is unbounded in this direction.
-  presburger_utils::MaybeOptimum<Fraction> computeOptimum(Direction direction,
-                                                          Unknown &u);
+  MaybeOptimum<Fraction> computeOptimum(Direction direction, Unknown &u);
 
   /// Mark the specified unknown redundant. This operation is added to the undo
   /// log and will be undone by rollbacks. The specified unknown must be in row
@@ -663,6 +660,7 @@ private:
   void reduceBasis(Matrix &basis, unsigned level);
 };
 
+} // namespace presburger
 } // namespace mlir
 
 #endif // MLIR_ANALYSIS_PRESBURGER_SIMPLEX_H

@@ -1608,7 +1608,7 @@ void AttrsVisitor::SetBindNameOn(Symbol &symbol) {
     auto first{label->find_first_not_of(" ")};
     if (first == std::string::npos) {
       // Empty NAME= means no binding at all (18.10.2p2)
-      Say(currStmtSource().value(), "Blank binding label ignored"_en_US);
+      Say(currStmtSource().value(), "Blank binding label ignored"_warn_en_US);
       return;
     }
     auto last{label->find_last_not_of(" ")};
@@ -1646,7 +1646,7 @@ bool AttrsVisitor::Pre(const parser::Pass &x) {
 bool AttrsVisitor::IsDuplicateAttr(Attr attrName) {
   if (attrs_->test(attrName)) {
     Say(currStmtSource().value(),
-        "Attribute '%s' cannot be used more than once"_en_US,
+        "Attribute '%s' cannot be used more than once"_warn_en_US,
         AttrToString(attrName));
     return true;
   }
@@ -2280,7 +2280,7 @@ bool ScopeHandler::ImplicitlyTypeForwardRef(Symbol &symbol) {
   if (context().languageFeatures().ShouldWarn(
           common::LanguageFeature::ForwardRefDummyImplicitNone)) {
     Say(symbol.name(),
-        "Dummy argument '%s' was used without being explicitly typed"_en_US,
+        "Dummy argument '%s' was used without being explicitly typed"_warn_en_US,
         symbol.name());
   }
   symbol.set(Symbol::Flag::Implicit);
@@ -3137,7 +3137,7 @@ void SubprogramVisitor::Post(const parser::FunctionStmt &stmt) {
     Say(info.resultName->source,
         "The function name should not appear in RESULT, references to '%s' "
         "inside the function will be considered as references to the "
-        "result only"_en_US,
+        "result only"_warn_en_US,
         name.source);
     // RESULT name was ignored above, the only side effect from doing so will be
     // the inability to make recursive calls. The related parser::Name is still
@@ -3317,13 +3317,21 @@ bool SubprogramVisitor::BeginMpSubprogram(const parser::Name &name) {
     Say(name, "'%s' was not declared a separate module procedure"_err_en_US);
     return false;
   }
-  if (symbol->owner() == currScope()) {
-    PushScope(Scope::Kind::Subprogram, symbol);
+  if (symbol->owner() == currScope() && symbol->scope()) {
+    // This is a MODULE PROCEDURE whose interface appears in its host.
+    // Convert the module procedure's interface into a subprogram.
+    SetScope(DEREF(symbol->scope()));
+    symbol->get<SubprogramDetails>().set_isInterface(false);
+    if (IsFunction(*symbol)) {
+      funcInfoStack_.emplace_back(); // just to be popped later
+    }
   } else {
+    // Copy the interface into a new subprogram scope.
     Symbol &newSymbol{MakeSymbol(name, SubprogramDetails{})};
     PushScope(Scope::Kind::Subprogram, &newSymbol);
     const auto &details{symbol->get<SubprogramDetails>()};
     auto &newDetails{newSymbol.get<SubprogramDetails>()};
+    newDetails.set_moduleInterface(*symbol);
     for (const Symbol *dummyArg : details.dummyArgs()) {
       if (!dummyArg) {
         newDetails.add_alternateReturn();
@@ -3349,14 +3357,34 @@ bool SubprogramVisitor::BeginSubprogram(
         "MODULE or SUBMODULE"_err_en_US);
     return false;
   }
-
-  if (hasModulePrefix && !inInterfaceBlock() &&
-      !IsSeparateModuleProcedureInterface(
-          FindSymbol(currScope().parent(), name))) {
-    Say(name, "'%s' was not declared a separate module procedure"_err_en_US);
-    return false;
+  Symbol *moduleInterface{nullptr};
+  if (hasModulePrefix && !inInterfaceBlock()) {
+    moduleInterface = FindSymbol(currScope(), name);
+    if (IsSeparateModuleProcedureInterface(moduleInterface)) {
+      // Subprogram is MODULE FUNCTION or MODULE SUBROUTINE with an interface
+      // previously defined in the same scope.
+      currScope().erase(moduleInterface->name());
+    } else {
+      moduleInterface = nullptr;
+    }
+    if (!moduleInterface) {
+      moduleInterface = FindSymbol(currScope().parent(), name);
+      if (!IsSeparateModuleProcedureInterface(moduleInterface)) {
+        Say(name,
+            "'%s' was not declared a separate module procedure"_err_en_US);
+        return false;
+      }
+    }
   }
-  PushSubprogramScope(name, subpFlag);
+  Symbol &newSymbol{PushSubprogramScope(name, subpFlag)};
+  if (moduleInterface) {
+    newSymbol.get<SubprogramDetails>().set_moduleInterface(*moduleInterface);
+    if (moduleInterface->attrs().test(Attr::PRIVATE)) {
+      newSymbol.attrs().set(Attr::PRIVATE);
+    } else if (moduleInterface->attrs().test(Attr::PUBLIC)) {
+      newSymbol.attrs().set(Attr::PUBLIC);
+    }
+  }
   if (IsFunction(currScope())) {
     funcInfoStack_.emplace_back();
   }
@@ -3782,7 +3810,7 @@ bool DeclarationVisitor::Pre(const parser::IntrinsicStmt &x) {
       // These warnings are worded so that they should make sense in either
       // order.
       Say(symbol.name(),
-          "Explicit type declaration ignored for intrinsic function '%s'"_en_US,
+          "Explicit type declaration ignored for intrinsic function '%s'"_warn_en_US,
           symbol.name())
           .Attach(name.source,
               "INTRINSIC statement for explicitly-typed '%s'"_en_US,
@@ -4300,14 +4328,14 @@ bool DeclarationVisitor::Pre(const parser::PrivateStmt &) {
     derivedTypeInfo_.privateComps = true;
   } else {
     Say("PRIVATE may not appear more than once in"
-        " derived type components"_en_US); // C738
+        " derived type components"_warn_en_US); // C738
   }
   return false;
 }
 bool DeclarationVisitor::Pre(const parser::SequenceStmt &) {
   if (derivedTypeInfo_.sequence) {
     Say("SEQUENCE may not appear more than once in"
-        " derived type components"_en_US); // C738
+        " derived type components"_warn_en_US); // C738
   }
   derivedTypeInfo_.sequence = true;
   return false;
@@ -4399,7 +4427,7 @@ bool DeclarationVisitor::Pre(const parser::DataComponentDefStmt &x) {
         if (GetAttrs().test(Attr::POINTER) &&
             context().IsEnabled(common::LanguageFeature::PointerInSeqType)) {
           if (context().ShouldWarn(common::LanguageFeature::PointerInSeqType)) {
-            Say("A sequence type data component that is a pointer to a non-sequence type is not standard"_en_US);
+            Say("A sequence type data component that is a pointer to a non-sequence type is not standard"_port_en_US);
           }
         } else {
           Say("A sequence type data component must either be of an intrinsic type or a derived sequence type"_err_en_US);
@@ -5009,7 +5037,7 @@ void DeclarationVisitor::AddSaveName(
     std::set<SourceName> &set, const SourceName &name) {
   auto pair{set.insert(name)};
   if (!pair.second) {
-    Say2(name, "SAVE attribute was already specified on '%s'"_en_US,
+    Say2(name, "SAVE attribute was already specified on '%s'"_warn_en_US,
         *pair.first, "Previous specification of SAVE attribute"_en_US);
   }
 }
@@ -5124,10 +5152,24 @@ bool DeclarationVisitor::HandleUnrestrictedSpecificIntrinsicFunction(
   if (auto interface{context().intrinsics().IsSpecificIntrinsicFunction(
           name.source.ToString())}) {
     // Unrestricted specific intrinsic function names (e.g., "cos")
-    // are acceptable as procedure interfaces.
+    // are acceptable as procedure interfaces.  The presence of the
+    // INTRINSIC flag will cause this symbol to have a complete interface
+    // recreated for it later on demand, but capturing its result type here
+    // will make GetType() return a correct result without having to
+    // probe the intrinsics table again.
     Symbol &symbol{
         MakeSymbol(InclusiveScope(), name.source, Attrs{Attr::INTRINSIC})};
-    symbol.set_details(ProcEntityDetails{});
+    CHECK(interface->functionResult.has_value());
+    evaluate::DynamicType dyType{
+        DEREF(interface->functionResult->GetTypeAndShape()).type()};
+    CHECK(common::IsNumericTypeCategory(dyType.category()));
+    const DeclTypeSpec &typeSpec{
+        MakeNumericType(dyType.category(), dyType.kind())};
+    ProcEntityDetails details;
+    ProcInterface procInterface;
+    procInterface.set_type(typeSpec);
+    details.set_interface(procInterface);
+    symbol.set_details(std::move(details));
     symbol.set(Symbol::Flag::Function);
     if (interface->IsElemental()) {
       symbol.attrs().set(Attr::ELEMENTAL);
@@ -5411,7 +5453,7 @@ bool DeclarationVisitor::OkToAddComponent(
     CHECK(scope->IsDerivedType());
     if (auto *prev{FindInScope(*scope, name)}) {
       if (!context().HasError(*prev)) {
-        auto msg{""_en_US};
+        parser::MessageFixedText msg;
         if (extends) {
           msg = "Type cannot be extended as it has a component named"
                 " '%s'"_err_en_US;
@@ -5533,7 +5575,8 @@ bool ConstructVisitor::Pre(const parser::LocalitySpec::LocalInit &x) {
 bool ConstructVisitor::Pre(const parser::LocalitySpec::Shared &x) {
   for (const auto &name : x.v) {
     if (!FindSymbol(name)) {
-      Say(name, "Variable '%s' with SHARED locality implicitly declared"_en_US);
+      Say(name,
+          "Variable '%s' with SHARED locality implicitly declared"_warn_en_US);
     }
     Symbol &prev{FindOrDeclareEnclosingEntity(name)};
     if (PassesSharedLocalityChecks(name, prev)) {
@@ -6133,7 +6176,7 @@ const parser::Name *DeclarationVisitor::ResolveName(const parser::Name &name) {
     if (checkIndexUseInOwnBounds_ &&
         *checkIndexUseInOwnBounds_ == name.source) {
       Say(name,
-          "Implied DO index '%s' uses an object of the same name in its bounds expressions"_en_US,
+          "Implied DO index '%s' uses an object of the same name in its bounds expressions"_port_en_US,
           name.source);
     }
     return &name;
@@ -6612,9 +6655,9 @@ Symbol &ModuleVisitor::SetAccess(
     // PUBLIC/PRIVATE already set: make it a fatal error if it changed
     Attr prev = attrs.test(Attr::PUBLIC) ? Attr::PUBLIC : Attr::PRIVATE;
     Say(name,
-        WithIsFatal(
-            "The accessibility of '%s' has already been specified as %s"_en_US,
-            attr != prev),
+        WithSeverity(
+            "The accessibility of '%s' has already been specified as %s"_warn_en_US,
+            attr != prev ? parser::Severity::Error : parser::Severity::Warning),
         MakeOpName(name), EnumToString(prev));
   } else {
     attrs.set(attr);
@@ -7045,7 +7088,12 @@ void ResolveNamesVisitor::AddSubpNames(ProgramTree &node) {
       node.IsModule() ? SubprogramKind::Module : SubprogramKind::Internal};
   for (auto &child : node.children()) {
     auto &symbol{MakeSymbol(child.name(), SubprogramNameDetails{kind, child})};
-    symbol.set(child.GetSubpFlag());
+    auto childKind{child.GetKind()};
+    if (childKind == ProgramTree::Kind::Function) {
+      symbol.set(Symbol::Flag::Function);
+    } else if (childKind == ProgramTree::Kind::Subroutine) {
+      symbol.set(Symbol::Flag::Subroutine);
+    }
     for (const auto &entryStmt : child.entryStmts()) {
       SubprogramNameDetails details{kind, child};
       details.set_isEntryStmt();

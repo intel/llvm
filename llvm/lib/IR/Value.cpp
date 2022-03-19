@@ -28,7 +28,6 @@
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/IR/ValueSymbolTable.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -964,6 +963,9 @@ Align Value::getPointerAlignment(const DataLayout &DL) const {
       return Align(CI->getLimitedValue());
     }
   } else if (auto *CstPtr = dyn_cast<Constant>(this)) {
+    // Strip pointer casts to avoid creating unnecessary ptrtoint expression
+    // if the only "reduction" is combining a bitcast + ptrtoint.
+    CstPtr = CstPtr->stripPointerCasts();
     if (auto *CstInt = dyn_cast_or_null<ConstantInt>(ConstantExpr::getPtrToInt(
             const_cast<Constant *>(CstPtr), DL.getIntPtrType(getType()),
             /*OnlyIfReduced=*/true))) {

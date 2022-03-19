@@ -78,7 +78,7 @@ bool IoStatementBase::Inquire(InquiryKeywordHash, std::int64_t &) {
 void IoStatementBase::BadInquiryKeywordHashCrash(InquiryKeywordHash inquiry) {
   char buffer[16];
   const char *decode{InquiryKeywordHashDecode(buffer, sizeof buffer, inquiry)};
-  Crash("bad InquiryKeywordHash 0x%x (%s)", inquiry,
+  Crash("Bad InquiryKeywordHash 0x%x (%s)", inquiry,
       decode ? decode : "(cannot decode)");
 }
 
@@ -544,25 +544,30 @@ std::optional<char32_t> IoStatementState::NextInField(
       GotChar();
       return next;
     }
-    const ConnectionState &connection{GetConnectionState()};
-    if (!connection.IsAtEOF()) {
-      if (auto length{connection.EffectiveRecordLength()}) {
-        if (connection.positionInRecord >= *length) {
-          IoErrorHandler &handler{GetIoErrorHandler()};
-          if (mutableModes().nonAdvancing) {
-            handler.SignalEor();
-          } else if (connection.openRecl && !connection.modes.pad) {
-            handler.SignalError(IostatRecordReadOverrun);
-          }
-          if (connection.modes.pad) { // PAD='YES'
-            --*remaining;
-            return std::optional<char32_t>{' '};
-          }
-        }
-      }
+    if (CheckForEndOfRecord()) { // do padding
+      --*remaining;
+      return std::optional<char32_t>{' '};
     }
   }
   return std::nullopt;
+}
+
+bool IoStatementState::CheckForEndOfRecord() {
+  const ConnectionState &connection{GetConnectionState()};
+  if (!connection.IsAtEOF()) {
+    if (auto length{connection.EffectiveRecordLength()}) {
+      if (connection.positionInRecord >= *length) {
+        IoErrorHandler &handler{GetIoErrorHandler()};
+        if (mutableModes().nonAdvancing) {
+          handler.SignalEor();
+        } else if (connection.openRecl && !connection.modes.pad) {
+          handler.SignalError(IostatRecordReadOverrun);
+        }
+        return connection.modes.pad; // PAD='YES'
+      }
+    }
+  }
+  return false;
 }
 
 bool IoStatementState::Inquire(
@@ -1130,7 +1135,7 @@ bool InquireUnitState::Inquire(
     } else if (unit().openRecl) {
       result = *unit().openRecl;
     } else {
-      result = std::numeric_limits<std::uint32_t>::max();
+      result = std::numeric_limits<std::int32_t>::max();
     }
     return true;
   case HashInquiryKeyword("SIZE"):
@@ -1358,6 +1363,11 @@ bool InquireIOLengthState::Emit(const char16_t *p, std::size_t n) {
 bool InquireIOLengthState::Emit(const char32_t *p, std::size_t n) {
   bytes_ += sizeof *p * n;
   return true;
+}
+
+int ErroneousIoStatementState::EndIoStatement() {
+  SignalError(iostat_);
+  return IoStatementBase::EndIoStatement();
 }
 
 } // namespace Fortran::runtime::io

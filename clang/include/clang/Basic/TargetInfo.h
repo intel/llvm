@@ -1195,12 +1195,12 @@ public:
   /// Microsoft C++ code using dllimport/export attributes?
   virtual bool shouldDLLImportComdatSymbols() const {
     return getTriple().isWindowsMSVCEnvironment() ||
-           getTriple().isWindowsItaniumEnvironment() || getTriple().isPS4CPU();
+           getTriple().isWindowsItaniumEnvironment() || getTriple().isPS4();
   }
 
   // Does this target have PS4 specific dllimport/export handling?
   virtual bool hasPS4DLLImportExport() const {
-    return getTriple().isPS4CPU() ||
+    return getTriple().isPS4() ||
            // Windows Itanium support allows for testing the SCEI flavour of
            // dllimport/export handling on a Windows system.
            (getTriple().isWindowsItaniumEnvironment() &&
@@ -1371,6 +1371,13 @@ public:
 
   // Get the character to be added for mangling purposes for cpu_specific.
   virtual char CPUSpecificManglingCharacter(StringRef Name) const {
+    llvm_unreachable(
+        "cpu_specific Multiversioning not implemented on this target");
+  }
+
+  // Get the value for the 'tune-cpu' flag for a cpu_specific variant with the
+  // programmer-specified 'Name'.
+  virtual StringRef getCPUSpecificTuneName(StringRef Name) const {
     llvm_unreachable(
         "cpu_specific Multiversioning not implemented on this target");
   }

@@ -72,6 +72,7 @@ protected:
   // Dynamically set bits that enable features.
   bool FlatForGlobal;
   bool AutoWaitcntBeforeBarrier;
+  bool BackOffBarrier;
   bool UnalignedScratchAccess;
   bool UnalignedAccessMode;
   bool HasApertureRegs;
@@ -101,6 +102,7 @@ protected:
   bool GFX8Insts;
   bool GFX9Insts;
   bool GFX90AInsts;
+  bool GFX940Insts;
   bool GFX10Insts;
   bool GFX10_3Insts;
   bool GFX7GFX8GFX9Insts;
@@ -123,6 +125,7 @@ protected:
   bool HasDPP8;
   bool Has64BitDPP;
   bool HasPackedFP32Ops;
+  bool HasImageInsts;
   bool HasExtendedImageInsts;
   bool HasR128A16;
   bool HasGFX10A16;
@@ -491,6 +494,12 @@ public:
     return AutoWaitcntBeforeBarrier;
   }
 
+  /// \returns true if the target supports backing off of s_barrier instructions
+  /// when an exception is raised.
+  bool supportsBackOffBarrier() const {
+    return BackOffBarrier;
+  }
+
   bool hasUnalignedBufferAccess() const {
     return UnalignedBufferAccess;
   }
@@ -559,7 +568,7 @@ public:
   // The ST addressing mode means no registers are used, either VGPR or SGPR,
   // but only immediate offset is swizzled and added to the FLAT scratch base.
   bool hasFlatScratchSTMode() const {
-    return hasFlatScratchInsts() && hasGFX10_3Insts();
+    return hasFlatScratchInsts() && (hasGFX10_3Insts() || hasGFX940Insts());
   }
 
   bool hasScalarFlatScratchInsts() const {
@@ -834,7 +843,11 @@ public:
   }
 
   bool hasFmaakFmamkF32Insts() const {
-    return getGeneration() >= GFX10;
+    return getGeneration() >= GFX10 || hasGFX940Insts();
+  }
+
+  bool hasImageInsts() const {
+    return HasImageInsts;
   }
 
   bool hasExtendedImageInsts() const {
@@ -878,6 +891,10 @@ public:
   }
 
   bool hasMadF16() const;
+
+  bool hasMovB64() const { return GFX940Insts; }
+
+  bool hasLshlAddB64() const { return GFX940Insts; }
 
   bool enableSIScheduler() const {
     return EnableSIScheduler;
@@ -947,6 +964,11 @@ public:
     return HasLdsBranchVmemWARHazard;
   }
 
+  // Cannot use op_sel with v_dot instructions.
+  bool hasDOTOpSelHazard() const {
+    return GFX940Insts;
+  }
+
   bool hasNSAtoVMEMBug() const {
     return HasNSAtoVMEMBug;
   }
@@ -961,6 +983,10 @@ public:
   bool needsAlignedVGPRs() const { return GFX90AInsts; }
 
   bool hasPackedTID() const { return HasPackedTID; }
+
+  // GFX940 is a derivation to GFX90A. hasGFX940Insts() being true implies that
+  // hasGFX90AInsts is also true.
+  bool hasGFX940Insts() const { return GFX940Insts; }
 
   /// Return the maximum number of waves per SIMD for kernels using \p SGPRs
   /// SGPRs
