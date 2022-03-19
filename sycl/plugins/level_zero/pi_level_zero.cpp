@@ -5093,7 +5093,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // the reference count on the kernel, using the kernel saved
   // in CommandData.
   PI_CALL(piKernelRetain(Kernel));
-  
+
   if (UseImmediateCommandLists && IndirectAccessTrackingEnabled)
     Queue->KernelsToBeSubmitted.push_back(Kernel);
 
