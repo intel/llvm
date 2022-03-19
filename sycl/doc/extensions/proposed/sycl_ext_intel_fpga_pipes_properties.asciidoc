@@ -1,0 +1,264 @@
+= SYCL_INTEL_FPGA_data_flow_pipes_properties
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.
+GitHub does not render image icons.
+
+This document describes an extension that adds compile-time constant properties
+and static member functions to pipes.
+
+== Notice
+
+Copyright (c) 2022 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+== Version
+
+Built On: {docdate} +
+Revision: A
+
+== Contact
+
+Peter Colberg, Intel (peter 'dot' colberg 'at' intel 'dot' com)
+
+== Contributors
+
+Bo Lei, Intel +
+Marco Jacques, Intel +
+Joe Garvey, Intel +
+Aditi Kumaraswamy, Intel +
+Robert Ho, Intel +
+Sherry Yuan, Intel +
+Peter Colberg, Intel
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, revision 3.
+
+It also depends on the `SYCL_INTEL_data_flow_pipes` and
+`sycl_ext_oneapi_properties` extensions.
+
+== Overview
+
+This extension introduces properties that establish differences in the
+implementation of `sycl::pipe`. These properties are FPGA specific. An example
+of the syntax can be seen below. 
+
+[source,c++]
+----
+using pipe = pipe<class some_pipe, int, decltype(properties{uses_ready<true>})>;
+----
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro
+`SYCL_EXT_INTEL_FPGA_PIPE_PROPERTIES` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
+=== Pipe properties
+
+Below is a list of compile-time-constant properties which `pipe` supports.
+
+```c++
+namespace sycl::ext::intel::experimental {
+
+struct min_capacity {
+  template<int Capacity>
+  using value_t = property_value<min_capacity, std::integral_constant<int, Capacity>>;
+};
+
+struct ready_latency {
+  template<int Latency>
+  using value_t = property_value<ready_latency, std::integral_constant<int, Latency>>;
+};
+
+struct bits_per_symbol {
+  template<int Bits>
+  using value_t = property_value<bits_per_symbol, std::integral_constant<int, Bits>>;
+};
+
+struct uses_valid {
+  template<bool Valid>
+  using value_t = property_value<uses_valid, std::integral_constant<bool, Valid>>;
+};
+
+struct uses_ready {
+  template<bool Ready>
+  using value_t = property_value<uses_ready, std::integral_constant<bool, Ready>>;
+};
+
+struct first_symbol_in_high_order_bits {
+  template<bool HighOrder>
+  using value_t = property_value<first_symbol_in_high_order_bits, std::integral_constant<bool, HighOrder>>;
+};
+
+struct protocol {
+  enum class protocol_name {
+    AVALON,
+    AXI
+  };
+
+  template<protocol_name Protocol>
+  using value_t = property_value<protocol, std::integral_constant<protocol_name, Protocol>>;
+};
+
+} // namespace sycl::ext::intel::experimental
+```
+
+--
+[options="header"]
+|====
+| Property | Description
+|`min_capacity`
+| Valid values: Non-negative integer value.
+
+Default value: 0
+
+User defined minimum number of words in units of data type size that the pipe
+must be able to store without any being read out. A minimum capacity is required
+in some algorithms to avoid deadlock, or for performance tuning. An
+implementation can include more capacity than this parameter, but not less.
+
+This property is not guaranteed to be respected if the pipe is an inter-kernel
+pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+
+
+|`ready_latency`
+| Valid values: Non-negative integer value.
+
+Default value: 0
+
+The number of cycles between when the ready signal is deasserted and when the
+pipe can no longer accept new inputs.
+
+This property is not guaranteed to be respected if the pipe is an inter-kernel
+pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+
+|`bits_per_symbol`
+| Valid values: A positive integer value that evenly divides by the data type size. 
+
+Default value: Datatype size
+
+Describes how the data is broken into symbols on the data bus.
+
+Data is broken down according to how you set the first_symbol_in_high_order_bits
+property. By default, data is broken down in little endian order.
+
+This property is not guaranteed to be respected if the pipe is an inter-kernel
+pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+
+|`uses_valid`
+| Valid values: true or false
+
+Default value: true
+
+Controls whether a valid signal is present on the pipe interface. If false, the
+upstream source must provide valid data on every cycle that ready is asserted.
+
+This is equivalent to changing the pipe read calls to tryRead and assuming that
+success is always true.
+
+If set to false, min_capacity and ready_latency must be 0.
+
+This property is not guaranteed to be respected if the pipe is an inter-kernel
+pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+
+|`uses_ready`
+| Valid values: true or false
+
+Default value: true
+
+Controls whether a ready signal is present. If false, the downstream sink must
+be able to accept data on every cycle that valid is asserted. This is
+equivalent to changing the pipe read calls to tryWrite and assuming that success
+is always true.
+
+If set to false, ready_latency must be 0.
+
+This property is not guaranteed to be respected if the pipe is an inter-kernel
+pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+
+|`first_symbol_in_high_order_bits`
+| Valid values: true or false
+
+Default value: false
+
+Specifies whether the data symbols in the pipe are in big-endian
+order.
+
+This property is not guaranteed to be respected if the pipe is an inter-kernel
+pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+
+|`protocol`
+| Specifies the protocol for the pipe interface. Currently, the only protocol
+supported is AVALON. AXI will be supported in the future.
+
+The default protocol is AVALON.
+|====
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-03-18|Peter Colberg|*Initial public working draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************
