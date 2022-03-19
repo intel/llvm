@@ -142,6 +142,8 @@ configure_file("${version_header}.in" "${version_header}")
 set(feature_header "${sycl_inc_dir}/CL/sycl/feature_test.hpp")
 configure_file("${feature_header}.in" "${feature_header}")
 
+include(AddBoostMp11Headers)
+
 # This is workaround to detect changes (add or modify) in subtree which
 # are not detected by copy_directory command.
 # TODO: detect and process remove header/directory case
@@ -159,7 +161,8 @@ string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
 add_custom_target(sycl-headers
   DEPENDS ${OUT_HEADERS_IN_SYCL_DIR}
           ${OUT_HEADERS_IN_CL_DIR}
-          ${OUT_HEADERS_IN_STD_DIR})
+          ${OUT_HEADERS_IN_STD_DIR}
+          boost_mp11-headers)
 
 add_custom_command(
   OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
@@ -177,6 +180,7 @@ add_custom_command(
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
+install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT boost_mp11-headers)
 
 set(SYCL_RT_LIBS sycl)
 if (MSVC)
@@ -315,6 +319,7 @@ endif()
 # Listed here are component names contributing the package
 set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      append-file
+     boost_mp11-headers
      clang
      clang-offload-wrapper
      clang-offload-bundler
