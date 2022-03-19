@@ -1669,6 +1669,14 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
                 ZeCommandList,
                 {nullptr, true, ZeQueues[CurrentIndex], *QueueGroupOrdinal}})
             .first;
+    // Add this commandlists to the cache so they can be destroyed as part of
+    // QueueRelease
+    auto &ZeCommandListCache =
+        QueueType != queue_type::Compute
+            ? Queue->Context->ZeComputeCommandListCache[Queue->Device->ZeDevice]
+            : Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice];
+    std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
+    ZeCommandListCache.push_back(ZeCommandList);
   }
 
   return ZeQueue;
@@ -3425,14 +3433,6 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
         for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
           if (ZeQueue)
             ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
-        }
-        for (auto &ImmCmdList : Queue->ComputeQueueGroup.ImmCmdLists) {
-          if (ImmCmdList->first)
-            ZE_CALL(zeCommandListDestroy, (ImmCmdList->first));
-        }
-        for (auto &ImmCmdList : Queue->CopyQueueGroup.ImmCmdLists) {
-          if (ImmCmdList->first)
-            ZE_CALL(zeCommandListDestroy, (ImmCmdList->first));
         }
       }
 
