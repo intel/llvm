@@ -12,19 +12,19 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-#define __CLC_NVVM_ATOMIC_INCDEC_IMPL(TYPE, TYPE_MANGLED, OP_MANGLED, VAL,                                                                                  \
-                                      ADDR_SPACE, ADDR_SPACE_MANGLED,                                                                                       \
-                                      SUBSTITUTION)                                                                                                         \
-  TYPE                                                                                                                                                      \
-      _Z21__spirv_AtomicIAddEXTP##ADDR_SPACE_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##SUBSTITUTION##_19MemorySemanticsMask4FlagE##TYPE_MANGLED(        \
-          volatile ADDR_SPACE TYPE *, enum Scope, enum MemorySemanticsMask,                                                                                 \
-          TYPE);                                                                                                                                            \
-  __attribute__((always_inline)) _CLC_DECL TYPE                                                                                                             \
+#define __CLC_NVVM_ATOMIC_INCDEC_IMPL(TYPE, TYPE_MANGLED, OP_MANGLED, VAL,                                                                                \
+                                      ADDR_SPACE, ADDR_SPACE_MANGLED,                                                                                     \
+                                      SUBSTITUTION)                                                                                                       \
+  TYPE                                                                                                                                                    \
+      _Z21__spirv_AtomicIAddEXTP##ADDR_SPACE_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##SUBSTITUTION##_19MemorySemanticsMask4FlagE##TYPE_MANGLED(      \
+          volatile ADDR_SPACE TYPE *, enum Scope, enum MemorySemanticsMask,                                                                               \
+          TYPE);                                                                                                                                          \
+  __attribute__((always_inline)) _CLC_DECL TYPE                                                                                                           \
       _Z24__spirv_Atomic##OP_MANGLED##P##ADDR_SPACE_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##SUBSTITUTION##_19MemorySemanticsMask4FlagE(             \
-          volatile ADDR_SPACE TYPE *pointer, enum Scope scope,                                                                                              \
-          enum MemorySemanticsMask semantics) {                                                                                                             \
+          volatile ADDR_SPACE TYPE *pointer, enum Scope scope,                                                                                            \
+          enum MemorySemanticsMask semantics) {                                                                                                           \
     return _Z21__spirv_AtomicIAddEXTP##ADDR_SPACE_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##SUBSTITUTION##_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-        pointer, scope, semantics, VAL);                                                                                                                    \
+        pointer, scope, semantics, VAL);                                                                                                                  \
   }
 
 #define __CLC_NVVM_ATOMIC_INCDEC(TYPE, TYPE_MANGLED, OP_MANGLED, VAL)          \
