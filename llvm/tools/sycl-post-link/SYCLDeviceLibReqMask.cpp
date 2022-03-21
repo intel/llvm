@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass goes through input module's function list to detect all SYCL
+// This function goes through input module's function list to detect all SYCL
 // devicelib functions invoked. Each devicelib function invoked is included in
 // one 'fallback' SPIR-V library loaded by SYCL runtime. After scanning all
 // functions in input module, a mask telling which SPIR-V libraries are needed
