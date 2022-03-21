@@ -10,7 +10,6 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
@@ -316,8 +315,17 @@ LogicalResult ForOp::verify() {
 
     i++;
   }
+  return success();
+}
 
-  return RegionBranchOpInterface::verifyTypes(*this);
+Optional<Value> ForOp::getSingleInductionVar() { return getInductionVar(); }
+
+Optional<OpFoldResult> ForOp::getSingleLowerBound() {
+  return OpFoldResult(getLowerBound());
+}
+
+Optional<OpFoldResult> ForOp::getSingleStep() {
+  return OpFoldResult(getStep());
 }
 
 /// Prints the initialization list in the form of
@@ -1066,8 +1074,7 @@ void IfOp::build(OpBuilder &builder, OperationState &result, Value cond,
 LogicalResult IfOp::verify() {
   if (getNumResults() != 0 && getElseRegion().empty())
     return emitOpError("must have an else block if defining values");
-
-  return RegionBranchOpInterface::verifyTypes(*this);
+  return success();
 }
 
 ParseResult IfOp::parse(OpAsmParser &parser, OperationState &result) {
@@ -1510,51 +1517,98 @@ struct CombineIfs : public OpRewritePattern<IfOp> {
     if (!prevIf)
       return failure();
 
-    if (nextIf.getCondition() != prevIf.getCondition())
+    // Determine the logical then/else blocks when prevIf's
+    // condition is used. Null means the block does not exist
+    // in that case (e.g. empty else). If neither of these
+    // are set, the two conditions cannot be compared.
+    Block *nextThen = nullptr;
+    Block *nextElse = nullptr;
+    if (nextIf.getCondition() == prevIf.getCondition()) {
+      nextThen = nextIf.thenBlock();
+      if (!nextIf.getElseRegion().empty())
+        nextElse = nextIf.elseBlock();
+    }
+    if (arith::XOrIOp notv =
+            nextIf.getCondition().getDefiningOp<arith::XOrIOp>()) {
+      if (notv.getLhs() == prevIf.getCondition() &&
+          matchPattern(notv.getRhs(), m_One())) {
+        nextElse = nextIf.thenBlock();
+        if (!nextIf.getElseRegion().empty())
+          nextThen = nextIf.elseBlock();
+      }
+    }
+    if (arith::XOrIOp notv =
+            prevIf.getCondition().getDefiningOp<arith::XOrIOp>()) {
+      if (notv.getLhs() == nextIf.getCondition() &&
+          matchPattern(notv.getRhs(), m_One())) {
+        nextElse = nextIf.thenBlock();
+        if (!nextIf.getElseRegion().empty())
+          nextThen = nextIf.elseBlock();
+      }
+    }
+
+    if (!nextThen && !nextElse)
       return failure();
 
-    // Don't permit merging if a result of the first if is used
-    // within the second.
-    if (llvm::any_of(prevIf->getUsers(),
-                     [&](Operation *user) { return nextIf->isAncestor(user); }))
-      return failure();
+    SmallVector<Value> prevElseYielded;
+    if (!prevIf.getElseRegion().empty())
+      prevElseYielded = prevIf.elseYield().getOperands();
+    // Replace all uses of return values of op within nextIf with the
+    // corresponding yields
+    for (auto it : llvm::zip(prevIf.getResults(),
+                             prevIf.thenYield().getOperands(), prevElseYielded))
+      for (OpOperand &use :
+           llvm::make_early_inc_range(std::get<0>(it).getUses())) {
+        if (nextThen && nextThen->getParent()->isAncestor(
+                            use.getOwner()->getParentRegion())) {
+          rewriter.startRootUpdate(use.getOwner());
+          use.set(std::get<1>(it));
+          rewriter.finalizeRootUpdate(use.getOwner());
+        } else if (nextElse && nextElse->getParent()->isAncestor(
+                                   use.getOwner()->getParentRegion())) {
+          rewriter.startRootUpdate(use.getOwner());
+          use.set(std::get<2>(it));
+          rewriter.finalizeRootUpdate(use.getOwner());
+        }
+      }
 
     SmallVector<Type> mergedTypes(prevIf.getResultTypes());
     llvm::append_range(mergedTypes, nextIf.getResultTypes());
 
     IfOp combinedIf = rewriter.create<IfOp>(
-        nextIf.getLoc(), mergedTypes, nextIf.getCondition(), /*hasElse=*/false);
+        nextIf.getLoc(), mergedTypes, prevIf.getCondition(), /*hasElse=*/false);
     rewriter.eraseBlock(&combinedIf.getThenRegion().back());
 
-    YieldOp thenYield = prevIf.thenYield();
-    YieldOp thenYield2 = nextIf.thenYield();
+    rewriter.inlineRegionBefore(prevIf.getThenRegion(),
+                                combinedIf.getThenRegion(),
+                                combinedIf.getThenRegion().begin());
 
-    combinedIf.getThenRegion().getBlocks().splice(
-        combinedIf.getThenRegion().getBlocks().begin(),
-        prevIf.getThenRegion().getBlocks());
+    if (nextThen) {
+      YieldOp thenYield = combinedIf.thenYield();
+      YieldOp thenYield2 = cast<YieldOp>(nextThen->getTerminator());
+      rewriter.mergeBlocks(nextThen, combinedIf.thenBlock());
+      rewriter.setInsertionPointToEnd(combinedIf.thenBlock());
 
-    rewriter.mergeBlocks(nextIf.thenBlock(), combinedIf.thenBlock());
-    rewriter.setInsertionPointToEnd(combinedIf.thenBlock());
+      SmallVector<Value> mergedYields(thenYield.getOperands());
+      llvm::append_range(mergedYields, thenYield2.getOperands());
+      rewriter.create<YieldOp>(thenYield2.getLoc(), mergedYields);
+      rewriter.eraseOp(thenYield);
+      rewriter.eraseOp(thenYield2);
+    }
 
-    SmallVector<Value> mergedYields(thenYield.getOperands());
-    llvm::append_range(mergedYields, thenYield2.getOperands());
-    rewriter.create<YieldOp>(thenYield2.getLoc(), mergedYields);
-    rewriter.eraseOp(thenYield);
-    rewriter.eraseOp(thenYield2);
+    rewriter.inlineRegionBefore(prevIf.getElseRegion(),
+                                combinedIf.getElseRegion(),
+                                combinedIf.getElseRegion().begin());
 
-    combinedIf.getElseRegion().getBlocks().splice(
-        combinedIf.getElseRegion().getBlocks().begin(),
-        prevIf.getElseRegion().getBlocks());
-
-    if (!nextIf.getElseRegion().empty()) {
+    if (nextElse) {
       if (combinedIf.getElseRegion().empty()) {
-        combinedIf.getElseRegion().getBlocks().splice(
-            combinedIf.getElseRegion().getBlocks().begin(),
-            nextIf.getElseRegion().getBlocks());
+        rewriter.inlineRegionBefore(*nextElse->getParent(),
+                                    combinedIf.getElseRegion(),
+                                    combinedIf.getElseRegion().begin());
       } else {
         YieldOp elseYield = combinedIf.elseYield();
-        YieldOp elseYield2 = nextIf.elseYield();
-        rewriter.mergeBlocks(nextIf.elseBlock(), combinedIf.elseBlock());
+        YieldOp elseYield2 = cast<YieldOp>(nextElse->getTerminator());
+        rewriter.mergeBlocks(nextElse, combinedIf.elseBlock());
 
         rewriter.setInsertionPointToEnd(combinedIf.elseBlock());
 
@@ -2279,9 +2333,6 @@ static TerminatorTy verifyAndGetTerminator(scf::WhileOp op, Region &region,
 }
 
 LogicalResult scf::WhileOp::verify() {
-  if (failed(RegionBranchOpInterface::verifyTypes(*this)))
-    return failure();
-
   auto beforeTerminator = verifyAndGetTerminator<scf::ConditionOp>(
       *this, getBefore(),
       "expects the 'before' region to terminate with 'scf.condition'");
@@ -2406,7 +2457,8 @@ struct RemoveLoopInvariantArgsFromBeforeBlock
     ValueRange yieldOpArgs = yieldOp->getOperands();
 
     bool canSimplify = false;
-    for (auto it : llvm::enumerate(llvm::zip(op.getOperands(), yieldOpArgs))) {
+    for (const auto &it :
+         llvm::enumerate(llvm::zip(op.getOperands(), yieldOpArgs))) {
       auto index = static_cast<unsigned>(it.index());
       Value initVal, yieldOpArg;
       std::tie(initVal, yieldOpArg) = it.value();
@@ -2437,7 +2489,8 @@ struct RemoveLoopInvariantArgsFromBeforeBlock
     SmallVector<Value> newInitArgs, newYieldOpArgs;
     DenseMap<unsigned, Value> beforeBlockInitValMap;
     SmallVector<Location> newBeforeBlockArgLocs;
-    for (auto it : llvm::enumerate(llvm::zip(op.getOperands(), yieldOpArgs))) {
+    for (const auto &it :
+         llvm::enumerate(llvm::zip(op.getOperands(), yieldOpArgs))) {
       auto index = static_cast<unsigned>(it.index());
       Value initVal, yieldOpArg;
       std::tie(initVal, yieldOpArg) = it.value();
@@ -2574,7 +2627,7 @@ struct RemoveLoopInvariantValueYielded : public OpRewritePattern<WhileOp> {
     SmallVector<Type> newAfterBlockType;
     DenseMap<unsigned, Value> condOpInitValMap;
     SmallVector<Location> newAfterBlockArgLocs;
-    for (auto it : llvm::enumerate(condOpArgs)) {
+    for (const auto &it : llvm::enumerate(condOpArgs)) {
       auto index = static_cast<unsigned>(it.index());
       Value condOpArg = it.value();
       // Those values not defined within `before` block will be considered as
