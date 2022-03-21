@@ -19,7 +19,6 @@
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/Vector/Utils/VectorUtils.h"
@@ -318,7 +317,7 @@ static void hoistReadWrite(HoistableRead read, HoistableWrite write,
     write.insertSliceOp.destMutable().assign(read.extractSliceOp.source());
   } else {
     newForOp.getResult(initArgNumber)
-        .replaceAllUsesWith(write.transferWriteOp.getResult(0));
+        .replaceAllUsesWith(write.transferWriteOp.getResult());
     write.transferWriteOp.sourceMutable().assign(
         newForOp.getResult(initArgNumber));
   }

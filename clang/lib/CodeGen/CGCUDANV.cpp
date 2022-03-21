@@ -332,15 +332,22 @@ void CGNVCUDARuntime::emitDeviceStubBodyNew(CodeGenFunction &CGF,
   llvm::BasicBlock *EndBlock = CGF.createBasicBlock("setup.end");
 
   // Lookup cudaLaunchKernel/hipLaunchKernel function.
+  // HIP kernel launching API name depends on -fgpu-default-stream option. For
+  // the default value 'legacy', it is hipLaunchKernel. For 'per-thread',
+  // it is hipLaunchKernel_spt.
   // cudaError_t cudaLaunchKernel(const void *func, dim3 gridDim, dim3 blockDim,
   //                              void **args, size_t sharedMem,
   //                              cudaStream_t stream);
-  // hipError_t hipLaunchKernel(const void *func, dim3 gridDim, dim3 blockDim,
-  //                            void **args, size_t sharedMem,
-  //                            hipStream_t stream);
+  // hipError_t hipLaunchKernel[_spt](const void *func, dim3 gridDim,
+  //                                  dim3 blockDim, void **args,
+  //                                  size_t sharedMem, hipStream_t stream);
   TranslationUnitDecl *TUDecl = CGM.getContext().getTranslationUnitDecl();
   DeclContext *DC = TranslationUnitDecl::castToDeclContext(TUDecl);
-  auto LaunchKernelName = addPrefixToName("LaunchKernel");
+  std::string KernelLaunchAPI = "LaunchKernel";
+  if (CGF.getLangOpts().HIP && CGF.getLangOpts().GPUDefaultStream ==
+                                   LangOptions::GPUDefaultStreamKind::PerThread)
+    KernelLaunchAPI = KernelLaunchAPI + "_spt";
+  auto LaunchKernelName = addPrefixToName(KernelLaunchAPI);
   IdentifierInfo &cudaLaunchKernelII =
       CGM.getContext().Idents.get(LaunchKernelName);
   FunctionDecl *cudaLaunchKernelFD = nullptr;
@@ -822,7 +829,7 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
     if (Linkage != llvm::GlobalValue::InternalLinkage)
       GpuBinaryHandle->setVisibility(llvm::GlobalValue::HiddenVisibility);
     Address GpuBinaryAddr(
-        GpuBinaryHandle,
+        GpuBinaryHandle, VoidPtrPtrTy,
         CharUnits::fromQuantity(GpuBinaryHandle->getAlignment()));
     {
       auto *HandleValue = CtorBuilder.CreateLoad(GpuBinaryAddr);
@@ -958,8 +965,9 @@ llvm::Function *CGNVCUDARuntime::makeModuleDtorFunction() {
   CGBuilderTy DtorBuilder(CGM, Context);
   DtorBuilder.SetInsertPoint(DtorEntryBB);
 
-  Address GpuBinaryAddr(GpuBinaryHandle, CharUnits::fromQuantity(
-                                             GpuBinaryHandle->getAlignment()));
+  Address GpuBinaryAddr = Address::deprecated(
+      GpuBinaryHandle,
+      CharUnits::fromQuantity( GpuBinaryHandle->getAlignment()));
   auto *HandleValue = DtorBuilder.CreateLoad(GpuBinaryAddr);
   // There is only one HIP fat binary per linked module, however there are
   // multiple destructor functions. Make sure the fat binary is unregistered

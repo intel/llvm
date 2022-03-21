@@ -37,6 +37,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/ValueSymbolTable.h"
 #include "llvm/Support/Casting.h"
@@ -47,7 +48,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
-#include <iterator>
 #include <vector>
 
 using namespace llvm;
@@ -1168,7 +1168,7 @@ bool LLParser::parseGlobal(const std::string &Name, LocTy NameLoc,
   GV->setUnnamedAddr(UnnamedAddr);
 
   if (GVal) {
-    if (!GVal->getType()->isOpaque() && GVal->getValueType() != Ty)
+    if (GVal->getType() != Ty->getPointerTo(AddrSpace))
       return error(
           TyLoc,
           "forward reference and definition of global have different types");
@@ -1331,6 +1331,13 @@ bool LLParser::parseEnumAttribute(Attribute::AttrKind Attr, AttrBuilder &B,
     if (parseOptionalDerefAttrBytes(lltok::kw_dereferenceable_or_null, Bytes))
       return true;
     B.addDereferenceableOrNullAttr(Bytes);
+    return false;
+  }
+  case Attribute::UWTable: {
+    UWTableKind Kind;
+    if (parseOptionalUWTableKind(Kind))
+      return true;
+    B.addUWTableAttr(Kind);
     return false;
   }
   default:
@@ -1994,6 +2001,22 @@ bool LLParser::parseOptionalDerefAttrBytes(lltok::Kind AttrKind,
   if (!Bytes)
     return error(DerefLoc, "dereferenceable bytes must be non-zero");
   return false;
+}
+
+bool LLParser::parseOptionalUWTableKind(UWTableKind &Kind) {
+  Lex.Lex();
+  Kind = UWTableKind::Default;
+  if (!EatIfPresent(lltok::lparen))
+    return false;
+  LocTy KindLoc = Lex.getLoc();
+  if (Lex.getKind() == lltok::kw_sync)
+    Kind = UWTableKind::Sync;
+  else if (Lex.getKind() == lltok::kw_async)
+    Kind = UWTableKind::Async;
+  else
+    return error(KindLoc, "expected unwind table kind");
+  Lex.Lex();
+  return parseToken(lltok::rparen, "expected ')'");
 }
 
 /// parseOptionalCommaAlign
@@ -4144,8 +4167,8 @@ bool LLParser::parseMDField(LocTy Loc, StringRef Name, DIFlagField &Result) {
 
     Val = DINode::getFlag(Lex.getStrVal());
     if (!Val)
-      return tokError(Twine("invalid debug info flag flag '") +
-                      Lex.getStrVal() + "'");
+      return tokError(Twine("invalid debug info flag '") + Lex.getStrVal() +
+                      "'");
     Lex.Lex();
     return false;
   };
@@ -5603,20 +5626,19 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine) {
     auto FRVI = ForwardRefVals.find(FunctionName);
     if (FRVI != ForwardRefVals.end()) {
       FwdFn = FRVI->second.first;
-      if (!FwdFn->getType()->isOpaque()) {
-        if (!FwdFn->getType()->getNonOpaquePointerElementType()->isFunctionTy())
-          return error(FRVI->second.second, "invalid forward reference to "
-                                            "function as global value!");
-        if (FwdFn->getType() != PFT)
-          return error(FRVI->second.second,
-                       "invalid forward reference to "
-                       "function '" +
-                           FunctionName +
-                           "' with wrong type: "
-                           "expected '" +
-                           getTypeString(PFT) + "' but was '" +
-                           getTypeString(FwdFn->getType()) + "'");
-      }
+      if (!FwdFn->getType()->isOpaque() &&
+          !FwdFn->getType()->getNonOpaquePointerElementType()->isFunctionTy())
+        return error(FRVI->second.second, "invalid forward reference to "
+                                          "function as global value!");
+      if (FwdFn->getType() != PFT)
+        return error(FRVI->second.second,
+                     "invalid forward reference to "
+                     "function '" +
+                         FunctionName +
+                         "' with wrong type: "
+                         "expected '" +
+                         getTypeString(PFT) + "' but was '" +
+                         getTypeString(FwdFn->getType()) + "'");
       ForwardRefVals.erase(FRVI);
     } else if ((Fn = M->getFunction(FunctionName))) {
       // Reject redefinitions.
@@ -5632,7 +5654,7 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine) {
     auto I = ForwardRefValIDs.find(NumberedVals.size());
     if (I != ForwardRefValIDs.end()) {
       FwdFn = I->second.first;
-      if (!FwdFn->getType()->isOpaque() && FwdFn->getType() != PFT)
+      if (FwdFn->getType() != PFT)
         return error(NameLoc, "type of definition and forward reference of '@" +
                                   Twine(NumberedVals.size()) +
                                   "' disagree: "

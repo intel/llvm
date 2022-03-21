@@ -385,9 +385,6 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
                        "__cyg_profile_func_exit");
   }
 
-  if (ShouldSkipSanitizerInstrumentation())
-    CurFn->addFnAttr(llvm::Attribute::DisableSanitizerInstrumentation);
-
   // Emit debug descriptor for function end.
   if (CGDebugInfo *DI = getDebugInfo())
     DI->EmitFunctionEnd(Builder, CurFn);
@@ -595,7 +592,7 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
   auto *GOTAddr = Builder.CreateIntToPtr(GOTAsInt, Int8PtrPtrTy, "global_addr");
 
   // Load the original pointer through the global.
-  return Builder.CreateLoad(Address(GOTAddr, getPointerAlign()),
+  return Builder.CreateLoad(Address(GOTAddr, Int8PtrTy, getPointerAlign()),
                             "decoded_addr");
 }
 
@@ -883,6 +880,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   } while (false);
 
   if (D) {
+    const bool SanitizeBounds = SanOpts.hasOneOf(SanitizerKind::Bounds);
     bool NoSanitizeCoverage = false;
 
     for (auto Attr : D->specific_attrs<NoSanitizeAttr>()) {
@@ -903,21 +901,29 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         NoSanitizeCoverage = true;
     }
 
+    if (SanitizeBounds && !SanOpts.hasOneOf(SanitizerKind::Bounds))
+      Fn->addFnAttr(llvm::Attribute::NoSanitizeBounds);
+
     if (NoSanitizeCoverage && CGM.getCodeGenOpts().hasSanitizeCoverage())
       Fn->addFnAttr(llvm::Attribute::NoSanitizeCoverage);
   }
 
-  // Apply sanitizer attributes to the function.
-  if (SanOpts.hasOneOf(SanitizerKind::Address | SanitizerKind::KernelAddress))
-    Fn->addFnAttr(llvm::Attribute::SanitizeAddress);
-  if (SanOpts.hasOneOf(SanitizerKind::HWAddress | SanitizerKind::KernelHWAddress))
-    Fn->addFnAttr(llvm::Attribute::SanitizeHWAddress);
-  if (SanOpts.has(SanitizerKind::MemTag))
-    Fn->addFnAttr(llvm::Attribute::SanitizeMemTag);
-  if (SanOpts.has(SanitizerKind::Thread))
-    Fn->addFnAttr(llvm::Attribute::SanitizeThread);
-  if (SanOpts.hasOneOf(SanitizerKind::Memory | SanitizerKind::KernelMemory))
-    Fn->addFnAttr(llvm::Attribute::SanitizeMemory);
+  if (ShouldSkipSanitizerInstrumentation()) {
+    CurFn->addFnAttr(llvm::Attribute::DisableSanitizerInstrumentation);
+  } else {
+    // Apply sanitizer attributes to the function.
+    if (SanOpts.hasOneOf(SanitizerKind::Address | SanitizerKind::KernelAddress))
+      Fn->addFnAttr(llvm::Attribute::SanitizeAddress);
+    if (SanOpts.hasOneOf(SanitizerKind::HWAddress |
+                         SanitizerKind::KernelHWAddress))
+      Fn->addFnAttr(llvm::Attribute::SanitizeHWAddress);
+    if (SanOpts.has(SanitizerKind::MemTag))
+      Fn->addFnAttr(llvm::Attribute::SanitizeMemTag);
+    if (SanOpts.has(SanitizerKind::Thread))
+      Fn->addFnAttr(llvm::Attribute::SanitizeThread);
+    if (SanOpts.hasOneOf(SanitizerKind::Memory | SanitizerKind::KernelMemory))
+      Fn->addFnAttr(llvm::Attribute::SanitizeMemory);
+  }
   if (SanOpts.has(SanitizerKind::SafeStack))
     Fn->addFnAttr(llvm::Attribute::SafeStack);
   if (SanOpts.has(SanitizerKind::ShadowCallStack))
@@ -1091,6 +1097,18 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
     Fn->setMetadata("stall_enable",
                     llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
+  }
+
+  if (getLangOpts().SYCLIsDevice && D &&
+      D->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
+    const auto *A = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
+    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+        A->getFilteredAttributeNameValuePairs(CGM.getContext());
+
+    llvm::AttrBuilder FnAttrBuilder(Fn->getContext());
+    for (const auto &NameValuePair : NameValuePairs)
+      FnAttrBuilder.addAttribute(NameValuePair.first, NameValuePair.second);
+    Fn->addFnAttrs(FnAttrBuilder);
   }
 
   if (FD && (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice)) {
@@ -1291,9 +1309,10 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         EI->getType()->getPointerElementType(), &*EI, Idx);
     llvm::Type *Ty =
         cast<llvm::GetElementPtrInst>(Addr)->getResultElementType();
-    ReturnValuePointer = Address(Addr, getPointerAlign());
+    ReturnValuePointer = Address(Addr, Ty, getPointerAlign());
     Addr = Builder.CreateAlignedLoad(Ty, Addr, getPointerAlign(), "agg.result");
-    ReturnValue = Address(Addr, CGM.getNaturalTypeAlignment(RetTy));
+    ReturnValue =
+        Address(Addr, ConvertType(RetTy), CGM.getNaturalTypeAlignment(RetTy));
   } else {
     ReturnValue = CreateIRTemp(RetTy, "retval");
 
@@ -2140,7 +2159,7 @@ static void emitNonZeroVLAInit(CodeGenFunction &CGF, QualType baseType,
     dest.getAlignment().alignmentOfArrayElement(baseSize);
 
   // memcpy the individual element bit-pattern.
-  Builder.CreateMemCpy(Address(cur, curAlign), src, baseSizeInChars,
+  Builder.CreateMemCpy(Address(cur, CGF.Int8Ty, curAlign), src, baseSizeInChars,
                        /*volatile*/ false);
 
   // Go to the next element.
@@ -2213,7 +2232,7 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
     CharUnits NullAlign = DestPtr.getAlignment();
     NullVariable->setAlignment(NullAlign.getAsAlign());
     Address SrcPtr(Builder.CreateBitCast(NullVariable, Builder.getInt8PtrTy()),
-                   NullAlign);
+                   Builder.getInt8Ty(), NullAlign);
 
     if (vla) return emitNonZeroVLAInit(*this, Ty, DestPtr, SrcPtr, SizeVal);
 
@@ -2515,6 +2534,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::TypeOf:
     case Type::UnaryTransform:
     case Type::Attributed:
+    case Type::BTFTagAttributed:
     case Type::SubstTemplateTypeParm:
     case Type::MacroQualified:
       // Keep walking after single level desugaring.
@@ -2695,7 +2715,7 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
     for (const auto *I : D->specific_attrs<AnnotateAttr>())
       V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation(), I);
 
-    return Address(V, Addr.getAlignment());
+    return Address::deprecated(V, Addr.getAlignment());
   }
 
   llvm::Function *F =
@@ -2707,7 +2727,7 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
     V = Builder.CreateBitCast(V, VTy);
   }
 
-  return Address(V, Addr.getAlignment());
+  return Address(V, Addr.getElementType(), Addr.getAlignment());
 }
 
 Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(const FieldDecl *D,
@@ -2728,7 +2748,7 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
         CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
     V = EmitAnnotationCall(F, V, AnnotStr, Location);
 
-    return Address(V, Addr.getAlignment());
+    return Address::deprecated(V, Addr.getAlignment());
   }
 
   unsigned AS = VTy->getPointerAddressSpace();
@@ -2739,7 +2759,7 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
   V = EmitAnnotationCall(F, V, AnnotStr, Location);
   V = Builder.CreateBitCast(V, VTy);
 
-  return Address(V, Addr.getAlignment());
+  return Address::deprecated(V, Addr.getAlignment());
 }
 
 CodeGenFunction::CGCapturedStmtInfo::~CGCapturedStmtInfo() { }
@@ -3017,4 +3037,20 @@ CodeGenFunction::emitCondLikelihoodViaExpectIntrinsic(llvm::Value *Cond,
                               Cond->getName() + ".expval");
   }
   llvm_unreachable("Unknown Likelihood");
+}
+
+llvm::Value *CodeGenFunction::emitBoolVecConversion(llvm::Value *SrcVec,
+                                                    unsigned NumElementsDst,
+                                                    const llvm::Twine &Name) {
+  auto *SrcTy = cast<llvm::FixedVectorType>(SrcVec->getType());
+  unsigned NumElementsSrc = SrcTy->getNumElements();
+  if (NumElementsSrc == NumElementsDst)
+    return SrcVec;
+
+  std::vector<int> ShuffleMask(NumElementsDst, -1);
+  for (unsigned MaskIdx = 0;
+       MaskIdx < std::min<>(NumElementsDst, NumElementsSrc); ++MaskIdx)
+    ShuffleMask[MaskIdx] = MaskIdx;
+
+  return Builder.CreateShuffleVector(SrcVec, ShuffleMask, Name);
 }

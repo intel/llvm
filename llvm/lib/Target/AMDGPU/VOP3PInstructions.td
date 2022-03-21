@@ -40,13 +40,12 @@ class VOP3P_Mix_Profile<VOPProfile P, VOP3Features Features = VOP3_REGULAR,
 }
 
 multiclass VOP3PInst<string OpName, VOPProfile P,
-                     SDPatternOperator node = null_frag, bit HasExplicitClamp = 0> {
+                     SDPatternOperator node = null_frag, bit IsDOT = 0> {
   def NAME : VOP3P_Pseudo<OpName, P,
                           !if (P.HasModifiers,
-                               getVOP3PModPat<P, node, HasExplicitClamp>.ret,
+                               getVOP3PModPat<P, node, IsDOT, IsDOT>.ret,
                                getVOP3Pat<P, node>.ret)>;
 }
-
 
 // Non-packed instructions that use the VOP3P encoding.
 // VOP3 neg/abs and VOP3P opsel/opsel_hi modifiers are allowed.
@@ -390,7 +389,7 @@ class VOPProfileMAI<VOPProfile P, RegisterOperand _SrcRC, RegisterOperand _DstRC
   let Ins64 = (ins Src0RC64:$src0, Src1RC64:$src1, Src2RC64:$src2, cbsz:$cbsz, abid:$abid, blgp:$blgp);
   // Dst and SrcC cannot partially overlap if SrcC/Dst is bigger than 4 VGPRs.
   // We then create two versions of the instruction: with tied dst and src2
-  // and with the eralyclobber flag on the dst. This is strciter than the
+  // and with the earlyclobber flag on the dst. This is stricter than the
   // actual HW restriction. In particular earlyclobber also affects src0 and
   // src1 allocation which is not required.
   bit NoDstOverlap = !gt(DstVT.Size, 128);

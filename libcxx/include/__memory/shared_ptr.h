@@ -15,7 +15,6 @@
 #include <__functional/binary_function.h>
 #include <__functional/operations.h>
 #include <__functional/reference_wrapper.h>
-#include <__functional_base>
 #include <__memory/addressof.h>
 #include <__memory/allocation_guard.h>
 #include <__memory/allocator.h>
@@ -25,6 +24,7 @@
 #include <__memory/unique_ptr.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
+#include <__utility/swap.h>
 #include <cstddef>
 #include <cstdlib> // abort
 #include <iosfwd>

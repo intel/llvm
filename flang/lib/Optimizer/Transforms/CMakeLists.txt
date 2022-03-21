@@ -2,6 +2,7 @@ add_flang_library(FIRTransforms
   AbstractResult.cpp
   AffinePromotion.cpp
   AffineDemotion.cpp
+  AnnotateConstant.cpp
   CharacterConversion.cpp
   ArrayValueCopy.cpp
   ExternalNameConversion.cpp
@@ -19,6 +20,7 @@ add_flang_library(FIRTransforms
   FIRBuilder
   FIRDialect
   MLIRAffineUtils
+  MLIRFunc
   MLIRLLVMIR
   MLIROpenACC
   MLIROpenMP

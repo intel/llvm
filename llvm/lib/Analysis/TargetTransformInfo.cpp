@@ -11,7 +11,6 @@
 #include "llvm/Analysis/LoopIterator.h"
 #include "llvm/Analysis/TargetTransformInfoImpl.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -21,7 +20,6 @@
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/ErrorHandling.h"
 #include <utility>
 
 using namespace llvm;

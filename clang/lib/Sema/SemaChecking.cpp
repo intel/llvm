@@ -1943,6 +1943,17 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BI__builtin_nontemporal_store:
     return SemaBuiltinNontemporalOverloaded(TheCallResult);
   case Builtin::BI__builtin_memcpy_inline: {
+    auto ArgArrayConversionFailed = [&](unsigned Arg) {
+      ExprResult ArgExpr =
+          DefaultFunctionArrayLvalueConversion(TheCall->getArg(Arg));
+      if (ArgExpr.isInvalid())
+        return true;
+      TheCall->setArg(Arg, ArgExpr.get());
+      return false;
+    };
+
+    if (ArgArrayConversionFailed(0) || ArgArrayConversionFailed(1))
+      return true;
     clang::Expr *SizeOp = TheCall->getArg(2);
     // We warn about copying to or from `nullptr` pointers when `size` is
     // greater than 0. When `size` is value dependent we cannot evaluate its
@@ -3629,6 +3640,8 @@ static bool isPPC_64Builtin(unsigned BuiltinID) {
   case PPC::BI__builtin_divde:
   case PPC::BI__builtin_divdeu:
   case PPC::BI__builtin_bpermd:
+  case PPC::BI__builtin_pdepd:
+  case PPC::BI__builtin_pextd:
   case PPC::BI__builtin_ppc_ldarx:
   case PPC::BI__builtin_ppc_stdcx:
   case PPC::BI__builtin_ppc_tdw:
@@ -3788,6 +3801,10 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case PPC::BI__builtin_pack_vector_int128:
     return SemaFeatureCheck(*this, TheCall, "vsx",
                             diag::err_ppc_builtin_only_on_arch, "7");
+  case PPC::BI__builtin_pdepd:
+  case PPC::BI__builtin_pextd:
+    return SemaFeatureCheck(*this, TheCall, "isa-v31-instructions",
+                            diag::err_ppc_builtin_only_on_arch, "10");
   case PPC::BI__builtin_altivec_vgnb:
      return SemaBuiltinConstantArgRange(TheCall, 1, 2, 7);
   case PPC::BI__builtin_altivec_vec_replace_elt:
@@ -4017,6 +4034,27 @@ bool Sema::CheckRISCVLMUL(CallExpr *TheCall, unsigned ArgNum) {
          << Arg->getSourceRange();
 }
 
+static bool isRISCV32Builtin(unsigned BuiltinID) {
+  // These builtins only work on riscv32 targets.
+  switch (BuiltinID) {
+  case RISCV::BI__builtin_riscv_zip_32:
+  case RISCV::BI__builtin_riscv_unzip_32:
+  case RISCV::BI__builtin_riscv_aes32dsi_32:
+  case RISCV::BI__builtin_riscv_aes32dsmi_32:
+  case RISCV::BI__builtin_riscv_aes32esi_32:
+  case RISCV::BI__builtin_riscv_aes32esmi_32:
+  case RISCV::BI__builtin_riscv_sha512sig0h_32:
+  case RISCV::BI__builtin_riscv_sha512sig0l_32:
+  case RISCV::BI__builtin_riscv_sha512sig1h_32:
+  case RISCV::BI__builtin_riscv_sha512sig1l_32:
+  case RISCV::BI__builtin_riscv_sha512sum0r_32:
+  case RISCV::BI__builtin_riscv_sha512sum1r_32:
+    return true;
+  }
+
+  return false;
+}
+
 bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
                                          unsigned BuiltinID,
                                          CallExpr *TheCall) {
@@ -4026,6 +4064,12 @@ bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
   SmallVector<StringRef> ReqFeatures;
   StringRef Features = Context.BuiltinInfo.getRequiredFeatures(BuiltinID);
   Features.split(ReqFeatures, ',');
+
+  // Check for 32-bit only builtins on a 64-bit target.
+  const llvm::Triple &TT = TI.getTriple();
+  if (TT.getArch() != llvm::Triple::riscv32 && isRISCV32Builtin(BuiltinID))
+    return Diag(TheCall->getCallee()->getBeginLoc(),
+                diag::err_32_bit_builtin_64_bit_tgt);
 
   // Check if each required feature is included
   for (StringRef F : ReqFeatures) {
@@ -4074,6 +4118,17 @@ bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
   case RISCVVector::BI__builtin_rvv_vsetvlimax:
     return SemaBuiltinConstantArgRange(TheCall, 0, 0, 3) ||
            CheckRISCVLMUL(TheCall, 1);
+  // Check if byteselect is in [0, 3]
+  case RISCV::BI__builtin_riscv_aes32dsi_32:
+  case RISCV::BI__builtin_riscv_aes32dsmi_32:
+  case RISCV::BI__builtin_riscv_aes32esi_32:
+  case RISCV::BI__builtin_riscv_aes32esmi_32:
+  case RISCV::BI__builtin_riscv_sm4ks:
+  case RISCV::BI__builtin_riscv_sm4ed:
+    return SemaBuiltinConstantArgRange(TheCall, 2, 0, 3);
+  // Check if rnum is in [0, 10]
+  case RISCV::BI__builtin_riscv_aes64ks1i_64:
+    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 10);
   }
 
   return false;
@@ -11449,7 +11504,7 @@ void CheckFreeArgumentsCast(Sema &S, const std::string &CalleeName,
 /// Alerts the user that they are attempting to free a non-malloc'd object.
 void Sema::CheckFreeArguments(const CallExpr *E) {
   const std::string CalleeName =
-      dyn_cast<FunctionDecl>(E->getCalleeDecl())->getQualifiedNameAsString();
+      cast<FunctionDecl>(E->getCalleeDecl())->getQualifiedNameAsString();
 
   { // Prefer something that doesn't involve a cast to make things simpler.
     const Expr *Arg = E->getArg(0)->IgnoreParenCasts();

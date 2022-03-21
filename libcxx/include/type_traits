@@ -1274,33 +1274,25 @@ template <class _Tp>
 decltype(__declval<_Tp>(0))
 declval() _NOEXCEPT;
 
-// __uncvref
-
-template <class _Tp>
-struct __uncvref  {
-    typedef _LIBCPP_NODEBUG typename remove_cv<typename remove_reference<_Tp>::type>::type type;
-};
-
 template <class _Tp>
 struct __unconstref {
     typedef _LIBCPP_NODEBUG typename remove_const<typename remove_reference<_Tp>::type>::type type;
 };
 
-#ifndef _LIBCPP_CXX03_LANG
 template <class _Tp>
-using __uncvref_t _LIBCPP_NODEBUG = typename __uncvref<_Tp>::type;
-#endif
+using __uncvref_t _LIBCPP_NODEBUG = typename remove_cv<typename remove_reference<_Tp>::type>::type;
 
 // __is_same_uncvref
 
 template <class _Tp, class _Up>
-struct __is_same_uncvref : _IsSame<typename __uncvref<_Tp>::type,
-                                   typename __uncvref<_Up>::type> {};
+struct __is_same_uncvref : _IsSame<__uncvref_t<_Tp>, __uncvref_t<_Up> > {};
 
 #if _LIBCPP_STD_VER > 17
 // remove_cvref - same as __uncvref
 template <class _Tp>
-struct remove_cvref : public __uncvref<_Tp> {};
+struct remove_cvref {
+    using type _LIBCPP_NODEBUG = __uncvref_t<_Tp>;
+};
 
 template <class _Tp> using remove_cvref_t = typename remove_cvref<_Tp>::type;
 #endif
@@ -2394,7 +2386,7 @@ using __copy_cvref_t = typename __copy_cvref<_From, _To>::type;
 #endif // _LIBCPP_STD_VER > 11
 
 // common_reference
-#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#if _LIBCPP_STD_VER > 17
 // Let COND_RES(X, Y) be:
 template <class _Xp, class _Yp>
 using __cond_res =
@@ -2548,7 +2540,7 @@ struct common_reference<_Tp, _Up, _Vp, _Rest...>
 // bullet 5 - Otherwise, there shall be no member `type`.
 template <class...> struct common_reference {};
 
-#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#endif // _LIBCPP_STD_VER > 17
 
 // is_assignable
 

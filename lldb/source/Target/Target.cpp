@@ -287,6 +287,17 @@ void Target::Destroy() {
   m_suppress_stop_hooks = false;
 }
 
+llvm::StringRef Target::GetABIName() const {
+  lldb::ABISP abi_sp;
+  if (m_process_sp)
+    abi_sp = m_process_sp->GetABI();
+  if (!abi_sp)
+    abi_sp = ABI::FindPlugin(ProcessSP(), GetArchitecture());
+  if (abi_sp)
+      return abi_sp->GetPluginName();
+  return {};
+}
+
 BreakpointList &Target::GetBreakpointList(bool internal) {
   if (internal)
     return m_internal_breakpoint_list;
@@ -1470,10 +1481,10 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform) {
     if (other.IsValid()) {
       auto platform_sp = GetPlatform();
       if (!platform_sp ||
-          !platform_sp->IsCompatibleArchitecture(other, false, nullptr)) {
+          !platform_sp->IsCompatibleArchitecture(other, {}, false, nullptr)) {
         ArchSpec platform_arch;
         auto arch_platform_sp =
-            Platform::GetPlatformForArchitecture(other, &platform_arch);
+            Platform::GetPlatformForArchitecture(other, {}, &platform_arch);
         if (arch_platform_sp) {
           SetPlatform(arch_platform_sp);
           if (platform_arch.IsValid())
@@ -1642,11 +1653,11 @@ void Target::SymbolsDidLoad(ModuleList &module_list) {
 void Target::ModulesDidUnload(ModuleList &module_list, bool delete_locations) {
   if (m_valid && module_list.GetSize()) {
     UnloadModuleSections(module_list);
+    BroadcastEvent(eBroadcastBitModulesUnloaded,
+                   new TargetEventData(this->shared_from_this(), module_list));
     m_breakpoint_list.UpdateBreakpoints(module_list, false, delete_locations);
     m_internal_breakpoint_list.UpdateBreakpoints(module_list, false,
                                                  delete_locations);
-    BroadcastEvent(eBroadcastBitModulesUnloaded,
-                   new TargetEventData(this->shared_from_this(), module_list));
   }
 }
 
@@ -1684,7 +1695,6 @@ bool Target::ModuleIsExcludedForUnconstrainedSearches(
 
 size_t Target::ReadMemoryFromFileCache(const Address &addr, void *dst,
                                        size_t dst_len, Status &error) {
-  LLDB_SCOPED_TIMER();
   SectionSP section_sp(addr.GetSection());
   if (section_sp) {
     // If the contents of this section are encrypted, the on-disk file is
@@ -3026,6 +3036,14 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
   if (!launch_info.GetArchitecture().IsValid())
     launch_info.GetArchitecture() = GetArchitecture();
 
+  // Hijacking events of the process to be created to be sure that all events
+  // until the first stop are intercepted (in case if platform doesn't define
+  // its own hijacking listener or if the process is created by the target
+  // manually, without the platform).
+  if (!launch_info.GetHijackListener())
+    launch_info.SetHijackListener(
+        Listener::MakeListener("lldb.Target.Launch.hijack"));
+
   // If we're not already connected to the process, and if we have a platform
   // that can launch a process for debugging, go ahead and do that here.
   if (state != eStateConnected && platform_sp &&
@@ -3057,8 +3075,10 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
     }
 
     // Since we didn't have a platform launch the process, launch it here.
-    if (m_process_sp)
+    if (m_process_sp) {
+      m_process_sp->HijackProcessEvents(launch_info.GetHijackListener());
       error = m_process_sp->Launch(launch_info);
+    }
   }
 
   if (!m_process_sp && error.Success())
@@ -3067,35 +3087,35 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
   if (!error.Success())
     return error;
 
-  auto at_exit =
-      llvm::make_scope_exit([&]() { m_process_sp->RestoreProcessEvents(); });
+  bool rebroadcast_first_stop =
+      !synchronous_execution &&
+      launch_info.GetFlags().Test(eLaunchFlagStopAtEntry);
 
-  if (!synchronous_execution &&
-      launch_info.GetFlags().Test(eLaunchFlagStopAtEntry))
+  assert(launch_info.GetHijackListener());
+
+  EventSP first_stop_event_sp;
+  state = m_process_sp->WaitForProcessToStop(llvm::None, &first_stop_event_sp,
+                                             rebroadcast_first_stop,
+                                             launch_info.GetHijackListener());
+  m_process_sp->RestoreProcessEvents();
+
+  if (rebroadcast_first_stop) {
+    assert(first_stop_event_sp);
+    m_process_sp->BroadcastEvent(first_stop_event_sp);
     return error;
-
-  ListenerSP hijack_listener_sp(launch_info.GetHijackListener());
-  if (!hijack_listener_sp) {
-    hijack_listener_sp = Listener::MakeListener("lldb.Target.Launch.hijack");
-    launch_info.SetHijackListener(hijack_listener_sp);
-    m_process_sp->HijackProcessEvents(hijack_listener_sp);
   }
 
-  switch (m_process_sp->WaitForProcessToStop(llvm::None, nullptr, false,
-                                             hijack_listener_sp, nullptr)) {
+  switch (state) {
   case eStateStopped: {
     if (launch_info.GetFlags().Test(eLaunchFlagStopAtEntry))
       break;
-    if (synchronous_execution) {
+    if (synchronous_execution)
       // Now we have handled the stop-from-attach, and we are just
       // switching to a synchronous resume.  So we should switch to the
       // SyncResume hijacker.
-      m_process_sp->RestoreProcessEvents();
       m_process_sp->ResumeSynchronous(stream);
-    } else {
-      m_process_sp->RestoreProcessEvents();
+    else
       error = m_process_sp->PrivateResume();
-    }
     if (!error.Success()) {
       Status error2;
       error2.SetErrorStringWithFormat(
@@ -3804,6 +3824,8 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp->SetValueChangedCallback(
         ePropertyDisableSTDIO, [this] { DisableSTDIOValueChangedCallback(); });
 
+    m_collection_sp->SetValueChangedCallback(
+        ePropertySaveObjectsDir, [this] { CheckJITObjectsDir(); });
     m_experimental_properties_up =
         std::make_unique<TargetExperimentalProperties>();
     m_collection_sp->AppendProperty(
@@ -3825,6 +3847,8 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp->AppendProperty(
         ConstString("process"), ConstString("Settings specific to processes."),
         true, Process::GetGlobalProperties().GetValueProperties());
+    m_collection_sp->SetValueChangedCallback(
+        ePropertySaveObjectsDir, [this] { CheckJITObjectsDir(); });
   }
 }
 
@@ -4154,10 +4178,41 @@ bool TargetProperties::GetEnableNotifyAboutFixIts() const {
       nullptr, idx, g_target_properties[idx].default_uint_value != 0);
 }
 
-bool TargetProperties::GetEnableSaveObjects() const {
-  const uint32_t idx = ePropertySaveObjects;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_target_properties[idx].default_uint_value != 0);
+FileSpec TargetProperties::GetSaveJITObjectsDir() const {
+  const uint32_t idx = ePropertySaveObjectsDir;
+  return m_collection_sp->GetPropertyAtIndexAsFileSpec(nullptr, idx);
+}
+
+void TargetProperties::CheckJITObjectsDir() {
+  const uint32_t idx = ePropertySaveObjectsDir;
+  FileSpec new_dir = GetSaveJITObjectsDir();
+  const FileSystem &instance = FileSystem::Instance();
+  bool exists = instance.Exists(new_dir);
+  bool is_directory = instance.IsDirectory(new_dir);
+  std::string path = new_dir.GetPath(true);
+  bool writable = llvm::sys::fs::can_write(path);
+  if (exists && is_directory && writable)
+    return;
+  m_collection_sp->GetPropertyAtIndex(nullptr, true, idx)->GetValue()
+      ->Clear();
+  StreamSP error_strm_sp;
+  if (m_target) {
+    // FIXME: How can I warn the user when setting this on the Debugger?
+    error_strm_sp = m_target->GetDebugger().GetAsyncErrorStream();
+  } else if (Debugger::GetNumDebuggers() == 1) {
+    error_strm_sp = Debugger::GetDebuggerAtIndex(0)->GetAsyncErrorStream();
+  }
+  if (error_strm_sp) {
+    error_strm_sp->Format("JIT object dir '{0}' ", path);
+    if (!exists)
+      error_strm_sp->PutCString("does not exist.");
+    else if (!is_directory)
+      error_strm_sp->PutCString("is not a directory.");
+    else if (!writable)
+      error_strm_sp->PutCString("is not writable.");
+    error_strm_sp->EOL();
+    error_strm_sp->Flush();
+  }
 }
 
 bool TargetProperties::GetEnableSyntheticValue() const {

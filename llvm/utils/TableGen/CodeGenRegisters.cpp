@@ -12,21 +12,18 @@
 //===----------------------------------------------------------------------===//
 
 #include "CodeGenRegisters.h"
-#include "CodeGenTarget.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IntEqClasses.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
@@ -204,12 +201,16 @@ namespace {
 class RegUnitIterator {
   CodeGenRegister::Vec::const_iterator RegI, RegE;
   CodeGenRegister::RegUnitList::iterator UnitI, UnitE;
+  static CodeGenRegister::RegUnitList Sentinel;
 
 public:
   RegUnitIterator(const CodeGenRegister::Vec &Regs):
     RegI(Regs.begin()), RegE(Regs.end()) {
 
-    if (RegI != RegE) {
+    if (RegI == RegE) {
+      UnitI = Sentinel.end();
+      UnitE = Sentinel.end();
+    } else {
       UnitI = (*RegI)->getRegUnits().begin();
       UnitE = (*RegI)->getRegUnits().end();
       advance();
@@ -239,6 +240,8 @@ protected:
     }
   }
 };
+
+CodeGenRegister::RegUnitList RegUnitIterator::Sentinel;
 
 } // end anonymous namespace
 

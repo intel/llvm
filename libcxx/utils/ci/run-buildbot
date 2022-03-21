@@ -83,6 +83,7 @@ function generate-cmake-base() {
           -GNinja -DCMAKE_MAKE_PROGRAM="${NINJA}" \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
+          -DLIBCXX_ENABLE_WERROR=YES \
           -DLLVM_LIT_ARGS="-sv --show-unsupported --xunit-xml-output test-results.xml" \
           "${@}"
 }
@@ -258,6 +259,7 @@ generic-noexceptions)
                    -DLIBCXX_TEST_CONFIG="llvm-libc++-shared.cfg.in" \
                    -DLIBUNWIND_TEST_CONFIG="llvm-libunwind-shared.cfg.in"
     check-runtimes
+    check-abi-list
 ;;
 generic-modules)
     clean
@@ -265,20 +267,13 @@ generic-modules)
                    -DLIBCXX_TEST_CONFIG="llvm-libc++-shared.cfg.in" \
                    -DLIBUNWIND_TEST_CONFIG="llvm-libunwind-shared.cfg.in"
     check-runtimes
+    check-abi-list
 ;;
 generic-static)
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-static.cmake" \
                    -DLIBCXX_TEST_CONFIG="llvm-libc++-static.cfg.in" \
                    -DLIBUNWIND_TEST_CONFIG="llvm-libunwind-static.cfg.in"
-    check-runtimes
-;;
-generic-clang-12)
-    export CC=clang-12
-    export CXX=clang++-12
-    clean
-    generate-cmake -DLIBCXX_TEST_CONFIG="llvm-libc++-shared.cfg.in" \
-                   -DLIBUNWIND_TEST_CONFIG="llvm-libunwind-shared.cfg.in"
     check-runtimes
 ;;
 generic-clang-13)
@@ -288,13 +283,24 @@ generic-clang-13)
     generate-cmake -DLIBCXX_TEST_CONFIG="llvm-libc++-shared.cfg.in" \
                    -DLIBUNWIND_TEST_CONFIG="llvm-libunwind-shared.cfg.in"
     check-runtimes
+    check-abi-list
+;;
+generic-clang-14)
+    export CC=clang-14
+    export CXX=clang++-14
+    clean
+    generate-cmake -DLIBCXX_TEST_CONFIG="llvm-libc++-shared.cfg.in" \
+                   -DLIBUNWIND_TEST_CONFIG="llvm-libunwind-shared.cfg.in"
+    check-runtimes
+    check-abi-list
 ;;
 generic-gcc)
     export CC=gcc-11
     export CXX=g++-11
     clean
     generate-cmake -DLIBCXX_TEST_CONFIG="llvm-libc++-shared-gcc.cfg.in" \
-                   -DLIBUNWIND_TEST_CONFIG="llvm-libunwind-shared.cfg.in"
+                   -DLIBUNWIND_TEST_CONFIG="llvm-libunwind-shared.cfg.in" \
+                   -DLIBCXX_ENABLE_WERROR=NO
     check-runtimes
 ;;
 generic-gcc-cxx11)
@@ -303,7 +309,8 @@ generic-gcc-cxx11)
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx11.cmake" \
                    -DLIBCXX_TEST_CONFIG="llvm-libc++-shared-gcc.cfg.in" \
-                   -DLIBUNWIND_TEST_CONFIG="llvm-libunwind-shared.cfg.in"
+                   -DLIBUNWIND_TEST_CONFIG="llvm-libunwind-shared.cfg.in" \
+                   -DLIBCXX_ENABLE_WERROR=NO
     check-runtimes
 ;;
 generic-asan)
@@ -354,6 +361,7 @@ generic-no-debug)
                    -DLIBCXX_TEST_CONFIG="llvm-libc++-shared.cfg.in" \
                    -DLIBUNWIND_TEST_CONFIG="llvm-libunwind-shared.cfg.in"
     check-runtimes
+    check-abi-list
 ;;
 generic-no-filesystem)
     clean
@@ -396,6 +404,7 @@ generic-no-experimental)
                    -DLIBCXX_TEST_CONFIG="llvm-libc++-shared.cfg.in" \
                    -DLIBUNWIND_TEST_CONFIG="llvm-libunwind-shared.cfg.in"
     check-runtimes
+    check-abi-list
 ;;
 generic-abi-unstable)
     clean
@@ -407,27 +416,25 @@ generic-abi-unstable)
 apple-system)
     clean
 
-    sdk_root="$(xcrun --sdk macosx --show-sdk-path)"
     arch="$(uname -m)"
-
-    ${MONOREPO_ROOT}/libcxx/utils/ci/apple-install-libcxx.sh    \
-        --llvm-root ${MONOREPO_ROOT}                            \
-        --build-dir ${BUILD_DIR}                                \
-        --install-dir ${INSTALL_DIR}                            \
-        --symbols-dir "${BUILD_DIR}/symbols"                    \
-        --sdk "macosx"                                          \
-        --architectures "${arch}"                               \
-        --version "999.99"
+    xcrun --sdk macosx                                              \
+        ${MONOREPO_ROOT}/libcxx/utils/ci/apple-install-libcxx.sh    \
+            --llvm-root ${MONOREPO_ROOT}                            \
+            --build-dir ${BUILD_DIR}                                \
+            --install-dir ${INSTALL_DIR}                            \
+            --symbols-dir "${BUILD_DIR}/symbols"                    \
+            --architectures "${arch}"                               \
+            --version "999.99"
 
     # TODO: It would be better to run the tests against the fake-installed version of libc++ instead
-    xcrun --sdk macosx ninja -vC "${BUILD_DIR}/${arch}" check-cxx check-cxxabi
+    xcrun --sdk macosx ninja -vC "${BUILD_DIR}/${arch}" check-cxx check-cxxabi check-cxx-abilist
 ;;
 apple-system-backdeployment-*)
     clean
 
     if [[ "${OSX_ROOTS}" == "" ]]; then
         echo "--- Downloading previous macOS dylibs"
-        PREVIOUS_DYLIBS_URL="https://dl.dropboxusercontent.com/s/liu4fmc53qzlfly/libcxx-roots.tar.gz"
+        PREVIOUS_DYLIBS_URL="https://dl.dropboxusercontent.com/s/gmcfxwgl9f9n6pu/libcxx-roots.tar.gz"
         OSX_ROOTS="${BUILD_DIR}/macos-roots"
         mkdir -p "${OSX_ROOTS}"
         curl "${PREVIOUS_DYLIBS_URL}" | tar -xz --strip-components=1 -C "${OSX_ROOTS}"
@@ -444,10 +451,13 @@ apple-system-backdeployment-*)
     PARAMS="target_triple=${arch}-apple-macosx${DEPLOYMENT_TARGET}"
     PARAMS+=";cxx_runtime_root=${OSX_ROOTS}/macOS/libc++/${DEPLOYMENT_TARGET}"
     PARAMS+=";abi_runtime_root=${OSX_ROOTS}/macOS/libc++abi/${DEPLOYMENT_TARGET}"
+    PARAMS+=";unwind_runtime_root=${OSX_ROOTS}/macOS/libunwind/${DEPLOYMENT_TARGET}"
     PARAMS+=";use_system_cxx_lib=True"
 
+    # TODO: We should run the libunwind tests using the back-deployment dylibs too.
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Apple.cmake" \
                    -DLIBCXX_TEST_CONFIG="apple-libc++-backdeployment.cfg.in" \
+                   -DLIBCXXABI_TEST_CONFIG="apple-libc++abi-backdeployment.cfg.in" \
                    -DLIBCXX_TEST_PARAMS="${PARAMS}" \
                    -DLIBCXXABI_TEST_PARAMS="${PARAMS}"
 

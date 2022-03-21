@@ -1083,7 +1083,7 @@ inline bool get_device_info_host<info::device::preferred_interop_user_sync>() {
 
 template <> inline device get_device_info_host<info::device::parent_device>() {
   // TODO: implement host device partitioning
-  throw runtime_error(
+  throw invalid_object_error(
       "Partitioning to subdevices of the host device is not implemented yet",
       PI_INVALID_DEVICE);
 }
@@ -1153,6 +1153,13 @@ get_device_info_host<info::device::sub_group_independent_forward_progress>() {
 template <>
 inline bool get_device_info_host<info::device::kernel_kernel_pipe_support>() {
   return false;
+}
+
+template <>
+inline std::string get_device_info_host<info::device::backend_version>() {
+  throw runtime_error(
+      "Backend version feature is not supported on HOST device.",
+      PI_INVALID_DEVICE);
 }
 
 template <>

@@ -58,18 +58,17 @@ define <4 x float> @hang_when_merging_stores_after_legalization(<8 x float> %x, 
 ; LMULMAX2:       # %bb.0:
 ; LMULMAX2-NEXT:    addi sp, sp, -32
 ; LMULMAX2-NEXT:    .cfi_def_cfa_offset 32
-; LMULMAX2-NEXT:    vsetivli zero, 0, e32, m2, ta, mu
-; LMULMAX2-NEXT:    vfmv.f.s ft0, v10
-; LMULMAX2-NEXT:    fsw ft0, 24(sp)
-; LMULMAX2-NEXT:    vfmv.f.s ft0, v8
-; LMULMAX2-NEXT:    fsw ft0, 16(sp)
+; LMULMAX2-NEXT:    addi a0, sp, 24
 ; LMULMAX2-NEXT:    vsetivli zero, 1, e32, m2, ta, mu
+; LMULMAX2-NEXT:    vse32.v v10, (a0)
 ; LMULMAX2-NEXT:    vslidedown.vi v10, v10, 7
-; LMULMAX2-NEXT:    vfmv.f.s ft0, v10
-; LMULMAX2-NEXT:    fsw ft0, 28(sp)
-; LMULMAX2-NEXT:    vslidedown.vi v8, v8, 7
-; LMULMAX2-NEXT:    vfmv.f.s ft0, v8
-; LMULMAX2-NEXT:    fsw ft0, 20(sp)
+; LMULMAX2-NEXT:    addi a0, sp, 28
+; LMULMAX2-NEXT:    vse32.v v10, (a0)
+; LMULMAX2-NEXT:    vslidedown.vi v10, v8, 7
+; LMULMAX2-NEXT:    addi a0, sp, 20
+; LMULMAX2-NEXT:    vse32.v v10, (a0)
+; LMULMAX2-NEXT:    addi a0, sp, 16
+; LMULMAX2-NEXT:    vse32.v v8, (a0)
 ; LMULMAX2-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; LMULMAX2-NEXT:    addi a0, sp, 16
 ; LMULMAX2-NEXT:    vle32.v v8, (a0)
@@ -276,4 +275,52 @@ define <8 x float> @splat_idx_v8f32(<8 x float> %v, i64 %idx) {
   %ins = insertelement <8 x float> poison, float %x, i32 0
   %splat = shufflevector <8 x float> %ins, <8 x float> poison, <8 x i32> zeroinitializer
   ret <8 x float> %splat
+}
+
+; Test that we pull the vlse of the constant pool out of the loop.
+define dso_local void @splat_load_licm(float* %0) {
+; RV32-LABEL: splat_load_licm:
+; RV32:       # %bb.0:
+; RV32-NEXT:    lui a1, %hi(.LCPI12_0)
+; RV32-NEXT:    addi a1, a1, %lo(.LCPI12_0)
+; RV32-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; RV32-NEXT:    vlse32.v v8, (a1), zero
+; RV32-NEXT:    li a1, 1024
+; RV32-NEXT:  .LBB12_1: # =>This Inner Loop Header: Depth=1
+; RV32-NEXT:    vse32.v v8, (a0)
+; RV32-NEXT:    addi a1, a1, -4
+; RV32-NEXT:    addi a0, a0, 16
+; RV32-NEXT:    bnez a1, .LBB12_1
+; RV32-NEXT:  # %bb.2:
+; RV32-NEXT:    ret
+;
+; RV64-LABEL: splat_load_licm:
+; RV64:       # %bb.0:
+; RV64-NEXT:    lui a1, %hi(.LCPI12_0)
+; RV64-NEXT:    addi a1, a1, %lo(.LCPI12_0)
+; RV64-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; RV64-NEXT:    vlse32.v v8, (a1), zero
+; RV64-NEXT:    li a1, 0
+; RV64-NEXT:    li a2, 1024
+; RV64-NEXT:  .LBB12_1: # =>This Inner Loop Header: Depth=1
+; RV64-NEXT:    slli a3, a1, 2
+; RV64-NEXT:    add a3, a0, a3
+; RV64-NEXT:    addiw a1, a1, 4
+; RV64-NEXT:    vse32.v v8, (a3)
+; RV64-NEXT:    bne a1, a2, .LBB12_1
+; RV64-NEXT:  # %bb.2:
+; RV64-NEXT:    ret
+  br label %2
+
+2:                                                ; preds = %2, %1
+  %3 = phi i32 [ 0, %1 ], [ %6, %2 ]
+  %4 = getelementptr inbounds float, float* %0, i32 %3
+  %5 = bitcast float* %4 to <4 x float>*
+  store <4 x float> <float 3.000000e+00, float 3.000000e+00, float 3.000000e+00, float 3.000000e+00>, <4 x float>* %5, align 4
+  %6 = add nuw i32 %3, 4
+  %7 = icmp eq i32 %6, 1024
+  br i1 %7, label %8, label %2
+
+8:                                                ; preds = %2
+  ret void
 }

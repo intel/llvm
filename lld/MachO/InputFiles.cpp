@@ -252,14 +252,36 @@ InputFile::InputFile(Kind kind, const InterfaceFile &interface)
 // Note that "record" is a term I came up with. In contrast, "literal" is a term
 // used by the Mach-O format.
 static Optional<size_t> getRecordSize(StringRef segname, StringRef name) {
-  if (name == section_names::cfString) {
-    if (config->icfLevel != ICFLevel::none && segname == segment_names::data)
-      return target->wordSize == 8 ? 32 : 16;
-  } else if (name == section_names::compactUnwind) {
-    if (segname == segment_names::ld)
-      return target->wordSize == 8 ? 32 : 20;
+  if (name == section_names::compactUnwind) {
+      if (segname == segment_names::ld)
+        return target->wordSize == 8 ? 32 : 20;
   }
+  if (config->icfLevel == ICFLevel::none)
+    return {};
+
+  if (name == section_names::cfString && segname == segment_names::data)
+    return target->wordSize == 8 ? 32 : 16;
+  if (name == section_names::objcClassRefs && segname == segment_names::data)
+    return target->wordSize;
   return {};
+}
+
+static Error parseCallGraph(ArrayRef<uint8_t> data,
+                            std::vector<CallGraphEntry> &callGraph) {
+  TimeTraceScope timeScope("Parsing call graph section");
+  BinaryStreamReader reader(data, support::little);
+  while (!reader.empty()) {
+    uint32_t fromIndex, toIndex;
+    uint64_t count;
+    if (Error err = reader.readInteger(fromIndex))
+      return err;
+    if (Error err = reader.readInteger(toIndex))
+      return err;
+    if (Error err = reader.readInteger(count))
+      return err;
+    callGraph.emplace_back(fromIndex, toIndex, count);
+  }
+  return Error::success();
 }
 
 // Parse the sequence of sections within a single LC_SEGMENT(_64).
@@ -320,25 +342,8 @@ void ObjFile::parseSections(ArrayRef<SectionHeader> sectionHeaders) {
       if (name == section_names::compactUnwind)
         compactUnwindSection = sections.back();
     } else if (segname == segment_names::llvm) {
-      if (name == "__cg_profile" && config->callGraphProfileSort) {
-        TimeTraceScope timeScope("Parsing call graph section");
-        BinaryStreamReader reader(data, support::little);
-        while (!reader.empty()) {
-          uint32_t fromIndex, toIndex;
-          uint64_t count;
-          if (Error err = reader.readInteger(fromIndex))
-            fatal(toString(this) + ": Expected 32-bit integer");
-          if (Error err = reader.readInteger(toIndex))
-            fatal(toString(this) + ": Expected 32-bit integer");
-          if (Error err = reader.readInteger(count))
-            fatal(toString(this) + ": Expected 64-bit integer");
-          callGraph.emplace_back();
-          CallGraphEntry &entry = callGraph.back();
-          entry.fromIndex = fromIndex;
-          entry.toIndex = toIndex;
-          entry.count = count;
-        }
-      }
+      if (config->callGraphProfileSort && name == section_names::cgProfile)
+        checkError(parseCallGraph(data, callGraph));
       // ld64 does not appear to emit contents from sections within the __LLVM
       // segment. Symbols within those sections point to bitcode metadata
       // instead of actual symbols. Global symbols within those sections could
@@ -1558,6 +1563,7 @@ static macho::Symbol *createBitcodeSymbol(const lto::InputFile::Symbol &objSym,
   case GlobalValue::DefaultVisibility:
     break;
   }
+  isPrivateExtern = isPrivateExtern || objSym.canBeOmittedFromSymbolTable();
 
   if (objSym.isCommon())
     return symtab->addCommon(name, &file, objSym.getCommonSize(),

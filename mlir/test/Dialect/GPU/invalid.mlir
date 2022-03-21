@@ -15,7 +15,7 @@ func @no_region_attrs(%sz : index) {
  "gpu.launch"(%sz, %sz, %sz, %sz, %sz, %sz) ({
   ^bb1(%bx: index, %by: index, %bz: index,
        %tx: index, %ty: index, %tz: index):
-    gpu.return
+    gpu.terminator
   }) : (index, index, index, index, index, index) -> ()
   return
 }
@@ -26,8 +26,9 @@ func @launch_requires_gpu_return(%sz : index) {
   // @expected-note@+1 {{in 'gpu.launch' body region}}
   gpu.launch blocks(%bx, %by, %bz) in (%sbx = %sz, %sby = %sz, %sbz = %sz)
              threads(%tx, %ty, %tz) in (%stx = %sz, %sty = %sz, %stz = %sz) {
-    // @expected-error@+1 {{expected 'gpu.terminator' or a terminator with successors}}
-    return
+    // @expected-error@+2 {{expected 'gpu.terminator' or a terminator with successors}}
+    %one = arith.constant 1 : i32
+    "gpu.yield"(%one) : (i32) -> ()
   }
   return
 }
@@ -293,7 +294,7 @@ func @reduce_incorrect_yield(%arg0 : f32) {
   // expected-error@+1 {{expected gpu.yield op in region}}
   %res = gpu.all_reduce %arg0 {
   ^bb(%lhs : f32, %rhs : f32):
-    return
+    "test.finish" () : () -> ()
   } : (f32) -> (f32)
   return
 }
@@ -301,7 +302,7 @@ func @reduce_incorrect_yield(%arg0 : f32) {
 // -----
 
 func @shuffle_mismatching_type(%arg0 : f32, %arg1 : i32, %arg2 : i32) {
-  // expected-error@+1 {{inferred type(s) 'f32', 'i1' are incompatible with return type(s) of operation 'i32', 'i1'}}
+  // expected-error@+1 {{op failed to verify that all of {value, result} have same type}}
   %shfl, %pred = "gpu.shuffle"(%arg0, %arg1, %arg2) { mode = #gpu<"shuffle_mode xor"> } : (f32, i32, i32) -> (i32, i1)
   return
 }
@@ -610,4 +611,43 @@ func @async_cp_num_dst_stride(
   gpu.device_async_copy %src[%i, %i], %dst[%i, %i], 16 :
     memref<200x100xf32> to memref<200x100xf32, affine_map<(d0, d1) -> (200*d0 + 2*d1)>, 3>
   return
+}
+
+// -----
+
+// Number of symbol operand count less than memref symbol count.
+func @alloc() {
+   // expected-error@+1 {{symbol operand count does not equal memref symbol count}}
+   %1 = gpu.alloc() : memref<2x4xf32, affine_map<(d0, d1)[s0] -> ((d0 + s0), d1)>, 1>
+   return
+}
+
+// -----
+
+// Number of symbol operand count greater than memref symbol count.
+func @alloc() {
+   %0 = arith.constant 7 : index
+   // expected-error@+1 {{symbol operand count does not equal memref symbol count}}
+   %1 = gpu.alloc()[%0] : memref<2x4xf32, 1>
+   return
+}
+
+// -----
+
+// Number of dynamic dimension operand count greater than memref dynamic dimension count.
+func @alloc() {
+   %0 = arith.constant 7 : index
+   // expected-error@+1 {{dimension operand count does not equal memref dynamic dimension count}}
+   %1 = gpu.alloc(%0, %0) : memref<2x?xf32, 1>
+   return
+}
+
+// -----
+
+// Number of dynamic dimension operand count less than memref dynamic dimension count.
+func @alloc() {
+   %0 = arith.constant 7 : index
+   // expected-error@+1 {{dimension operand count does not equal memref dynamic dimension count}}
+   %1 = gpu.alloc(%0) : memref<2x?x?xf32, 1>
+   return
 }

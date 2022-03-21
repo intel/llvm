@@ -30,7 +30,7 @@ using namespace lld::macho;
 // can differ based on STL debug levels (e.g. iterator debugging on MSVC's STL),
 // so account for that.
 static_assert(sizeof(void *) != 8 ||
-                  sizeof(ConcatInputSection) == sizeof(std::vector<Reloc>) + 96,
+                  sizeof(ConcatInputSection) == sizeof(std::vector<Reloc>) + 88,
               "Try to minimize ConcatInputSection's size, we create many "
               "instances of it");
 
@@ -75,48 +75,6 @@ std::string InputSection::getLocation(uint64_t off) const {
   return (toString(getFile()) + ":(" + getName() + "+0x" +
           Twine::utohexstr(off) + ")")
       .str();
-}
-
-// ICF needs to hash any section that might potentially be duplicated so
-// that it can match on content rather than identity.
-bool ConcatInputSection::isHashableForICF() const {
-  switch (sectionType(getFlags())) {
-  case S_REGULAR:
-    return true;
-  case S_CSTRING_LITERALS:
-  case S_4BYTE_LITERALS:
-  case S_8BYTE_LITERALS:
-  case S_16BYTE_LITERALS:
-  case S_LITERAL_POINTERS:
-    llvm_unreachable("found unexpected literal type in ConcatInputSection");
-  case S_ZEROFILL:
-  case S_GB_ZEROFILL:
-  case S_NON_LAZY_SYMBOL_POINTERS:
-  case S_LAZY_SYMBOL_POINTERS:
-  case S_SYMBOL_STUBS:
-  case S_MOD_INIT_FUNC_POINTERS:
-  case S_MOD_TERM_FUNC_POINTERS:
-  case S_COALESCED:
-  case S_INTERPOSING:
-  case S_DTRACE_DOF:
-  case S_LAZY_DYLIB_SYMBOL_POINTERS:
-  case S_THREAD_LOCAL_REGULAR:
-  case S_THREAD_LOCAL_ZEROFILL:
-  case S_THREAD_LOCAL_VARIABLES:
-  case S_THREAD_LOCAL_VARIABLE_POINTERS:
-  case S_THREAD_LOCAL_INIT_FUNCTION_POINTERS:
-    return false;
-  default:
-    llvm_unreachable("Section type");
-  }
-}
-
-void ConcatInputSection::hashForICF() {
-  assert(data.data()); // zeroFill section data has nullptr with non-zero size
-  assert(icfEqClass[0] == 0); // don't overwrite a unique ID!
-  // Turn-on the top bit to guarantee that valid hashes have no collisions
-  // with the small-integer unique IDs for ICF-ineligible sections
-  icfEqClass[0] = xxHash64(data) | (1ull << 63);
 }
 
 void ConcatInputSection::foldIdentical(ConcatInputSection *copy) {
@@ -300,6 +258,11 @@ bool macho::isCodeSection(const InputSection *isec) {
 
 bool macho::isCfStringSection(const InputSection *isec) {
   return isec->getName() == section_names::cfString &&
+         isec->getSegName() == segment_names::data;
+}
+
+bool macho::isClassRefsSection(const InputSection *isec) {
+  return isec->getName() == section_names::objcClassRefs &&
          isec->getSegName() == segment_names::data;
 }
 

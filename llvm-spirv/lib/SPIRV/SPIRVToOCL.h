@@ -161,6 +161,13 @@ public:
   ///  %1 = shl i31 %0, 8
   void visitCallSPIRVGenericPtrMemSemantics(CallInst *CI);
 
+  /// Transform __spirv_ConvertFToBF16INTELDv(N)_f to:
+  /// intel_convert_bfloat16(N)_as_ushort(N)Dv(N)_f;
+  /// and transform __spirv_ConvertBF16ToFINTELDv(N)_s to:
+  /// intel_convert_as_bfloat16(N)_float(N)Dv(N)_t;
+  /// where N is vector size
+  void visitCallSPIRVBFloat16Conversions(CallInst *CI, Op OC);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);

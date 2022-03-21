@@ -653,7 +653,9 @@ std::optional<Expr<SomeType>> ConvertToType(
     break;
   case TypeCategory::Derived:
     if (auto fromType{x.GetType()}) {
-      if (type == *fromType) {
+      if (type.IsTkCompatibleWith(*fromType)) {
+        // "x" could be assigned or passed to "type", or appear in a
+        // structure constructor as a value for a component with "type"
         return std::move(x);
       }
     }
@@ -765,7 +767,7 @@ bool IsObjectPointer(const Expr<SomeType> &expr, FoldingContext &context) {
     return false;
   } else if (const auto *funcRef{UnwrapProcedureRef(expr)}) {
     return IsVariable(*funcRef);
-  } else if (const Symbol * symbol{GetLastSymbol(expr)}) {
+  } else if (const Symbol * symbol{UnwrapWholeSymbolOrComponentDataRef(expr)}) {
     return IsPointer(symbol->GetUltimate());
   } else {
     return false;
@@ -971,11 +973,18 @@ std::optional<parser::MessageFixedText> CheckProcCompatibility(bool isCall,
   } else if (lhsProcedure->HasExplicitInterface() &&
       !rhsProcedure->HasExplicitInterface()) {
     // Section 10.2.2.4, paragraph 3 prohibits associating a procedure pointer
-    // with an explicit interface with a procedure with an implicit interface
-    msg = "Procedure %s with explicit interface may not be associated with"
-          " procedure designator '%s' with implicit interface"_err_en_US;
+    // with an explicit interface with a procedure whose characteristics don't
+    // match.  That's the case if the target procedure has an implicit
+    // interface.  But this case is allowed by several other compilers as long
+    // as the explicit interface can be called via an implicit interface.
+    if (!lhsProcedure->CanBeCalledViaImplicitInterface()) {
+      msg = "Procedure %s with explicit interface that cannot be called via "
+            "an implicit interface cannot be associated with procedure "
+            "designator with an implicit interface"_err_en_US;
+    }
   } else if (!lhsProcedure->HasExplicitInterface() &&
       rhsProcedure->HasExplicitInterface()) {
+    // OK if the target can be called via an implicit interface
     if (!rhsProcedure->CanBeCalledViaImplicitInterface()) {
       msg = "Procedure %s with implicit interface may not be associated "
             "with procedure designator '%s' with explicit interface that "
@@ -1315,12 +1324,14 @@ bool IsSaved(const Symbol &original) {
     // BLOCK DATA entities must all be in COMMON,
     // which was checked above.
     return true;
-  } else if (scope.kind() == Scope::Kind::Subprogram &&
-      scope.context().languageFeatures().IsEnabled(
-          common::LanguageFeature::DefaultSave) &&
-      !(scope.symbol() && scope.symbol()->attrs().test(Attr::RECURSIVE))) {
-    // -fno-automatic/-save/-Msave option applies to objects in
-    // executable subprograms unless they are explicitly RECURSIVE.
+  } else if (scope.context().languageFeatures().IsEnabled(
+                 common::LanguageFeature::DefaultSave) &&
+      (scopeKind == Scope::Kind::MainProgram ||
+          (scope.kind() == Scope::Kind::Subprogram &&
+              !(scope.symbol() &&
+                  scope.symbol()->attrs().test(Attr::RECURSIVE))))) {
+    // -fno-automatic/-save/-Msave option applies to all objects in executable
+    // main programs and subprograms unless they are explicitly RECURSIVE.
     return true;
   } else if (symbol.test(Symbol::Flag::InDataStmt)) {
     return true;
@@ -1507,6 +1518,17 @@ bool SymbolSourcePositionCompare::operator()(
 
 SemanticsContext &Symbol::GetSemanticsContext() const {
   return DEREF(owner_).context();
+}
+
+bool AreTkCompatibleTypes(const DeclTypeSpec *x, const DeclTypeSpec *y) {
+  if (x && y) {
+    if (auto xDt{evaluate::DynamicType::From(*x)}) {
+      if (auto yDt{evaluate::DynamicType::From(*y)}) {
+        return xDt->IsTkCompatibleWith(*yDt);
+      }
+    }
+  }
+  return false;
 }
 
 } // namespace Fortran::semantics

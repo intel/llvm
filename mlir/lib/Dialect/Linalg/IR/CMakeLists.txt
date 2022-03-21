@@ -8,6 +8,8 @@ add_mlir_dialect_library(MLIRLinalg
 
   DEPENDS
   MLIRLinalgInterfacesIncGen
+  MLIRLinalgOpsAttributesIncGen
+  MLIRLinalgOpsEnumsIncGen
   MLIRLinalgOpsIncGen
   MLIRLinalgStructuredOpsIncGen
 
@@ -20,6 +22,7 @@ add_mlir_dialect_library(MLIRLinalg
   MLIRIR
   MLIRParser
   MLIRSideEffectInterfaces
+  MLIRSparseTensor
   MLIRSCF
   MLIRMath
   MLIRMemRef

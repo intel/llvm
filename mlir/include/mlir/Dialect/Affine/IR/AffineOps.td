@@ -107,8 +107,9 @@ def AffineApplyOp : Affine_Op<"apply", [NoSideEffect]> {
 }
 
 def AffineForOp : Affine_Op<"for",
-    [ImplicitAffineTerminator, RecursiveSideEffects,
-     DeclareOpInterfaceMethods<LoopLikeOpInterface>]> {
+    [AutomaticAllocationScope, ImplicitAffineTerminator, RecursiveSideEffects,
+     DeclareOpInterfaceMethods<LoopLikeOpInterface,
+     ["getSingleInductionVar", "getSingleLowerBound", "getSingleStep"]>]> {
   let summary = "for operation";
   let description = [{
     Syntax:
@@ -343,7 +344,7 @@ def AffineForOp : Affine_Op<"for",
   let hasCanonicalizer = 1;
   let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
-  let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 def AffineIfOp : Affine_Op<"if",
@@ -608,7 +609,7 @@ def AffineMaxOp : AffineMinMaxOpBase<"max", [NoSideEffect]> {
 }
 
 def AffineParallelOp : Affine_Op<"parallel",
-    [ImplicitAffineTerminator, RecursiveSideEffects,
+    [AutomaticAllocationScope, ImplicitAffineTerminator, RecursiveSideEffects,
      DeclareOpInterfaceMethods<LoopLikeOpInterface>, MemRefsNormalizable]> {
   let summary = "multi-index parallel band operation";
   let description = [{

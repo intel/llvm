@@ -128,7 +128,7 @@ macro(set_output_name output name arch)
       if(COMPILER_RT_DEFAULT_TARGET_ONLY)
         set(triple "${COMPILER_RT_DEFAULT_TARGET_TRIPLE}")
       else()
-        set(triple "${TARGET_TRIPLE}")
+        set(triple "${LLVM_TARGET_TRIPLE}")
       endif()
       # Except for baremetal, when using arch-suffixed runtime library names,
       # clang only looks for libraries named "arm" or "armhf", see
@@ -375,7 +375,7 @@ function(add_compiler_rt_runtime name type)
       if(APPLE)
         # Ad-hoc sign the dylibs
         add_custom_command(TARGET ${libname}
-          POST_BUILD  
+          POST_BUILD
           COMMAND codesign --sign - $<TARGET_FILE:${libname}>
           WORKING_DIRECTORY ${COMPILER_RT_OUTPUT_LIBRARY_DIR}
         )
@@ -602,6 +602,9 @@ macro(add_custom_libcxx name prefix)
     CMAKE_READELF
     CMAKE_SYSROOT
     LIBCXX_HAS_MUSL_LIBC
+    LIBCXX_HAS_PTHREAD_LIB
+    LIBCXX_HAS_RT_LIB
+    LIBCXXABI_HAS_PTHREAD_LIB
     PYTHON_EXECUTABLE
     Python3_EXECUTABLE
     Python2_EXECUTABLE
@@ -638,6 +641,7 @@ macro(add_custom_libcxx name prefix)
                -DLIBCXXABI_ENABLE_SHARED=OFF
                -DLIBCXXABI_HERMETIC_STATIC_LIBRARY=ON
                -DLIBCXXABI_INCLUDE_TESTS=OFF
+               -DLIBCXX_CXX_ABI=libcxxabi
                -DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=OFF
                -DLIBCXX_ENABLE_SHARED=OFF
                -DLIBCXX_HERMETIC_STATIC_LIBRARY=ON

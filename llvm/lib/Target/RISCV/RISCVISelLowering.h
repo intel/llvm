@@ -75,6 +75,7 @@ enum NodeType : unsigned {
   //
   // FMV_H_X matches the semantics of the FMV.H.X.
   // FMV_X_ANYEXTH is similar to FMV.X.H but has an any-extended result.
+  // FMV_X_SIGNEXTH is similar to FMV.X.H and has a sign-extended result.
   // FMV_W_X_RV64 matches the semantics of the FMV.W.X.
   // FMV_X_ANYEXTW_RV64 is similar to FMV.X.W but has an any-extended result.
   //
@@ -82,6 +83,7 @@ enum NodeType : unsigned {
   // unnecessary GPR->FPR->GPR moves.
   FMV_H_X,
   FMV_X_ANYEXTH,
+  FMV_X_SIGNEXTH,
   FMV_W_X_RV64,
   FMV_X_ANYEXTW_RV64,
   // FP to XLen int conversions. Corresponds to fcvt.l(u).s/d/h on RV64 and
@@ -129,10 +131,12 @@ enum NodeType : unsigned {
   BFPW,
   // Vector Extension
   // VMV_V_X_VL matches the semantics of vmv.v.x but includes an extra operand
-  // for the VL value to be used for the operation.
+  // for the VL value to be used for the operation. The first operand is
+  // passthru operand.
   VMV_V_X_VL,
   // VFMV_V_F_VL matches the semantics of vfmv.v.f but includes an extra operand
-  // for the VL value to be used for the operation.
+  // for the VL value to be used for the operation. The first operand is
+  // passthru operand.
   VFMV_V_F_VL,
   // VMV_X_S matches the semantics of vmv.x.s. The result is always XLenVT sign
   // extended from the vector element size.
@@ -143,6 +147,7 @@ enum NodeType : unsigned {
   VFMV_S_F_VL,
   // Splats an 64-bit value that has been split into two i32 parts. This is
   // expanded late to two scalar stores and a stride 0 vector load.
+  // The first operand is passthru operand.
   SPLAT_VECTOR_SPLIT_I64_VL,
   // Read VLENB CSR
   READ_VLENB,
@@ -155,9 +160,9 @@ enum NodeType : unsigned {
   // and the fifth the VL.
   VSLIDEUP_VL,
   VSLIDEDOWN_VL,
-  // Matches the semantics of vslide1up/slide1down. The first operand is the
-  // source vector, the second is the XLenVT scalar value. The third and fourth
-  // operands are the mask and VL operands.
+  // Matches the semantics of vslide1up/slide1down. The first operand is
+  // passthru operand, the second is source vector, third is the XLenVT scalar
+  // value. The fourth and fifth operands are the mask and VL operands.
   VSLIDE1UP_VL,
   VSLIDE1DOWN_VL,
   // Matches the semantics of the vid.v instruction, with a mask and VL
@@ -306,15 +311,16 @@ enum NodeType : unsigned {
   STRICT_FCVT_W_RV64 = ISD::FIRST_TARGET_STRICTFP_OPCODE,
   STRICT_FCVT_WU_RV64,
 
-  // Memory opcodes start here.
-  VLE_VL = ISD::FIRST_TARGET_MEMORY_OPCODE,
-  VSE_VL,
-
   // WARNING: Do not add anything in the end unless you want the node to
   // have memop! In fact, starting from FIRST_TARGET_MEMORY_OPCODE all
   // opcodes will be thought as target memory ops!
 };
 } // namespace RISCVISD
+
+namespace RISCV {
+// We use 64 bits as the known part in the scalable vector types.
+static constexpr unsigned RVVBitsPerBlock = 64;
+} // namespace RISCV
 
 class RISCVTargetLowering : public TargetLowering {
   const RISCVSubtarget &Subtarget;
@@ -494,8 +500,8 @@ public:
   bool decomposeMulByConstant(LLVMContext &Context, EVT VT,
                               SDValue C) const override;
 
-  bool isMulAddWithConstProfitable(const SDValue &AddNode,
-                                   const SDValue &ConstNode) const override;
+  bool isMulAddWithConstProfitable(SDValue AddNode,
+                                   SDValue ConstNode) const override;
 
   TargetLowering::AtomicExpansionKind
   shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
@@ -530,6 +536,15 @@ public:
                              Optional<CallingConv::ID> CC) const override;
 
   static RISCVII::VLMUL getLMUL(MVT VT);
+  inline static unsigned computeVLMAX(unsigned VectorBits, unsigned EltSize,
+                                      unsigned MinSize) {
+    // Original equation:
+    //   VLMAX = (VectorBits / EltSize) * LMUL
+    //   where LMUL = MinSize / RISCV::RVVBitsPerBlock
+    // The following equations have been reordered to prevent loss of precision
+    // when calculating fractional LMUL.
+    return ((VectorBits / EltSize) * MinSize) / RISCV::RVVBitsPerBlock;
+  };
   static unsigned getRegClassIDForLMUL(RISCVII::VLMUL LMul);
   static unsigned getSubregIndexByMVT(MVT VT, unsigned Index);
   static unsigned getRegClassIDForVecVT(MVT VT);
@@ -610,6 +625,7 @@ private:
   SDValue lowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerSTEP_VECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVECTOR_REVERSE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerVECTOR_SPLICE(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerABS(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerMaskedLoad(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerMaskedStore(SDValue Op, SelectionDAG &DAG) const;
@@ -669,21 +685,15 @@ private:
     return false;
   };
 };
-
-namespace RISCV {
-// We use 64 bits as the known part in the scalable vector types.
-static constexpr unsigned RVVBitsPerBlock = 64;
-} // namespace RISCV
-
 namespace RISCVVIntrinsicsTable {
 
 struct RISCVVIntrinsicInfo {
   unsigned IntrinsicID;
-  uint8_t SplatOperand;
+  uint8_t ScalarOperand;
   uint8_t VLOperand;
-  bool hasSplatOperand() const {
-    // 0xF is not valid. See NoSplatOperand in IntrinsicsRISCV.td.
-    return SplatOperand != 0xF;
+  bool hasScalarOperand() const {
+    // 0xF is not valid. See NoScalarOperand in IntrinsicsRISCV.td.
+    return ScalarOperand != 0xF;
   }
   bool hasVLOperand() const {
     // 0x1F is not valid. See NoVLOperand in IntrinsicsRISCV.td.

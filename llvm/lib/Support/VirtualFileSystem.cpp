@@ -485,8 +485,7 @@ class CombiningDirIterImpl : public llvm::vfs::detail::DirIterImpl {
     }
 
     if (IsFirstTime && CurrentDirIter == directory_iterator())
-      return std::error_code(static_cast<int>(errc::no_such_file_or_directory),
-                             std::system_category());
+      return errc::no_such_file_or_directory;
     return {};
   }
 
@@ -1285,8 +1284,7 @@ directory_iterator RedirectingFileSystem::dir_begin(const Twine &Dir,
   }
 
   if (!S->isDirectory()) {
-    EC = std::error_code(static_cast<int>(errc::not_a_directory),
-                         std::system_category());
+    EC = errc::not_a_directory;
     return {};
   }
 
@@ -1383,14 +1381,14 @@ std::vector<StringRef> RedirectingFileSystem::getRoots() const {
   return R;
 }
 
-void RedirectingFileSystem::dump(raw_ostream &OS) const {
+void RedirectingFileSystem::print(raw_ostream &OS) const {
   for (const auto &Root : Roots)
-    dumpEntry(OS, Root.get());
+    printEntry(OS, Root.get());
 }
 
-void RedirectingFileSystem::dumpEntry(raw_ostream &OS,
-                                      RedirectingFileSystem::Entry *E,
-                                      int NumSpaces) const {
+void RedirectingFileSystem::printEntry(raw_ostream &OS,
+                                       RedirectingFileSystem::Entry *E,
+                                       int NumSpaces) const {
   StringRef Name = E->getName();
   for (int i = 0, e = NumSpaces; i < e; ++i)
     OS << " ";
@@ -1403,12 +1401,12 @@ void RedirectingFileSystem::dumpEntry(raw_ostream &OS,
 
     for (std::unique_ptr<Entry> &SubEntry :
          llvm::make_range(DE->contents_begin(), DE->contents_end()))
-      dumpEntry(OS, SubEntry.get(), NumSpaces + 2);
+      printEntry(OS, SubEntry.get(), NumSpaces + 2);
   }
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-LLVM_DUMP_METHOD void RedirectingFileSystem::dump() const { dump(dbgs()); }
+void RedirectingFileSystem::dump() const { print(dbgs()); }
 #endif
 
 /// A helper class to hold the common YAML parsing state.

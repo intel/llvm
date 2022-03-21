@@ -22,11 +22,18 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Support/ErrorHandling.h"
+#include <cassert>
 #include <memory>
 #include <utility>
 
 namespace clang {
 namespace dataflow {
+
+// FIXME: convert these to parameters of the analysis or environment. Current
+// settings have been experimentaly validated, but only for a particular
+// analysis.
+static constexpr int MaxCompositeValueDepth = 3;
+static constexpr int MaxCompositeValueSize = 1000;
 
 /// Returns a map consisting of key-value entries that are present in both maps.
 template <typename K, typename V>
@@ -42,7 +49,9 @@ llvm::DenseMap<K, V> intersectDenseMaps(const llvm::DenseMap<K, V> &Map1,
 }
 
 /// Returns true if and only if `Val1` is equivalent to `Val2`.
-static bool equivalentValues(QualType Type, Value *Val1, Value *Val2,
+static bool equivalentValues(QualType Type, Value *Val1,
+                             const Environment &Env1, Value *Val2,
+                             const Environment &Env2,
                              Environment::ValueModel &Model) {
   if (Val1 == Val2)
     return true;
@@ -53,13 +62,114 @@ static bool equivalentValues(QualType Type, Value *Val1, Value *Val2,
     return &IndVal1->getPointeeLoc() == &IndVal2->getPointeeLoc();
   }
 
-  return Model.compareEquivalent(Type, *Val1, *Val2);
+  return Model.compareEquivalent(Type, *Val1, Env1, *Val2, Env2);
+}
+
+/// Initializes a global storage value.
+static void initGlobalVar(const VarDecl &D, Environment &Env) {
+  if (!D.hasGlobalStorage() ||
+      Env.getStorageLocation(D, SkipPast::None) != nullptr)
+    return;
+
+  auto &Loc = Env.createStorageLocation(D);
+  Env.setStorageLocation(D, Loc);
+  if (auto *Val = Env.createValue(D.getType()))
+    Env.setValue(Loc, *Val);
+}
+
+/// Initializes a global storage value.
+static void initGlobalVar(const Decl &D, Environment &Env) {
+  if (auto *V = dyn_cast<VarDecl>(&D))
+    initGlobalVar(*V, Env);
+}
+
+/// Initializes global storage values that are declared or referenced from
+/// sub-statements of `S`.
+// FIXME: Add support for resetting globals after function calls to enable
+// the implementation of sound analyses.
+static void initGlobalVars(const Stmt &S, Environment &Env) {
+  for (auto *Child : S.children()) {
+    if (Child != nullptr)
+      initGlobalVars(*Child, Env);
+  }
+
+  if (auto *DS = dyn_cast<DeclStmt>(&S)) {
+    if (DS->isSingleDecl()) {
+      initGlobalVar(*DS->getSingleDecl(), Env);
+    } else {
+      for (auto *D : DS->getDeclGroup())
+        initGlobalVar(*D, Env);
+    }
+  } else if (auto *E = dyn_cast<DeclRefExpr>(&S)) {
+    initGlobalVar(*E->getDecl(), Env);
+  } else if (auto *E = dyn_cast<MemberExpr>(&S)) {
+    initGlobalVar(*E->getMemberDecl(), Env);
+  }
+}
+
+/// Returns constraints that represent the disjunction of `Constraints1` and
+/// `Constraints2`.
+///
+/// Requirements:
+///
+///  The elements of `Constraints1` and `Constraints2` must not be null.
+llvm::DenseSet<BoolValue *>
+joinConstraints(DataflowAnalysisContext *Context,
+                const llvm::DenseSet<BoolValue *> &Constraints1,
+                const llvm::DenseSet<BoolValue *> &Constraints2) {
+  // `(X ^ Y) v (X ^ Z)` is logically equivalent to `X ^ (Y v Z)`. Therefore, to
+  // avoid unnecessarily expanding the resulting set of constraints, we will add
+  // all common constraints of `Constraints1` and `Constraints2` directly and
+  // add a disjunction of the constraints that are not common.
+
+  llvm::DenseSet<BoolValue *> JoinedConstraints;
+
+  if (Constraints1.empty() || Constraints2.empty()) {
+    // Disjunction of empty set and non-empty set is represented as empty set.
+    return JoinedConstraints;
+  }
+
+  BoolValue *Val1 = nullptr;
+  for (BoolValue *Constraint : Constraints1) {
+    if (Constraints2.contains(Constraint)) {
+      // Add common constraints directly to `JoinedConstraints`.
+      JoinedConstraints.insert(Constraint);
+    } else if (Val1 == nullptr) {
+      Val1 = Constraint;
+    } else {
+      Val1 = &Context->getOrCreateConjunctionValue(*Val1, *Constraint);
+    }
+  }
+
+  BoolValue *Val2 = nullptr;
+  for (BoolValue *Constraint : Constraints2) {
+    // Common constraints are added to `JoinedConstraints` above.
+    if (Constraints1.contains(Constraint)) {
+      continue;
+    }
+    if (Val2 == nullptr) {
+      Val2 = Constraint;
+    } else {
+      Val2 = &Context->getOrCreateConjunctionValue(*Val2, *Constraint);
+    }
+  }
+
+  // An empty set of constraints (represented as a null value) is interpreted as
+  // `true` and `true v X` is logically equivalent to `true` so we need to add a
+  // constraint only if both `Val1` and `Val2` are not null.
+  if (Val1 != nullptr && Val2 != nullptr)
+    JoinedConstraints.insert(
+        &Context->getOrCreateDisjunctionValue(*Val1, *Val2));
+
+  return JoinedConstraints;
 }
 
 Environment::Environment(DataflowAnalysisContext &DACtx,
                          const DeclContext &DeclCtx)
     : Environment(DACtx) {
   if (const auto *FuncDecl = dyn_cast<FunctionDecl>(&DeclCtx)) {
+    assert(FuncDecl->getBody() != nullptr);
+    initGlobalVars(*FuncDecl->getBody(), *this);
     for (const auto *ParamDecl : FuncDecl->parameters()) {
       assert(ParamDecl != nullptr);
       auto &ParamLoc = createStorageLocation(*ParamDecl);
@@ -93,6 +203,9 @@ bool Environment::equivalentTo(const Environment &Other,
   if (ExprToLoc != Other.ExprToLoc)
     return false;
 
+  if (MemberLocToStruct != Other.MemberLocToStruct)
+    return false;
+
   if (LocToVal.size() != Other.LocToVal.size())
     return false;
 
@@ -108,7 +221,7 @@ bool Environment::equivalentTo(const Environment &Other,
       return false;
     assert(It->second != nullptr);
 
-    if (!equivalentValues(Loc->getType(), Val, It->second, Model))
+    if (!equivalentValues(Loc->getType(), Val, *this, It->second, Other, Model))
       return false;
   }
 
@@ -131,6 +244,12 @@ LatticeJoinEffect Environment::join(const Environment &Other,
   if (ExprToLocSizeBefore != ExprToLoc.size())
     Effect = LatticeJoinEffect::Changed;
 
+  const unsigned MemberLocToStructSizeBefore = MemberLocToStruct.size();
+  MemberLocToStruct =
+      intersectDenseMaps(MemberLocToStruct, Other.MemberLocToStruct);
+  if (MemberLocToStructSizeBefore != MemberLocToStruct.size())
+    Effect = LatticeJoinEffect::Changed;
+
   // Move `LocToVal` so that `Environment::ValueModel::merge` can safely assign
   // values to storage locations while this code iterates over the current
   // assignments.
@@ -148,7 +267,8 @@ LatticeJoinEffect Environment::join(const Environment &Other,
       continue;
     assert(It->second != nullptr);
 
-    if (equivalentValues(Loc->getType(), Val, It->second, Model)) {
+    if (equivalentValues(Loc->getType(), Val, *this, It->second, Other,
+                         Model)) {
       LocToVal.insert({Loc, Val});
       continue;
     }
@@ -157,11 +277,15 @@ LatticeJoinEffect Environment::join(const Environment &Other,
     // `ValueModel::merge` returns false to avoid storing unneeded values in
     // `DACtx`.
     if (Value *MergedVal = createValue(Loc->getType()))
-      if (Model.merge(Loc->getType(), *Val, *It->second, *MergedVal, *this))
+      if (Model.merge(Loc->getType(), *Val, *this, *It->second, Other,
+                      *MergedVal, *this))
         LocToVal.insert({Loc, MergedVal});
   }
   if (OldLocToVal.size() != LocToVal.size())
     Effect = LatticeJoinEffect::Changed;
+
+  FlowConditionConstraints = joinConstraints(DACtx, FlowConditionConstraints,
+                                             Other.FlowConditionConstraints);
 
   return Effect;
 }
@@ -240,8 +364,25 @@ void Environment::setValue(const StorageLocation &Loc, Value &Val) {
 
     for (const FieldDecl *Field : Type->getAsRecordDecl()->fields()) {
       assert(Field != nullptr);
-      setValue(AggregateLoc.getChild(*Field), StructVal->getChild(*Field));
+      StorageLocation &FieldLoc = AggregateLoc.getChild(*Field);
+      MemberLocToStruct[&FieldLoc] = std::make_pair(StructVal, Field);
+      if (auto *FieldVal = StructVal->getChild(*Field))
+        setValue(FieldLoc, *FieldVal);
     }
+  }
+
+  auto IT = MemberLocToStruct.find(&Loc);
+  if (IT != MemberLocToStruct.end()) {
+    // `Loc` is the location of a struct member so we need to also update the
+    // value of the member in the corresponding `StructValue`.
+
+    assert(IT->second.first != nullptr);
+    StructValue &StructVal = *IT->second.first;
+
+    assert(IT->second.second != nullptr);
+    const ValueDecl &Member = *IT->second.second;
+
+    StructVal.setChild(Member, Val);
   }
 }
 
@@ -266,25 +407,45 @@ Value *Environment::getValue(const Expr &E, SkipPast SP) const {
 
 Value *Environment::createValue(QualType Type) {
   llvm::DenseSet<QualType> Visited;
-  return createValueUnlessSelfReferential(Type, Visited);
+  int CreatedValuesCount = 0;
+  Value *Val = createValueUnlessSelfReferential(Type, Visited, /*Depth=*/0,
+                                                CreatedValuesCount);
+  if (CreatedValuesCount > MaxCompositeValueSize) {
+    llvm::errs() << "Attempting to initialize a huge value of type: "
+                 << Type.getAsString() << "\n";
+  }
+  return Val;
 }
 
 Value *Environment::createValueUnlessSelfReferential(
-    QualType Type, llvm::DenseSet<QualType> &Visited) {
+    QualType Type, llvm::DenseSet<QualType> &Visited, int Depth,
+    int &CreatedValuesCount) {
   assert(!Type.isNull());
 
+  // Allow unlimited fields at depth 1; only cap at deeper nesting levels.
+  if ((Depth > 1 && CreatedValuesCount > MaxCompositeValueSize) ||
+      Depth > MaxCompositeValueDepth)
+    return nullptr;
+
+  if (Type->isBooleanType()) {
+    CreatedValuesCount++;
+    return &makeAtomicBoolValue();
+  }
+
   if (Type->isIntegerType()) {
+    CreatedValuesCount++;
     return &takeOwnership(std::make_unique<IntegerValue>());
   }
 
   if (Type->isReferenceType()) {
-    QualType PointeeType = Type->getAs<ReferenceType>()->getPointeeType();
+    CreatedValuesCount++;
+    QualType PointeeType = Type->castAs<ReferenceType>()->getPointeeType();
     auto &PointeeLoc = createStorageLocation(PointeeType);
 
     if (!Visited.contains(PointeeType.getCanonicalType())) {
       Visited.insert(PointeeType.getCanonicalType());
-      Value *PointeeVal =
-          createValueUnlessSelfReferential(PointeeType, Visited);
+      Value *PointeeVal = createValueUnlessSelfReferential(
+          PointeeType, Visited, Depth, CreatedValuesCount);
       Visited.erase(PointeeType.getCanonicalType());
 
       if (PointeeVal != nullptr)
@@ -295,13 +456,14 @@ Value *Environment::createValueUnlessSelfReferential(
   }
 
   if (Type->isPointerType()) {
-    QualType PointeeType = Type->getAs<PointerType>()->getPointeeType();
+    CreatedValuesCount++;
+    QualType PointeeType = Type->castAs<PointerType>()->getPointeeType();
     auto &PointeeLoc = createStorageLocation(PointeeType);
 
     if (!Visited.contains(PointeeType.getCanonicalType())) {
       Visited.insert(PointeeType.getCanonicalType());
-      Value *PointeeVal =
-          createValueUnlessSelfReferential(PointeeType, Visited);
+      Value *PointeeVal = createValueUnlessSelfReferential(
+          PointeeType, Visited, Depth, CreatedValuesCount);
       Visited.erase(PointeeType.getCanonicalType());
 
       if (PointeeVal != nullptr)
@@ -312,6 +474,7 @@ Value *Environment::createValueUnlessSelfReferential(
   }
 
   if (Type->isStructureOrClassType()) {
+    CreatedValuesCount++;
     // FIXME: Initialize only fields that are accessed in the context that is
     // being analyzed.
     llvm::DenseMap<const ValueDecl *, Value *> FieldValues;
@@ -323,8 +486,9 @@ Value *Environment::createValueUnlessSelfReferential(
         continue;
 
       Visited.insert(FieldType.getCanonicalType());
-      FieldValues.insert(
-          {Field, createValueUnlessSelfReferential(FieldType, Visited)});
+      if (auto *FieldValue = createValueUnlessSelfReferential(
+              FieldType, Visited, Depth + 1, CreatedValuesCount))
+        FieldValues.insert({Field, FieldValue});
       Visited.erase(FieldType.getCanonicalType());
     }
 
@@ -357,6 +521,25 @@ StorageLocation &Environment::skip(StorageLocation &Loc, SkipPast SP) const {
 const StorageLocation &Environment::skip(const StorageLocation &Loc,
                                          SkipPast SP) const {
   return skip(*const_cast<StorageLocation *>(&Loc), SP);
+}
+
+void Environment::addToFlowCondition(BoolValue &Val) {
+  FlowConditionConstraints.insert(&Val);
+}
+
+bool Environment::flowConditionImplies(BoolValue &Val) const {
+  // Returns true if and only if truth assignment of the flow condition implies
+  // that `Val` is also true. We prove whether or not this property holds by
+  // reducing the problem to satisfiability checking. In other words, we attempt
+  // to show that assuming `Val` is false makes the constraints induced by the
+  // flow condition unsatisfiable.
+  llvm::DenseSet<BoolValue *> Constraints = {
+      &makeNot(Val), &getBoolLiteralValue(true),
+      &makeNot(getBoolLiteralValue(false))};
+  Constraints.insert(FlowConditionConstraints.begin(),
+                     FlowConditionConstraints.end());
+  return DACtx->getSolver().solve(std::move(Constraints)) ==
+         Solver::Result::Unsatisfiable;
 }
 
 } // namespace dataflow

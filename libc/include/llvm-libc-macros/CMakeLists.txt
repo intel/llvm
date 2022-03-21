@@ -7,3 +7,9 @@ add_header(
   DEPENDS
     .linux.fcntl_macros
 )
+
+add_header(
+  file_seek_macros
+  HDR
+    file-seek-macros.h
+)

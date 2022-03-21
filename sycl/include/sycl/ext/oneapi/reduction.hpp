@@ -426,7 +426,8 @@ public:
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
@@ -438,7 +439,8 @@ public:
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(false) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
@@ -450,7 +452,8 @@ public:
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(true) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
@@ -467,7 +470,8 @@ public:
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
@@ -491,7 +495,8 @@ public:
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(false) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
@@ -515,7 +520,8 @@ public:
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(true) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
@@ -542,7 +548,8 @@ public:
         MBinaryOp(BOp), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
@@ -554,7 +561,8 @@ public:
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
         InitializeToIdentity(false) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
@@ -566,7 +574,8 @@ public:
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
         InitializeToIdentity(true) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
@@ -709,6 +718,7 @@ public:
     auto RWReduVal = std::make_shared<T>(MIdentity);
     CGH.addReduction(RWReduVal);
     MOutBufPtr = std::make_shared<buffer<T, 1>>(RWReduVal.get(), range<1>(1));
+    MOutBufPtr->set_final_data();
     CGH.addReduction(MOutBufPtr);
     return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
   }
@@ -719,6 +729,7 @@ public:
     auto CounterMem = std::make_shared<int>(0);
     CGH.addReduction(CounterMem);
     auto CounterBuf = std::make_shared<buffer<int, 1>>(CounterMem.get(), 1);
+    CounterBuf->set_final_data();
     CGH.addReduction(CounterBuf);
     return {*CounterBuf, CGH};
   }

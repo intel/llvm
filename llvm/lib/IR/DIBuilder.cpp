@@ -19,7 +19,6 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 
 using namespace llvm;
 using namespace llvm::dwarf;
@@ -291,6 +290,22 @@ DIStringType *DIBuilder::createStringType(StringRef Name, uint64_t SizeInBits) {
   assert(!Name.empty() && "Unable to create type without name");
   return DIStringType::get(VMContext, dwarf::DW_TAG_string_type, Name,
                            SizeInBits, 0);
+}
+
+DIStringType *DIBuilder::createStringType(StringRef Name,
+                                          DIVariable *StringLength,
+                                          DIExpression *StrLocationExp) {
+  assert(!Name.empty() && "Unable to create type without name");
+  return DIStringType::get(VMContext, dwarf::DW_TAG_string_type, Name,
+                           StringLength, nullptr, StrLocationExp, 0, 0, 0);
+}
+
+DIStringType *DIBuilder::createStringType(StringRef Name,
+                                          DIExpression *StringLengthExp,
+                                          DIExpression *StrLocationExp) {
+  assert(!Name.empty() && "Unable to create type without name");
+  return DIStringType::get(VMContext, dwarf::DW_TAG_string_type, Name, nullptr,
+                           StringLengthExp, StrLocationExp, 0, 0, 0);
 }
 
 DIDerivedType *DIBuilder::createQualifiedType(unsigned Tag, DIType *FromTy) {

@@ -22,6 +22,7 @@
 class ImmAsmOperand<string prefix, int width, string suffix> : AsmOperandClass {
   let Name = prefix # "Imm" # width # suffix;
   let DiagnosticType = !strconcat("Invalid", Name);
+  let RenderMethod = "addImmOperands";
 }
 
 class SImmAsmOperand<int width, string suffix = "">
@@ -32,21 +33,74 @@ class UImmAsmOperand<int width, string suffix = "">
     : ImmAsmOperand<"U", width, suffix> {
 }
 
-def uimm2 : Operand<GRLenVT>;
-def uimm2_plus1 : Operand<GRLenVT>;
-def uimm3 : Operand<GRLenVT>;
-def uimm5 : Operand<GRLenVT>;
-def uimm6 : Operand<GRLenVT>;
-def uimm12 : Operand<GRLenVT>;
-def uimm15 : Operand<GRLenVT>;
-def simm12 : Operand<GRLenVT>, ImmLeaf<GRLenVT, [{return isInt<12>(Imm);}]>;
-def simm14 : Operand<GRLenVT>;
-def simm14_lsl2 : Operand<GRLenVT>;
-def simm16 : Operand<GRLenVT>;
-def simm16_lsl2 : Operand<GRLenVT>;
-def simm20 : Operand<GRLenVT>;
-def simm21_lsl2 : Operand<GRLenVT>;
-def simm26_lsl2 : Operand<GRLenVT>;
+def uimm2 : Operand<GRLenVT> {
+  let ParserMatchClass = UImmAsmOperand<2>;
+}
+
+def uimm2_plus1 : Operand<GRLenVT> {
+  let ParserMatchClass = UImmAsmOperand<2, "plus1">;
+  let EncoderMethod = "getImmOpValueSub1";
+  let DecoderMethod = "decodeUImmOperand<2, 1>";
+}
+
+def uimm3 : Operand<GRLenVT> {
+  let ParserMatchClass = UImmAsmOperand<3>;
+}
+
+def uimm5 : Operand<GRLenVT> {
+  let ParserMatchClass = UImmAsmOperand<5>;
+}
+
+def uimm6 : Operand<GRLenVT> {
+  let ParserMatchClass = UImmAsmOperand<6>;
+}
+
+def uimm12 : Operand<GRLenVT> {
+  let ParserMatchClass = UImmAsmOperand<12>;
+}
+
+def uimm15 : Operand<GRLenVT> {
+  let ParserMatchClass = UImmAsmOperand<15>;
+}
+
+def simm12 : Operand<GRLenVT>, ImmLeaf<GRLenVT, [{return isInt<12>(Imm);}]> {
+  let ParserMatchClass = SImmAsmOperand<12>;
+  let DecoderMethod = "decodeSImmOperand<12>";
+}
+
+def simm14_lsl2 : Operand<GRLenVT> {
+  let ParserMatchClass = SImmAsmOperand<14, "lsl2">;
+  let EncoderMethod = "getImmOpValueAsr2";
+  let DecoderMethod = "decodeSImmOperand<14, 2>";
+}
+
+def simm16 : Operand<GRLenVT> {
+  let ParserMatchClass = SImmAsmOperand<16>;
+  let DecoderMethod = "decodeSImmOperand<16>";
+}
+
+def simm16_lsl2 : Operand<GRLenVT> {
+  let ParserMatchClass = SImmAsmOperand<16, "lsl2">;
+  let EncoderMethod = "getImmOpValueAsr2";
+  let DecoderMethod = "decodeSImmOperand<16, 2>";
+}
+
+def simm20 : Operand<GRLenVT> {
+  let ParserMatchClass = SImmAsmOperand<20>;
+  let DecoderMethod = "decodeSImmOperand<20>";
+}
+
+def simm21_lsl2 : Operand<GRLenVT> {
+  let ParserMatchClass = SImmAsmOperand<21, "lsl2">;
+  let EncoderMethod = "getImmOpValueAsr2";
+  let DecoderMethod = "decodeSImmOperand<21, 2>";
+}
+
+def simm26_lsl2 : Operand<GRLenVT> {
+  let ParserMatchClass = SImmAsmOperand<26, "lsl2">;
+  let EncoderMethod = "getImmOpValueAsr2";
+  let DecoderMethod = "decodeSImmOperand<26, 2>";
+}
 
 //===----------------------------------------------------------------------===//
 // Instruction Formats
@@ -85,13 +139,6 @@ class ALU_2RI16<bits<6> op, string opstr, Operand ImmOpnd>
 class ALU_1RI20<bits<7> op, string opstr, Operand ImmOpnd>
     : Fmt1RI20<op, (outs GPR:$rd), (ins ImmOpnd:$imm20),
                !strconcat(opstr, "\t$rd, $imm20")>;
-
-class ALU_BSTRW<bits<12> op, string opstr, Operand ImmOpnd>
-    : FmtBSTR_W<op, (outs GPR:$rd), (ins GPR:$rj, ImmOpnd:$msb, ImmOpnd:$lsb),
-                !strconcat(opstr, "\t$rd, $rj, $msb, $lsb")>;
-class ALU_BSTRD<bits<10> op, string opstr, Operand ImmOpnd>
-    : FmtBSTR_D<op, (outs GPR:$rd), (ins GPR:$rj, ImmOpnd:$msb, ImmOpnd:$lsb),
-                !strconcat(opstr, "\t$rd, $rj, $msb, $lsb")>;
 
 class MISC_I15<bits<17> op, string opstr>
     : FmtI15<op, (outs), (ins uimm15:$imm15), !strconcat(opstr, "\t$imm15")>;
@@ -145,17 +192,17 @@ class STORE_2RI14<bits<8> op, string opstr>
 
 let mayLoad = 1, mayStore = 1 in
 class AM_3R<bits<17> op, string opstr>
-    : Fmt3R<op, (outs GPR:$rd), (ins GPR:$rj, GPR:$rk),
-            !strconcat(opstr, "\t$rd, $rj, $rk")>;
+    : Fmt3R<op, (outs GPR:$rd), (ins GPR:$rk, GPR:$rj),
+            !strconcat(opstr, "\t$rd, $rk, $rj")>;
 
 let mayLoad = 1 in
 class LLBase<bits<8> op, string opstr>
-    : Fmt2RI14<op, (outs GPR:$rd), (ins GPR:$rj, simm14:$imm14),
+    : Fmt2RI14<op, (outs GPR:$rd), (ins GPR:$rj, simm14_lsl2:$imm14),
                !strconcat(opstr, "\t$rd, $rj, $imm14")>;
 
 let mayStore = 1, Constraints = "$rd = $dst" in
 class SCBase<bits<8> op, string opstr>
-    : Fmt2RI14<op, (outs GPR:$dst), (ins GPR:$rd, GPR:$rj, simm14:$imm14),
+    : Fmt2RI14<op, (outs GPR:$dst), (ins GPR:$rd, GPR:$rj, simm14_lsl2:$imm14),
                !strconcat(opstr, "\t$rd, $rj, $imm14")>;
 
 //===----------------------------------------------------------------------===//
@@ -214,8 +261,14 @@ def BYTEPICK_W : ALU_3RI2<0b000000000000100, "bytepick.w", uimm2>;
 def REVB_2H   : ALU_2R<0b0000000000000000001100, "revb.2h">;
 def BITREV_4B : ALU_2R<0b0000000000000000010010, "bitrev.4b">;
 def BITREV_W  : ALU_2R<0b0000000000000000010100, "bitrev.w">;
-def BSTRINS_W  : ALU_BSTRW<0b000000000110, "bstrins.w", uimm5>;
-def BSTRPICK_W : ALU_BSTRW<0b000000000111, "bstrpick.w", uimm5>;
+let Constraints = "$rd = $dst" in {
+def BSTRINS_W  : FmtBSTR_W<0b000000000110, (outs GPR:$dst),
+                           (ins GPR:$rd, GPR:$rj, uimm5:$msbw, uimm5:$lsbw),
+                           "bstrins.w\t$rd, $rj, $msbw, $lsbw">;
+}
+def BSTRPICK_W : FmtBSTR_W<0b000000000111, (outs GPR:$rd),
+                           (ins GPR:$rj, uimm5:$msbw, uimm5:$lsbw),
+                           "bstrpick.w\t$rd, $rj, $msbw, $lsbw">;
 def MASKEQZ : ALU_3R<0b00000000000100110, "maskeqz">;
 def MASKNEZ : ALU_3R<0b00000000000100111, "masknez">;
 
@@ -309,8 +362,14 @@ def REVH_2W   : ALU_2R<0b0000000000000000010000, "revh.2w">;
 def REVH_D    : ALU_2R<0b0000000000000000010001, "revh.d">;
 def BITREV_8B : ALU_2R<0b0000000000000000010011, "bitrev.8b">;
 def BITREV_D  : ALU_2R<0b0000000000000000010101, "bitrev.d">;
-def BSTRINS_D  : ALU_BSTRD<0b0000000010, "bstrins.d", uimm6>;
-def BSTRPICK_D : ALU_BSTRD<0b0000000011, "bstrpick.d", uimm6>;
+let Constraints = "$rd = $dst" in {
+def BSTRINS_D  : FmtBSTR_D<0b0000000010, (outs GPR:$dst),
+                           (ins GPR:$rd, GPR:$rj, uimm6:$msbd, uimm6:$lsbd),
+                           "bstrins.d\t$rd, $rj, $msbd, $lsbd">;
+}
+def BSTRPICK_D : FmtBSTR_D<0b0000000011, (outs GPR:$rd),
+                           (ins GPR:$rj, uimm6:$msbd, uimm6:$lsbd),
+                           "bstrpick.d\t$rd, $rj, $msbd, $lsbd">;
 
 // Common Memory Access Instructions for 64-bits
 def LD_WU : LOAD_2RI12<0b0010101010, "ld.wu">;

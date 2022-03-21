@@ -551,6 +551,12 @@ public:
   /// True if the current statement has nomerge attribute.
   bool InNoMergeAttributedStmt = false;
 
+  /// True if the current statement has noinline attribute.
+  bool InNoInlineAttributedStmt = false;
+
+  /// True if the current statement has always_inline attribute.
+  bool InAlwaysInlineAttributedStmt = false;
+
   // The CallExpr within the current statement that the musttail attribute
   // applies to.  nullptr if there is no 'musttail' on the current statement.
   const CallExpr *MustTailCall = nullptr;
@@ -1065,15 +1071,14 @@ public:
     /// Enter a new OpenMP private scope.
     explicit OMPPrivateScope(CodeGenFunction &CGF) : RunCleanupsScope(CGF) {}
 
-    /// Registers \p LocalVD variable as a private and apply \p PrivateGen
-    /// function for it to generate corresponding private variable. \p
-    /// PrivateGen returns an address of the generated private variable.
+    /// Registers \p LocalVD variable as a private with \p Addr as the address
+    /// of the corresponding private variable. \p
+    /// PrivateGen is the address of the generated private variable.
     /// \return true if the variable is registered as private, false if it has
     /// been privatized already.
-    bool addPrivate(const VarDecl *LocalVD,
-                    const llvm::function_ref<Address()> PrivateGen) {
+    bool addPrivate(const VarDecl *LocalVD, Address Addr) {
       assert(PerformCleanup && "adding private to dead scope");
-      return MappedVars.setVarAddr(CGF, LocalVD, PrivateGen());
+      return MappedVars.setVarAddr(CGF, LocalVD, Addr);
     }
 
     /// Privatizes local variables previously registered as private.
@@ -2296,9 +2301,8 @@ public:
   /// Derived is the presumed address of an object of type T after a
   /// cast. If T is a polymorphic class type, emit a check that the virtual
   /// table for Derived belongs to a class derived from T.
-  void EmitVTablePtrCheckForCast(QualType T, llvm::Value *Derived,
-                                 bool MayBeNull, CFITypeCheckKind TCK,
-                                 SourceLocation Loc);
+  void EmitVTablePtrCheckForCast(QualType T, Address Derived, bool MayBeNull,
+                                 CFITypeCheckKind TCK, SourceLocation Loc);
 
   /// EmitVTablePtrCheckForCall - Virtual method MD is being called via VTable.
   /// If vptr CFI is enabled, emit a check that VTable is valid.
@@ -2322,7 +2326,9 @@ public:
   bool ShouldEmitVTableTypeCheckedLoad(const CXXRecordDecl *RD);
 
   /// Emit a type checked load from the given vtable.
-  llvm::Value *EmitVTableTypeCheckedLoad(const CXXRecordDecl *RD, llvm::Value *VTable,
+  llvm::Value *EmitVTableTypeCheckedLoad(const CXXRecordDecl *RD,
+                                         llvm::Value *VTable,
+                                         llvm::Type *VTableTy,
                                          uint64_t VTableByteOffset);
 
   /// EnterDtorCleanups - Enter the cleanups necessary to complete the
@@ -4653,6 +4659,11 @@ public:
 
   /// Set the codegen fast-math flags.
   void SetFastMathFlags(FPOptions FPFeatures);
+
+  // Truncate or extend a boolean vector to the requested number of elements.
+  llvm::Value *emitBoolVecConversion(llvm::Value *SrcVec,
+                                     unsigned NumElementsDst,
+                                     const llvm::Twine &Name = "");
 
 private:
   llvm::MDNode *getRangeForLoadFromType(QualType Ty);

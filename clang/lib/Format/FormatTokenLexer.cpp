@@ -28,13 +28,13 @@ FormatTokenLexer::FormatTokenLexer(
     llvm::SpecificBumpPtrAllocator<FormatToken> &Allocator,
     IdentifierTable &IdentTable)
     : FormatTok(nullptr), IsFirstToken(true), StateStack({LexerState::NORMAL}),
-      Column(Column), TrailingWhitespace(0), SourceMgr(SourceMgr), ID(ID),
+      Column(Column), TrailingWhitespace(0),
+      LangOpts(getFormattingLangOpts(Style)), SourceMgr(SourceMgr), ID(ID),
       Style(Style), IdentTable(IdentTable), Keywords(IdentTable),
       Encoding(Encoding), Allocator(Allocator), FirstInLineIndex(0),
       FormattingDisabled(false), MacroBlockBeginRegex(Style.MacroBlockBegin),
       MacroBlockEndRegex(Style.MacroBlockEnd) {
-  Lex.reset(new Lexer(ID, SourceMgr.getBufferOrFake(ID), SourceMgr,
-                      getFormattingLangOpts(Style)));
+  Lex.reset(new Lexer(ID, SourceMgr.getBufferOrFake(ID), SourceMgr, LangOpts));
   Lex->SetKeepWhitespaceMode(true);
 
   for (const std::string &ForEachMacro : Style.ForEachMacros) {
@@ -91,7 +91,7 @@ ArrayRef<FormatToken *> FormatTokenLexer::lex() {
       handleCSharpVerbatimAndInterpolatedStrings();
     if (Tokens.back()->NewlinesBefore > 0 || Tokens.back()->IsMultiline)
       FirstInLineIndex = Tokens.size() - 1;
-  } while (Tokens.back()->Tok.isNot(tok::eof));
+  } while (Tokens.back()->isNot(tok::eof));
   return Tokens;
 }
 
@@ -500,7 +500,7 @@ bool FormatTokenLexer::canPrecedeRegexLiteral(FormatToken *Prev) {
   // `!` is an unary prefix operator, but also a post-fix operator that casts
   // away nullability, so the same check applies.
   if (Prev->isOneOf(tok::plusplus, tok::minusminus, tok::exclaim))
-    return (Tokens.size() < 3 || precedesOperand(Tokens[Tokens.size() - 3]));
+    return Tokens.size() < 3 || precedesOperand(Tokens[Tokens.size() - 3]);
 
   // The previous token must introduce an operand location where regex
   // literals can occur.
@@ -851,7 +851,7 @@ FormatToken *FormatTokenLexer::getNextToken() {
 
   // Consume and record whitespace until we find a significant token.
   unsigned WhitespaceLength = TrailingWhitespace;
-  while (FormatTok->Tok.is(tok::unknown)) {
+  while (FormatTok->is(tok::unknown)) {
     StringRef Text = FormatTok->TokenText;
     auto EscapesNewline = [&](int pos) {
       // A '\r' here is just part of '\r\n'. Skip it.
@@ -965,12 +965,12 @@ FormatToken *FormatTokenLexer::getNextToken() {
   FormatTok->OriginalColumn = Column;
 
   TrailingWhitespace = 0;
-  if (FormatTok->Tok.is(tok::comment)) {
+  if (FormatTok->is(tok::comment)) {
     // FIXME: Add the trimmed whitespace to Column.
     StringRef UntrimmedText = FormatTok->TokenText;
     FormatTok->TokenText = FormatTok->TokenText.rtrim(" \t\v\f");
     TrailingWhitespace = UntrimmedText.size() - FormatTok->TokenText.size();
-  } else if (FormatTok->Tok.is(tok::raw_identifier)) {
+  } else if (FormatTok->is(tok::raw_identifier)) {
     IdentifierInfo &Info = IdentTable.get(FormatTok->TokenText);
     FormatTok->Tok.setIdentifierInfo(&Info);
     FormatTok->Tok.setKind(Info.getTokenID());
@@ -985,12 +985,12 @@ FormatToken *FormatTokenLexer::getNextToken() {
       FormatTok->Tok.setKind(tok::identifier);
       FormatTok->Tok.setIdentifierInfo(nullptr);
     }
-  } else if (FormatTok->Tok.is(tok::greatergreater)) {
+  } else if (FormatTok->is(tok::greatergreater)) {
     FormatTok->Tok.setKind(tok::greater);
     FormatTok->TokenText = FormatTok->TokenText.substr(0, 1);
     ++Column;
     StateStack.push(LexerState::TOKEN_STASHED);
-  } else if (FormatTok->Tok.is(tok::lessless)) {
+  } else if (FormatTok->is(tok::lessless)) {
     FormatTok->Tok.setKind(tok::less);
     FormatTok->TokenText = FormatTok->TokenText.substr(0, 1);
     ++Column;
@@ -1079,9 +1079,9 @@ void FormatTokenLexer::readRawToken(FormatToken &Tok) {
 
 void FormatTokenLexer::resetLexer(unsigned Offset) {
   StringRef Buffer = SourceMgr.getBufferData(ID);
-  Lex.reset(new Lexer(SourceMgr.getLocForStartOfFile(ID),
-                      getFormattingLangOpts(Style), Buffer.begin(),
-                      Buffer.begin() + Offset, Buffer.end()));
+  LangOpts = getFormattingLangOpts(Style);
+  Lex.reset(new Lexer(SourceMgr.getLocForStartOfFile(ID), LangOpts,
+                      Buffer.begin(), Buffer.begin() + Offset, Buffer.end()));
   Lex->SetKeepWhitespaceMode(true);
   TrailingWhitespace = 0;
 }

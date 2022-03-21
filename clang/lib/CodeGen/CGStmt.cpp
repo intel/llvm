@@ -666,19 +666,34 @@ void CodeGenFunction::EmitLabelStmt(const LabelStmt &S) {
 
 void CodeGenFunction::EmitAttributedStmt(const AttributedStmt &S) {
   bool nomerge = false;
+  bool noinline = false;
+  bool alwaysinline = false;
   const CallExpr *musttail = nullptr;
 
   for (const auto *A : S.getAttrs()) {
-    if (A->getKind() == attr::NoMerge) {
+    switch (A->getKind()) {
+    default:
+      break;
+    case attr::NoMerge:
       nomerge = true;
-    }
-    if (A->getKind() == attr::MustTail) {
+      break;
+    case attr::NoInline:
+      noinline = true;
+      break;
+    case attr::AlwaysInline:
+      alwaysinline = true;
+      break;
+    case attr::MustTail:
       const Stmt *Sub = S.getSubStmt();
       const ReturnStmt *R = cast<ReturnStmt>(Sub);
       musttail = cast<CallExpr>(R->getRetValue()->IgnoreParens());
+      break;
     }
   }
   SaveAndRestore<bool> save_nomerge(InNoMergeAttributedStmt, nomerge);
+  SaveAndRestore<bool> save_noinline(InNoInlineAttributedStmt, noinline);
+  SaveAndRestore<bool> save_alwaysinline(InAlwaysInlineAttributedStmt,
+                                         alwaysinline);
   SaveAndRestore<const CallExpr *> save_musttail(MustTailCall, musttail);
   EmitStmt(S.getSubStmt(), S.getAttrs());
 }
@@ -2121,10 +2136,9 @@ std::pair<llvm::Value*, llvm::Type *> CodeGenFunction::EmitAsmInputLValue(
     if ((Size <= 64 && llvm::isPowerOf2_64(Size)) ||
         getTargetHooks().isScalarizableAsmOperand(*this, Ty)) {
       Ty = llvm::IntegerType::get(getLLVMContext(), Size);
-      Ty = llvm::PointerType::getUnqual(Ty);
 
-      return {Builder.CreateLoad(
-                  Builder.CreateBitCast(InputValue.getAddress(*this), Ty)),
+      return {Builder.CreateLoad(Builder.CreateElementBitCast(
+                  InputValue.getAddress(*this), Ty)),
               nullptr};
     }
   }
@@ -2514,10 +2528,8 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
           Arg = Builder.CreateZExt(Arg, OutputTy);
         else if (isa<llvm::PointerType>(OutputTy))
           Arg = Builder.CreateZExt(Arg, IntPtrTy);
-        else {
-          assert(OutputTy->isFloatingPointTy() && "Unexpected output type");
+        else if (OutputTy->isFloatingPointTy())
           Arg = Builder.CreateFPExt(Arg, OutputTy);
-        }
       }
       // Deal with the tied operands' constraint code in adjustInlineAsmType.
       ReplaceConstraint = OutputConstraints[Output];
@@ -2713,8 +2725,8 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
     // ResultTypeRequiresCast.size() elements of RegResults.
     if ((i < ResultTypeRequiresCast.size()) && ResultTypeRequiresCast[i]) {
       unsigned Size = getContext().getTypeSize(ResultRegQualTys[i]);
-      Address A = Builder.CreateBitCast(Dest.getAddress(*this),
-                                        ResultRegTypes[i]->getPointerTo());
+      Address A = Builder.CreateElementBitCast(Dest.getAddress(*this),
+                                               ResultRegTypes[i]);
       if (getTargetHooks().isScalarizableAsmOperand(*this, TruncTy)) {
         Builder.CreateStore(Tmp, A);
         continue;

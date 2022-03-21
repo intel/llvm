@@ -18,6 +18,8 @@
 
 #define DEBUG_TYPE "flang-lower-character"
 
+using namespace mlir;
+
 //===----------------------------------------------------------------------===//
 // CharacterExprHelper implementation
 //===----------------------------------------------------------------------===//
@@ -40,6 +42,11 @@ static fir::CharacterType recoverCharacterType(mlir::Type type) {
 fir::CharacterType
 fir::factory::CharacterExprHelper::getCharacterType(mlir::Type type) {
   assert(isCharacterScalar(type) && "expected scalar character");
+  return recoverCharacterType(type);
+}
+
+fir::CharacterType
+fir::factory::CharacterExprHelper::getCharType(mlir::Type type) {
   return recoverCharacterType(type);
 }
 
@@ -138,8 +145,8 @@ fir::factory::CharacterExprHelper::toExtendedValue(mlir::Value character,
     mlir::Value boxCharLen;
     if (auto *definingOp = character.getDefiningOp()) {
       if (auto box = dyn_cast<fir::EmboxCharOp>(definingOp)) {
-        base = box.memref();
-        boxCharLen = box.len();
+        base = box.getMemref();
+        boxCharLen = box.getLen();
       }
     }
     if (!boxCharLen) {

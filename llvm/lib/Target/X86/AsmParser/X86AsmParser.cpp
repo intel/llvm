@@ -2722,7 +2722,7 @@ bool X86AsmParser::ParseZ(std::unique_ptr<X86Operand> &Z,
   if (!getLexer().is(AsmToken::RCurly))
     return Error(getLexer().getLoc(), "Expected } at this point");
   Parser.Lex(); // Eat '}'
-  // Assign Z with the {z} mark opernad
+  // Assign Z with the {z} mark operand
   Z = X86Operand::CreateToken("{z}", StartLoc);
   return false;
 }
@@ -4871,7 +4871,7 @@ bool X86AsmParser::parseDirectiveEven(SMLoc L) {
     getStreamer().initSections(false, getSTI());
     Section = getStreamer().getCurrentSectionOnly();
   }
-  if (Section->UseCodeAlign())
+  if (Section->useCodeAlign())
     getStreamer().emitCodeAlignment(2, &getSTI(), 0);
   else
     getStreamer().emitValueToAlignment(2, 0, 1, 0);

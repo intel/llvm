@@ -237,6 +237,7 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
+private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker
   // than the long version
   bool device_has(aspect Aspect) const;

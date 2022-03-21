@@ -178,6 +178,23 @@ if(LLVM_INCLUDE_TESTS)
   set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
 endif()
 
+# llvm-libgcc incorporates both compiler-rt and libunwind as subprojects with very
+# specific flags, which causes clashes when they're independently built too.
+if("llvm-libgcc" IN_LIST runtimes)
+  if("compiler-rt" IN_LIST runtimes OR "compiler-rt" IN_LIST LLVM_ENABLE_PROJECTS)
+    message(FATAL_ERROR
+      "Attempting to build both compiler-rt and llvm-libgcc will cause irreconcilable "
+      "target clashes. Please choose one or the other, but not both.")
+  endif()
+
+  if("libunwind" IN_LIST runtimes)
+    message(
+      FATAL_ERROR
+      "Attempting to build both libunwind and llvm-libgcc will cause irreconcilable "
+      "target clashes. Please choose one or the other, but not both.")
+  endif()
+endif()
+
 # We do this in two loops so that HAVE_* is set for each runtime before the
 # other runtimes are added.
 foreach(entry ${runtimes})
@@ -220,6 +237,16 @@ if(LLVM_INCLUDE_TESTS)
     # invocation already generated the llvm-lit script.
     add_subdirectory(${LLVM_MAIN_SRC_DIR}/utils/llvm-lit
                      ${CMAKE_CURRENT_BINARY_DIR}/llvm-lit)
+  endif()
+
+  if(LLVM_RUNTIMES_TARGET)
+    configure_file(
+      ${CMAKE_CURRENT_SOURCE_DIR}/Tests.cmake.in
+      ${LLVM_BINARY_DIR}/runtimes/${LLVM_RUNTIMES_TARGET}/Tests.cmake)
+  else()
+    configure_file(
+      ${CMAKE_CURRENT_SOURCE_DIR}/Tests.cmake.in
+      ${LLVM_BINARY_DIR}/runtimes/Tests.cmake)
   endif()
 endif()
 

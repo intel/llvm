@@ -19,6 +19,7 @@
 #include "GCNSubtarget.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/CodeGen/Analysis.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/Support/CommandLine.h"
@@ -4406,7 +4407,6 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(TC_RETURN)
   NODE_NAME_CASE(TRAP)
   NODE_NAME_CASE(RET_FLAG)
-  NODE_NAME_CASE(RET_GFX_FLAG)
   NODE_NAME_CASE(RETURN_TO_EPILOG)
   NODE_NAME_CASE(ENDPGM)
   NODE_NAME_CASE(DWORDADDR)
@@ -4486,6 +4486,8 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(CONST_DATA_PTR)
   NODE_NAME_CASE(PC_ADD_REL_OFFSET)
   NODE_NAME_CASE(LDS)
+  NODE_NAME_CASE(FPTRUNC_ROUND_UPWARD)
+  NODE_NAME_CASE(FPTRUNC_ROUND_DOWNWARD)
   NODE_NAME_CASE(DUMMY_CHAIN)
   case AMDGPUISD::FIRST_MEM_OPCODE_NUMBER: break;
   NODE_NAME_CASE(LOAD_D16_HI)

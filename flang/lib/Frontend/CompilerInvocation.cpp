@@ -9,6 +9,7 @@
 #include "flang/Frontend/CompilerInvocation.h"
 #include "flang/Common/Fortran-features.h"
 #include "flang/Frontend/PreprocessorOptions.h"
+#include "flang/Frontend/TargetOptions.h"
 #include "flang/Semantics/semantics.h"
 #include "flang/Version.inc"
 #include "clang/Basic/AllDiagnostics.h"
@@ -88,6 +89,15 @@ bool Fortran::frontend::ParseDiagnosticArgs(clang::DiagnosticOptions &opts,
   return true;
 }
 
+/// Parses all target input arguments and populates the target
+/// options accordingly.
+///
+/// \param [in] opts The target options instance to update
+/// \param [in] args The list of input arguments (from the compiler invocation)
+static void ParseTargetArgs(TargetOptions &opts, llvm::opt::ArgList &args) {
+  opts.triple = args.getLastArgValue(clang::driver::options::OPT_triple);
+}
+
 // Tweak the frontend configuration based on the frontend action
 static void setUpFrontendBasedOnAction(FrontendOptions &opts) {
   assert(opts.programAction != Fortran::frontend::InvalidAction &&
@@ -137,8 +147,14 @@ static bool ParseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
     case clang::driver::options::OPT_emit_mlir:
       opts.programAction = EmitMLIR;
       break;
+    case clang::driver::options::OPT_emit_llvm:
+      opts.programAction = EmitLLVM;
+      break;
     case clang::driver::options::OPT_emit_obj:
       opts.programAction = EmitObj;
+      break;
+    case clang::driver::options::OPT_S:
+      opts.programAction = EmitAssembly;
       break;
     case clang::driver::options::OPT_fdebug_unparse:
       opts.programAction = DebugUnparse;
@@ -154,6 +170,9 @@ static bool ParseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
       break;
     case clang::driver::options::OPT_fdebug_dump_parse_tree:
       opts.programAction = DebugDumpParseTree;
+      break;
+    case clang::driver::options::OPT_fdebug_dump_pft:
+      opts.programAction = DebugDumpPFT;
       break;
     case clang::driver::options::OPT_fdebug_dump_all:
       opts.programAction = DebugDumpAll;
@@ -560,10 +579,13 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &res,
   }
 
   success &= ParseFrontendArgs(res.frontendOpts(), args, diags);
+  ParseTargetArgs(res.targetOpts(), args);
   parsePreprocessorArgs(res.preprocessorOpts(), args);
   success &= parseSemaArgs(res, args, diags);
   success &= parseDialectArgs(res, args, diags);
   success &= parseDiagArgs(res, args, diags);
+  res.frontendOpts_.llvmArgs =
+      args.getAllArgValues(clang::driver::options::OPT_mllvm);
 
   return success;
 }

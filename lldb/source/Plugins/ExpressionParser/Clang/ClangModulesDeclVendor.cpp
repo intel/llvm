@@ -518,8 +518,9 @@ void ClangModulesDeclVendorImpl::ForEachMacro(
 
         bool first_token = true;
 
-        for (clang::MacroInfo::tokens_iterator ti = macro_info->tokens_begin(),
-                                               te = macro_info->tokens_end();
+        for (clang::MacroInfo::const_tokens_iterator
+                 ti = macro_info->tokens_begin(),
+                 te = macro_info->tokens_end();
              ti != te; ++ti) {
           if (!first_token)
             macro_expansion.append(" ");
@@ -725,8 +726,8 @@ ClangModulesDeclVendor::Create(Target &target) {
   parser->Initialize();
 
   clang::Parser::DeclGroupPtrTy parsed;
-
-  while (!parser->ParseTopLevelDecl(parsed))
+  auto ImportState = clang::Sema::ModuleImportState::NotACXX20Module;
+  while (!parser->ParseTopLevelDecl(parsed, ImportState))
     ;
 
   return new ClangModulesDeclVendorImpl(std::move(diagnostics_engine),

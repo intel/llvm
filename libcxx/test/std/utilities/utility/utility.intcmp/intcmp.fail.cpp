@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // <utility>
 
@@ -72,7 +71,7 @@ constexpr void test() {
   std::in_range<T>(int()); // expected-error 10-11 {{no matching function for call to 'in_range'}}
   std::in_range<int>(T()); // expected-error 10-11 {{no matching function for call to 'in_range'}}
 }
-#ifndef _LIBCPP_HAS_NO_CHAR8_T
+#ifndef TEST_HAS_NO_CHAR8_T
 template <class T>
 constexpr void test_char8t() {
   std::cmp_equal(T(), T()); // expected-error 1 {{no matching function for call to 'cmp_equal'}}
@@ -96,7 +95,7 @@ constexpr void test_char8t() {
   std::in_range<T>(int()); // expected-error 1 {{no matching function for call to 'in_range'}}
   std::in_range<int>(T()); // expected-error 1 {{no matching function for call to 'in_range'}}
 }
-#endif // _LIBCPP_HAS_NO_CHAR8_T
+#endif // TEST_HAS_NO_CHAR8_T
 
 #ifndef TEST_HAS_NO_UNICODE_CHARS
 template <class T>
@@ -139,9 +138,9 @@ int main(int, char**) {
   test<std::nullptr_t>();
   test<EmptyT>();
 
-#ifndef _LIBCPP_HAS_NO_CHAR8_T
+#ifndef TEST_HAS_NO_CHAR8_T
   test_char8t<char8_t>();
-#endif // _LIBCPP_HAS_NO_CHAR8_T
+#endif // TEST_HAS_NO_CHAR8_T
 
 #ifndef TEST_HAS_NO_UNICODE_CHARS
   test_uchars<char16_t>();

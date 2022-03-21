@@ -25,7 +25,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLArrayExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/DAGCombine.h"
@@ -253,7 +253,9 @@ public:
     LLOnly,  // Expand the (load) instruction into just a load-linked, which has
              // greater atomic guarantees than a normal load.
     CmpXChg, // Expand the instruction into cmpxchg; used by at least X86.
-    MaskedIntrinsic, // Use a target-specific intrinsic for the LL/SC loop.
+    MaskedIntrinsic,  // Use a target-specific intrinsic for the LL/SC loop.
+    BitTestIntrinsic, // Use a target-specific intrinsic for special bit
+                      // operations; used by X86.
   };
 
   /// Enum that specifies when a multiplication should be expanded.
@@ -1951,6 +1953,14 @@ public:
     llvm_unreachable("Masked atomicrmw expansion unimplemented on this target");
   }
 
+  /// Perform a bit test atomicrmw using a target-specific intrinsic. This
+  /// represents the combined bit test intrinsic which will be lowered at a late
+  /// stage by the backend.
+  virtual void emitBitTestAtomicRMWIntrinsic(AtomicRMWInst *AI) const {
+    llvm_unreachable(
+        "Bit test atomicrmw expansion unimplemented on this target");
+  }
+
   /// Perform a masked cmpxchg using a target-specific intrinsic. This
   /// represents the core LL/SC loop which will be lowered at a late stage by
   /// the backend.
@@ -2128,8 +2138,8 @@ public:
   /// about some cases, a default true can be returned to let the DAGCombiner
   /// decide.
   /// AddNode is (add x, c1), and ConstNode is c2.
-  virtual bool isMulAddWithConstProfitable(const SDValue &AddNode,
-                                           const SDValue &ConstNode) const {
+  virtual bool isMulAddWithConstProfitable(SDValue AddNode,
+                                           SDValue ConstNode) const {
     return true;
   }
 
@@ -2515,6 +2525,10 @@ public:
     case ISD::FMAXNUM_IEEE:
     case ISD::FMINIMUM:
     case ISD::FMAXIMUM:
+    case ISD::AVGFLOORS:
+    case ISD::AVGFLOORU:
+    case ISD::AVGCEILS:
+    case ISD::AVGCEILU:
       return true;
     default: return false;
     }
@@ -3817,7 +3831,7 @@ public:
     if (Neg && Cost == NegatibleCost::Cheaper)
       return Neg;
     // Remove the new created node to avoid the side effect to the DAG.
-    if (Neg && Neg.getNode()->use_empty())
+    if (Neg && Neg->use_empty())
       DAG.RemoveDeadNode(Neg.getNode());
     return SDValue();
   }

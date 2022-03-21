@@ -16,8 +16,8 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Verifier.h"
-#include "mlir/Parser.h"
 #include "mlir/Parser/AsmParserState.h"
+#include "mlir/Parser/Parser.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringSet.h"
@@ -1672,8 +1672,9 @@ FailureOr<OperationName> OperationParser::parseCustomOperationName() {
       // default dialect (set through OpAsmOpInterface).
       opInfo = RegisteredOperationName::lookup(
           Twine(defaultDialect + "." + opName).str(), getContext());
-      if (!opInfo && getContext()->getOrLoadDialect("std")) {
-        opInfo = RegisteredOperationName::lookup(Twine("std." + opName).str(),
+      // FIXME: Remove this in favor of using default dialects.
+      if (!opInfo && getContext()->getOrLoadDialect("func")) {
+        opInfo = RegisteredOperationName::lookup(Twine("func." + opName).str(),
                                                  getContext());
       }
       if (opInfo) {
@@ -1957,11 +1958,9 @@ ParseResult OperationParser::parseBlock(Block *&block) {
     return emitError(nameLoc, "redefinition of block '") << name << "'";
 
   // If an argument list is present, parse it.
-  if (consumeIf(Token::l_paren)) {
-    if (parseOptionalBlockArgList(block) ||
-        parseToken(Token::r_paren, "expected ')' to end argument list"))
+  if (getToken().is(Token::l_paren))
+    if (parseOptionalBlockArgList(block))
       return failure();
-  }
 
   if (parseToken(Token::colon, "expected ':' after block name"))
     return failure();
@@ -2024,9 +2023,11 @@ Block *OperationParser::defineBlockNamed(StringRef name, SMLoc loc,
   return blockAndLoc.block;
 }
 
-/// Parse a (possibly empty) list of SSA operands with types as block arguments.
+/// Parse a (possibly empty) list of SSA operands with types as block arguments
+/// enclosed in parentheses.
 ///
-///   ssa-id-and-type-list ::= ssa-id-and-type (`,` ssa-id-and-type)*
+///   value-id-and-type-list ::= value-id-and-type (`,` ssa-id-and-type)*
+///   block-arg-list ::= `(` value-id-and-type-list? `)`
 ///
 ParseResult OperationParser::parseOptionalBlockArgList(Block *owner) {
   if (getToken().is(Token::r_brace))
@@ -2037,7 +2038,7 @@ ParseResult OperationParser::parseOptionalBlockArgList(Block *owner) {
   bool definingExistingArgs = owner->getNumArguments() != 0;
   unsigned nextArgument = 0;
 
-  return parseCommaSeparatedList([&]() -> ParseResult {
+  return parseCommaSeparatedList(Delimiter::Paren, [&]() -> ParseResult {
     return parseSSADefOrUseAndType(
         [&](SSAUseInfo useInfo, Type type) -> ParseResult {
           BlockArgument arg;

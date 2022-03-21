@@ -163,20 +163,13 @@ static uint32_t extractBits(uint32_t Num, unsigned Low, unsigned Size) {
   return (Num & (((1ULL << Size) - 1) << Low)) >> Low;
 }
 
-inline Error checkAlignment(llvm::orc::ExecutorAddr loc, uint64_t v, int n,
-                            const Edge &E) {
-  if (v & (n - 1))
-    return make_error<JITLinkError>("0x" + llvm::utohexstr(loc.getValue()) +
-                                    " improper alignment for relocation " +
-                                    formatv("{0:d}", E.getKind()) + ": 0x" +
-                                    llvm::utohexstr(v) + " is not aligned to " +
-                                    Twine(n) + " bytes");
-  return Error::success();
+static inline bool isAlignmentCorrect(uint64_t Value, int N) {
+  return (Value & (N - 1)) ? false : true;
 }
 
-static inline bool isInRangeForImmS32(int64_t Value) {
-  return (Value >= std::numeric_limits<int32_t>::min() &&
-          Value <= std::numeric_limits<int32_t>::max());
+// Requires 0 < N <= 64.
+static inline bool isInRangeForImm(int64_t Value, int N) {
+  return Value == llvm::SignExtend64(Value, N);
 }
 
 class ELFJITLinker_riscv : public JITLinker<ELFJITLinker_riscv> {
@@ -208,10 +201,10 @@ private:
     }
     case R_RISCV_BRANCH: {
       int64_t Value = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
-      Error AlignmentIssue = checkAlignment(FixupAddress, Value, 2, E);
-      if (AlignmentIssue) {
-        return AlignmentIssue;
-      }
+      if (LLVM_UNLIKELY(!isInRangeForImm(Value >> 1, 12)))
+        return makeTargetOutOfRangeError(G, B, E);
+      if (LLVM_UNLIKELY(!isAlignmentCorrect(Value, 2)))
+        return makeAlignmentError(FixupAddress, Value, 2, E);
       uint32_t Imm31_25 =
           extractBits(Value, 5, 6) << 25 | extractBits(Value, 12, 1) << 31;
       uint32_t Imm11_7 =
@@ -220,10 +213,24 @@ private:
       *(little32_t *)FixupPtr = (RawInstr & 0x1FFF07F) | Imm31_25 | Imm11_7;
       break;
     }
+    case R_RISCV_JAL: {
+      int64_t Value = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
+      if (LLVM_UNLIKELY(!isInRangeForImm(Value >> 1, 20)))
+        return makeTargetOutOfRangeError(G, B, E);
+      if (LLVM_UNLIKELY(!isAlignmentCorrect(Value, 2)))
+        return makeAlignmentError(FixupAddress, Value, 2, E);
+      uint32_t Imm20 = extractBits(Value, 20, 1) << 31;
+      uint32_t Imm10_1 = extractBits(Value, 1, 10) << 21;
+      uint32_t Imm11 = extractBits(Value, 11, 1) << 20;
+      uint32_t Imm19_12 = extractBits(Value, 12, 8) << 12;
+      uint32_t RawInstr = *(little32_t *)FixupPtr;
+      *(little32_t *)FixupPtr = RawInstr | Imm20 | Imm10_1 | Imm11 | Imm19_12;
+      break;
+    }
     case R_RISCV_HI20: {
       int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
       int64_t Hi = Value + 0x800;
-      if (LLVM_UNLIKELY(!isInRangeForImmS32(Hi)))
+      if (LLVM_UNLIKELY(!isInRangeForImm(Hi, 32)))
         return makeTargetOutOfRangeError(G, B, E);
       uint32_t RawInstr = *(little32_t *)FixupPtr;
       *(little32_t *)FixupPtr =
@@ -243,7 +250,7 @@ private:
     case R_RISCV_CALL: {
       int64_t Value = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
       int64_t Hi = Value + 0x800;
-      if (LLVM_UNLIKELY(!isInRangeForImmS32(Hi)))
+      if (LLVM_UNLIKELY(!isInRangeForImm(Hi, 32)))
         return makeTargetOutOfRangeError(G, B, E);
       int32_t Lo = Value & 0xFFF;
       uint32_t RawInstrAuipc = *(little32_t *)FixupPtr;
@@ -257,7 +264,7 @@ private:
     case R_RISCV_PCREL_HI20: {
       int64_t Value = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
       int64_t Hi = Value + 0x800;
-      if (LLVM_UNLIKELY(!isInRangeForImmS32(Hi)))
+      if (LLVM_UNLIKELY(!isInRangeForImm(Hi, 32)))
         return makeTargetOutOfRangeError(G, B, E);
       uint32_t RawInstr = *(little32_t *)FixupPtr;
       *(little32_t *)FixupPtr =
@@ -358,6 +365,13 @@ private:
       *FixupPtr = static_cast<uint8_t>(Value);
       break;
     }
+    case R_RISCV_SUB6: {
+      int64_t Value =
+          *(reinterpret_cast<const uint8_t *>(FixupAddress.getValue())) & 0x3f;
+      Value -= E.getTarget().getAddress().getValue() - E.getAddend();
+      *FixupPtr = (*FixupPtr & 0xc0) | (static_cast<uint8_t>(Value) & 0x3f);
+      break;
+    }
     case R_RISCV_SET6: {
       int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
       uint32_t RawData = *(little32_t *)FixupPtr;
@@ -409,6 +423,8 @@ private:
       return EdgeKind_riscv::R_RISCV_64;
     case ELF::R_RISCV_BRANCH:
       return EdgeKind_riscv::R_RISCV_BRANCH;
+    case ELF::R_RISCV_JAL:
+      return EdgeKind_riscv::R_RISCV_JAL;
     case ELF::R_RISCV_HI20:
       return EdgeKind_riscv::R_RISCV_HI20;
     case ELF::R_RISCV_LO12_I:
@@ -441,6 +457,8 @@ private:
       return EdgeKind_riscv::R_RISCV_SUB16;
     case ELF::R_RISCV_SUB8:
       return EdgeKind_riscv::R_RISCV_SUB8;
+    case ELF::R_RISCV_SUB6:
+      return EdgeKind_riscv::R_RISCV_SUB6;
     case ELF::R_RISCV_SET6:
       return EdgeKind_riscv::R_RISCV_SET6;
     case ELF::R_RISCV_SET8:

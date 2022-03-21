@@ -923,6 +923,11 @@ static bool ParseAnalyzerArgs(AnalyzerOptions &Opts, ArgList &Args,
       Diags.Report(diag::err_drv_invalid_value)
         << A->getAsString(Args) << Name;
     } else {
+#ifndef LLVM_WITH_Z3
+      if (Value == AnalysisConstraints::Z3ConstraintsModel) {
+        Diags.Report(diag::err_analyzer_not_built_with_z3);
+      }
+#endif // LLVM_WITH_Z3
       Opts.AnalysisConstraintsOpt = Value;
     }
   }
@@ -2426,7 +2431,6 @@ static const auto &getFrontendActionTable() {
       {frontend::EmitLLVM, OPT_emit_llvm},
       {frontend::EmitLLVMOnly, OPT_emit_llvm_only},
       {frontend::EmitCodeGenOnly, OPT_emit_codegen_only},
-      {frontend::EmitCodeGenOnly, OPT_emit_codegen_only},
       {frontend::EmitObj, OPT_emit_obj},
       {frontend::ExtractAPI, OPT_extract_api},
 
@@ -3265,8 +3269,8 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
 
   Opts.RenderScript = IK.getLanguage() == Language::RenderScript;
 
-  // OpenCL and C++ both have bool, true, false keywords.
-  Opts.Bool = Opts.OpenCL || Opts.CPlusPlus;
+  // OpenCL, C++ and C2x have bool, true, false keywords.
+  Opts.Bool = Opts.OpenCL || Opts.CPlusPlus || Opts.C2x;
 
   // OpenCL has half keyword
   Opts.Half = Opts.OpenCL;
@@ -3476,6 +3480,8 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
     GenerateArg(Args, OPT_mlong_double_128, SA);
   else if (Opts.LongDoubleSize == 64)
     GenerateArg(Args, OPT_mlong_double_64, SA);
+  else if (Opts.LongDoubleSize == 80)
+    GenerateArg(Args, OPT_mlong_double_80, SA);
 
   // Not generating '-mrtd', it's just an alias for '-fdefault-calling-conv='.
 
@@ -3921,9 +3927,16 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   Opts.NoBuiltin = Args.hasArg(OPT_fno_builtin) || Opts.Freestanding;
   if (!Opts.NoBuiltin)
     getAllNoBuiltinFuncValues(Args, Opts.NoBuiltinFuncs);
-  Opts.LongDoubleSize = Args.hasArg(OPT_mlong_double_128)
-                            ? 128
-                            : Args.hasArg(OPT_mlong_double_64) ? 64 : 0;
+  if (Arg *A = Args.getLastArg(options::OPT_LongDouble_Group)) {
+    if (A->getOption().matches(options::OPT_mlong_double_64))
+      Opts.LongDoubleSize = 64;
+    else if (A->getOption().matches(options::OPT_mlong_double_80))
+      Opts.LongDoubleSize = 80;
+    else if (A->getOption().matches(options::OPT_mlong_double_128))
+      Opts.LongDoubleSize = 128;
+    else
+      Opts.LongDoubleSize = 0;
+  }
   if (Opts.FastRelaxedMath)
     Opts.setDefaultFPContractMode(LangOptions::FPM_Fast);
   llvm::sort(Opts.ModuleFeatures);

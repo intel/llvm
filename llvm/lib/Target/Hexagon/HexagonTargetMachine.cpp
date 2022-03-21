@@ -293,7 +293,7 @@ void HexagonTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 }
 
 TargetTransformInfo
-HexagonTargetMachine::getTargetTransformInfo(const Function &F) {
+HexagonTargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(HexagonTTIImpl(this, F));
 }
 
@@ -344,6 +344,7 @@ void HexagonPassConfig::addIRPasses() {
     if (EnableInitialCFGCleanup)
       addPass(createCFGSimplificationPass(SimplifyCFGOptions()
                                               .forwardSwitchCondToPhi(true)
+                                              .convertSwitchRangeToICmp(true)
                                               .convertSwitchToLookupTable(true)
                                               .needCanonicalLoops(false)
                                               .hoistCommonInsts(true)

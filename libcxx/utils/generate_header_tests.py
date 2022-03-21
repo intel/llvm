@@ -29,7 +29,6 @@ header_markup = {
     "shared_mutex": ["ifndef _LIBCPP_HAS_NO_THREADS"],
     "thread": ["ifndef _LIBCPP_HAS_NO_THREADS"],
 
-    "experimental/filesystem": ["ifndef _LIBCPP_HAS_NO_FILESYSTEM_LIBRARY"],
     "filesystem": ["ifndef _LIBCPP_HAS_NO_FILESYSTEM_LIBRARY"],
     "format": ["ifndef _LIBCPP_HAS_NO_INCOMPLETE_FORMAT"],
 
@@ -92,9 +91,6 @@ headers_template = """\
 #if __cplusplus >= 201103L
 {experimental_headers}
 #endif // __cplusplus >= 201103L
-
-// extended headers
-{extended_headers}
 """
 
 
@@ -167,7 +163,7 @@ def produce_experimental_headers(post_include=None, exclusions=None):
 
 
 def produce_extended_headers(post_include=None, exclusions=None):
-    return produce_headers([include_path, 'ext'], 0, post_include=post_include, exclusions=exclusions)
+    return produce_headers([include_path, 'ext'], 1, post_include=post_include, exclusions=exclusions)
 
 
 def replace_generated_headers(test_path, test_str):
@@ -192,9 +188,6 @@ def produce_test(test_filename, exclusions=None, post_include=None):
         experimental_headers=produce_experimental_headers(
             post_include=post_include,
         ),
-        extended_headers=produce_extended_headers(
-            post_include=post_include,
-        ),
     )
 
     replace_generated_headers(os.path.join(
@@ -202,6 +195,7 @@ def produce_test(test_filename, exclusions=None, post_include=None):
 
 
 def main():
+    produce_test('clang_tidy.sh.cpp')
     produce_test('double_include.sh.cpp')
     produce_test('min_max_macros.compile.pass.cpp', post_include='TEST_MACROS();')
     produce_test('nasty_macros.compile.pass.cpp')

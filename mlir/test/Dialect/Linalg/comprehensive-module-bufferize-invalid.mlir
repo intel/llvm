@@ -87,7 +87,7 @@ func @scf_for(%A : tensor<?xf32>,
               %B : tensor<?xf32> {linalg.inplaceable = true},
               %C : tensor<4xf32>,
               %lb : index, %ub : index, %step : index)
-  -> (tensor<?xf32>, tensor<?xf32>)
+  -> (f32, f32)
 {
   %r0:2 = scf.for %i = %lb to %ub step %step iter_args(%tA = %A, %tB = %B)
       -> (tensor<?xf32>, tensor<?xf32>)
@@ -102,7 +102,9 @@ func @scf_for(%A : tensor<?xf32>,
     scf.yield %ttB, %ttA : tensor<?xf32>, tensor<?xf32>
   }
 
-  return %r0#0, %r0#1: tensor<?xf32>, tensor<?xf32>
+  %f0 = tensor.extract %r0#0[%step] : tensor<?xf32>
+  %f1 = tensor.extract %r0#1[%step] : tensor<?xf32>
+  return %f0, %f1: f32, f32
 }
 
 // -----
@@ -171,7 +173,7 @@ func @unknown_op(%A : tensor<4xf32>) -> tensor<4xf32>
 func @mini_test_case1() -> tensor<10x20xf32> {
   %f0 = arith.constant 0.0 : f32
   %t = linalg.init_tensor [10, 20] : tensor<10x20xf32>
-  %r = linalg.fill(%f0, %t) : f32, tensor<10x20xf32> -> tensor<10x20xf32>
+  %r = linalg.fill ins(%f0 : f32) outs(%t : tensor<10x20xf32>) -> tensor<10x20xf32>
   // expected-error @+1 {{operand #0 of ReturnLike op does not satisfy destination passing style}}
   return %r : tensor<10x20xf32>
 }

@@ -49,6 +49,7 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/LTO/LTO.h"
+#include "llvm/Object/Archive.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compression.h"
@@ -73,6 +74,7 @@ using namespace lld;
 using namespace lld::elf;
 
 std::unique_ptr<Configuration> elf::config;
+std::unique_ptr<Ctx> elf::ctx;
 std::unique_ptr<LinkerDriver> elf::driver;
 
 static void setConfigs(opt::InputArgList &args);
@@ -96,14 +98,11 @@ bool elf::link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
     inputSections.clear();
     outputSections.clear();
     memoryBuffers.clear();
-    archiveFiles.clear();
     binaryFiles.clear();
     bitcodeFiles.clear();
     lazyBitcodeFiles.clear();
     objectFiles.clear();
     sharedFiles.clear();
-    backwardReferences.clear();
-    whyExtract.clear();
     symAux.clear();
 
     tar = nullptr;
@@ -116,9 +115,10 @@ bool elf::link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
   };
   ctx->e.logName = args::getFilenameWithoutExe(args[0]);
   ctx->e.errorLimitExceededMsg = "too many errors emitted, stopping now (use "
-                                 "-error-limit=0 to see all errors)";
+                                 "--error-limit=0 to see all errors)";
 
   config = std::make_unique<Configuration>();
+  elf::ctx = std::make_unique<Ctx>();
   driver = std::make_unique<LinkerDriver>();
   script = std::make_unique<LinkerScript>();
   symtab = std::make_unique<SymbolTable>();
@@ -228,32 +228,30 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
       return;
     }
 
-    std::unique_ptr<Archive> file =
-        CHECK(Archive::create(mbref), path + ": failed to parse archive");
+    auto members = getArchiveMembers(mbref);
+    archiveFiles.emplace_back(path, members.size());
 
-    // If an archive file has no symbol table, it may be intentional (used as a
-    // group of lazy object files where the symbol table is not useful), or the
-    // user is attempting LTO and using a default ar command that doesn't
-    // understand the LLVM bitcode file. Treat the archive as a group of lazy
-    // object files.
-    if (file->isEmpty() || file->hasSymbolTable()) {
-      // Handle the regular case.
-      files.push_back(make<ArchiveFile>(std::move(file)));
-      return;
-    }
-
+    // Handle archives and --start-lib/--end-lib using the same code path. This
+    // scans all the ELF relocatable object files and bitcode files in the
+    // archive rather than just the index file, with the benefit that the
+    // symbols are only loaded once. For many projects archives see high
+    // utilization rates and it is a net performance win. --start-lib scans
+    // symbols in the same order that llvm-ar adds them to the index, so in the
+    // common case the semantics are identical. If the archive symbol table was
+    // created in a different order, or is incomplete, this strategy has
+    // different semantics. Such output differences are considered user error.
+    //
     // All files within the archive get the same group ID to allow mutual
     // references for --warn-backrefs.
     bool saved = InputFile::isInGroup;
     InputFile::isInGroup = true;
-    for (const std::pair<MemoryBufferRef, uint64_t> &p :
-         getArchiveMembers(mbref)) {
+    for (const std::pair<MemoryBufferRef, uint64_t> &p : members) {
       auto magic = identify_magic(p.first.getBuffer());
       if (magic == file_magic::bitcode || magic == file_magic::elf_relocatable)
         files.push_back(createLazyFile(p.first, path, p.second));
       else
-        error(path + ": archive member '" + p.first.getBufferIdentifier() +
-              "' is neither ET_REL nor LLVM bitcode");
+        warn(path + ": archive member '" + p.first.getBufferIdentifier() +
+             "' is neither ET_REL nor LLVM bitcode");
     }
     InputFile::isInGroup = saved;
     if (!saved)
@@ -446,23 +444,56 @@ static uint8_t getZStartStopVisibility(opt::InputArgList &args) {
   return STV_PROTECTED;
 }
 
+constexpr const char *knownZFlags[] = {
+    "combreloc",
+    "copyreloc",
+    "defs",
+    "execstack",
+    "force-bti",
+    "force-ibt",
+    "global",
+    "hazardplt",
+    "ifunc-noplt",
+    "initfirst",
+    "interpose",
+    "keep-text-section-prefix",
+    "lazy",
+    "muldefs",
+    "nocombreloc",
+    "nocopyreloc",
+    "nodefaultlib",
+    "nodelete",
+    "nodlopen",
+    "noexecstack",
+    "nognustack",
+    "nokeep-text-section-prefix",
+    "nopack-relative-relocs",
+    "norelro",
+    "noseparate-code",
+    "nostart-stop-gc",
+    "notext",
+    "now",
+    "origin",
+    "pac-plt",
+    "pack-relative-relocs",
+    "rel",
+    "rela",
+    "relro",
+    "retpolineplt",
+    "rodynamic",
+    "separate-code",
+    "separate-loadable-segments",
+    "shstk",
+    "start-stop-gc",
+    "text",
+    "undefs",
+    "wxneeded",
+};
+
 static bool isKnownZFlag(StringRef s) {
-  return s == "combreloc" || s == "copyreloc" || s == "defs" ||
-         s == "execstack" || s == "force-bti" || s == "force-ibt" ||
-         s == "global" || s == "hazardplt" || s == "ifunc-noplt" ||
-         s == "initfirst" || s == "interpose" ||
-         s == "keep-text-section-prefix" || s == "lazy" || s == "muldefs" ||
-         s == "separate-code" || s == "separate-loadable-segments" ||
-         s == "start-stop-gc" || s == "nocombreloc" || s == "nocopyreloc" ||
-         s == "nodefaultlib" || s == "nodelete" || s == "nodlopen" ||
-         s == "noexecstack" || s == "nognustack" ||
-         s == "nokeep-text-section-prefix" || s == "norelro" ||
-         s == "noseparate-code" || s == "nostart-stop-gc" || s == "notext" ||
-         s == "now" || s == "origin" || s == "pac-plt" || s == "rel" ||
-         s == "rela" || s == "relro" || s == "retpolineplt" ||
-         s == "rodynamic" || s == "shstk" || s == "text" || s == "undefs" ||
-         s == "wxneeded" || s.startswith("common-page-size=") ||
-         s.startswith("bti-report=") || s.startswith("cet-report=") ||
+  return llvm::is_contained(knownZFlags, s) ||
+         s.startswith("common-page-size=") || s.startswith("bti-report=") ||
+         s.startswith("cet-report=") ||
          s.startswith("dead-reloc-in-nonalloc=") ||
          s.startswith("max-page-size=") || s.startswith("stack-size=") ||
          s.startswith("start-stop-visibility=");
@@ -479,7 +510,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   ELFOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
 
-  // Interpret the flags early because error()/warn() depend on them.
+  // Interpret these flags early because error()/warn() depend on them.
   errorHandler().errorLimit = args::getInteger(args, OPT_error_limit, 20);
   errorHandler().fatalWarnings =
       args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false);
@@ -1018,7 +1049,8 @@ static void readConfigs(opt::InputArgList &args) {
   config->executeOnly =
       args.hasFlag(OPT_execute_only, OPT_no_execute_only, false);
   config->exportDynamic =
-      args.hasFlag(OPT_export_dynamic, OPT_no_export_dynamic, false);
+      args.hasFlag(OPT_export_dynamic, OPT_no_export_dynamic, false) ||
+      args.hasArg(OPT_shared);
   config->filterList = args::getStrings(args, OPT_filter);
   config->fini = args.getLastArgValue(OPT_fini, "_fini");
   config->fixCortexA53Errata843419 = args.hasArg(OPT_fix_cortex_a53_843419) &&
@@ -1324,8 +1356,13 @@ static void readConfigs(opt::InputArgList &args) {
 
   std::tie(config->buildId, config->buildIdVector) = getBuildId(args);
 
-  std::tie(config->androidPackDynRelocs, config->relrPackDynRelocs) =
-      getPackDynRelocs(args);
+  if (getZFlag(args, "pack-relative-relocs", "nopack-relative-relocs", false)) {
+    config->relrGlibc = true;
+    config->relrPackDynRelocs = true;
+  } else {
+    std::tie(config->androidPackDynRelocs, config->relrPackDynRelocs) =
+        getPackDynRelocs(args);
+  }
 
   if (auto *arg = args.getLastArg(OPT_symbol_ordering_file)){
     if (args.hasArg(OPT_call_graph_ordering_file))
@@ -1470,13 +1507,16 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
 
   // Iterate over argv to process input files and positional arguments.
   InputFile::isInGroup = false;
+  bool hasInput = false;
   for (auto *arg : args) {
     switch (arg->getOption().getID()) {
     case OPT_library:
       addLibrary(arg->getValue());
+      hasInput = true;
       break;
     case OPT_INPUT:
       addFile(arg->getValue(), /*withLOption=*/false);
+      hasInput = true;
       break;
     case OPT_defsym: {
       StringRef from;
@@ -1565,7 +1605,7 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
     }
   }
 
-  if (files.empty() && errorCount() == 0)
+  if (files.empty() && !hasInput && errorCount() == 0)
     error("no input files");
 }
 
@@ -1667,11 +1707,15 @@ static void excludeLibs(opt::InputArgList &args) {
   bool all = libs.count("ALL");
 
   auto visit = [&](InputFile *file) {
-    if (!file->archiveName.empty())
-      if (all || libs.count(path::filename(file->archiveName)))
-        for (Symbol *sym : file->getSymbols())
-          if (!sym->isUndefined() && !sym->isLocal() && sym->file == file)
-            sym->versionId = VER_NDX_LOCAL;
+    if (file->archiveName.empty() ||
+        !(all || libs.count(path::filename(file->archiveName))))
+      return;
+    ArrayRef<Symbol *> symbols = file->getSymbols();
+    if (isa<ELFFileBase>(file))
+      symbols = cast<ELFFileBase>(file)->getGlobalSymbols();
+    for (Symbol *sym : symbols)
+      if (!sym->isUndefined() && sym->file == file)
+        sym->versionId = VER_NDX_LOCAL;
   };
 
   for (ELFFileBase *file : objectFiles)
@@ -1691,7 +1735,7 @@ static void handleUndefined(Symbol *sym, const char *option) {
     return;
   sym->extract();
   if (!config->whyExtract.empty())
-    whyExtract.emplace_back(option, sym->file, *sym);
+    driver->whyExtract.emplace_back(option, sym->file, *sym);
 }
 
 // As an extension to GNU linkers, lld supports a variant of `-u`
@@ -1721,13 +1765,78 @@ static void handleLibcall(StringRef name) {
     return;
 
   MemoryBufferRef mb;
-  if (auto *lo = dyn_cast<LazyObject>(sym))
-    mb = lo->file->mb;
-  else
-    mb = cast<LazyArchive>(sym)->getMemberBuffer();
+  mb = cast<LazyObject>(sym)->file->mb;
 
   if (isBitcode(mb))
     sym->extract();
+}
+
+void LinkerDriver::writeArchiveStats() const {
+  if (config->printArchiveStats.empty())
+    return;
+
+  std::error_code ec;
+  raw_fd_ostream os(config->printArchiveStats, ec, sys::fs::OF_None);
+  if (ec) {
+    error("--print-archive-stats=: cannot open " + config->printArchiveStats +
+          ": " + ec.message());
+    return;
+  }
+
+  os << "members\textracted\tarchive\n";
+
+  SmallVector<StringRef, 0> archives;
+  DenseMap<CachedHashStringRef, unsigned> all, extracted;
+  for (ELFFileBase *file : objectFiles)
+    if (file->archiveName.size())
+      ++extracted[CachedHashStringRef(file->archiveName)];
+  for (BitcodeFile *file : bitcodeFiles)
+    if (file->archiveName.size())
+      ++extracted[CachedHashStringRef(file->archiveName)];
+  for (std::pair<StringRef, unsigned> f : archiveFiles) {
+    unsigned &v = extracted[CachedHashString(f.first)];
+    os << f.second << '\t' << v << '\t' << f.first << '\n';
+    // If the archive occurs multiple times, other instances have a count of 0.
+    v = 0;
+  }
+}
+
+void LinkerDriver::writeWhyExtract() const {
+  if (config->whyExtract.empty())
+    return;
+
+  std::error_code ec;
+  raw_fd_ostream os(config->whyExtract, ec, sys::fs::OF_None);
+  if (ec) {
+    error("cannot open --why-extract= file " + config->whyExtract + ": " +
+          ec.message());
+    return;
+  }
+
+  os << "reference\textracted\tsymbol\n";
+  for (auto &entry : whyExtract) {
+    os << std::get<0>(entry) << '\t' << toString(std::get<1>(entry)) << '\t'
+       << toString(std::get<2>(entry)) << '\n';
+  }
+}
+
+void LinkerDriver::reportBackrefs() const {
+  for (auto &ref : backwardReferences) {
+    const Symbol &sym = *ref.first;
+    std::string to = toString(ref.second.second);
+    // Some libraries have known problems and can cause noise. Filter them out
+    // with --warn-backrefs-exclude=. The value may look like (for --start-lib)
+    // *.o or (archive member) *.a(*.o).
+    bool exclude = false;
+    for (const llvm::GlobPattern &pat : config->warnBackrefsExclude)
+      if (pat.match(to)) {
+        exclude = true;
+        break;
+      }
+    if (!exclude)
+      warn("backward reference detected: " + sym.getName() + " in " +
+           toString(ref.second.first) + " refers to " + to);
+  }
 }
 
 // Handle --dependency-file=<path>. If that option is given, lld creates a
@@ -1822,20 +1931,21 @@ static void replaceCommonSymbols() {
   }
 }
 
-// If all references to a DSO happen to be weak, the DSO is not added
-// to DT_NEEDED. If that happens, we need to eliminate shared symbols
-// created from the DSO. Otherwise, they become dangling references
-// that point to a non-existent DSO.
-static void demoteSharedSymbols() {
-  llvm::TimeTraceScope timeScope("Demote shared symbols");
+// If all references to a DSO happen to be weak, the DSO is not added to
+// DT_NEEDED. If that happens, replace ShardSymbol with Undefined to avoid
+// dangling references to an unneeded DSO. Use a weak binding to avoid
+// --no-allow-shlib-undefined diagnostics. Similarly, demote lazy symbols.
+static void demoteSharedAndLazySymbols() {
+  llvm::TimeTraceScope timeScope("Demote shared and lazy symbols");
   for (Symbol *sym : symtab->symbols()) {
     auto *s = dyn_cast<SharedSymbol>(sym);
-    if (!(s && !s->getFile().isNeeded) && !sym->isLazy())
+    if (!(s && !cast<SharedFile>(s->file)->isNeeded) && !sym->isLazy())
       continue;
 
     bool used = sym->used;
+    uint8_t binding = sym->isLazy() ? sym->binding : uint8_t(STB_WEAK);
     sym->replace(
-        Undefined{nullptr, sym->getName(), STB_WEAK, sym->stOther, sym->type});
+        Undefined{nullptr, sym->getName(), binding, sym->stOther, sym->type});
     sym->used = used;
     sym->versionId = VER_NDX_GLOBAL;
   }
@@ -1920,7 +2030,7 @@ static void readSymbolPartitionSection(InputSectionBase *s) {
   if (!isa<Defined>(sym) || !sym->includeInDynsym())
     return;
 
-  StringRef partName = reinterpret_cast<const char *>(s->data().data());
+  StringRef partName = reinterpret_cast<const char *>(s->rawData.data());
   for (Partition &part : partitions) {
     if (part.name == partName) {
       sym->partition = part.getNumber();
@@ -1955,16 +2065,9 @@ static void readSymbolPartitionSection(InputSectionBase *s) {
   sym->partition = newPart.getNumber();
 }
 
-static Symbol *addUndefined(StringRef name) {
-  return symtab->addSymbol(
-      Undefined{nullptr, name, STB_GLOBAL, STV_DEFAULT, 0});
-}
-
 static Symbol *addUnusedUndefined(StringRef name,
                                   uint8_t binding = STB_GLOBAL) {
-  Undefined sym{nullptr, name, binding, STV_DEFAULT, 0};
-  sym.isUsedInRegularObj = false;
-  return symtab->addSymbol(sym);
+  return symtab->addSymbol(Undefined{nullptr, name, binding, STV_DEFAULT, 0});
 }
 
 static void markBuffersAsDontNeed(bool skipLinkedOutput) {
@@ -2115,6 +2218,8 @@ static void redirectSymbols(ArrayRef<WrappedSymbol> wrapped) {
       map.try_emplace(sym, sym2);
       // If both foo@v1 and foo@@v1 are defined and non-weak, report a duplicate
       // definition error.
+      if (sym->isDefined())
+        sym2->checkDuplicate(cast<Defined>(*sym));
       sym2->resolve(*sym);
       // Eliminate foo@v1 from the symbol table.
       sym->symbolKind = Symbol::PlaceholderKind;
@@ -2220,6 +2325,44 @@ static uint32_t getAndFeatures() {
   return ret;
 }
 
+static void initializeLocalSymbols(ELFFileBase *file) {
+  switch (config->ekind) {
+  case ELF32LEKind:
+    cast<ObjFile<ELF32LE>>(file)->initializeLocalSymbols();
+    break;
+  case ELF32BEKind:
+    cast<ObjFile<ELF32BE>>(file)->initializeLocalSymbols();
+    break;
+  case ELF64LEKind:
+    cast<ObjFile<ELF64LE>>(file)->initializeLocalSymbols();
+    break;
+  case ELF64BEKind:
+    cast<ObjFile<ELF64BE>>(file)->initializeLocalSymbols();
+    break;
+  default:
+    llvm_unreachable("");
+  }
+}
+
+static void postParseObjectFile(ELFFileBase *file) {
+  switch (config->ekind) {
+  case ELF32LEKind:
+    cast<ObjFile<ELF32LE>>(file)->postParse();
+    break;
+  case ELF32BEKind:
+    cast<ObjFile<ELF32BE>>(file)->postParse();
+    break;
+  case ELF64LEKind:
+    cast<ObjFile<ELF64LE>>(file)->postParse();
+    break;
+  case ELF64BEKind:
+    cast<ObjFile<ELF64BE>>(file)->postParse();
+    break;
+  default:
+    llvm_unreachable("");
+  }
+}
+
 // Do actual linking. Note that when this function is called,
 // all linker scripts have already been parsed.
 void LinkerDriver::link(opt::InputArgList &args) {
@@ -2295,7 +2438,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
   // Some symbols (such as __ehdr_start) are defined lazily only when there
   // are undefined symbols for them, so we add these to trigger that logic.
   for (StringRef name : script->referencedSymbols)
-    addUndefined(name);
+    addUnusedUndefined(name)->isUsedInRegularObj = true;
 
   // Prevent LTO from removing any definition referenced by -u.
   for (StringRef name : config->undefined)
@@ -2337,6 +2480,25 @@ void LinkerDriver::link(opt::InputArgList &args) {
     for (auto *s : lto::LTO::getRuntimeLibcallSymbols())
       handleLibcall(s);
 
+  // Archive members defining __wrap symbols may be extracted.
+  std::vector<WrappedSymbol> wrapped = addWrappedSymbols(args);
+
+  // No more lazy bitcode can be extracted at this point. Do post parse work
+  // like checking duplicate symbols.
+  parallelForEach(objectFiles, initializeLocalSymbols);
+  parallelForEach(objectFiles, postParseObjectFile);
+  parallelForEach(bitcodeFiles, [](BitcodeFile *file) { file->postParse(); });
+  for (auto &it : ctx->nonPrevailingSyms) {
+    Symbol &sym = *it.first;
+    sym.replace(Undefined{sym.file, sym.getName(), sym.binding, sym.stOther,
+                          sym.type, it.second});
+    cast<Undefined>(sym).nonPrevailing = true;
+  }
+  ctx->nonPrevailingSyms.clear();
+  for (const DuplicateSymbol &d : ctx->duplicates)
+    reportDuplicate(*d.sym, d.file, d.section, d.value);
+  ctx->duplicates.clear();
+
   // Return if there were name resolution errors.
   if (errorCount())
     return;
@@ -2357,8 +2519,6 @@ void LinkerDriver::link(opt::InputArgList &args) {
   // Create elfHeader early. We need a dummy section in
   // addReservedSymbols to mark the created symbols as not absolute.
   Out::elfHeader = make<OutputSection>("", 0, SHF_ALLOC);
-
-  std::vector<WrappedSymbol> wrapped = addWrappedSymbols(args);
 
   // We need to create some reserved symbols such as _end. Create them.
   if (!config->relocatable)
@@ -2390,16 +2550,28 @@ void LinkerDriver::link(opt::InputArgList &args) {
   //
   // With this the symbol table should be complete. After this, no new names
   // except a few linker-synthesized ones will be added to the symbol table.
+  const size_t numObjsBeforeLTO = objectFiles.size();
   invokeELFT(compileBitcodeFiles, skipLinkedOutput);
 
-  // Symbol resolution finished. Report backward reference problems.
+  // Symbol resolution finished. Report backward reference problems,
+  // --print-archive-stats=, and --why-extract=.
   reportBackrefs();
+  writeArchiveStats();
+  writeWhyExtract();
   if (errorCount())
     return;
 
   // Bail out if normal linked output is skipped due to LTO.
   if (skipLinkedOutput)
     return;
+
+  // compileBitcodeFiles may have produced lto.tmp object files. After this, no
+  // more file will be added.
+  auto newObjectFiles = makeArrayRef(objectFiles).slice(numObjsBeforeLTO);
+  parallelForEach(newObjectFiles, initializeLocalSymbols);
+  parallelForEach(newObjectFiles, postParseObjectFile);
+  for (const DuplicateSymbol &d : ctx->duplicates)
+    reportDuplicate(*d.sym, d.file, d.section, d.value);
 
   // Handle --exclude-libs again because lto.tmp may reference additional
   // libcalls symbols defined in an excluded archive. This may override
@@ -2429,26 +2601,28 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   {
     llvm::TimeTraceScope timeScope("Strip sections");
-    llvm::erase_if(inputSections, [](InputSectionBase *s) {
-      if (s->type == SHT_LLVM_SYMPART) {
+    if (ctx->hasSympart.load(std::memory_order_relaxed)) {
+      llvm::erase_if(inputSections, [](InputSectionBase *s) {
+        if (s->type != SHT_LLVM_SYMPART)
+          return false;
         invokeELFT(readSymbolPartitionSection, s);
         return true;
-      }
+      });
+    }
+    // We do not want to emit debug sections if --strip-all
+    // or --strip-debug are given.
+    if (config->strip != StripPolicy::None) {
+      llvm::erase_if(inputSections, [](InputSectionBase *s) {
+        if (isDebugSection(*s))
+          return true;
+        if (auto *isec = dyn_cast<InputSection>(s))
+          if (InputSectionBase *rel = isec->getRelocatedSection())
+            if (isDebugSection(*rel))
+              return true;
 
-      // We do not want to emit debug sections if --strip-all
-      // or --strip-debug are given.
-      if (config->strip == StripPolicy::None)
         return false;
-
-      if (isDebugSection(*s))
-        return true;
-      if (auto *isec = dyn_cast<InputSection>(s))
-        if (InputSectionBase *rel = isec->getRelocatedSection())
-          if (isDebugSection(*rel))
-            return true;
-
-      return false;
-    });
+      });
+    }
   }
 
   // Since we now have a complete set of input files, we can create
@@ -2502,7 +2676,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   // Garbage collection and removal of shared symbols from unused shared objects.
   invokeELFT(markLive);
-  demoteSharedSymbols();
+  demoteSharedAndLazySymbols();
 
   // Make copies of any input sections that need to be copied into each
   // partition.
@@ -2539,8 +2713,8 @@ void LinkerDriver::link(opt::InputArgList &args) {
     // point onwards InputSectionDescription::sections should be used instead of
     // sectionBases.
     for (SectionCommand *cmd : script->sectionCommands)
-      if (auto *sec = dyn_cast<OutputSection>(cmd))
-        sec->finalizeInputSections();
+      if (auto *osd = dyn_cast<OutputDesc>(cmd))
+        osd->osec.finalizeInputSections();
     llvm::erase_if(inputSections, [](InputSectionBase *s) {
       return isa<MergeInputSection>(s);
     });

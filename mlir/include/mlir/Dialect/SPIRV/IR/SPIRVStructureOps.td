@@ -385,7 +385,7 @@ def SPV_GlobalVariableOp : SPV_Op<"GlobalVariable", [InModuleScope, Symbol]> {
     OptionalAttr<FlatSymbolRefAttr>:$initializer,
     OptionalAttr<I32Attr>:$location,
     OptionalAttr<I32Attr>:$binding,
-    OptionalAttr<I32Attr>:$descriptorSet,
+    OptionalAttr<I32Attr>:$descriptor_set,
     OptionalAttr<StrAttr>:$builtin
   );
 
@@ -516,6 +516,9 @@ def SPV_ModuleOp : SPV_Op<"module",
 
     static StringRef getVCETripleAttrName() { return "vce_triple"; }
   }];
+
+  let hasVerifier = 0;
+  let hasRegionVerifier = 1;
 }
 
 // -----
@@ -749,6 +752,9 @@ def SPV_SpecConstantOperationOp : SPV_Op<"SpecConstantOperation", [
   let hasOpcode = 0;
 
   let autogenSerialization = 0;
+
+  let hasVerifier = 0;
+  let hasRegionVerifier = 1;
 }
 
 // -----

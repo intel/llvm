@@ -14,7 +14,6 @@
 #include "TestTU.h"
 #include "index/MemIndex.h"
 #include "clang/AST/Attr.h"
-#include "clang/Basic/Specifiers.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/StringRef.h"
@@ -2521,6 +2520,22 @@ TEST(Hover, All) {
             HI.NamespaceScope = "";
             HI.Definition = "@property(nonatomic, assign, unsafe_unretained, "
                             "readwrite) int prop1;";
+          }},
+      {
+          R"cpp(
+          @protocol MYProtocol
+          @end
+          @interface MYObject
+          @end
+
+          @interface MYObject (Ext) <[[MYProt^ocol]]>
+          @end
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "MYProtocol";
+            HI.Kind = index::SymbolKind::Protocol;
+            HI.NamespaceScope = "";
+            HI.Definition = "@protocol MYProtocol\n@end";
           }},
       {R"objc(
         @interface Foo

@@ -15,12 +15,9 @@ jobs:
     - name: Install dependencies
       shell: cmd
       run: |
-        choco install -y cuda --version 11.6.0.51123
         choco install -y ninja
         choco install -y sccache --version 0.2.15
         refreshenv
-        echo CUDA_PATH=%CUDA_PATH%
-        echo CUDA_PATH=%CUDA_PATH% >> %GITHUB_ENV%
     - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
       with:
         arch: amd64
@@ -33,11 +30,8 @@ jobs:
         key: sycl-win-build-${{ github.sha }}
         restore-keys: |
           sycl-win-build-
-    - name: Configure
+    - name: Build
       shell: cmd
-      env:
-        CUDA_PATH: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
-        CUDA_TOOLKIT_ROOT_DIR: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
       # TODO enable sccache, when problems with PDB are resolved
       run: |
@@ -51,15 +45,9 @@ jobs:
           --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
-          --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
-          --cuda
-    - name: Build
-      shell: cmd
-      env:
-        CUDA_PATH: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
-        CUDA_TOOLKIT_ROOT_DIR: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
-      run: |
+          --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache"
         cmake --build build --target sycl-toolchain
+        sccache --show-stats
     - name: Install
       shell: cmd
       run: cmake --build build --target deploy-sycl-toolchain

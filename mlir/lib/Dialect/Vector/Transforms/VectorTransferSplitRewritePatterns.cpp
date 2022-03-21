@@ -262,7 +262,8 @@ createFullPartialLinalgCopy(RewriterBase &b, vector::TransferReadOp xferOp,
         b.create<scf::YieldOp>(loc, viewAndIndices);
       },
       [&](OpBuilder &b, Location loc) {
-        b.create<linalg::FillOp>(loc, xferOp.padding(), alloc);
+        b.create<linalg::FillOp>(loc, ValueRange{xferOp.padding()},
+                                 ValueRange{alloc});
         // Take partial subview of memref which guarantees no dimension
         // overflows.
         IRRewriter rewriter(b);
@@ -514,7 +515,7 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
   SmallVector<bool, 4> bools(xferOp.getTransferRank(), true);
   auto inBoundsAttr = b.getBoolArrayAttr(bools);
   if (options.vectorTransferSplit == VectorTransferSplit::ForceInBounds) {
-    xferOp->setAttr(xferOp.getInBoundsAttrName(), inBoundsAttr);
+    xferOp->setAttr(xferOp.getInBoundsAttrStrName(), inBoundsAttr);
     return success();
   }
 
@@ -585,7 +586,7 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
     for (unsigned i = 0, e = returnTypes.size(); i != e; ++i)
       xferReadOp.setOperand(i, fullPartialIfOp.getResult(i));
 
-    xferOp->setAttr(xferOp.getInBoundsAttrName(), inBoundsAttr);
+    xferOp->setAttr(xferOp.getInBoundsAttrStrName(), inBoundsAttr);
 
     return success();
   }

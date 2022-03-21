@@ -8,7 +8,6 @@
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallBitVector.h"
-#include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
@@ -16,23 +15,22 @@
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineDominators.h"
-#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
-#include "llvm/Target/TargetMachine.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/DivisionByConstantInfo.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Target/TargetMachine.h"
 #include <tuple>
 
 #define DEBUG_TYPE "gi-combiner"
@@ -4085,7 +4083,7 @@ void CombinerHelper::applyFunnelShiftToRotate(MachineInstr &MI) {
   Observer.changingInstr(MI);
   MI.setDesc(Builder.getTII().get(IsFSHL ? TargetOpcode::G_ROTL
                                          : TargetOpcode::G_ROTR));
-  MI.RemoveOperand(2);
+  MI.removeOperand(2);
   Observer.changedInstr(MI);
 }
 
@@ -5538,6 +5536,63 @@ bool CombinerHelper::matchCombineFSubFpExtFNegFMulToFMadOrFMA(
 
   return false;
 }
+
+bool CombinerHelper::matchSelectToLogical(MachineInstr &MI,
+                                          BuildFnTy &MatchInfo) {
+  GSelect &Sel = cast<GSelect>(MI);
+  Register DstReg = Sel.getReg(0);
+  Register Cond = Sel.getCondReg();
+  Register TrueReg = Sel.getTrueReg();
+  Register FalseReg = Sel.getFalseReg();
+
+  auto *TrueDef = getDefIgnoringCopies(TrueReg, MRI);
+  auto *FalseDef = getDefIgnoringCopies(FalseReg, MRI);
+
+  const LLT CondTy = MRI.getType(Cond);
+  const LLT OpTy = MRI.getType(TrueReg);
+  if (CondTy != OpTy || OpTy.getScalarSizeInBits() != 1)
+    return false;
+
+  // We have a boolean select.
+
+  // select Cond, Cond, F --> or Cond, F
+  // select Cond, 1, F    --> or Cond, F
+  auto MaybeCstTrue = isConstantOrConstantSplatVector(*TrueDef, MRI);
+  if (Cond == TrueReg || (MaybeCstTrue && MaybeCstTrue->isOne())) {
+    MatchInfo = [=](MachineIRBuilder &MIB) {
+      MIB.buildOr(DstReg, Cond, FalseReg);
+    };
+    return true;
+  }
+
+  // select Cond, T, Cond --> and Cond, T
+  // select Cond, T, 0    --> and Cond, T
+  auto MaybeCstFalse = isConstantOrConstantSplatVector(*FalseDef, MRI);
+  if (Cond == FalseReg || (MaybeCstFalse && MaybeCstFalse->isZero())) {
+    MatchInfo = [=](MachineIRBuilder &MIB) {
+      MIB.buildAnd(DstReg, Cond, TrueReg);
+    };
+    return true;
+  }
+
+ // select Cond, T, 1 --> or (not Cond), T
+  if (MaybeCstFalse && MaybeCstFalse->isOne()) {
+    MatchInfo = [=](MachineIRBuilder &MIB) {
+      MIB.buildOr(DstReg, MIB.buildNot(OpTy, Cond), TrueReg);
+    };
+    return true;
+  }
+
+  // select Cond, 0, F --> and (not Cond), F
+  if (MaybeCstTrue && MaybeCstTrue->isZero()) {
+    MatchInfo = [=](MachineIRBuilder &MIB) {
+      MIB.buildAnd(DstReg, MIB.buildNot(OpTy, Cond), FalseReg);
+    };
+    return true;
+  }
+  return false;
+}
+
 
 bool CombinerHelper::tryCombine(MachineInstr &MI) {
   if (tryCombineCopy(MI))

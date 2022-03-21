@@ -8,8 +8,7 @@
 ///
 /// This file contains the required infrastructure and SDNode patterns to
 /// support code generation for the standard 'V' (Vector) extension, version
-/// 0.10.  This version is still experimental as the 'V' extension hasn't been
-/// ratified yet.
+/// version 1.0.
 ///
 /// This file is included from and depends upon RISCVInstrInfoVPseudos.td
 ///
@@ -584,7 +583,7 @@ defm : VPatBinarySDNode_VV_VX_VI<sra, "PseudoVSRA", uimm5>;
 foreach vti = AllIntegerVectors in {
   // Emit shift by 1 as an add since it might be faster.
   def : Pat<(shl (vti.Vector vti.RegClass:$rs1),
-                 (vti.Vector (riscv_vmv_v_x_vl 1, (XLenVT srcvalue)))),
+                 (vti.Vector (riscv_vmv_v_x_vl (vti.Vector undef), 1, (XLenVT srcvalue)))),
             (!cast<Instruction>("PseudoVADD_VV_"# vti.LMul.MX)
                  vti.RegClass:$rs1, vti.RegClass:$rs1, vti.AVL, vti.Log2SEW)>;
 
@@ -955,6 +954,13 @@ foreach fvti = AllFloatVectors in {
 //===----------------------------------------------------------------------===//
 let Predicates = [HasVInstructionsAnyF] in
 foreach vti = AllFloatVectors in {
+  // Fold store of vmv.f.s to a vse with VL=1.
+  defvar store_instr = !cast<Instruction>("PseudoVSE"#vti.SEW#"_V_"#vti.LMul.MX);
+  def : Pat<(store (vti.Scalar (int_riscv_vfmv_f_s (vti.Vector vti.RegClass:$rs2))), BaseAddr:$rs1),
+            (store_instr vti.RegClass:$rs2, BaseAddr:$rs1, 1, vti.Log2SEW)>;
+  def : Pat<(store (extractelt (vti.Vector vti.RegClass:$rs2), 0), BaseAddr:$rs1),
+            (store_instr vti.RegClass:$rs2, BaseAddr:$rs1, 1, vti.Log2SEW)>;
+
   defvar vmv_f_s_inst = !cast<Instruction>(!strconcat("PseudoVFMV_",
                                                        vti.ScalarSuffix,
                                                        "_S_", vti.LMul.MX));

@@ -2097,6 +2097,10 @@ Enable debugging in the OpenMP offloading device RTL
 
 Use the new bitcode library for OpenMP offloading
 
+.. option:: -fopenmp-offload-mandatory
+
+Indicate that offloading to the device is mandatory and do not generate host-fallback code.
+
 .. option:: -fopenmp-version=<arg>
 
 Set OpenMP version (e.g. 45 for OpenMP 4.5, 50 for OpenMP 5.0). Default value is 50.
@@ -3624,6 +3628,8 @@ WebAssembly
 .. option:: -msimd128, -mno-simd128
 
 .. option:: -mtail-call, -mno-tail-call
+
+.. option:: -mextended-const, -mno-extended-const
 
 WebAssembly Driver
 ------------------

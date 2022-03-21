@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Object/ObjectFile.h"
-#include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Object/Binary.h"
@@ -147,6 +146,7 @@ ObjectFile::createObjectFile(MemoryBufferRef Object, file_magic Type,
   case file_magic::pdb:
   case file_magic::minidump:
   case file_magic::goff_object:
+  case file_magic::cuda_fatbinary:
     return errorCodeToError(object_error::invalid_file_type);
   case file_magic::tapi_file:
     return errorCodeToError(object_error::invalid_file_type);

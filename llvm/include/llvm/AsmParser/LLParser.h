@@ -14,18 +14,25 @@
 #define LLVM_ASMPARSER_LLPARSER_H
 
 #include "LLLexer.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Attributes.h"
+#include "llvm/IR/FMF.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/ModuleSummaryIndex.h"
-#include "llvm/IR/Operator.h"
-#include "llvm/IR/Type.h"
 #include <map>
 
 namespace llvm {
   class Module;
+  class ConstantRange;
+  class FunctionType;
+  class GlobalObject;
+  class SMDiagnostic;
+  class SMLoc;
+  class SourceMgr;
+  class Type;
+  struct MaybeAlign;
+  template <typename T> class Optional;
   class Function;
   class Value;
   class BasicBlock;
@@ -263,6 +270,7 @@ namespace llvm {
     bool parseOptionalAlignment(MaybeAlign &Alignment,
                                 bool AllowParens = false);
     bool parseOptionalDerefAttrBytes(lltok::Kind AttrKind, uint64_t &Bytes);
+    bool parseOptionalUWTableKind(UWTableKind &Kind);
     bool parseScopeAndOrdering(bool IsAtomic, SyncScope::ID &SSID,
                                AtomicOrdering &Ordering);
     bool parseScope(SyncScope::ID &SSID);

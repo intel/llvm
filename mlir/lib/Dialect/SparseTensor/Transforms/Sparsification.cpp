@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CodegenUtils.h"
+
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
@@ -23,7 +24,6 @@
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/SparseTensor/Transforms/Passes.h"
 #include "mlir/Dialect/SparseTensor/Utils/Merger.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/TensorEncoding.h"
@@ -53,10 +53,9 @@ struct CodeGen {
         indices(numTensors, std::vector<Value>(numLoops)),
         highs(numTensors, std::vector<Value>(numLoops)),
         pidxs(numTensors, std::vector<Value>(numLoops)),
-        idxs(numTensors, std::vector<Value>(numLoops)), redExp(-1u), redVal(),
-        redKind(kNoReduc), sparseOut(op), outerParNest(nest), lexIdx(),
-        expValues(), expFilled(), expAdded(), expCount(), curVecLength(1),
-        curVecMask() {}
+        idxs(numTensors, std::vector<Value>(numLoops)), redVal(), sparseOut(op),
+        outerParNest(nest), lexIdx(), expValues(), expFilled(), expAdded(),
+        expCount(), curVecMask() {}
   /// Sparsification options.
   SparsificationOptions options;
   /// Universal dense indices and upper bounds (by index). The loops array
@@ -78,9 +77,9 @@ struct CodeGen {
   std::vector<std::vector<Value>> idxs;
   /// Current reduction, updated during code generation. When indices of a
   /// reduction are exhausted, all inner loops can use a scalarized reduction.
-  unsigned redExp;
+  unsigned redExp = -1u;
   Value redVal;
-  Reduction redKind;
+  Reduction redKind = kNoReduc;
   // Sparse tensor as output. Implemented either through direct injective
   // insertion in lexicographic index order (where indices are updated
   // in the temporary array `lexIdx`) or through access pattern expansion
@@ -93,7 +92,7 @@ struct CodeGen {
   Value expAdded;
   Value expCount;
   // Current vector length and mask.
-  unsigned curVecLength;
+  unsigned curVecLength = 1;
   Value curVecMask;
 };
 
@@ -464,15 +463,15 @@ static Value genOutputBuffer(CodeGen &codegen, PatternRewriter &rewriter,
   // impact the running complexity of the sparse kernel. If the tensor
   // materializes into the computation, we need to preserve the zero
   // initialization assumption of all sparse output buffers.
-  if (isMaterializing(tensor)) {
-    Value alloc = rewriter.create<memref::AllocOp>(loc, denseTp, args);
-    Value zero = constantZero(rewriter, loc, denseTp.getElementType());
-    rewriter.create<linalg::FillOp>(loc, zero, alloc);
-    return alloc;
-  }
-  Value init = rewriter.create<bufferization::ToMemrefOp>(loc, denseTp, tensor);
   Value alloc = rewriter.create<memref::AllocOp>(loc, denseTp, args);
-  rewriter.create<memref::CopyOp>(loc, init, alloc);
+  if (isMaterializing(tensor)) {
+    Value zero = constantZero(rewriter, loc, denseTp.getElementType());
+    rewriter.create<linalg::FillOp>(loc, ValueRange{zero}, ValueRange{alloc});
+  } else {
+    Value init =
+        rewriter.create<bufferization::ToMemrefOp>(loc, denseTp, tensor);
+    rewriter.create<memref::CopyOp>(loc, init, alloc);
+  }
   return alloc;
 }
 
@@ -872,6 +871,13 @@ static Value genAddress(CodeGen &codegen, PatternRewriter &rewriter,
   return rewriter.create<arith::AddIOp>(loc, mul, i);
 }
 
+/// Generates an index value.
+static Value genIndexValue(Merger &merger, CodeGen &codegen, unsigned exp) {
+  assert(codegen.curVecLength == 1); // TODO: implement vectorization!
+  unsigned idx = merger.exp(exp).index;
+  return codegen.loops[idx];
+}
+
 /// Recursively generates tensor expression.
 static Value genExp(Merger &merger, CodeGen &codegen, PatternRewriter &rewriter,
                     linalg::GenericOp op, unsigned exp) {
@@ -882,6 +888,8 @@ static Value genExp(Merger &merger, CodeGen &codegen, PatternRewriter &rewriter,
     return genTensorLoad(merger, codegen, rewriter, op, exp);
   if (merger.exp(exp).kind == Kind::kInvariant)
     return genInvariantValue(merger, codegen, rewriter, exp);
+  if (merger.exp(exp).kind == Kind::kIndex)
+    return genIndexValue(merger, codegen, exp);
   Value v0 = genExp(merger, codegen, rewriter, op, merger.exp(exp).children.e0);
   Value v1 = genExp(merger, codegen, rewriter, op, merger.exp(exp).children.e1);
   return merger.buildExp(rewriter, loc, exp, v0, v1);
@@ -949,7 +957,8 @@ static void genInvariants(Merger &merger, CodeGen &codegen,
       merger.exp(exp).val =
           atStart ? genTensorLoad(merger, codegen, rewriter, op, exp) : Value();
     }
-  } else if (merger.exp(exp).kind != Kind::kInvariant) {
+  } else if (merger.exp(exp).kind != Kind::kInvariant &&
+             merger.exp(exp).kind != Kind::kIndex) {
     // Traverse into the binary operations. Note that we only hoist
     // tensor loads, since subsequent MLIR/LLVM passes know how to
     // deal with all other kinds of derived loop invariants.
@@ -1041,7 +1050,12 @@ static bool genInit(Merger &merger, CodeGen &codegen, PatternRewriter &rewriter,
 /// Returns vectorization strategy. Any implicit inner loop in the Linalg
 /// operation is a candidate. Whether it is actually converted to SIMD code
 /// depends on the requested strategy.
-static bool isVectorFor(CodeGen &codegen, bool isInner, bool isSparse) {
+static bool isVectorFor(CodeGen &codegen, bool isInner, bool isReduction,
+                        bool isSparse) {
+  // Reject vectorization of sparse output, unless innermost is reduction.
+  if (codegen.sparseOut && !isReduction)
+    return false;
+  // Inspect strategy.
   switch (codegen.options.vectorizationStrategy) {
   case SparseVectorizationStrategy::kNone:
     return false;
@@ -1058,6 +1072,10 @@ static bool isVectorFor(CodeGen &codegen, bool isInner, bool isSparse) {
 /// to a parallel operation depends on the requested strategy.
 static bool isParallelFor(CodeGen &codegen, bool isOuter, bool isReduction,
                           bool isSparse, bool isVector) {
+  // Reject parallelization of sparse output.
+  if (codegen.sparseOut)
+    return false;
+  // Inspect strategy.
   switch (codegen.options.parallelizationStrategy) {
   case SparseParallelizationStrategy::kNone:
     return false;
@@ -1109,11 +1127,9 @@ static Operation *genFor(Merger &merger, CodeGen &codegen,
   auto iteratorTypes = op.iterator_types().getValue();
   bool isReduction = isReductionIterator(iteratorTypes[idx]);
   bool isSparse = merger.isDim(fb, Dim::kSparse);
-  bool isVector = !codegen.sparseOut &&
-                  isVectorFor(codegen, isInner, isSparse) &&
+  bool isVector = isVectorFor(codegen, isInner, isReduction, isSparse) &&
                   denseUnitStrides(merger, op, idx);
   bool isParallel =
-      !codegen.sparseOut &&
       isParallelFor(codegen, isOuter, isReduction, isSparse, isVector);
 
   // Prepare vector length.
@@ -1628,6 +1644,7 @@ public:
 
   LogicalResult matchAndRewrite(linalg::GenericOp op,
                                 PatternRewriter &rewriter) const override {
+
     // Detects sparse annotations and translate the per-dimension sparsity
     // information for all tensors to loop indices in the kernel.
     assert(op.getNumOutputs() == 1);

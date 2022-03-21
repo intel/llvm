@@ -264,6 +264,7 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable llvm::FoldingSet<PipeType> PipeTypes;
   mutable llvm::FoldingSet<BitIntType> BitIntTypes;
   mutable llvm::FoldingSet<DependentBitIntType> DependentBitIntTypes;
+  llvm::FoldingSet<BTFTagAttributedType> BTFTagAttributedTypes;
 
   mutable llvm::FoldingSet<QualifiedTemplateName> QualifiedTemplateNames;
   mutable llvm::FoldingSet<DependentTemplateName> DependentTemplateNames;
@@ -1597,6 +1598,9 @@ public:
                              QualType modifiedType,
                              QualType equivalentType);
 
+  QualType getBTFTagAttributedType(const BTFTypeTagAttr *BTFAttr,
+                                   QualType Wrapped);
+
   QualType getSubstTemplateTypeParmType(const TemplateTypeParmType *Replaced,
                                         QualType Replacement) const;
   QualType getSubstTemplateTypeParmPackType(
@@ -2762,14 +2766,6 @@ public:
   /// if both types have the same floating-point semantics on the target (i.e.
   /// long double and double on AArch64 will return 0).
   int getFloatingTypeSemanticOrder(QualType LHS, QualType RHS) const;
-
-  /// Return a real floating point or a complex type (based on
-  /// \p typeDomain/\p typeSize).
-  ///
-  /// \param typeDomain a real floating point or complex type.
-  /// \param typeSize a real floating point or complex type.
-  QualType getFloatingTypeOfSizeWithinDomain(QualType typeSize,
-                                             QualType typeDomain) const;
 
   unsigned getTargetAddressSpace(QualType T) const;
 

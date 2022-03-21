@@ -230,14 +230,6 @@ enum NodeType : unsigned {
   SADDV,
   UADDV,
 
-  // Vector halving addition
-  SHADD,
-  UHADD,
-
-  // Vector rounding halving addition
-  SRHADD,
-  URHADD,
-
   // Add Long Pairwise
   SADDLP,
   UADDLP,
@@ -609,8 +601,8 @@ public:
   bool isLegalAddImmediate(int64_t) const override;
   bool isLegalICmpImmediate(int64_t) const override;
 
-  bool isMulAddWithConstProfitable(const SDValue &AddNode,
-                                   const SDValue &ConstNode) const override;
+  bool isMulAddWithConstProfitable(SDValue AddNode,
+                                   SDValue ConstNode) const override;
 
   bool shouldConsiderGEPOffsetSplit() const override;
 
@@ -897,11 +889,8 @@ private:
   SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
 
-  bool isEligibleForTailCallOptimization(
-      SDValue Callee, CallingConv::ID CalleeCC, bool isVarArg,
-      const SmallVectorImpl<ISD::OutputArg> &Outs,
-      const SmallVectorImpl<SDValue> &OutVals,
-      const SmallVectorImpl<ISD::InputArg> &Ins, SelectionDAG &DAG) const;
+  bool
+  isEligibleForTailCallOptimization(const CallLoweringInfo &CLI) const;
 
   /// Finds the incoming stack arguments which overlap the given fixed stack
   /// object and incorporates their load into the current chain. This prevents

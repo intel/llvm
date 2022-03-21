@@ -21,22 +21,16 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/OperandTraits.h"
-#include "llvm/IR/Type.h"
 #include "llvm/IR/User.h"
-#include "llvm/IR/Value.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -46,6 +40,10 @@
 #include <vector>
 
 namespace llvm {
+
+class StringRef;
+class Type;
+class Value;
 
 namespace Intrinsic {
 typedef unsigned ID;
@@ -1761,13 +1759,29 @@ public:
     return nullptr;
   }
 
-  /// Extract the preallocated type for a call or parameter.
+  /// Extract the inalloca type for a call or parameter.
   Type *getParamInAllocaType(unsigned ArgNo) const {
     if (auto *Ty = Attrs.getParamInAllocaType(ArgNo))
       return Ty;
     if (const Function *F = getCalledFunction())
       return F->getAttributes().getParamInAllocaType(ArgNo);
     return nullptr;
+  }
+
+  /// Extract the sret type for a call or parameter.
+  Type *getParamStructRetType(unsigned ArgNo) const {
+    if (auto *Ty = Attrs.getParamStructRetType(ArgNo))
+      return Ty;
+    if (const Function *F = getCalledFunction())
+      return F->getAttributes().getParamStructRetType(ArgNo);
+    return nullptr;
+  }
+
+  /// Extract the elementtype type for a parameter.
+  /// Note that elementtype() can only be applied to call arguments, not
+  /// function declaration parameters.
+  Type *getParamElementType(unsigned ArgNo) const {
+    return Attrs.getParamElementType(ArgNo);
   }
 
   /// Extract the number of dereferenceable bytes for a call or
@@ -2052,7 +2066,8 @@ public:
   bool hasClobberingOperandBundles() const {
     for (auto &BOI : bundle_op_infos()) {
       if (BOI.Tag->second == LLVMContext::OB_deopt ||
-          BOI.Tag->second == LLVMContext::OB_funclet)
+          BOI.Tag->second == LLVMContext::OB_funclet ||
+          BOI.Tag->second == LLVMContext::OB_ptrauth)
         continue;
 
       // This instruction has an operand bundle that is not known to us.
