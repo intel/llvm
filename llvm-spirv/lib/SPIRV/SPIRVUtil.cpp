@@ -325,6 +325,21 @@ bool isSYCLHalfType(llvm::Type *Ty) {
   return false;
 }
 
+bool isSYCLBfloat16Type(llvm::Type *Ty) {
+  if (auto *ST = dyn_cast<StructType>(Ty)) {
+    if (!ST->hasName())
+      return false;
+    StringRef Name = ST->getName();
+    Name.consume_front("class.");
+    if ((Name.startswith("cl::sycl::") ||
+         Name.startswith("__sycl_internal::")) &&
+        Name.endswith("::bfloat16")) {
+      return true;
+    }
+  }
+  return false;
+}
+
 Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
                               StringRef Name, BuiltinFuncMangleInfo *Mangle,
                               AttributeList *Attrs, bool TakeName) {
