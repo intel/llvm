@@ -1608,6 +1608,14 @@ bool Sema::CheckRedeclarationModuleOwnership(NamedDecl *New, NamedDecl *Old) {
   if (OldM && OldM->Kind == Module::PrivateModuleFragment)
     OldM = OldM->Parent;
 
+  // If we have a decl in a module partition, it is part of the containing
+  // module (which is the only thing that can be importing it).
+  if (NewM && OldM &&
+      (OldM->Kind == Module::ModulePartitionInterface ||
+       OldM->Kind == Module::ModulePartitionImplementation)) {
+    return false;
+  }
+
   if (NewM == OldM)
     return false;
 
@@ -2006,6 +2014,12 @@ void Sema::DiagnoseUnusedButSetDecl(const VarDecl *VD) {
   // be assigned in the block but not used elsewhere for the purpose of lifetime
   // extension.
   if (VD->hasAttr<BlocksAttr>() && Ty->isObjCObjectPointerType())
+    return;
+
+  // Don't warn about Objective-C pointer variables with precise lifetime
+  // semantics; they can be used to ensure ARC releases the object at a known
+  // time, which may mean assignment but no other references.
+  if (VD->hasAttr<ObjCPreciseLifetimeAttr>() && Ty->isObjCObjectPointerType())
     return;
 
   auto iter = RefsMinusAssignments.find(VD);
@@ -2783,6 +2797,14 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLIntelPipeIOAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(Attr))
     NewAttr = S.MergeSYCLIntelMaxWorkGroupSizeAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLAddIRAttributesFunctionAttr>(Attr))
+    NewAttr = S.MergeSYCLAddIRAttributesFunctionAttr(D, *A);
+  else if (const auto *A =
+               dyn_cast<SYCLAddIRAttributesKernelParameterAttr>(Attr))
+    NewAttr = S.MergeSYCLAddIRAttributesKernelParameterAttr(D, *A);
+  else if (const auto *A =
+               dyn_cast<SYCLAddIRAttributesGlobalVariableAttr>(Attr))
+    NewAttr = S.MergeSYCLAddIRAttributesGlobalVariableAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -7400,12 +7422,23 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       NewVD->setTSCSpec(TSCS);
   }
 
-  // Static variables declared inside SYCL device code must be const or
-  // constexpr
-  if (getLangOpts().SYCLIsDevice)
-    if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context))
+  // Global variables with types decorated with device_global attribute must be
+  // static if they are declared in SYCL device code.
+  if (getLangOpts().SYCLIsDevice) {
+    if (SCSpec != DeclSpec::SCS_static && !NewVD->hasGlobalStorage() &&
+        isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            NewVD->getType()))
+      Diag(D.getIdentifierLoc(), diag::err_sycl_device_global_incorrect_scope);
+
+    // Static variables declared inside SYCL device code must be const or
+    // constexpr unless their types are decorated with global_variable_allowed
+    // attribute.
+    if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context) &&
+        !isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
+            NewVD->getType()))
       SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
           << Sema::KernelNonConstStaticDataVariable;
+  }
 
   switch (D.getDeclSpec().getConstexprSpecifier()) {
   case ConstexprSpecKind::Unspecified:
@@ -14275,9 +14308,6 @@ ShouldWarnAboutMissingPrototype(const FunctionDecl *FD,
   if (!FD->isGlobal())
     return false;
 
-  if (!FD->isExternallyVisible())
-    return false;
-
   // Don't warn about C++ member functions.
   if (isa<CXXMethodDecl>(FD))
     return false;
@@ -14739,18 +14769,20 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
       if (getLangOpts().CPlusPlus14) {
         if (!FD->isInvalidDecl() && Body && !FD->isDependentContext() &&
             FD->getReturnType()->isUndeducedType()) {
-          // If the function has a deduced result type but contains no 'return'
-          // statements, the result type as written must be exactly 'auto', and
-          // the deduced result type is 'void'.
+          // For a function with a deduced result type to return void,
+          // the result type as written must be 'auto' or 'decltype(auto)',
+          // possibly cv-qualified or constrained, but not ref-qualified.
           if (!FD->getReturnType()->getAs<AutoType>()) {
             Diag(dcl->getLocation(), diag::err_auto_fn_no_return_but_not_auto)
                 << FD->getReturnType();
             FD->setInvalidDecl();
           } else {
-            // Substitute 'void' for the 'auto' in the type.
-            TypeLoc ResultType = getReturnTypeLoc(FD);
-            Context.adjustDeducedFunctionResultType(
-                FD, SubstAutoType(ResultType.getType(), Context.VoidTy));
+            // Falling off the end of the function is the same as 'return;'.
+            Expr *Dummy = nullptr;
+            if (DeduceFunctionTypeFromReturnExpr(
+                    FD, dcl->getLocation(), Dummy,
+                    FD->getReturnType()->getAs<AutoType>()))
+              FD->setInvalidDecl();
           }
         }
       } else if (getLangOpts().CPlusPlus11 && isLambdaCallOperator(FD)) {
@@ -18539,9 +18571,6 @@ void Sema::ActOnEnumBody(SourceLocation EnumLoc, SourceRange BraceRange,
   unsigned NumNegativeBits = 0;
   unsigned NumPositiveBits = 0;
 
-  // Keep track of whether all elements have type int.
-  bool AllElementsInt = true;
-
   for (unsigned i = 0, e = Elements.size(); i != e; ++i) {
     EnumConstantDecl *ECD =
       cast_or_null<EnumConstantDecl>(Elements[i]);
@@ -18556,10 +18585,6 @@ void Sema::ActOnEnumBody(SourceLocation EnumLoc, SourceRange BraceRange,
     else
       NumNegativeBits = std::max(NumNegativeBits,
                                  (unsigned)InitVal.getMinSignedBits());
-
-    // Keep track of whether every enum element has type int (very common).
-    if (AllElementsInt)
-      AllElementsInt = ECD->getType() == Context.IntTy;
   }
 
   // Figure out the type that should be used for this enum.

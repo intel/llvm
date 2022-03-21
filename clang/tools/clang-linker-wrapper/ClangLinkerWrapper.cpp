@@ -133,6 +133,9 @@ static const char *LinkerExecutable;
 /// Filename of the executable being created.
 static StringRef ExecutableName;
 
+/// System root if passed in to the linker via. '--sysroot='.
+static StringRef Sysroot = "";
+
 /// Binary path for the CUDA installation.
 static std::string CudaBinaryPath;
 
@@ -148,21 +151,55 @@ static codegen::RegisterCodeGenFlags CodeGenFlags;
 
 /// Information for a device offloading file extracted from the host.
 struct DeviceFile {
-  DeviceFile(StringRef TheTriple, StringRef Arch, StringRef Filename)
-      : TheTriple(TheTriple), Arch(Arch), Filename(Filename) {}
+  DeviceFile(StringRef Kind, StringRef TheTriple, StringRef Arch,
+             StringRef Filename)
+      : Kind(Kind), TheTriple(TheTriple), Arch(Arch), Filename(Filename) {}
 
-  const std::string TheTriple;
-  const std::string Arch;
-  const std::string Filename;
-
-  operator std::string() const { return TheTriple + "-" + Arch; }
+  std::string Kind;
+  std::string TheTriple;
+  std::string Arch;
+  std::string Filename;
 };
+
+namespace llvm {
+/// Helper that allows DeviceFile to be used as a key in a DenseMap.
+template <> struct DenseMapInfo<DeviceFile> {
+  static DeviceFile getEmptyKey() {
+    return {DenseMapInfo<StringRef>::getEmptyKey(),
+            DenseMapInfo<StringRef>::getEmptyKey(),
+            DenseMapInfo<StringRef>::getEmptyKey(),
+            DenseMapInfo<StringRef>::getEmptyKey()};
+  }
+  static DeviceFile getTombstoneKey() {
+    return {DenseMapInfo<StringRef>::getTombstoneKey(),
+            DenseMapInfo<StringRef>::getTombstoneKey(),
+            DenseMapInfo<StringRef>::getTombstoneKey(),
+            DenseMapInfo<StringRef>::getTombstoneKey()};
+  }
+  static unsigned getHashValue(const DeviceFile &I) {
+    return DenseMapInfo<StringRef>::getHashValue(I.TheTriple) ^
+           DenseMapInfo<StringRef>::getHashValue(I.Arch);
+  }
+  static bool isEqual(const DeviceFile &LHS, const DeviceFile &RHS) {
+    return LHS.TheTriple == RHS.TheTriple && LHS.Arch == RHS.Arch;
+  }
+};
+} // namespace llvm
 
 namespace {
 
 Expected<Optional<std::string>>
 extractFromBuffer(std::unique_ptr<MemoryBuffer> Buffer,
                   SmallVectorImpl<DeviceFile> &DeviceFiles);
+
+void printCommands(ArrayRef<StringRef> CmdArgs) {
+  if (CmdArgs.empty())
+    return;
+
+  llvm::errs() << " \"" << CmdArgs.front() << "\" ";
+  for (auto IC = std::next(CmdArgs.begin()), IE = CmdArgs.end(); IC != IE; ++IC)
+    llvm::errs() << *IC << (std::next(IC) != IE ? " " : "\n");
+}
 
 static StringRef getDeviceFileExtension(StringRef DeviceTriple,
                                         bool IsBitcode = false) {
@@ -180,12 +217,13 @@ std::string getMainExecutable(const char *Name) {
   return sys::path::parent_path(COWPath).str();
 }
 
-/// Extract the device file from the string '<triple>-<arch>=<library>.bc'.
+/// Extract the device file from the string '<kind>-<triple>-<arch>=<library>'.
 DeviceFile getBitcodeLibrary(StringRef LibraryStr) {
   auto DeviceAndPath = StringRef(LibraryStr).split('=');
-  auto TripleAndArch = DeviceAndPath.first.rsplit('-');
-  return DeviceFile(TripleAndArch.first, TripleAndArch.second,
-                    DeviceAndPath.second);
+  auto StringAndArch = DeviceAndPath.first.rsplit('-');
+  auto KindAndTriple = StringAndArch.first.split('-');
+  return DeviceFile(KindAndTriple.first, KindAndTriple.second,
+                    StringAndArch.second, DeviceAndPath.second);
 }
 
 /// Get a temporary filename suitable for output.
@@ -209,6 +247,9 @@ Error runLinker(std::string &LinkerPath, SmallVectorImpl<std::string> &Args) {
   LinkerArgs.push_back(LinkerPath);
   for (auto &Arg : Args)
     LinkerArgs.push_back(Arg);
+
+  if (Verbose)
+    printCommands(LinkerArgs);
 
   if (sys::ExecuteAndWait(LinkerPath, LinkerArgs))
     return createStringError(inconvertibleErrorCode(), "'linker' failed");
@@ -263,16 +304,17 @@ extractFromBinary(const ObjectFile &Obj,
 
     SmallVector<StringRef, 4> SectionFields;
     Name->split(SectionFields, '.');
-    StringRef DeviceTriple = SectionFields[3];
-    StringRef Arch = SectionFields[4];
+    StringRef Kind = SectionFields[3];
+    StringRef DeviceTriple = SectionFields[4];
+    StringRef Arch = SectionFields[5];
 
     if (Expected<StringRef> Contents = Sec.getContents()) {
       SmallString<128> TempFile;
       StringRef DeviceExtension = getDeviceFileExtension(
           DeviceTriple, identify_magic(*Contents) == file_magic::bitcode);
-      if (Error Err =
-              createOutputFile(Prefix + "-device-" + DeviceTriple + "-" + Arch,
-                               DeviceExtension, TempFile))
+      if (Error Err = createOutputFile(Prefix + "-" + Kind + "-" +
+                                           DeviceTriple + "-" + Arch,
+                                       DeviceExtension, TempFile))
         return std::move(Err);
 
       Expected<std::unique_ptr<FileOutputBuffer>> OutputOrErr =
@@ -284,7 +326,7 @@ extractFromBinary(const ObjectFile &Obj,
       if (Error E = Output->commit())
         return std::move(E);
 
-      DeviceFiles.emplace_back(DeviceTriple, Arch, TempFile);
+      DeviceFiles.emplace_back(Kind, DeviceTriple, Arch, TempFile);
       ToBeStripped.push_back(*Name);
     }
   }
@@ -338,6 +380,9 @@ extractFromBinary(const ObjectFile &Obj,
   StripArgs.push_back("-o");
   StripArgs.push_back(TempFile);
 
+  if (Verbose)
+    printCommands(StripArgs);
+
   if (sys::ExecuteAndWait(*StripPath, StripArgs))
     return createStringError(inconvertibleErrorCode(), "'llvm-strip' failed");
 
@@ -373,16 +418,17 @@ extractFromBitcode(std::unique_ptr<MemoryBuffer> Buffer,
 
     SmallVector<StringRef, 4> SectionFields;
     GV.getSection().split(SectionFields, '.');
-    StringRef DeviceTriple = SectionFields[3];
-    StringRef Arch = SectionFields[4];
+    StringRef Kind = SectionFields[3];
+    StringRef DeviceTriple = SectionFields[4];
+    StringRef Arch = SectionFields[5];
 
     StringRef Contents = CDS->getAsString();
     SmallString<128> TempFile;
     StringRef DeviceExtension = getDeviceFileExtension(
         DeviceTriple, identify_magic(Contents) == file_magic::bitcode);
-    if (Error Err =
-            createOutputFile(Prefix + "-device-" + DeviceTriple + "-" + Arch,
-                             DeviceExtension, TempFile))
+    if (Error Err = createOutputFile(Prefix + "-" + Kind + "-" + DeviceTriple +
+                                         "-" + Arch,
+                                     DeviceExtension, TempFile))
       return std::move(Err);
 
     Expected<std::unique_ptr<FileOutputBuffer>> OutputOrErr =
@@ -394,7 +440,7 @@ extractFromBitcode(std::unique_ptr<MemoryBuffer> Buffer,
     if (Error E = Output->commit())
       return std::move(E);
 
-    DeviceFiles.emplace_back(DeviceTriple, Arch, TempFile);
+    DeviceFiles.emplace_back(Kind, DeviceTriple, Arch, TempFile);
     ToBeDeleted.push_back(&GV);
   }
 
@@ -560,6 +606,9 @@ Expected<std::string> assemble(StringRef InputFile, Triple TheTriple,
 
   CmdArgs.push_back(InputFile);
 
+  if (Verbose)
+    printCommands(CmdArgs);
+
   if (sys::ExecuteAndWait(*PtxasPath, CmdArgs))
     return createStringError(inconvertibleErrorCode(), "'ptxas' failed");
 
@@ -601,6 +650,9 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
 
+  if (Verbose)
+    printCommands(CmdArgs);
+
   if (sys::ExecuteAndWait(*NvlinkPath, CmdArgs))
     return createStringError(inconvertibleErrorCode(), "'nvlink' failed");
 
@@ -638,6 +690,9 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   // Add extracted input files.
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
+
+  if (Verbose)
+    printCommands(CmdArgs);
 
   if (sys::ExecuteAndWait(*LLDPath, CmdArgs))
     return createStringError(inconvertibleErrorCode(), "'lld' failed");
@@ -702,10 +757,10 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
       CmdArgs.push_back(Arg);
     else if (Arg.startswith("-rpath")) {
       CmdArgs.push_back(Arg);
-      CmdArgs.push_back(*(AI + 1));
+      CmdArgs.push_back(*std::next(AI));
     } else if (Arg.startswith("-dynamic-linker")) {
       CmdArgs.push_back(Arg);
-      CmdArgs.push_back(*(AI + 1));
+      CmdArgs.push_back(*std::next(AI));
     }
   }
   CmdArgs.push_back("-Bsymbolic");
@@ -715,6 +770,9 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   // Add extracted input files.
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
+
+  if (Verbose)
+    printCommands(CmdArgs);
 
   if (sys::ExecuteAndWait(LinkerUserPath, CmdArgs))
     return createStringError(inconvertibleErrorCode(), "'linker' failed");
@@ -1033,28 +1091,28 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
 Error linkDeviceFiles(ArrayRef<DeviceFile> DeviceFiles,
                       SmallVectorImpl<std::string> &LinkedImages) {
   // Get the list of inputs for a specific device.
-  StringMap<SmallVector<std::string, 4>> LinkerInputMap;
+  DenseMap<DeviceFile, SmallVector<std::string, 4>> LinkerInputMap;
   for (auto &File : DeviceFiles)
-    LinkerInputMap[StringRef(File)].push_back(File.Filename);
+    LinkerInputMap[File].push_back(File.Filename);
 
   // Try to link each device toolchain.
   for (auto &LinkerInput : LinkerInputMap) {
-    auto TargetFeatures = LinkerInput.getKey().rsplit('-');
-    Triple TheTriple(TargetFeatures.first);
-    StringRef Arch(TargetFeatures.second);
+    DeviceFile &File = LinkerInput.getFirst();
+    Triple TheTriple = Triple(File.TheTriple);
 
     // Run LTO on any bitcode files and replace the input with the result.
-    if (Error Err = linkBitcodeFiles(LinkerInput.getValue(), TheTriple, Arch))
+    if (Error Err =
+            linkBitcodeFiles(LinkerInput.getSecond(), TheTriple, File.Arch))
       return Err;
 
     // If we are embedding bitcode for JIT, skip the final device linking.
     if (EmbedBitcode) {
-      assert(!LinkerInput.getValue().empty() && "No bitcode image to embed");
-      LinkedImages.push_back(LinkerInput.getValue().front());
+      assert(!LinkerInput.getSecond().empty() && "No bitcode image to embed");
+      LinkedImages.push_back(LinkerInput.getSecond().front());
       continue;
     }
 
-    auto ImageOrErr = linkDevice(LinkerInput.getValue(), TheTriple, Arch);
+    auto ImageOrErr = linkDevice(LinkerInput.getSecond(), TheTriple, File.Arch);
     if (!ImageOrErr)
       return ImageOrErr.takeError();
 
@@ -1130,8 +1188,11 @@ Expected<std::string> wrapDeviceImages(ArrayRef<std::string> Images) {
 
 Optional<std::string> findFile(StringRef Dir, const Twine &Name) {
   SmallString<128> Path;
-  // TODO: Parse `--sysroot` somewhere and use it here.
-  sys::path::append(Path, Dir, Name);
+  if (Dir.startswith("="))
+    sys::path::append(Path, Sysroot, Dir.substr(1), Name);
+  else
+    sys::path::append(Path, Dir, Name);
+
   if (sys::fs::exists(Path))
     return static_cast<std::string>(Path);
   return None;
@@ -1202,7 +1263,13 @@ int main(int argc, const char **argv) {
   if (!CudaPath.empty())
     CudaBinaryPath = CudaPath + "/bin";
 
-  ExecutableName = *(llvm::find(HostLinkerArgs, "-o") + 1);
+  auto RootIt = llvm::find_if(HostLinkerArgs, [](StringRef Arg) {
+    return Arg.startswith("--sysroot=");
+  });
+  if (RootIt != HostLinkerArgs.end())
+    Sysroot = StringRef(*RootIt).split('=').second;
+
+  ExecutableName = *std::next(llvm::find(HostLinkerArgs, "-o"));
   SmallVector<std::string, 16> LinkerArgs;
   for (const std::string &Arg : HostLinkerArgs)
     LinkerArgs.push_back(Arg);
