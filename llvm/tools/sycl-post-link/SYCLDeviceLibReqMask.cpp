@@ -190,11 +190,13 @@ uint32_t getDeviceLibBits(const std::string &FuncName) {
                             DeviceLibExt::cl_intel_devicelib_assert)));
 }
 
+} // namespace
+
 // For each device image module, we go through all functions which meets
 // 1. The function name has prefix "__devicelib_"
 // 2. The function is declaration which means it doesn't have function body
 // And we don't expect non-spirv functions with "__devicelib_" prefix.
-uint32_t getModuleDeviceLibReqMask(const Module &M) {
+uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
   // Device libraries will be enabled only for spir-v module.
   if (!llvm::Triple(M.getTargetTriple()).isSPIR())
     return 0;
@@ -211,9 +213,4 @@ uint32_t getModuleDeviceLibReqMask(const Module &M) {
     }
   }
   return ReqMask;
-}
-} // namespace
-
-uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
-  return getModuleDeviceLibReqMask(M);
 }
