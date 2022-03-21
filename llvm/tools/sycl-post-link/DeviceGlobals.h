@@ -35,7 +35,7 @@ struct DeviceGlobalProperty {
 
   // Either 1 (true) or 0 (false), telling whether the device global variable
   // was declared with the device_image_scope property.
-  uint8_t DeviceImageScope;
+  uint32_t DeviceImageScope;
 };
 
 using DeviceGlobalPropertyMapTy =

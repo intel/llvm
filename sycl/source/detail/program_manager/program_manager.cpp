@@ -1217,9 +1217,8 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           // The supplied device_global info property is expected to contain:
           // * 8 bytes - Size of the property.
           // * 4 bytes - Size of the underlying type in the device_global.
-          // * 1 byte  - 0 if device_global has device_image_scope and any value
+          // * 4 bytes - 0 if device_global has device_image_scope and any value
           //             otherwise.
-          // Note: Property may be padded.
           assert(DeviceGlobalInfo.size() >= 13 && "Unexpected property size");
           const std::uint32_t TypeSize =
               *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[8]);
