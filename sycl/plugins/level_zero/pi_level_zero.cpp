@@ -280,7 +280,7 @@ static const enum EventsScope {
   const auto DeviceEventsStr =
       std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
 
-  auto Default = AllHostVisible;
+  auto Default = OnDemandHostVisibleProxy;
   switch (DeviceEventsStr ? std::atoi(DeviceEventsStr) : Default) {
   case 0:
     return AllHostVisible;
