@@ -485,7 +485,7 @@ struct pi_command_list_info_t {
   // Keeps a number of switches from this command-list to another, since the
   // switches resulted in the creation of a special service barrier with an
   // event that should not be taken into account in batching.
-  size_t NumSpecialBarriersWithEvent{0};
+  size_t NumInorderBarriersWithEvent{0};
 
   // Keeps events created by commands submitted into this command-list.
   // TODO: use this for explicit wait/cleanup of events at command-list
@@ -493,7 +493,7 @@ struct pi_command_list_info_t {
   // TODO: use this for optimizing events in the same command-list, e.g.
   // only have last one visible to the host.
   std::vector<pi_event> EventList{};
-  size_t size() const { return EventList.size() - NumSpecialBarriersWithEvent; }
+  size_t size() const { return EventList.size() - NumInorderBarriersWithEvent; }
   void append(pi_event Event) { EventList.push_back(Event); }
 };
 
@@ -783,19 +783,6 @@ struct _pi_queue : _pi_object {
   // Indicates if we own the ZeCommandQueue or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnZeCommandQueue;
-
-  // Indicates if the previous command was submitted into command-list of the
-  // copy engine. it is used in eventless mode to identify that we switch
-  // command-list of copy queue to command-list of compute queue or vice versa.
-  // if the switch happened then we add a special service barrier with an event
-  // into the last command-list to maintain the order between the two
-  // command-lists.
-  bool IsPrevCopyEngine = false;
-
-  // Keeps command-list of the previous command to use in EventlessMode. this is
-  // stored so that the plugin knows where to submit the special service barrier
-  // with an event if a command-list switch occurs.
-  pi_command_list_ptr_t LastCommandList{};
 
   // Map of all command lists used in this queue.
   pi_command_list_map_t CommandListMap;

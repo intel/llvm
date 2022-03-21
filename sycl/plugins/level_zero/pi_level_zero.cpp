@@ -853,7 +853,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   ZE_CALL(zeFenceReset, (CommandList->second.ZeFence));
   ZE_CALL(zeCommandListReset, (CommandList->first));
   CommandList->second.InUse = false;
-  CommandList->second.NumSpecialBarriersWithEvent = 0;
+  CommandList->second.NumInorderBarriersWithEvent = 0;
 
   // Finally release/cleanup all the events in this command list.
   // Note, we don't need to synchronize the events since the fence
@@ -1271,8 +1271,6 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
                                         bool IsBlocking,
                                         bool OKToBatchCommand) {
   bool UseCopyEngine = CommandList->second.isCopy(this);
-  this->IsPrevCopyEngine = UseCopyEngine;
-  this->LastCommandList = CommandList;
 
   // If the current LastCommandEvent is the nullptr, then it means
   // either that no command has ever been issued to the queue
@@ -1397,15 +1395,20 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // Indicate no cleanup is needed for this PI event as it is special.
     HostVisibleEvent->CleanedUp = true;
 
-    // Finally set to signal the host-visible event at the end of the
-    // command-list.
-    // TODO: see if we need a barrier here (or explicit wait for all events in
-    // the batch).
-    ZE_CALL(zeCommandListAppendSignalEvent,
-            (CommandList->first, HostVisibleEvent->ZeEvent));
-
-    if (isEventlessMode()) {
+    if (!isEventlessMode()) {
+      // Finally set to signal the host-visible event at the end of the
+      // command-list.
+      // TODO: see if we need a barrier here (or explicit wait for all events in
+      // the batch).
+      ZE_CALL(zeCommandListAppendSignalEvent,
+              (CommandList->first, HostVisibleEvent->ZeEvent));
+    } else {
       this->LastCommandEvent = HostVisibleEvent;
+      ZE_CALL(zeCommandListAppendBarrier,
+              (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
+
+      zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
+              pi_cast<std::uintptr_t>(HostVisibleEvent->ZeEvent));
     }
   } else {
     if (this->isEventlessMode()) {
@@ -1564,13 +1567,18 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   if (CurQueue->isEventlessMode()) {
     // In eventless mode, to support in-order semantics, it adds a barrier or
     // barrier with an event to the previous command-list if the list is open.
-    const auto &IsPrevCopyEngine = CurQueue->IsPrevCopyEngine;
-    const auto &PrevCommandBatch = IsPrevCopyEngine
-                                       ? CurQueue->CopyCommandBatch
-                                       : CurQueue->ComputeCommandBatch;
-    if (PrevCommandBatch.OpenCommandList != CurQueue->CommandListMap.end()) {
-      auto &LastCommandList = CurQueue->LastCommandList;
-      if (IsPrevCopyEngine != UseCopyEngine) {
+    auto &CopyCommandListIt = CurQueue->CopyCommandBatch.OpenCommandList;
+    auto &ComputeCommandListIt = CurQueue->ComputeCommandBatch.OpenCommandList;
+    auto &LastCommandList =
+        (CopyCommandListIt != CurQueue->CommandListMap.end() &&
+         !CopyCommandListIt->second.EventList.empty() &&
+         LastCommandEvent == CopyCommandListIt->second.EventList.back())
+            ? CopyCommandListIt
+            : ComputeCommandListIt;
+    if (LastCommandList != CurQueue->CommandListMap.end()) {
+      auto &CurrentCommandList =
+          UseCopyEngine ? CopyCommandListIt : ComputeCommandListIt;
+      if (LastCommandList != CurrentCommandList) {
         pi_result Res = createEventAndAssociateQueue(
             CurQueue, &LastCommandEvent, PI_COMMAND_TYPE_USER, LastCommandList,
             false);
@@ -1580,7 +1588,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         // waited/released by SYCL RT, so it must be destroyed by EventRelease
         // in resetCommandList.
         PI_CALL(piEventRelease(LastCommandEvent));
-        ++LastCommandList->second.NumSpecialBarriersWithEvent;
+        ++LastCommandList->second.NumInorderBarriersWithEvent;
         // Add a special barrier with an event into command-list to ensure
         // in-order semantics between command-lists
         auto &ZeEvent = LastCommandEvent->ZeEvent;
