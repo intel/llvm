@@ -80,7 +80,10 @@ module std [system] {
       header "string.h"
       export *
     }
-    // FIXME: <uchar.h> is missing.
+    module uchar_h {
+      header "uchar.h"
+      export *
+    }
     // <time.h> provided by C library.
     module wchar_h {
       // <wchar.h>'s __need_* macros require textual inclusion.
@@ -203,7 +206,10 @@ module std [system] {
       header "ctime"
       export *
     }
-    // FIXME: <cuchar> is missing.
+    module cuchar {
+      header "cuchar"
+      export *
+    }
     module cwchar {
       header "cwchar"
       export depr.stdio_h
@@ -288,7 +294,12 @@ module std [system] {
       module pop_heap                 { private header "__algorithm/pop_heap.h" }
       module prev_permutation         { private header "__algorithm/prev_permutation.h" }
       module push_heap                { private header "__algorithm/push_heap.h" }
+      module ranges_find              { private header "__algorithm/ranges_find.h" }
+      module ranges_find_if           { private header "__algorithm/ranges_find_if.h" }
+      module ranges_find_if_not       { private header "__algorithm/ranges_find_if_not.h" }
+      module ranges_max_element       { private header "__algorithm/ranges_max_element.h" }
       module ranges_min_element       { private header "__algorithm/ranges_min_element.h" }
+      module ranges_mismatch          { private header "__algorithm/ranges_mismatch.h" }
       module ranges_swap_ranges       { private header "__algorithm/ranges_swap_ranges.h" }
       module remove                   { private header "__algorithm/remove.h" }
       module remove_copy              { private header "__algorithm/remove_copy.h" }
@@ -764,6 +775,7 @@ module std [system] {
       module geometric_distribution          { private header "__random/geometric_distribution.h" }
       module independent_bits_engine         { private header "__random/independent_bits_engine.h" }
       module is_seed_sequence                { private header "__random/is_seed_sequence.h" }
+      module is_valid                        { private header "__random/is_valid.h" }
       module knuth_b                         { private header "__random/knuth_b.h" }
       module linear_congruential_engine      { private header "__random/linear_congruential_engine.h" }
       module log2                            { private header "__random/log2.h" }
@@ -1019,7 +1031,7 @@ module std [system] {
       header "experimental/algorithm"
       export *
     }
-     module coroutine {
+    module coroutine {
       requires coroutines
       header "experimental/coroutine"
       export *

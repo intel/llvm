@@ -28,7 +28,6 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -1780,7 +1779,8 @@ AttributeMask AttributeFuncs::typeIncompatible(Type *Ty) {
   if (!Ty->isIntegerTy())
     // Attributes that only apply to integers.
     Incompatible.addAttribute(Attribute::SExt)
-      .addAttribute(Attribute::ZExt);
+        .addAttribute(Attribute::ZExt)
+        .addAttribute(Attribute::AllocAlign);
 
   if (!Ty->isPointerTy())
     // Attributes that only apply to pointers.

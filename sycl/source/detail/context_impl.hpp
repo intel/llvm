@@ -173,6 +173,11 @@ public:
   /// \return a reference to the resource pool.
   ResourcePool &getResourcePool() { return MAuxiliaryResourcePool; }
 
+  // Returns true if buffer_location property is supported by devices
+  bool isBufferLocationSupported() const;
+
+  enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
+
 private:
   async_handler MAsyncHandler;
   std::vector<device> MDevices;
@@ -184,6 +189,7 @@ private:
       MCachedLibPrograms;
   mutable KernelProgramCache MKernelProgramCache;
   ResourcePool MAuxiliaryResourcePool;
+  mutable PropertySupport MSupportBufferLocationByDevices;
 };
 
 } // namespace detail

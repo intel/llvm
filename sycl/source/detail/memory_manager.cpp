@@ -382,6 +382,17 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
     CreationFlags |= PI_MEM_FLAGS_HOST_PTR_ALLOC;
 
   RT::PiMem NewMem = nullptr;
+  if (PropsList.has_property<property::buffer::detail::buffer_location>())
+    if (TargetContext->isBufferLocationSupported()) {
+      auto location =
+          PropsList.get_property<property::buffer::detail::buffer_location>()
+              .get_buffer_location();
+      pi_mem_properties props[3] = {PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
+                                    location, 0};
+      memBufferCreateHelper(TargetContext, CreationFlags, Size, UserPtr,
+                            &NewMem, props);
+      return NewMem;
+    }
   memBufferCreateHelper(TargetContext, CreationFlags, Size, UserPtr, &NewMem,
                         nullptr);
   return NewMem;

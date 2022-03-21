@@ -1662,7 +1662,7 @@ bool HexagonInstrInfo::PredicateInstruction(
 
   MI.setDesc(get(PredOpc));
   while (unsigned n = MI.getNumOperands())
-    MI.RemoveOperand(n-1);
+    MI.removeOperand(n-1);
   for (unsigned i = 0, n = T->getNumOperands(); i < n; ++i)
     MI.addOperand(T->getOperand(i));
 
@@ -4464,6 +4464,9 @@ unsigned HexagonInstrInfo::getMemAccessSize(const MachineInstr &MI) const {
   unsigned Size = getMemAccessSizeInBytes(MemAccessSize(S));
   if (Size != 0)
     return Size;
+  // Y2_dcfetchbo is special
+  if (MI.getOpcode() == Hexagon::Y2_dcfetchbo)
+    return HexagonII::DoubleWordAccess;
 
   // Handle vector access sizes.
   const HexagonRegisterInfo &HRI = *Subtarget.getRegisterInfo();

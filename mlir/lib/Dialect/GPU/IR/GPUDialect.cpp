@@ -275,7 +275,7 @@ LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
   return walkResult.wasInterrupted() ? failure() : success();
 }
 
-LogicalResult gpu::AllReduceOp::verify() {
+LogicalResult gpu::AllReduceOp::verifyRegions() {
   if (body().empty() != op().hasValue())
     return emitError("expected either an op attribute or a non-empty body");
   if (!body().empty()) {
@@ -407,7 +407,7 @@ KernelDim3 LaunchOp::getBlockSizeOperandValues() {
   return KernelDim3{getOperand(3), getOperand(4), getOperand(5)};
 }
 
-LogicalResult LaunchOp::verify() {
+LogicalResult LaunchOp::verifyRegions() {
   // Kernel launch takes kNumConfigOperands leading operands for grid/block
   // sizes and transforms them into kNumConfigRegionAttributes region arguments
   // for block/thread identifiers and grid/block sizes.
@@ -1174,20 +1174,21 @@ LogicalResult MemsetOp::fold(ArrayRef<Attribute> operands,
 // GPU_AllocOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(AllocOp op) {
-  auto memRefType = op.memref().getType().cast<MemRefType>();
+LogicalResult AllocOp::verify() {
+  auto memRefType = memref().getType().cast<MemRefType>();
 
-  if (static_cast<int64_t>(op.dynamicSizes().size()) !=
+  if (static_cast<int64_t>(dynamicSizes().size()) !=
       memRefType.getNumDynamicDims())
-    return op.emitOpError("dimension operand count does not equal memref "
-                          "dynamic dimension count");
+    return emitOpError("dimension operand count does not equal memref "
+                       "dynamic dimension count");
 
   unsigned numSymbols = 0;
   if (!memRefType.getLayout().isIdentity())
     numSymbols = memRefType.getLayout().getAffineMap().getNumSymbols();
-  if (op.symbolOperands().size() != numSymbols)
-    return op.emitOpError("symbol operand count does not equal memref symbol "
-                          "count");
+  if (symbolOperands().size() != numSymbols) {
+    return emitOpError(
+        "symbol operand count does not equal memref symbol count");
+  }
 
   return success();
 }
