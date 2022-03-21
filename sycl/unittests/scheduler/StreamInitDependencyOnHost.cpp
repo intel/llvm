@@ -149,7 +149,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   // [MAIN_CG] -> [EMPTY_NODE {FlushBufMemObj}] -> [FILL_CG {FlushBufMemObj}] ->
   //     [[ALLOC_TASK {FlushBufMemObj}]
   std::vector<CmdTypeTy> DepCmdsTypes({CmdTypeTy::EMPTY_TASK,
-                                       CmdTypeTy::RUN_CG, // FILL_CG
+                                       CmdTypeTy::HOST_TASK, // FILL_CG
                                        CmdTypeTy::ALLOCA});
   ASSERT_TRUE(ValidateDepCommandsTree(NewCmd, DepCmdsTypes, FlushBufMemObjPtr))
       << "Dependency on stream flush buffer initialization not found";
