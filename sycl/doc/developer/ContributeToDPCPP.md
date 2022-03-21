@@ -62,6 +62,8 @@ end-to-end or SYCL-CTS tests.
 - Add a helpful comment describing what the test does at the beginning and
   other comments throughout the test as necessary.
 
+- Start all variables' name in llvm/sycl `.h` and `.cpp` (weather template or function variables) with underscore (`_`).
+
 - Try to follow descriptive naming convention for variables, functions as
   much as possible. Please refer to
   [LLVM naming convention](https://llvm.org/docs/CodingStandards.html#name-types-functions-variables-and-enumerators-properly)
