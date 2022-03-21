@@ -29,7 +29,7 @@ class ResourcePool;
 
 struct __SYCL_EXPORT ManagedResourceBase {
   ManagedResourceBase() = delete;
-  ~ManagedResourceBase();
+  virtual ~ManagedResourceBase();
 
 protected:
   ManagedResourceBase(size_t Size, RT::PiMem Mem, ResourcePool *Origin)
