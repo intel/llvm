@@ -134,6 +134,11 @@ struct uses_ready {
   using value_t = property_value<uses_ready, std::integral_constant<bool, Ready>>;
 };
 
+struct in_csr {
+  template<bool Csr>
+  using value_t = property_value<in_csr, std::integral_constant<bool, Csr>>;
+};
+
 struct first_symbol_in_high_order_bits {
   template<bool HighOrder>
   using value_t = property_value<first_symbol_in_high_order_bits, std::integral_constant<bool, HighOrder>>;
@@ -221,6 +226,16 @@ equivalent to changing the pipe read calls to tryWrite and assuming that success
 is always true.
 
 If set to false, ready_latency must be 0.
+
+This property is not guaranteed to be respected if the pipe is an inter-kernel
+pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+
+|`in_csr`
+| Valid Values: true or false
+
+Default Value: false
+
+Controls whether the host pipe is implemented using the Control and Status register (CSR).
 
 This property is not guaranteed to be respected if the pipe is an inter-kernel
 pipe. The compiler is allowed to optimize the pipe if both sides are visible.
