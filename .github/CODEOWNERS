@@ -6,6 +6,9 @@ clang/ @intel/dpcpp-cfe-reviewers
 # Clang driver
 clang/**/Driver/ @intel/dpcpp-clang-driver-reviewers
 
+# Clang tools
+clang-tools-extra/ @intel/dpcpp-cfe-reviewers
+
 # LLVM-SPIRV translator
 llvm-spirv/ @intel/dpcpp-spirv-reviewers
 
