@@ -193,11 +193,24 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     // For details about Intel UUID extension, see
     // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
-  // TODO: Implement.
-  case PI_DEVICE_INFO_ATOMIC_64:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_INVALID_VALUE;
+  case PI_DEVICE_INFO_ATOMIC_64: {
+    size_t extSize;
+    cl_bool result = clGetDeviceInfo(
+        cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS, 0, nullptr, &extSize);
+    std::string extStr(extSize, '\0');
+    result = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS,
+                             extSize, &extStr.front(), nullptr);
+    if (extStr.find("cl_khr_int64_base_atomics") == std::string::npos ||
+        extStr.find("cl_khr_int64_extended_atomics") == std::string::npos)
+      result = false;
+    else
+      result = true;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
     cl_bool result = true;
     std::memcpy(paramValue, &result, sizeof(cl_bool));
