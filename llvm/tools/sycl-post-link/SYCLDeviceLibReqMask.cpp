@@ -214,8 +214,6 @@ uint32_t getModuleDeviceLibReqMask(const Module &M) {
 }
 } // namespace
 
-char SYCLDeviceLibReqMaskPass::ID = 0;
-bool SYCLDeviceLibReqMaskPass::runOnModule(Module &M) {
-  MReqMask = getModuleDeviceLibReqMask(M);
-  return false;
+uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
+  return getModuleDeviceLibReqMask(M);
 }

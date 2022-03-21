@@ -34,15 +34,6 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_cstring,
 };
 
-class SYCLDeviceLibReqMaskPass : public ModulePass {
-public:
-  static char ID;
-  SYCLDeviceLibReqMaskPass() : ModulePass(ID) { MReqMask = 0; }
-  bool runOnModule(Module &M) override;
-  uint32_t getSYCLDeviceLibReqMask() { return MReqMask; }
-
-private:
-  uint32_t MReqMask;
-};
+uint32_t getSYCLDeviceLibReqMask(const Module &M);
 
 } // namespace llvm

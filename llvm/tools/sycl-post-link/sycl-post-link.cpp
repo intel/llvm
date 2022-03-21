@@ -623,11 +623,7 @@ void saveModuleProperties(Module &M, const EntryPointGroup &ModuleEntryPoints,
   PropSetRegTy PropSet;
 
   {
-    legacy::PassManager GetSYCLDeviceLibReqMask;
-    auto *SDLReqMaskLegacyPass = new SYCLDeviceLibReqMaskPass();
-    GetSYCLDeviceLibReqMask.add(SDLReqMaskLegacyPass);
-    GetSYCLDeviceLibReqMask.run(M);
-    uint32_t MRMask = SDLReqMaskLegacyPass->getSYCLDeviceLibReqMask();
+    uint32_t MRMask = getSYCLDeviceLibReqMask(M);
     std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
   }
