@@ -208,8 +208,7 @@ class Remangler {
     size_t index = 0;
     if (findSub(node, &index)) {
       OB << 'S';
-      if (index != 0)
-        OB << index;
+      OB << index;
       OB << '_';
       return true;
     }
