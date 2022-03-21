@@ -31,16 +31,27 @@ public:
 #if defined(__SYCL_DEVICE_ONLY__)
     return __spirv_ConvertFToBF16INTEL(a);
 #else
-    throw exception{errc::feature_not_supported,
-                    "Bfloat16 conversion is not supported on host device"};
+    // In case if float value is nan - propagate bfloat16's qnan
+    if (std::isnan(a))
+      return 0xffc1;
+    union {
+      uint32_t intStorage;
+      float floatValue;
+    };
+    floatValue = a;
+    // Do RNE and truncate
+    uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
+    return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
 #endif
   }
   static float to_float(const storage_t &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
     return __spirv_ConvertBF16ToFINTEL(a);
 #else
-    throw exception{errc::feature_not_supported,
-                    "Bfloat16 conversion is not supported on host device"};
+    // Shift temporary variable to silence the warning
+    uint32_t bits = a;
+    bits <<= 16;
+    return static_cast<float>(bits);
 #endif
   }
 
