@@ -1222,7 +1222,8 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           assert(DeviceGlobalInfo.size() >= 13 && "Unexpected property size");
           const std::uint32_t TypeSize =
               *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[8]);
-          const std::uint32_t DeviceImageScopeDecorated = DeviceGlobalInfo[12];
+          const std::uint32_t DeviceImageScopeDecorated =
+              *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[12]);
           Entry->second.initialize(TypeSize, DeviceImageScopeDecorated);
         }
       }
