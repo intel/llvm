@@ -2615,6 +2615,15 @@ public:
   /// \param Advice is a device-defined advice for the specified allocation.
   void mem_advise(const void *Ptr, size_t Length, int Advice);
 
+  /// Read from or write to host pipes given a host address and
+  /// \param Name name of the host pipe to be passed into lower level runtime
+  /// \param Ptr host pointer of host pipe
+  /// \param Size the size of data getting read back / to.
+  /// \param Blocking if read/write opeartion is blocking
+  /// \param Read 1 for read, 0 for write
+  void read_write_host_pipe(std::string Name, void *Ptr, size_t Size,
+                            bool Block, bool Read);
+
 private:
   std::shared_ptr<detail::queue_impl> MQueue;
   /// The storage for the arguments passed.
@@ -2663,6 +2672,16 @@ private:
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
+  /// Host pipe name
+  std::string HostPipeName;
+  /// Host pipe host pointer
+  void *HostPipePtr = nullptr;
+  /// Host pipe read write operation is blocking
+  bool HostPipeBlocking = false;
+  /// Host pipe pointer type size
+  size_t HostPipeTypeSize = 0;
+  /// if the operation is read or write
+  bool HostPipeRead = true;
 
   bool MIsHost = false;
 

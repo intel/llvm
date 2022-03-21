@@ -120,6 +120,9 @@ _PI_API(piEnqueueMemImageCopy)
 _PI_API(piEnqueueMemImageFill)
 _PI_API(piEnqueueMemBufferMap)
 _PI_API(piEnqueueMemUnmap)
+// Host pipes
+_PI_API(piextEnqueueReadHostPipe)
+_PI_API(piextEnqueueWriteHostPipe)
 // USM
 _PI_API(piextUSMHostAlloc)
 _PI_API(piextUSMDeviceAlloc)
@@ -137,5 +140,6 @@ _PI_API(piextKernelSetArgSampler)
 _PI_API(piextPluginGetOpaqueData)
 
 _PI_API(piTearDown)
+
 
 #undef _PI_API

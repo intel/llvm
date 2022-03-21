@@ -7577,6 +7577,62 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   return PI_SUCCESS;
 }
 
+/// Host Pips
+
+/// API to read host pipe
+/// @param queue a valid host command-queue in which the read / write command
+/// will be queued. command_queue and program must be created with the same
+/// OpenCL context.
+/// @param program a program object with a successfully built executable.
+/// @param pipe_symbol the name of the program scope pipe global variable.
+/// @param blocking indicate if the read and write operations are blocking or
+/// non-blocking
+/// @param ptr a pointer to buffer in host memory where data is to be read into
+/// or written from.
+/// @param size size of the memory region to read or write, in bytes.
+/// @param num_events_in_waitlist number of events in the wait list.
+/// @param events_waitlist specify events that need to complete before this
+/// particular command can be executed.
+/// @param event returns an event object that identifies this read / write
+/// command and can be used to query or queue a wait for this command to
+/// complete.
+pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
+                                   const char *pipe_symbol, pi_bool blocking,
+                                   void *ptr, size_t size,
+                                   pi_uint32 num_events_in_waitlist,
+                                   const pi_event *events_waitlist,
+                                   pi_event *event) {
+
+  return PI_SUCCESS;
+}
+
+/// API to write host pipe
+/// @param queue a valid host command-queue in which the read / write command
+/// will be queued. command_queue and program must be created with the same
+/// OpenCL context.
+/// @param program a program object with a successfully built executable.
+/// @param pipe_symbol the name of the program scope pipe global variable.
+/// @param blocking indicate if the read and write operations are blocking or
+/// non-blocking
+/// @param ptr a pointer to buffer in host memory where data is to be read into
+/// or written from.
+/// @param size size of the memory region to read or write, in bytes.
+/// @param num_events_in_waitlist number of events in the wait list.
+/// @param events_waitlist specify events that need to complete before this
+/// particular command can be executed.
+/// @param event returns an event object that identifies this read / write
+/// command and can be used to query or queue a wait for this command to
+/// complete.
+pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
+                                    const char *pipe_symbol, pi_bool blocking,
+                                    void *ptr, size_t size,
+                                    pi_uint32 num_events_in_waitlist,
+                                    const pi_event *events_waitlist,
+                                    pi_event *event) {
+
+  return PI_SUCCESS;
+}
+
 pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
                               size_t ParamValueSize, const void *ParamValue) {
   (void)ParamValueSize;

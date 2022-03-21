@@ -1763,6 +1763,25 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
+/// Host Pips
+pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
+                                   const char *pipe_symbol, pi_bool blocking,
+                                   void *ptr, size_t size,
+                                   pi_uint32 num_events_in_waitlist,
+                                   const pi_event *events_waitlist,
+                                   pi_event *event) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
+                                    const char *pipe_symbol, pi_bool blocking,
+                                    void *ptr, size_t size,
+                                    pi_uint32 num_events_in_waitlist,
+                                    const pi_event *events_waitlist,
+                                    pi_event *event) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_info, size_t,
                                   void *, size_t *) {
   DIE_NO_IMPLEMENTATION;

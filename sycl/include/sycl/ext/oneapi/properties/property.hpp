@@ -148,7 +148,8 @@ enum PropKind : uint32_t {
   HostAccess = 1,
   InitMode = 2,
   ImplementInCSR = 3,
-  PropKindSize = 4,
+  MinCapacity = 4,
+  PropKindSize = 5,
 };
 
 // This trait must be specialized for all properties and must have a unique
