@@ -163,6 +163,9 @@ configure specific single test execution in the command line:
  * **sycl_be** - SYCL backend to be used (opencl, ext_oneapi_level_zero,
    ext_oneapi_cuda, ext_oneapi_hip, ext_oneapi_intel_emulator);
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
+ * **compatibility_testing** - forces LIT infra to skip the tests compilation
+   to support compatibility testing (a SYCL application is built with one
+   version of SYCL compiler and then run with different SYCL RT version);
  * **gpu_aot_target_opts** - defines additional options which are passed to AOT
    compilation command line for GPU device. It can be also set by CMake variable
    GPU_AOT_TARGET_OPTS. If not specified "-device *" value is used.
