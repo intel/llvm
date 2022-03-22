@@ -299,6 +299,7 @@
 ??0LocalAccessorImplHost@detail@sycl@cl@@QEAA@AEBV0123@@Z
 ??0LocalAccessorImplHost@detail@sycl@cl@@QEAA@V?$range@$02@23@HH@Z
 ??0ManagedResourceBase@detail@sycl@cl@@IEAA@_KPEAU_pi_mem@@PEAVResourcePool@123@@Z
+??0ManagedResourceBase@detail@sycl@cl@@QEAA@AEBU0123@@Z
 ??0ResourcePool@detail@sycl@cl@@QEAA@XZ
 ??0SYCLCategory@detail@sycl@cl@@QEAA@XZ
 ??0SYCLMemObjT@detail@sycl@cl@@QEAA@AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
@@ -454,7 +455,7 @@
 ??1?$image_impl@$02@detail@sycl@cl@@UEAA@XZ
 ??1AccessorImplHost@detail@sycl@cl@@QEAA@XZ
 ??1LocalAccessorImplHost@detail@sycl@cl@@QEAA@XZ
-??1ManagedResourceBase@detail@sycl@cl@@QEAA@XZ
+??1ManagedResourceBase@detail@sycl@cl@@UEAA@XZ
 ??1ResourcePool@detail@sycl@cl@@QEAA@XZ
 ??1SYCLCategory@detail@sycl@cl@@UEAA@XZ
 ??1SYCLMemObjT@detail@sycl@cl@@UEAA@XZ
@@ -592,6 +593,7 @@
 ??Zhalf_v2@host_half_impl@detail@sycl@cl@@QEAAAEAV01234@AEBV01234@@Z
 ??_0half@host_half_impl@detail@sycl@cl@@QEAAAEAV01234@AEBV01234@@Z
 ??_0half_v2@host_half_impl@detail@sycl@cl@@QEAAAEAV01234@AEBV01234@@Z
+??_7ManagedResourceBase@detail@sycl@cl@@6B@
 ??_7?$image_impl@$00@detail@sycl@cl@@6B@
 ??_7?$image_impl@$01@detail@sycl@cl@@6B@
 ??_7?$image_impl@$02@detail@sycl@cl@@6B@
