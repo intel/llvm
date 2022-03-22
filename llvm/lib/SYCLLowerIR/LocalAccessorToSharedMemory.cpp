@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instructions.h"
@@ -248,8 +249,12 @@ private:
     if (!NvvmMetadata)
       return;
 
+    // It is possible that the annotations node contains multiple pointers to
+    // the same metadata, recognise visited ones.
+    SmallSet<MDNode *, 4> Visited;
     for (auto *MetadataNode : NvvmMetadata->operands()) {
-      if (MetadataNode->getNumOperands() != 3)
+      Visited.insert(MetadataNode);
+      if (Visited.contains(MetadataNode) || MetadataNode->getNumOperands() != 3)
         continue;
 
       // NVPTX identifies kernel entry points using metadata nodes of the form:
