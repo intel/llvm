@@ -234,23 +234,6 @@ template <> struct get_device_info<bool, info::device::queue_profiling> {
   }
 };
 
-// Specialization for atomic64 that is necessary because
-// PI_DEVICE_INFO_ATOMIC_64 is currently only implemented for the cuda backend.
-template <> struct get_device_info<bool, info::device::atomic64> {
-  static bool get(RT::PiDevice dev, const plugin &Plugin) {
-
-    bool result = false;
-
-    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
-        dev, pi::cast<RT::PiDeviceInfo>(info::device::atomic64), sizeof(result),
-        &result, nullptr);
-    if (Err != PI_SUCCESS) {
-      return false;
-    }
-    return result;
-  }
-};
-
 // Specialization for atomic_memory_order_capabilities, PI returns a bitfield
 template <>
 struct get_device_info<std::vector<memory_order>,
