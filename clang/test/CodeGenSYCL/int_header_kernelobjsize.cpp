@@ -12,7 +12,7 @@ using namespace cl::sycl;
 void testA() {
   queue q;
   constexpr int N = 256;
-  int A[N] = { 10 };
+  int A[N] = {10};
   kernel_single_task<class KernelName>([=]() {
     for (int k = 0; k < N; ++k) {
       (void)A[k];
