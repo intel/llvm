@@ -923,8 +923,8 @@ namespace sycl {
 For each device binary compiler generates a map
 \<Symbolic ID\> =\> \<list of spec constant descriptors\> ("ID map"). DPC++
 runtime imports that map when loading device binaries.
-It also maintains another map \<Spec const symbolic ID\> =\> \<its value\> 
-("value map") per `sycl::kernel_bundle` object. The value map is updated upon
+It also maintains another map \<Symbolic ID\> =\> \<its value\> ("value map")
+per `sycl::kernel_bundle` object. The value map is updated upon
 `kernel_bundler::set_specialization_constant<ID>(val)` and
 `handler::set_specialization_constant<ID>(val)` calls from the app.
 
