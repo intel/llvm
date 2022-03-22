@@ -133,10 +133,10 @@ private:
   ///        the pool and false if it was found in the existing free entries in
   ///        the pool. This is not set if it is nullptr.
   /// \return a shared pointer to the new managed resource.
-  FreeEntry
-  getOrAllocateEntry(const size_t Size,
-                     const std::shared_ptr<queue_impl> &QueueImplPtr,
-                     void *DataPtr = nullptr, bool *IsNewEntry = nullptr);
+  FreeEntry getOrAllocateEntry(const size_t Size,
+                               const std::shared_ptr<queue_impl> &QueueImplPtr,
+                               void *DataPtr = nullptr,
+                               bool *IsNewEntry = nullptr);
 
   /// Extracts a free entry from the pool that fits the size required. If there
   /// is no suitable entry, new memory will be allocated. The memory will be
