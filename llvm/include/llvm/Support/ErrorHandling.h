@@ -139,7 +139,7 @@ llvm_unreachable_internal(const char *msg = nullptr, const char *file = nullptr,
 #ifndef NDEBUG
 #define llvm_unreachable(msg) \
   ::llvm::llvm_unreachable_internal(msg, __FILE__, __LINE__)
-#elif LLVM_UNREACHABLE_OPTIMIZE
+#elif !LLVM_UNREACHABLE_OPTIMIZE
 #define llvm_unreachable(msg) LLVM_BUILTIN_TRAP
 #elif defined(LLVM_BUILTIN_UNREACHABLE)
 #define llvm_unreachable(msg) LLVM_BUILTIN_UNREACHABLE
