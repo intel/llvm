@@ -18,7 +18,6 @@
 #include <atomic>
 #include <cassert>
 #include <iostream>
-#include <limits>
 #include <mutex>
 #include <stack>
 
@@ -126,6 +125,7 @@ struct _pi_mem : _pi_object {
   // TODO: Runtime guarantees LIFO across multiple threads for
   // piEnqueueMemBufferMap/Unmap? No duplicated mappings for same
   // (base, offset)?
+  // TODO : 'unordered_map' if duplication check is required
   std::stack<void *> Mappings;
 
 protected:
@@ -138,6 +138,8 @@ private:
   _pi_mem_type MemType;
 };
 
+// TODO: Merge cm_buffer_ptr_slot and cm_image_ptr_slot into one
+// struct
 struct cm_buffer_ptr_slot {
   // 'UP' means 'User-Provided' in CM Lib - corresponding to
   // Host-created buffer in SYCL

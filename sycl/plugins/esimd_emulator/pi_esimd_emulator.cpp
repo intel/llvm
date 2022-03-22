@@ -1566,6 +1566,9 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
   *RetMap = Buffer->MapHostPtr + Offset;
 
+  // TODO: Runtime guarantees LIFO across multiple threads for
+  // piEnqueueMemBufferMap/Unmap? No duplicated mappings for same
+  // (base, offset)?
   Buffer->Mappings.push(*RetMap);
 
   if (Event) {
@@ -1583,6 +1586,9 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     RetEv->IsDummyEvent = true;
   }
 
+  // TODO: Runtime guarantees LIFO across multiple threads for
+  // piEnqueueMemBufferMap/Unmap? No duplicated mappings for same
+  // (base, offset)?
   auto peak = MemObj->Mappings.top();
   if (peak != MappedPtr) {
     if (PrintPiTrace) {
@@ -1615,6 +1621,13 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
   if (BlockingRead) {
     assert(false && "ESIMD_EMULATOR does not support Blocking Read");
   }
+
+  assert((SlicePitch == 0) && "ESIMD_EMULATOR does not support 3D-image");
+
+  // CM_EMU does not support ReadSurface with offset
+  assert(Origin->x == 0 && Origin->y == 0 && Origin->z == 0 &&
+         "ESIMD_EMULATOR does not support 2D-image reading with offsets");
+
   _pi_image *PiImg = static_cast<_pi_image *>(Image);
 
   std::unique_ptr<_pi_event> RetEv{nullptr};
