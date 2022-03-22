@@ -87,12 +87,13 @@ ResourcePool::FreeEntry ResourcePool::getOrAllocateEntry(
   }
 
   // If we get old memory we need to copy explicitly.
-  RT::PiEvent Event;
+  auto EventImpl = std::make_shared<event_impl>(QueueImplPtr);
+  EventImpl->setContextImpl(QueueImplPtr->getContextImplPtr());
   QueueImplPtr->getPlugin().call<PiApiKind::piEnqueueMemBufferWrite>(
       QueueImplPtr->getHandleRef(), Entry.Mem,
-      /*blocking_write=*/CL_FALSE, 0, Size, DataPtr, 0, nullptr, &Event);
-  *AvailableEvent = createSyclObjFromImpl<event>(
-      std::make_shared<event_impl>(Event, QueueImplPtr->get_context()));
+      /*blocking_write=*/CL_FALSE, 0, Size, DataPtr, 0, nullptr,
+      &EventImpl->getHandleRef());
+  *AvailableEvent = createSyclObjFromImpl<event>(EventImpl);
   return Entry;
 }
 
