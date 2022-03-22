@@ -520,9 +520,10 @@ For each encountered specialization constants `sycl-post-link` emits a property,
 which encodes information required by DPC++ RT to set the value of a
 specialization constant through corresponding API.
 
-This information is communicated through "SYCL/specialization constants"
-property set, where we have a separate property for each specialization
-constant with name corresponding to its symbolic ID.
+These properties are stored in "SYCL/specialization constants" property set and
+their names are the same as symbolic IDs of corresponding specialization
+constants (i.e. strings returned by `__builtin_sycl_unique_id` for associated
+`specialization_id` variables).
 
 Each such property contains an array of tuples (descriptors)
 \<leaf spec ID, offset, size\>. This descriptor might be overcomplicated for
