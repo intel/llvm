@@ -155,7 +155,7 @@ static pi_result mapError(ze_result_t ZeResult) {
 // This will count the calls to Level-Zero
 static std::map<const char *, int> *ZeCallCount = nullptr;
 
-#if 1
+#if 0
 static int ZECallArgumentNumber;
 static std::vector<std::string> ZECallArguments;
 char ZECAS[1024];
@@ -203,7 +203,7 @@ template <class... Types> static void GetArgs(Types... args) {
   sprintf(ZECAS, "(");
   ZECallArgumentNumber = 0;
   GetArgs1(args...);
-  strcat(ZECAS, ")\n");
+  strcat(ZECAS, ")");
 }
 
 // Trace a call to Level-Zero RT
