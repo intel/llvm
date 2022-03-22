@@ -266,14 +266,14 @@ private:
   // enable_if T is a scalar type
   T get_on_device() {
     auto ID = __builtin_sycl_unique_id(SpecName);
-    return __sycl_getScalar2020SpecConstantValue<T>(ID, &S, Ptr);
+    return __sycl_getScalar2020SpecConstantValue<T>(ID, &SpecName, Ptr);
   }
 
   template<auto &SpecName, typename T = std::remove_reference_t<decltype(SpecName)>::type>
   // enable_if T is a composite type
   T get_on_device() {
     auto ID = __builtin_sycl_unique_id(SpecName);
-    return __sycl_getComposite2020SpecConstantValue<T>(ID, &S, Ptr);
+    return __sycl_getComposite2020SpecConstantValue<T>(ID, &SpecName, Ptr);
   }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -963,7 +963,7 @@ trick is used within `set_specialization_constant` method:
 template<auto& SpecName>
 void set_specialization_constant(
   typename std::remove_reference_t<decltype(SpecName)>::type value) {
-  const char *SymbolicID = detail::get_spec_constant_symbolic_ID();
+  const char *SymbolicID = detail::get_spec_constant_symbolic_ID<SpecName>();
   // remember the value of the specialization constant
   SpecConstantValuesMap[SymbolicID] = value;
 }
