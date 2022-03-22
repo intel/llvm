@@ -62,10 +62,8 @@ end-to-end or SYCL-CTS tests.
 - Add a helpful comment describing what the test does at the beginning and
   other comments throughout the test as necessary.
 
-- All identifiers used in `llvm/sycl` headers and source files must contain at least one lowercase letter due to avoid conflicts with user-defined macros. 
-
-- Line length must not exceed 80 symbols.
-
+- All identifiers used in `llvm/sycl` headers and source files must contain at
+  least one lowercase letter due to avoid conflicts with user-defined macros.
 - Try to follow descriptive naming convention for variables, functions as
   much as possible. Please refer to
   [LLVM naming convention](https://llvm.org/docs/CodingStandards.html#name-types-functions-variables-and-enumerators-properly)
