@@ -897,9 +897,9 @@ namespace {
     // anonymous namespace.
     // It is generated for each specialization_id within an anonymous namespace
     // if there is the same specialization_id defined in global namespace
-    static constexpr decltype(spec_name) __spec_id_shim_0() {
+    static constexpr decltype(same_name) &__shim_0() {
       // address of ::(unnamed)::same_name;
-      return spec_name;
+      return same_name;
     }
   }
 }
@@ -908,7 +908,7 @@ namespace sycl {
     // By using 'shim' function were are able to unambiguously refer to a
     // variable within an anonymous namespace
     template<>
-    inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_0()>() {
+    inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__shim_0()>() {
       return "unique id for ::(unnamed)::same_name";
     }
   }
@@ -916,7 +916,7 @@ namespace sycl {
 namespace {
   namespace {
     namespace __sycl_detail {
-      static constexpr decltype(same_name) &spec_id_shim_1() {
+      static constexpr decltype(same_name) &__shim_1() {
         // address of ::(unnamed)::(unnamed)::same_name;
         return same_name;
       }
@@ -926,16 +926,16 @@ namespace {
   namespace __sycl_detail {
     // Sometimes we need a 'shim', which points to another 'shim' in order to
     // "extract" a variable from an anonymous namespace unambiguosly
-    static constexpr decltype(__sycl_detail::__spec_id_shim_1()) &__spec_id_shim_2() {
+    static constexpr decltype(__sycl_detail::__shim_1()) &__shim_2() {
       // still address of ::(unnamed)::(unnamed)::same_name;
-      return __sycl_detail::__spec_id_shim_1();
+      return __sycl_detail::__shim_1();
     }
   }
 }
 namespace sycl {
   namespace detail {
     template<>
-    inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_2()>() {
+    inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__shim_2()>() {
       return "unique id for ::(unnamed)::(unnamed)::same_name";
     }
   }
