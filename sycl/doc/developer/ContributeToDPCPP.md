@@ -62,7 +62,7 @@ end-to-end or SYCL-CTS tests.
 - Add a helpful comment describing what the test does at the beginning and
   other comments throughout the test as necessary.
 
-- All identifiers used in `llvm/sycl` headers and source files must contain at
+- All identifiers used in `llvm/sycl` headers files must contain at
   least one lowercase letter due to avoid conflicts with user-defined macros.
 
 - Try to follow descriptive naming convention for variables, functions as
