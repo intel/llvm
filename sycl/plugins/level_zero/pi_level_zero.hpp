@@ -310,7 +310,6 @@ struct _pi_platform {
   // Current number of L0 Command Lists created on this platform.
   // this number must not exceed ZeMaxCommandListCache.
   std::atomic<int> ZeGlobalCommandListCount{0};
-  std::atomic<int> ZeGlobalImmCommandListCount{0};
 
   // Keep track of all contexts in the platform. This is needed to manage
   // a lifetime of memory allocations in each context when there are kernels
@@ -595,7 +594,7 @@ struct _pi_context : _pi_object {
   // support of the multiple devices per context will be added.
   ze_command_list_handle_t ZeCommandListInit;
 
-  // Mutex Locks for the Command List Cache. This locks is used to control both
+  // Mutex Lock for the Command List Cache. This lock is used to control both
   // compute and copy command list caches.
   std::mutex ZeCommandListCacheMutex;
   // Cache of all currently available/completed command/copy lists.
@@ -612,8 +611,7 @@ struct _pi_context : _pi_object {
       ZeCopyCommandListCache;
 
   // Retrieves a command list for executing on this device.
-  // Depending on setting, this could be a standard, non-immediate list
-  // or an immediate commandlist.
+  // Depending on setting, this could be a standard or immediate commandlist.
   pi_result getAvailableCommandList(pi_queue Queue,
                                     pi_command_list_ptr_t &CommandList,
                                     bool UseCopyEngine = false,
@@ -667,9 +665,8 @@ private:
                                           bool AllowBatching = false);
 
   // Retrieves an immediate command list for executing on this device.
-  // If an immediate command list has been created on this device then that
-  // command list will be reused. Otherwise, a new command list will be created
-  // for running on this device.
+  // Immediate commandlists are created only once per device and after that they
+  // are reused.
   // If UseCopyEngine is true, the command will eventually be executed in a
   // copy engine. Otherwise, the command will be executed in a compute engine.
   pi_result getAvailableImmCommandList(pi_queue Queue,
@@ -743,6 +740,8 @@ struct _pi_queue : _pi_object {
     std::vector<ze_command_queue_handle_t> ZeQueues;
 
     // Immediate commandlist handles, one per Level Zero command queue handle.
+    // These are created only once, along with the L0 queues (see above)
+    // and reused thereafter.
     std::vector<pi_command_list_ptr_t> ImmCmdLists;
 
     // This function will return one of possibly multiple available native
@@ -807,7 +806,6 @@ struct _pi_queue : _pi_object {
 
   // Map of all command lists used in this queue.
   pi_command_list_map_t CommandListMap;
-  pi_command_list_map_t ImmCommandListMap;
 
   // Helper data structure to hold all variables related to batching
   typedef struct CommandBatch {

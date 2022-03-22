@@ -72,9 +72,12 @@ static const bool UseCopyEngineForInOrderQueue = [] {
           (std::stoi(CopyEngineForInOrderQueue) != 0));
 }();
 
-// To enable an experimental feature to use immediate commandlists
-// for kernel launches and copies. The default is normal commandlists.
-// A setting on a value >=1 specifies use of immediate commandlists.
+// To enable an experimental feature that uses immediate commandlists
+// for kernel launches and copies. The default is standard commandlists.
+// Setting a value >=1 specifies use of immediate commandlists.
+// Note: when immediate commandlists are used then device-only events
+// must be either AllHostVisible or OnDemandHostVisibleProxy.
+// See env var SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS.
 static const bool UseImmediateCommandLists = [] {
   const char *ImmediateFlag =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
@@ -155,68 +158,6 @@ static pi_result mapError(ze_result_t ZeResult) {
 // This will count the calls to Level-Zero
 static std::map<const char *, int> *ZeCallCount = nullptr;
 
-#if 0
-static int ZECallArgumentNumber;
-static std::vector<std::string> ZECallArguments;
-char ZECAS[1024];
-static void GetParams(std::string &Parms) {
-  size_t start;
-  size_t end = 0;
-  ZECallArguments.clear();
-  while ((start = Parms.find_first_not_of(',', end)) != std::string::npos) {
-    end = Parms.find(',', start);
-    ZECallArguments.push_back(Parms.substr(start, end - start));
-  }
-}
-template <typename T> static void GetArg(T p) {
-  strcat(ZECAS, ZECallArguments[ZECallArgumentNumber].c_str());
-  strcat(ZECAS, "=");
-  std::ostringstream Value;
-  Value << p;
-  strcat(ZECAS, Value.str().c_str());
-  ++ZECallArgumentNumber;
-}
-template <> void GetArg<std::nullptr_t>(std::nullptr_t) {
-  strcat(ZECAS, ZECallArguments[ZECallArgumentNumber].c_str());
-  strcat(ZECAS, "=nullptr");
-  ++ZECallArgumentNumber;
-}
-template <> void GetArg<char *>(char *p) {
-  strcat(ZECAS, ZECallArguments[ZECallArgumentNumber].c_str());
-  strcat(ZECAS, "=");
-  if (p) {
-    std::ostringstream Value;
-    Value << (void *)p;
-    strcat(ZECAS, Value.str().c_str());
-  } else {
-    strcat(ZECAS, "nullptr");
-  }
-  ++ZECallArgumentNumber;
-}
-template <typename T> static void GetArgs1(T p) { GetArg(p); }
-template <typename T, class... Types> static void GetArgs1(T p, Types... args) {
-  GetArg(p);
-  strcat(ZECAS, ",");
-  GetArgs1(args...);
-}
-template <class... Types> static void GetArgs(Types... args) {
-  sprintf(ZECAS, "(");
-  ZECallArgumentNumber = 0;
-  GetArgs1(args...);
-  strcat(ZECAS, ")");
-}
-
-// Trace a call to Level-Zero RT
-#define ZE_CALL(ZeName, ZeArgs)                                                \
-  {                                                                            \
-    ze_result_t ZeResult = ZeName ZeArgs;                                      \
-    std::string s = #ZeArgs;                                                   \
-    GetParams(s);                                                              \
-    GetArgs ZeArgs;                                                            \
-    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, ZECAS, true))         \
-      return mapError(Result);                                                 \
-  }
-#else
 // Trace a call to Level-Zero RT
 #define ZE_CALL(ZeName, ZeArgs)                                                \
   {                                                                            \
@@ -224,7 +165,6 @@ template <class... Types> static void GetArgs(Types... args) {
     if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
       return mapError(Result);                                                 \
   }
-#endif
 
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
@@ -280,7 +220,7 @@ static const enum EventsScope {
   const auto DeviceEventsStr =
       std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
 
-  auto Default = OnDemandHostVisibleProxy;
+  auto Default = LastCommandInBatchHostVisible;
   switch (DeviceEventsStr ? std::atoi(DeviceEventsStr) : Default) {
   case 0:
     return AllHostVisible;
@@ -914,6 +854,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
           ? this->Context->ZeCopyCommandListCache[this->Device->ZeDevice]
           : this->Context->ZeComputeCommandListCache[this->Device->ZeDevice];
 
+  // Immediate commandlists do not have an associated fence.
   if (!UseImmediateCommandLists) {
     // Fence had been signalled meaning the associated command-list completed.
     // Reset the fence and put the command list into a cache for reuse in PI
@@ -940,6 +881,8 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   }
   EventList.clear();
 
+  // Standard commandlists move in and out of the cache as they are recycled.
+  // Immediate commandlists are always available.
   if (!UseImmediateCommandLists && MakeAvailable) {
     std::lock_guard<std::mutex> lock(this->Context->ZeCommandListCacheMutex);
     ZeCommandListCache.push_back(CommandList->first);
@@ -1165,7 +1108,7 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 }
 
-// Retrieve an available standard (non-immeidate) command list
+// Retrieve an available standard (non-immediate) command list
 // to be used in a PI call.
 pi_result _pi_context::getAvailableNonImmCommandList(
     pi_queue Queue, pi_command_list_ptr_t &CommandList, bool UseCopyEngine,
@@ -1658,6 +1601,9 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
     die("[L0] getZeQueue: failed to create queue");
   }
 
+  // When using immediate commandlists, we create a commandlist corresponding
+  // to the L0 queue created above. Created once, the commandlists are reused
+  // without needing a close or reset.
   if (UseImmediateCommandLists) {
     ze_command_list_handle_t ZeCommandList;
     ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
@@ -1669,7 +1615,7 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
                 ZeCommandList,
                 {nullptr, true, ZeQueues[CurrentIndex], *QueueGroupOrdinal}})
             .first;
-    // Add this commandlists to the cache so they can be destroyed as part of
+    // Add this commandlist to the cache so it can be destroyed as part of
     // QueueRelease
     auto &ZeCommandListCache =
         QueueType != queue_type::Compute
@@ -3398,11 +3344,13 @@ pi_result piQueueRelease(pi_queue Queue) {
         if (it->second.InUse) {
           Queue->resetCommandList(it, true);
         }
-        // TODO: remove "if" when the problem is fixed in the level zero
-        // runtime. Destroy only if a queue is healthy. Destroying a fence may
-        // cause a hang otherwise.
-        if (!UseImmediateCommandLists && Queue->Healthy)
-          ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
+        // Immediate commandlists do no have a fence.
+        if (!UseImmediateCommandLists)
+          // TODO: remove "if" when the problem is fixed in the level zero
+          // runtime. Destroy only if a queue is healthy. Destroying a fence may
+          // cause a hang otherwise.
+          if (Queue->Healthy)
+            ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
       }
       Queue->CommandListMap.clear();
     }
