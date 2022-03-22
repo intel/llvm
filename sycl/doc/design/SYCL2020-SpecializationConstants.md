@@ -323,10 +323,10 @@ different translation units, so it happens in `sycl-post-link` tool.
 There is a `SpecConstantsPass` LLVM IR pass which:
 1. Assigns numeric IDs to specialization constants found in the linked module.
 2. Transforms IR to either:
-  a. The form expected by the SPIR-V translator (format of the
-     expected IR is covered in "Transformation of LLVM IR to SPIR-V friendly IR
-     form" section).
-  b. The form which is used for emulating specialization constants.
+  - a. The form expected by the SPIR-V translator (format of the
+    expected IR is covered in "Transformation of LLVM IR to SPIR-V friendly IR
+    form" section).
+  - b. The form which is used for emulating specialization constants.
 3. Collects and provides \<Symbolic ID\> =\> \<numeric IDs + additional info\>
    mapping, which is later being used by DPC++ RT to set specialization constant
    values provided by user (section "Collecting spec constants info and
