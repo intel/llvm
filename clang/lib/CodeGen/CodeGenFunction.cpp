@@ -636,22 +636,13 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   }
 
   if (const ReqdWorkGroupSizeAttr *A = FD->getAttr<ReqdWorkGroupSizeAttr>()) {
-    ASTContext &ClangCtx = FD->getASTContext();
-    Optional<llvm::APSInt> XDimVal = A->getXDimVal(ClangCtx);
-    Optional<llvm::APSInt> YDimVal = A->getYDimVal(ClangCtx);
-    Optional<llvm::APSInt> ZDimVal = A->getZDimVal(ClangCtx);
-
-    // For a SYCLDevice ReqdWorkGroupSizeAttr arguments are reversed.
-    if (getLangOpts().SYCLIsDevice)
-      std::swap(XDimVal, ZDimVal);
-
+    // Attributes arguments (first and third) are reversed on SYCLDevice.
     llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(
-            Builder.getInt32(XDimVal->getZExtValue())),
-        llvm::ConstantAsMetadata::get(
-            Builder.getInt32(YDimVal->getZExtValue())),
-        llvm::ConstantAsMetadata::get(
-            Builder.getInt32(ZDimVal->getZExtValue()))};
+        llvm::ConstantAsMetadata::get(Builder.getInt(
+            getLangOpts().SYCLIsDevice ? *A->getZDimVal() : *A->getXDimVal())),
+        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
+        llvm::ConstantAsMetadata::get(Builder.getInt(
+            getLangOpts().SYCLIsDevice ? *A->getXDimVal() : *A->getZDimVal()))};
     Fn->setMetadata("reqd_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
@@ -715,7 +706,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     const auto *CE = cast<ConstantExpr>(A->getValue());
     Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
-        Builder.getInt32(ArgVal->getSExtValue()))};
+        Builder.getInt32(ArgVal->getZExtValue()))};
     Fn->setMetadata("num_simd_work_items",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
@@ -880,6 +871,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   } while (false);
 
   if (D) {
+    const bool SanitizeBounds = SanOpts.hasOneOf(SanitizerKind::Bounds);
     bool NoSanitizeCoverage = false;
 
     for (auto Attr : D->specific_attrs<NoSanitizeAttr>()) {
@@ -899,6 +891,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       if (Attr->hasCoverage())
         NoSanitizeCoverage = true;
     }
+
+    if (SanitizeBounds && !SanOpts.hasOneOf(SanitizerKind::Bounds))
+      Fn->addFnAttr(llvm::Attribute::NoSanitizeBounds);
 
     if (NoSanitizeCoverage && CGM.getCodeGenOpts().hasSanitizeCoverage())
       Fn->addFnAttr(llvm::Attribute::NoSanitizeCoverage);
@@ -1093,6 +1088,18 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
     Fn->setMetadata("stall_enable",
                     llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
+  }
+
+  if (getLangOpts().SYCLIsDevice && D &&
+      D->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
+    const auto *A = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
+    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+        A->getFilteredAttributeNameValuePairs(CGM.getContext());
+
+    llvm::AttrBuilder FnAttrBuilder(Fn->getContext());
+    for (const auto &NameValuePair : NameValuePairs)
+      FnAttrBuilder.addAttribute(NameValuePair.first, NameValuePair.second);
+    Fn->addFnAttrs(FnAttrBuilder);
   }
 
   if (FD && (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice)) {
@@ -2518,6 +2525,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::TypeOf:
     case Type::UnaryTransform:
     case Type::Attributed:
+    case Type::BTFTagAttributed:
     case Type::SubstTemplateTypeParm:
     case Type::MacroQualified:
       // Keep walking after single level desugaring.
@@ -3020,4 +3028,20 @@ CodeGenFunction::emitCondLikelihoodViaExpectIntrinsic(llvm::Value *Cond,
                               Cond->getName() + ".expval");
   }
   llvm_unreachable("Unknown Likelihood");
+}
+
+llvm::Value *CodeGenFunction::emitBoolVecConversion(llvm::Value *SrcVec,
+                                                    unsigned NumElementsDst,
+                                                    const llvm::Twine &Name) {
+  auto *SrcTy = cast<llvm::FixedVectorType>(SrcVec->getType());
+  unsigned NumElementsSrc = SrcTy->getNumElements();
+  if (NumElementsSrc == NumElementsDst)
+    return SrcVec;
+
+  std::vector<int> ShuffleMask(NumElementsDst, -1);
+  for (unsigned MaskIdx = 0;
+       MaskIdx < std::min<>(NumElementsDst, NumElementsSrc); ++MaskIdx)
+    ShuffleMask[MaskIdx] = MaskIdx;
+
+  return Builder.CreateShuffleVector(SrcVec, ShuffleMask, Name);
 }

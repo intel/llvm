@@ -106,6 +106,21 @@ ModulePass *llvm::createESIMDLowerVecArgPass() {
   return new ESIMDLowerVecArgLegacyPass();
 }
 
+namespace {
+// Unwraps a presumably simd* type to extract the native vector type encoded
+// in it. Returns nullptr if failed to do so.
+Type *getVectorTyOrNull(StructType *STy) {
+  Type *Res = nullptr;
+  while (STy && (STy->getStructNumElements() == 1)) {
+    Res = STy->getStructElementType(0);
+    STy = dyn_cast<StructType>(Res);
+  }
+  if (!Res || !Res->isVectorTy())
+    return nullptr;
+  return Res;
+}
+} // namespace
+
 // Return ptr to first-class vector type if Value is a simd*, else return
 // nullptr.
 Type *ESIMDLowerVecArgPass::getSimdArgPtrTyOrNull(Value *arg) {
@@ -116,12 +131,10 @@ Type *ESIMDLowerVecArgPass::getSimdArgPtrTyOrNull(Value *arg) {
   StructType *ST =
       dyn_cast_or_null<StructType>(ArgType->getPointerElementType());
 
-  while (ST && (ST->getStructNumElements() == 1)) {
-    Res = ST->getStructElementType(0);
-    ST = dyn_cast<StructType>(Res);
-  }
-  if (!Res || !Res->isVectorTy())
+  Res = getVectorTyOrNull(ST);
+  if (!Res)
     return nullptr;
+
   return PointerType::get(Res, ArgType->getPointerAddressSpace());
 }
 
@@ -223,10 +236,9 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
 // when old one is of simd* type.
 void ESIMDLowerVecArgPass::fixGlobals(Module &M) {
   for (auto &G : M.getGlobalList()) {
-    auto NewTy = getSimdArgPtrTyOrNull(&G);
+    Type *GVTy = G.getValueType();
+    Type *NewTy = getVectorTyOrNull(dyn_cast<StructType>(GVTy));
     if (NewTy && !G.user_empty()) {
-      // Peel off ptr type that getSimdArgPtrTyOrNull applies
-      NewTy = NewTy->getPointerElementType();
       auto InitVal =
           G.hasInitializer() && isa<UndefValue>(G.getInitializer())
               ? static_cast<ConstantData *>(UndefValue::get(NewTy))
