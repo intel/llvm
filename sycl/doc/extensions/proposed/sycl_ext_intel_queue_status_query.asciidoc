@@ -50,7 +50,7 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-This extension add `::queue::size()`, `sycl::queue::empty()`, `sycl::queue::get_wait_list()` menber functions.
+This extension adds `sycl::queue::size()`, `sycl::queue::empty()`, `sycl::queue::get_wait_list()` member functions.
 
 - `sycl::queue::size()` and `ycl::queue::empty` allow user to querry the number of enqueued commands to a queues.
 - `sycl::queue::get_wait_list()` is the queue equivalent of `event::get_wait_list()` 
