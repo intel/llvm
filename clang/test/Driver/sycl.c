@@ -140,4 +140,5 @@
 // RUN: %clang -### -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
 // RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
 // RUN: %clang_cl -### -fsycl -- %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
+
 // DEFAULT_STD: "-sycl-std=2020"
