@@ -23,7 +23,8 @@
 // CHECK-WARNINGS-DBG-NEXT: note: which is called by func2(int, int) at [[PATH]]:48:34
 // CHECK-WARNINGS-DBG-NEXT: note: which is called by func1(int) at [[PATH]]:50:62
 
-// Check that PropagateAspectUsage pass do not wipes out sycl_explicit_simd metadata.
+// Check that PropagateAspectUsage pass do not wipes out sycl_explicit_simd
+// metadata.
 // RUN: %clangxx -fsycl %s -emit-llvm -S -o - | FileCheck %s --check-prefix CHECK-ESIMD
 
 // CHECK-ESIMD: @_Z5func4v() {{.*}} !sycl_explicit_simd {{.*}} !intel_used_aspects
