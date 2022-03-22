@@ -244,8 +244,12 @@ if sycl_hpp_available[0] != 0:
                     '\nUsing fake sycl/sycl.hpp (which just points to CL/sycl.hpp)')
     extra_sycl_include = " " + ("/I" if cl_options else "-I") + config.extra_include
 
-config.substitutions.append( ('%clangxx', ' '+ config.dpcpp_compiler + ' ' + config.cxx_flags + ' ' + arch_flag + extra_sycl_include) )
-config.substitutions.append( ('%clang', ' ' + config.dpcpp_compiler + ' ' + config.c_flags + extra_sycl_include) )
+if lit_config.params.get('compatibility_testing', False):
+    config.substitutions.append( ('%clangxx', ' true ') )
+    config.substitutions.append( ('%clang', ' true ') )
+else:
+    config.substitutions.append( ('%clangxx', ' '+ config.dpcpp_compiler + ' ' + config.cxx_flags + ' ' + arch_flag + extra_sycl_include) )
+    config.substitutions.append( ('%clang', ' ' + config.dpcpp_compiler + ' ' + config.c_flags + extra_sycl_include) )
 
 config.substitutions.append( ('%threads_lib', config.sycl_threads_lib) )
 
