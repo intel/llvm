@@ -3125,9 +3125,9 @@ public:
       : SyclKernelFieldHandler(S), Header(H) {
     bool IsSIMDKernel = isESIMDKernelType(KernelObj);
     // The header needs to access the kernel object size.
-    unsigned long ObjSize = SemaRef.getASTContext().
-                                getTypeSizeInChars(KernelObj->getTypeForDecl()).
-                                getQuantity();
+    unsigned long ObjSize = SemaRef.getASTContext()
+                                .getTypeSizeInChars(KernelObj->getTypeForDecl())
+                                .getQuantity();
     Header.startKernel(KernelFunc, NameType, KernelObj->getLocation(),
                        IsSIMDKernel, IsSYCLUnnamedKernel(S, KernelFunc),
                        ObjSize);
@@ -4783,8 +4783,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "#endif\n";
     O << "  }\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned long getSize() { return "
-      << K.ObjSize << "; }\n";
+    O << "  static constexpr unsigned long getSize() { return " << K.ObjSize
+      << "; }\n";
     O << "};\n";
     CurStart += N;
   }
