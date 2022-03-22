@@ -959,7 +959,14 @@ pi_result piextProgramSetSpecializationConstant(pi_program prog,
 Plugin Interface function for descriptor of each property: `spec_id` and
 `spec_size` are taken from the descriptor, `spec_value` is calculated based on
 address of the specialization constant provided by user and `offset` field of
-the descriptor.
+the descriptor as `(char*)(SpecConstantValuesMap[SymbolicID]) + offset`.
+
+That calculation is required, because at SPIR-V level composite
+specialization constants are respresented by several specialization constants
+for each element of a composite, whilst on a SYCL level, the whole composite
+is passed by user as a single blob of data. `offset` field from properties is
+used to specify which exact piece of that blob should be extracted to perform
+per-element composite specialization constant initialization.
 
 If native specialization constants are not supported by the target device, then
 the runtime calculates the location (offset) of each specialization constant in
