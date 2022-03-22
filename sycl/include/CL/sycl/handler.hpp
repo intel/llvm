@@ -477,13 +477,6 @@ private:
   /// @param ReduObj is a pointer to object that must be stored.
   void addReduction(const std::shared_ptr<const void> &ReduObj);
 
-  /// Gets the context implementation of the context associated with the
-  /// handler.
-  ///
-  /// \return a reference to the shared pointer pointing to the context
-  ///         implementation of the underlying context.
-  const std::shared_ptr<detail::context_impl> &getContextImplPtr();
-
   /// Gets the resource pool for the context associated with the handler.
   ///
   /// \return a reference to the resource pool of the underlying context.
@@ -496,8 +489,7 @@ private:
   template <typename T, int Dims>
   std::shared_ptr<detail::ManagedResource<T, Dims>>
   getOrAllocateResourceFromPool(range<Dims> Range) {
-    return getResourcePool().getOrAllocateResource<T, Dims>(
-        Range, getContextImplPtr());
+    return getResourcePool().getOrAllocateResource<T, Dims>(Range, MQueue);
   }
 
   /// Gets or allocates a new resource from the resource pool and intialize it.

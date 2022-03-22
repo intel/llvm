@@ -125,7 +125,7 @@ private:
   /// is no suitable entry, new memory will be allocated.
   ///
   /// \param Range is the range of the resulting buffer.
-  /// \param ContextImplPtr is the context to allocate memory in.
+  /// \param QueueImplPtr is the queue with the context to allocate memory in.
   /// \param DataPtr is the pointer to data on the host to initialize the
   ///        associated memory with. This will only be used if a new entry is
   ///        allocated.
@@ -135,7 +135,7 @@ private:
   /// \return a shared pointer to the new managed resource.
   FreeEntry
   getOrAllocateEntry(const size_t Size,
-                     const std::shared_ptr<context_impl> &ContextImplPtr,
+                     const std::shared_ptr<queue_impl> &QueueImplPtr,
                      void *DataPtr = nullptr, bool *IsNewEntry = nullptr);
 
   /// Extracts a free entry from the pool that fits the size required. If there
@@ -181,17 +181,17 @@ public:
   /// Returns true if the resource pool is enabled and false otherwise.
   ///
   /// \return a boolean value specifying whether the pool is enabled.
-  bool isEnabled() { return MIsPoolingEnabled; }
+  bool isEnabled() const { return MIsPoolingEnabled; }
 
   /// Creates a managed resource from the pool.
   ///
   /// \param Range is the range of the resulting buffer.
-  /// \param ContextImplPtr is the context to allocate memory in.
+  /// \param QueueImplPtr is the queue with the context to allocate memory in.
   /// \return a shared pointer to the new managed resource.
   template <typename T, int Dims>
   std::shared_ptr<ManagedResource<T, Dims>>
   getOrAllocateResource(range<Dims> Range,
-                        const std::shared_ptr<context_impl> &ContextImplPtr) {
+                        const std::shared_ptr<queue_impl> &QueueImplPtr) {
     // If pool is disabled we return a buffer that will not return to the pool.
     if (!MIsPoolingEnabled)
       return std::shared_ptr<ManagedResource<T, Dims>>{
@@ -199,10 +199,10 @@ public:
 
     // Get or allocate a free entry that fits the requirements.
     FreeEntry Entry =
-        getOrAllocateEntry(Range.size() * sizeof(T), ContextImplPtr);
+        getOrAllocateEntry(Range.size() * sizeof(T), QueueImplPtr);
     return std::shared_ptr<ManagedResource<T, Dims>>{
         new ManagedResource<T, Dims>(Entry.Size, Entry.Mem, this, Range,
-                                     ContextImplPtr)};
+                                     getQueueContextImpl(QueueImplPtr))};
   }
 
   /// Creates a managed resource from the pool and sets te data of the

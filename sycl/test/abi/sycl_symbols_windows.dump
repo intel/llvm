@@ -2157,7 +2157,6 @@
 ?getChannelType@?$image_impl@$00@detail@sycl@cl@@QEBA?AW4image_channel_type@34@XZ
 ?getChannelType@?$image_impl@$01@detail@sycl@cl@@QEBA?AW4image_channel_type@34@XZ
 ?getChannelType@?$image_impl@$02@detail@sycl@cl@@QEBA?AW4image_channel_type@34@XZ
-?getContextImplPtr@handler@sycl@cl@@AEAAAEBV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@XZ
 ?getCurrentDSODir@OSUtil@detail@sycl@cl@@SA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ?getDelinearizedIndex@handler@sycl@cl@@CA?AV?$id@$00@23@V?$range@$00@23@_K@Z
 ?getDelinearizedIndex@handler@sycl@cl@@CA?AV?$id@$01@23@V?$range@$01@23@_K@Z
@@ -2203,7 +2202,7 @@
 ?getNativeVector@event@sycl@cl@@AEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
 ?getOSMemSize@OSUtil@detail@sycl@cl@@SA_KXZ
 ?getOSModuleHandle@OSUtil@detail@sycl@cl@@SA_JPEBX@Z
-?getOrAllocateEntry@ResourcePool@detail@sycl@cl@@AEAA?AUFreeEntry@1234@_KAEBV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAXPEA_N@Z
+?getOrAllocateEntry@ResourcePool@detail@sycl@cl@@AEAA?AUFreeEntry@1234@_KAEBV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@PEAXPEA_N@Z
 ?getOrAllocateEntry@ResourcePool@detail@sycl@cl@@AEAA?AUFreeEntry@1234@_KAEBV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@PEAXPEAVevent@34@PEA_N@Z
 ?getOrCreateSampler@sampler_impl@detail@sycl@cl@@QEAAPEAU_pi_sampler@@AEBVcontext@34@@Z
 ?getOrInsertHandlerKernelBundle@handler@sycl@cl@@AEBA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@_N@Z

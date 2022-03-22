@@ -37,7 +37,7 @@ void ResourcePool::clear() {
 }
 
 ResourcePool::FreeEntry ResourcePool::getOrAllocateEntry(
-    const size_t Size, const std::shared_ptr<context_impl> &ContextImplPtr,
+    const size_t Size, const std::shared_ptr<queue_impl> &QueueImplPtr,
     void *DataPtr, bool *IsNewEntry) {
   assert(Size && "Size must be greater than 0");
 
@@ -46,7 +46,7 @@ ResourcePool::FreeEntry ResourcePool::getOrAllocateEntry(
 
     // Store platform to allow future freeing.
     if (!MPlatform)
-      MPlatform = ContextImplPtr->getPlatformImpl();
+      MPlatform = QueueImplPtr->getContextImplPtr()->getPlatformImpl();
 
     // Find the free entry with the smallest suitable size.
     auto FoundFreeEntry = MFreeEntries.upper_bound(Size - 1);
@@ -68,8 +68,8 @@ ResourcePool::FreeEntry ResourcePool::getOrAllocateEntry(
   if (DataPtr)
     MemFlags |= PI_MEM_FLAGS_HOST_PTR_COPY;
   RT::PiMem NewResMem;
-  memBufferCreateHelper(ContextImplPtr, MemFlags, Size, DataPtr, &NewResMem,
-                        nullptr);
+  memBufferCreateHelper(QueueImplPtr->getContextImplPtr(), MemFlags, Size,
+                        DataPtr, &NewResMem, nullptr);
   ++MAllocCount;
   return {Size, NewResMem};
 }
@@ -77,8 +77,8 @@ ResourcePool::FreeEntry ResourcePool::getOrAllocateEntry(
 ResourcePool::FreeEntry ResourcePool::getOrAllocateEntry(
     const size_t Size, const std::shared_ptr<queue_impl> &QueueImplPtr,
     void *DataPtr, event *AvailableEvent, bool *IsNewEntry) {
-  ResourcePool::FreeEntry Entry = getOrAllocateEntry(
-      Size, QueueImplPtr->getContextImplPtr(), DataPtr, IsNewEntry);
+  ResourcePool::FreeEntry Entry =
+      getOrAllocateEntry(Size, QueueImplPtr, DataPtr, IsNewEntry);
 
   // A new entry will have copied from the host pointer on creation.
   if (IsNewEntry) {
