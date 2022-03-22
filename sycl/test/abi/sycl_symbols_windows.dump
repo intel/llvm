@@ -2452,7 +2452,7 @@
 ?ilogb@__host_std@cl@@YAHN@Z
 ?ilogb@__host_std@cl@@YAHVhalf@half_impl@detail@sycl@2@@Z
 ?isConstOrGlobal@handler@sycl@cl@@CA_NW4target@access@23@@Z
-?isEnabled@ResourcePool@detail@sycl@cl@@QEAA_NXZ
+?isEnabled@ResourcePool@detail@sycl@cl@@QEBA_NXZ
 ?isImageOrImageArray@handler@sycl@cl@@CA_NW4target@access@23@@Z
 ?isInterop@SYCLMemObjT@detail@sycl@cl@@QEBA_NXZ
 ?isOutOfRange@detail@sycl@cl@@YA_NV?$vec@H$03@23@W4addressing_mode@23@V?$range@$02@23@@Z
