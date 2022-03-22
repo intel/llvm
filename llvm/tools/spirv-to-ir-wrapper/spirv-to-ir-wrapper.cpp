@@ -90,7 +90,7 @@ static int copyInputToOutput() {
 }
 
 static int createEmptyOutput() {
-  int FD;
+  int FD = 0;
   if (std::error_code EC = openFileForWrite(
           Output, FD, sys::fs::CD_CreateAlways, sys::fs::OF_None))
     return EC.value();

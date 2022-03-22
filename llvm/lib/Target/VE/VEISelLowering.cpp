@@ -315,6 +315,8 @@ void VETargetLowering::initVPUActions() {
   setOperationAction(ISD::VP_OPC, LegalVecVT, Custom);
 #define ADD_VVP_OP(VVP_NAME, ISD_NAME)                                         \
   setOperationAction(ISD::ISD_NAME, LegalVecVT, Custom);
+    setOperationAction(ISD::EXPERIMENTAL_VP_STRIDED_LOAD, LegalVecVT, Custom);
+    setOperationAction(ISD::EXPERIMENTAL_VP_STRIDED_STORE, LegalVecVT, Custom);
 #include "VVPNodes.def"
   }
 
@@ -332,6 +334,14 @@ void VETargetLowering::initVPUActions() {
 
     for (unsigned MemOpc : {ISD::MLOAD, ISD::MSTORE, ISD::LOAD, ISD::STORE})
       setOperationAction(MemOpc, VT, Custom);
+
+    const ISD::NodeType IntReductionOCs[] = {
+        ISD::VECREDUCE_ADD,  ISD::VECREDUCE_MUL,  ISD::VECREDUCE_AND,
+        ISD::VECREDUCE_OR,   ISD::VECREDUCE_XOR,  ISD::VECREDUCE_SMIN,
+        ISD::VECREDUCE_SMAX, ISD::VECREDUCE_UMIN, ISD::VECREDUCE_UMAX};
+
+    for (unsigned IntRedOpc : IntReductionOCs)
+      setOperationAction(IntRedOpc, VT, Custom);
   }
 }
 

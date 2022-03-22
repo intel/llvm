@@ -14,7 +14,7 @@
 
 #include "mlir/Analysis/Presburger/IntegerRelation.h"
 #include "mlir/Analysis/Presburger/LinearTransform.h"
-#include "mlir/Analysis/Presburger/PresburgerSet.h"
+#include "mlir/Analysis/Presburger/PresburgerRelation.h"
 #include "mlir/Analysis/Presburger/Simplex.h"
 #include "mlir/Analysis/Presburger/Utils.h"
 #include "llvm/ADT/DenseMap.h"
@@ -52,28 +52,14 @@ void IntegerRelation::append(const IntegerRelation &other) {
   }
 }
 
-static IntegerPolyhedron createSetFromRelation(const IntegerRelation &rel) {
-  IntegerPolyhedron result(rel.getNumDimIds(), rel.getNumSymbolIds(),
-                           rel.getNumLocalIds());
-
-  for (unsigned i = 0, e = rel.getNumInequalities(); i < e; ++i)
-    result.addInequality(rel.getInequality(i));
-  for (unsigned i = 0, e = rel.getNumEqualities(); i < e; ++i)
-    result.addEquality(rel.getEquality(i));
-
-  return result;
-}
-
 bool IntegerRelation::isEqual(const IntegerRelation &other) const {
   assert(PresburgerLocalSpace::isEqual(other) && "Spaces must be equal.");
-  return PresburgerSet(createSetFromRelation(*this))
-      .isEqual(PresburgerSet(createSetFromRelation(other)));
+  return PresburgerRelation(*this).isEqual(PresburgerRelation(other));
 }
 
 bool IntegerRelation::isSubsetOf(const IntegerRelation &other) const {
   assert(PresburgerLocalSpace::isEqual(other) && "Spaces must be equal.");
-  return PresburgerSet(createSetFromRelation(*this))
-      .isSubsetOf(PresburgerSet(createSetFromRelation(other)));
+  return PresburgerRelation(*this).isSubsetOf(PresburgerRelation(other));
 }
 
 MaybeOptimum<SmallVector<Fraction, 8>>
@@ -153,17 +139,55 @@ void IntegerRelation::removeId(unsigned pos) { removeIdRange(pos, pos + 1); }
 void IntegerRelation::removeIdRange(IdKind kind, unsigned idStart,
                                     unsigned idLimit) {
   assert(idLimit <= getNumIdKind(kind));
-  removeIdRange(getIdKindOffset(kind) + idStart,
-                getIdKindOffset(kind) + idLimit);
+
+  if (idStart >= idLimit)
+    return;
+
+  // Remove eliminated identifiers from the constraints.
+  unsigned offset = getIdKindOffset(kind);
+  equalities.removeColumns(offset + idStart, idLimit - idStart);
+  inequalities.removeColumns(offset + idStart, idLimit - idStart);
+
+  // Remove eliminated identifiers from the space.
+  PresburgerLocalSpace::removeIdRange(kind, idStart, idLimit);
 }
 
 void IntegerRelation::removeIdRange(unsigned idStart, unsigned idLimit) {
-  // Update space paramaters.
-  PresburgerLocalSpace::removeIdRange(idStart, idLimit);
+  assert(idLimit <= getNumIds());
 
-  // Remove eliminated identifiers from the constraints..
-  equalities.removeColumns(idStart, idLimit - idStart);
-  inequalities.removeColumns(idStart, idLimit - idStart);
+  if (idStart >= idLimit)
+    return;
+
+  // Helper function to remove ids of the specified kind in the given range
+  // [start, limit), The range is absolute (i.e. it is not relative to the kind
+  // of identifier). Also updates `limit` to reflect the deleted identifiers.
+  auto removeIdKindInRange = [this](IdKind kind, unsigned &start,
+                                    unsigned &limit) {
+    if (start >= limit)
+      return;
+
+    unsigned offset = getIdKindOffset(kind);
+    unsigned num = getNumIdKind(kind);
+
+    // Get `start`, `limit` relative to the specified kind.
+    unsigned relativeStart =
+        start <= offset ? 0 : std::min(num, start - offset);
+    unsigned relativeLimit =
+        limit <= offset ? 0 : std::min(num, limit - offset);
+
+    // Remove ids of the specified kind in the relative range.
+    removeIdRange(kind, relativeStart, relativeLimit);
+
+    // Update `limit` to reflect deleted identifiers.
+    // `start` does not need to be updated because any identifiers that are
+    // deleted are after position `start`.
+    limit -= relativeLimit - relativeStart;
+  };
+
+  removeIdKindInRange(IdKind::Domain, idStart, idLimit);
+  removeIdKindInRange(IdKind::Range, idStart, idLimit);
+  removeIdKindInRange(IdKind::Symbol, idStart, idLimit);
+  removeIdKindInRange(IdKind::Local, idStart, idLimit);
 }
 
 void IntegerRelation::removeEquality(unsigned pos) {
@@ -1111,7 +1135,7 @@ void IntegerRelation::convertDimToLocal(unsigned dimStart, unsigned dimLimit) {
     swapId(i + dimStart, i + newLocalIdStart);
 
   // Remove dimensions converted to local variables.
-  removeIdRange(dimStart, dimLimit);
+  removeIdRange(IdKind::SetDim, dimStart, dimLimit);
 }
 
 void IntegerRelation::addBound(BoundType type, unsigned pos, int64_t value) {
@@ -2010,3 +2034,9 @@ void IntegerRelation::print(raw_ostream &os) const {
 }
 
 void IntegerRelation::dump() const { print(llvm::errs()); }
+
+unsigned IntegerPolyhedron::insertId(IdKind kind, unsigned pos, unsigned num) {
+  assert((kind != IdKind::Domain || num == 0) &&
+         "Domain has to be zero in a set");
+  return IntegerRelation::insertId(kind, pos, num);
+}

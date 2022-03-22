@@ -287,6 +287,17 @@ void Target::Destroy() {
   m_suppress_stop_hooks = false;
 }
 
+llvm::StringRef Target::GetABIName() const {
+  lldb::ABISP abi_sp;
+  if (m_process_sp)
+    abi_sp = m_process_sp->GetABI();
+  if (!abi_sp)
+    abi_sp = ABI::FindPlugin(ProcessSP(), GetArchitecture());
+  if (abi_sp)
+      return abi_sp->GetPluginName();
+  return {};
+}
+
 BreakpointList &Target::GetBreakpointList(bool internal) {
   if (internal)
     return m_internal_breakpoint_list;
@@ -1470,10 +1481,10 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform) {
     if (other.IsValid()) {
       auto platform_sp = GetPlatform();
       if (!platform_sp ||
-          !platform_sp->IsCompatibleArchitecture(other, false, nullptr)) {
+          !platform_sp->IsCompatibleArchitecture(other, {}, false, nullptr)) {
         ArchSpec platform_arch;
         auto arch_platform_sp =
-            Platform::GetPlatformForArchitecture(other, &platform_arch);
+            Platform::GetPlatformForArchitecture(other, {}, &platform_arch);
         if (arch_platform_sp) {
           SetPlatform(arch_platform_sp);
           if (platform_arch.IsValid())
@@ -1684,7 +1695,6 @@ bool Target::ModuleIsExcludedForUnconstrainedSearches(
 
 size_t Target::ReadMemoryFromFileCache(const Address &addr, void *dst,
                                        size_t dst_len, Status &error) {
-  LLDB_SCOPED_TIMER();
   SectionSP section_sp(addr.GetSection());
   if (section_sp) {
     // If the contents of this section are encrypted, the on-disk file is
@@ -3814,6 +3824,8 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp->SetValueChangedCallback(
         ePropertyDisableSTDIO, [this] { DisableSTDIOValueChangedCallback(); });
 
+    m_collection_sp->SetValueChangedCallback(
+        ePropertySaveObjectsDir, [this] { CheckJITObjectsDir(); });
     m_experimental_properties_up =
         std::make_unique<TargetExperimentalProperties>();
     m_collection_sp->AppendProperty(
@@ -3835,6 +3847,8 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp->AppendProperty(
         ConstString("process"), ConstString("Settings specific to processes."),
         true, Process::GetGlobalProperties().GetValueProperties());
+    m_collection_sp->SetValueChangedCallback(
+        ePropertySaveObjectsDir, [this] { CheckJITObjectsDir(); });
   }
 }
 
@@ -4164,10 +4178,41 @@ bool TargetProperties::GetEnableNotifyAboutFixIts() const {
       nullptr, idx, g_target_properties[idx].default_uint_value != 0);
 }
 
-bool TargetProperties::GetEnableSaveObjects() const {
-  const uint32_t idx = ePropertySaveObjects;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_target_properties[idx].default_uint_value != 0);
+FileSpec TargetProperties::GetSaveJITObjectsDir() const {
+  const uint32_t idx = ePropertySaveObjectsDir;
+  return m_collection_sp->GetPropertyAtIndexAsFileSpec(nullptr, idx);
+}
+
+void TargetProperties::CheckJITObjectsDir() {
+  const uint32_t idx = ePropertySaveObjectsDir;
+  FileSpec new_dir = GetSaveJITObjectsDir();
+  const FileSystem &instance = FileSystem::Instance();
+  bool exists = instance.Exists(new_dir);
+  bool is_directory = instance.IsDirectory(new_dir);
+  std::string path = new_dir.GetPath(true);
+  bool writable = llvm::sys::fs::can_write(path);
+  if (exists && is_directory && writable)
+    return;
+  m_collection_sp->GetPropertyAtIndex(nullptr, true, idx)->GetValue()
+      ->Clear();
+  StreamSP error_strm_sp;
+  if (m_target) {
+    // FIXME: How can I warn the user when setting this on the Debugger?
+    error_strm_sp = m_target->GetDebugger().GetAsyncErrorStream();
+  } else if (Debugger::GetNumDebuggers() == 1) {
+    error_strm_sp = Debugger::GetDebuggerAtIndex(0)->GetAsyncErrorStream();
+  }
+  if (error_strm_sp) {
+    error_strm_sp->Format("JIT object dir '{0}' ", path);
+    if (!exists)
+      error_strm_sp->PutCString("does not exist.");
+    else if (!is_directory)
+      error_strm_sp->PutCString("is not a directory.");
+    else if (!writable)
+      error_strm_sp->PutCString("is not writable.");
+    error_strm_sp->EOL();
+    error_strm_sp->Flush();
+  }
 }
 
 bool TargetProperties::GetEnableSyntheticValue() const {

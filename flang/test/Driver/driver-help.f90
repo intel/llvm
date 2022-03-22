@@ -47,6 +47,7 @@
 ! HELP-NEXT: -fxor-operator         Enable .XOR. as a synonym of .NEQV.
 ! HELP-NEXT: -help                  Display available options
 ! HELP-NEXT: -I <dir>               Add directory to the end of the list of include search paths
+! HELP-NEXT: -mllvm <value>         Additional arguments to forward to LLVM's option processing
 ! HELP-NEXT: -module-dir <dir>      Put MODULE files in <dir>
 ! HELP-NEXT: -nocpp                 Disable predefined and command line preprocessor macros
 ! HELP-NEXT: -o <file>              Write output to <file>
@@ -55,6 +56,7 @@
 ! HELP-NEXT: -print-target-triple    Print the normalized target triple
 ! HELP-NEXT: -P                     Disable linemarker output in -E mode
 ! HELP-NEXT: -std=<value>           Language standard to compile for
+! HELP-NEXT: -S                     Only run preprocess and compilation steps
 ! HELP-NEXT: --target=<value>       Generate code for the given target
 ! HELP-NEXT: -U <macro>             Undefine macro <macro>
 ! HELP-NEXT: --version              Print version information
@@ -82,6 +84,7 @@
 ! HELP-FC1-NEXT: -fdebug-dump-parse-tree Dump the parse tree
 ! HELP-FC1-NEXT: -fdebug-dump-parsing-log
 ! HELP-FC1-NEXT:                   Run instrumented parse and dump the parsing log
+! HELP-FC1-NEXT: -fdebug-dump-pft        Dump the pre-fir parse tree
 ! HELP-FC1-NEXT: -fdebug-dump-provenance Dump provenance
 ! HELP-FC1-NEXT: -fdebug-dump-symbols    Dump symbols after the semantic analysis
 ! HELP-FC1-NEXT: -fdebug-measure-parse-tree
@@ -119,6 +122,7 @@
 ! HELP-FC1-NEXT: -init-only             Only execute frontend initialization
 ! HELP-FC1-NEXT: -I <dir>               Add directory to the end of the list of include search paths
 ! HELP-FC1-NEXT: -load <dsopath>        Load the named plugin (dynamic shared object)
+! HELP-FC1-NEXT: -mllvm <value>         Additional arguments to forward to LLVM's option processing
 ! HELP-FC1-NEXT: -module-dir <dir>      Put MODULE files in <dir>
 ! HELP-FC1-NEXT: -module-suffix <suffix> Use <suffix> as the suffix for module files (the default value is `.mod`)
 ! HELP-FC1-NEXT: -nocpp                 Disable predefined and command line preprocessor macros
@@ -127,6 +131,7 @@
 ! HELP-FC1-NEXT: -plugin <name>         Use the named plugin action instead of the default action (use "help" to list available options)
 ! HELP-FC1-NEXT: -P                     Disable linemarker output in -E mode
 ! HELP-FC1-NEXT: -std=<value>           Language standard to compile for
+! HELP-FC1-NEXT: -S                     Only run preprocess and compilation steps
 ! HELP-FC1-NEXT: -test-io               Run the InputOuputTest action. Use for development and testing only.
 ! HELP-FC1-NEXT: -triple <value>        Specify target triple (e.g. i686-apple-darwin9)
 ! HELP-FC1-NEXT: -U <macro>             Undefine macro <macro>

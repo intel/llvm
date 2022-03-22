@@ -171,6 +171,7 @@
 ??$get_property@Venable_profiling@queue@property@sycl@cl@@@queue@sycl@cl@@QEBA?AVenable_profiling@0property@12@XZ
 ??$get_property@Vin_order@queue@property@sycl@cl@@@context@sycl@cl@@QEBA?AVin_order@queue@property@12@XZ
 ??$get_property@Vin_order@queue@property@sycl@cl@@@program@sycl@cl@@QEBA?AVin_order@queue@property@12@XZ
+??$get_property@Vin_order@queue@property@sycl@cl@@@queue@sycl@cl@@QEBA?AVin_order@0property@12@XZ
 ??$get_property@Vin_order@queue@property@sycl@cl@@@sampler@sycl@cl@@QEBA?AVin_order@queue@property@12@XZ
 ??$get_property@Vin_order@queue@property@sycl@cl@@@stream@sycl@cl@@QEBA?AVin_order@queue@property@12@XZ
 ??$get_property@Vinitialize_to_identity@reduction@property@sycl@cl@@@context@sycl@cl@@QEBA?AVinitialize_to_identity@reduction@property@12@XZ
@@ -233,6 +234,7 @@
 ??$has_property@Venable_profiling@queue@property@sycl@cl@@@queue@sycl@cl@@QEBA_NXZ
 ??$has_property@Vin_order@queue@property@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
 ??$has_property@Vin_order@queue@property@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
+??$has_property@Vin_order@queue@property@sycl@cl@@@queue@sycl@cl@@QEBA_NXZ
 ??$has_property@Vin_order@queue@property@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ
 ??$has_property@Vin_order@queue@property@sycl@cl@@@stream@sycl@cl@@QEBA_NXZ
 ??$has_property@Vinitialize_to_identity@reduction@property@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
@@ -1757,6 +1759,7 @@
 ?erfc@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V34562@@Z
 ?erfc@__host_std@cl@@YAMM@Z
 ?erfc@__host_std@cl@@YANN@Z
+?evictHandlerImpl@handler@sycl@cl@@AEBA?AV?$shared_ptr@Vhandler_impl@detail@sycl@cl@@@std@@XZ
 ?exp10@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?exp10@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z
 ?exp10@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@@Z
