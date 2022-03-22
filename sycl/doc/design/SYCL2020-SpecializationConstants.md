@@ -521,34 +521,7 @@ which encodes information required by DPC++ RT to set the value of a
 specialization constant through corresponding API.
 
 This information is communicated through "SYCL/specialization constants"
-property set:
-```
-// Device binary image property.
-// If the type size of the property value is fixed and is no greater than
-// 64 bits, then ValAddr is 0 and the value is stored in the ValSize field.
-// Example - PI_PROPERTY_TYPE_UINT32, which is 32-bit
-struct _pi_device_binary_property_struct {
-  char *Name;       // null-terminated property name
-  void *ValAddr;    // address of property value
-  uint32_t Type;    // _pi_property_type
-  uint64_t ValSize; // size of property value in bytes
-};
-// Named array of properties.
-struct _pi_device_binary_property_set_struct {
-  char *Name;                                // the name
-  pi_device_binary_property PropertiesBegin; // array start
-  pi_device_binary_property PropertiesEnd;   // array end
-};
-struct pi_device_binary_struct {
-...
-  // Array of property sets; e.g. specialization constants symbol-int ID map is
-  // propagated to runtime with this mechanism.
-  pi_device_binary_property_set PropertySetsBegin;
-  pi_device_binary_property_set PropertySetsEnd;
-};
-```
-
-So, within a single set we have a separate property for each specialization
+property set, where we have a separate property for each specialization
 constant with name corresponding to its symbolic ID.
 
 Each such property contains an array of tuples (descriptors)
