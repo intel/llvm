@@ -82,7 +82,7 @@ static const bool UseImmediateCommandLists = [] {
   const char *ImmediateFlag =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
   if (!ImmediateFlag)
-    return true;
+    return false;
   return std::stoi(ImmediateFlag) > 0;
 }();
 
@@ -3344,7 +3344,7 @@ pi_result piQueueRelease(pi_queue Queue) {
         if (it->second.InUse) {
           Queue->resetCommandList(it, true);
         }
-        // Immediate commandlists do no have a fence.
+        // Immediate commandlists do not have a fence.
         if (!UseImmediateCommandLists)
           // TODO: remove "if" when the problem is fixed in the level zero
           // runtime. Destroy only if a queue is healthy. Destroying a fence may
