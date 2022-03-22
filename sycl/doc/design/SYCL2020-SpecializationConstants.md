@@ -1058,8 +1058,8 @@ the translator will generate `OpSpecConstant` SPIR-V instructions with proper
 ```
               OpDecorate %i32 SpecId 42 ; ID
        %i32 = OpSpecConstant %int 0     ; Default value
-              OpDecorate %i32 SpecId 43                            ; ID of the 1st member
-              OpDecorate %float SpecId 44                          ; ID of the 2nd member
+              OpDecorate %A.i32 SpecId 43                          ; ID of the 1st member
+              OpDecorate %A.float SpecId 44                        ; ID of the 2nd member
      %A.i32 = OpSpecConstant %int.type 0                           ; 1st member with default value
    %A.float = OpSpecConstant %float.type 0.0                       ; 2nd member with default value
     %struct = OpSpecConstantComposite %struct.type %A.i32 %A.float ; Composite doens't need IDs or default value
