@@ -62,7 +62,7 @@ This extension adds `sycl::queue::size()`, `sycl::queue::empty()`, `sycl::queue:
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_QUEUE_STATUS_QUERRY` to one of the values defined in the table
+macro `SYCL_EXT_ONEAPI_QUEUE_STATUS_QUERY` to one of the values defined in the table
 below.  Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
@@ -84,7 +84,7 @@ has multiple versions._
 
 === Signature and Semantic 
 
-This extension adds the following new member function to the SYCL `queue`
+This extension adds the following new member functions to the SYCL `queue` class.
 ```
 namespace sycl {
 namespace queue {
@@ -94,7 +94,7 @@ namespace queue {
 }}
 ```
 
-The semantic of the new function are: 
+The semantics of the new functions are: 
 
 ```
 empty()
@@ -103,7 +103,7 @@ empty()
 
 ```
 size_t size() const
-   Return the number of enqueued `command` in the queue 
+   Returns the number of enqueued `commands` in the queue 
    that have not been completed.
    Since the implementation completes commands from the queue 
    asynchronously, the returned value is a snapshot in time,
@@ -116,7 +116,7 @@ size_t size() const
 (based on similar HipSYCL extension https://github.com/illuhad/hipSYCL/blob/develop/doc/extensions.md#hipsycl_ext_queue_wait_list) 
 ```
 std::vector<event> get_wait_list() const
-   Return the list of events such that waiting for all returned events
+   Returns the list of events such that waiting for all returned events
    guarantees that all enqueued commands in the queue have been completed.
    Implementations are free to omit events that don't contribute
    to the semantic of `get_wait_list()`. For example,
