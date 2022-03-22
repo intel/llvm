@@ -78,7 +78,7 @@ supports.
 |===
 
 
-=== Signature and Semantic 
+=== Signatures and Semantics 
 
 This extension adds the following new member functions to the SYCL `queue` class.
 ```
