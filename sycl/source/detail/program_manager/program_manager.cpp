@@ -1219,7 +1219,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           // * 4 bytes - Size of the underlying type in the device_global.
           // * 4 bytes - 0 if device_global has device_image_scope and any value
           //             otherwise.
-          assert(DeviceGlobalInfo.size() >= 13 && "Unexpected property size");
+          assert(DeviceGlobalInfo.size() == 16 && "Unexpected property size");
           const std::uint32_t TypeSize =
               *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[8]);
           const std::uint32_t DeviceImageScopeDecorated =
