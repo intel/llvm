@@ -71,3 +71,5 @@
 #include <sycl/ext/oneapi/reduction.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
+
+#include <sycl/ext/intel/experimental/pipe_properties.hpp>
