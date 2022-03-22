@@ -253,9 +253,10 @@ private:
     // the same metadata, recognise visited ones.
     SmallSet<MDNode *, 4> Visited;
     for (auto *MetadataNode : NvvmMetadata->operands()) {
-      Visited.insert(MetadataNode);
       if (Visited.contains(MetadataNode) || MetadataNode->getNumOperands() != 3)
         continue;
+
+      Visited.insert(MetadataNode);
 
       // NVPTX identifies kernel entry points using metadata nodes of the form:
       //   !X = !{<function>, !"kernel", i32 1}
