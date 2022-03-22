@@ -146,8 +146,7 @@ struct first_symbol_in_high_order_bits {
 
 struct protocol {
   enum class protocol_name {
-    AVALON,
-    AXI
+    avalon,
   };
 
   template<protocol_name Protocol>
@@ -252,10 +251,12 @@ This property is not guaranteed to be respected if the pipe is an inter-kernel
 pipe. The compiler is allowed to optimize the pipe if both sides are visible.
 
 |`protocol`
-| Specifies the protocol for the pipe interface. Currently, the only protocol
-supported is AVALON. AXI will be supported in the future.
+| Specifies the protocol for the pipe interface.
+Currently, the only protocol supported is `avalon`.
+Other protocols may be supported in the future.
 
-The default protocol is AVALON.
+
+The default protocol is `avalon`.
 |====
 --
 
