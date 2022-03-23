@@ -393,9 +393,9 @@ bool llvm::module_split::ModuleDesc::isEsimd() {
 }
 
 std::unique_ptr<ModuleSplitterBase>
-llvm::module_split::getSplitterByKernelType(std::unique_ptr<Module> M,
-                                            bool SplitEsimd,
-                                            bool EmitOnlyKernelsAsEntryPoints) {
+module_split::getSplitterByKernelType(std::unique_ptr<Module> M,
+                                      bool SplitEsimd,
+                                      bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec Groups = groupEntryPointsByKernelType(
       *M, SplitEsimd, EmitOnlyKernelsAsEntryPoints);
   bool DoSplit = (Groups.size() > 1);
@@ -407,14 +407,17 @@ llvm::module_split::getSplitterByKernelType(std::unique_ptr<Module> M,
 }
 
 std::unique_ptr<ModuleSplitterBase>
-llvm::module_split::getSplitterByMode(std::unique_ptr<Module> M,
-                                      IRSplitMode Mode, bool IROutputOnly,
-                                      bool EmitOnlyKernelsAsEntryPoints) {
+module_split::getSplitterByMode(std::unique_ptr<Module> M,
+                                IRSplitMode Mode, bool IROutputOnly,
+                                bool EmitOnlyKernelsAsEntryPoints,
+                                bool DeviceGlobals) {
   EntryPointsGroupScope Scope =
       selectDeviceCodeGroupScope(*M, Mode, IROutputOnly);
   EntryPointGroupVec Groups =
       groupEntryPointsByScope(*M, Scope, EmitOnlyKernelsAsEntryPoints);
   assert(!Groups.empty() && "At least one group is expected");
+  if (DeviceGlobals)
+    checkImageScopedDeviceGlobals(*M, Groups);
   bool DoSplit = (Mode != SPLIT_NONE &&
                   (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 

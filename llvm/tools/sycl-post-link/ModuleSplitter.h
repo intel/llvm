@@ -97,13 +97,13 @@ public:
 };
 
 std::unique_ptr<ModuleSplitterBase>
+getSplitterByKernelType(std::unique_ptr<Module> M, bool SplitEsimd,
+                        bool EmitOnlyKernelsAsEntryPoints);
+
+std::unique_ptr<ModuleSplitterBase>
 getSplitterByMode(std::unique_ptr<Module> M, IRSplitMode Mode,
                   bool IROutputOnly, bool EmitOnlyKernelsAsEntryPoints,
                   bool DeviceGlobals);
-
-std::unique_ptr<ModuleSplitterBase>
-getSplitterByKernelType(std::unique_ptr<Module> M, bool SplitEsimd,
-                        bool EmitOnlyKernelsAsEntryPoints);
 
 } // namespace module_split
 
