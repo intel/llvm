@@ -868,7 +868,7 @@ struct _pi_queue : _pi_object {
   // batched into.
   // If IsBlocking is true, then batching will not be allowed regardless
   // of the value of OKToBatchCommand
-  // 
+  //
   // For immediate commandlists, no close and execute is necessary.
   pi_result executeCommandList(pi_command_list_ptr_t CommandList,
                                bool IsBlocking = false,
