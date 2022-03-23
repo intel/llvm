@@ -1800,10 +1800,10 @@ __SYCL_EXPORT pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 
 /// API to get Plugin specific warning and error messages.
-/// \param message is a pointer to an array of characters which will be filled
-/// with the error message. \param message_size is the size of the array message
-/// points to. \param is_warning is a bool indicating if the message is a
-/// non-failing error.
+/// \param message is a returned address to the first element in the message.
+/// \return PI_SUCCESS if plugin is indicating non-fatal warning. Any other
+/// error code indicates that plugin considers this to be a fatal error and the
+/// runtime must handle it or end the application.
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
 
 struct _pi_plugin {

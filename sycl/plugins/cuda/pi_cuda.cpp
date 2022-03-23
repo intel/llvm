@@ -14,7 +14,6 @@
 #include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/spinlock.hpp>
 #include <pi_cuda.hpp>
 
 #include <algorithm>
@@ -59,7 +58,7 @@ pi_result map_error(CUresult result) {
 }
 
 // Global variables for PI_PLUGIN_SPECIFIC_ERROR
-static const size_t MaxMessageSize = 256;
+constexpr size_t MaxMessageSize = 256;
 thread_local pi_result ErrorMessageCode = PI_SUCCESS;
 thread_local char ErrorMessage[MaxMessageSize];
 

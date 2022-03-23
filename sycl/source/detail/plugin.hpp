@@ -101,7 +101,7 @@ public:
   plugin &operator=(plugin &&other) noexcept = default;
   plugin(plugin &&other) noexcept = default;
 
-  ~plugin() {}
+  ~plugin() = default;
 
   const RT::PiPlugin &getPiPlugin() const { return *MPlugin; }
   RT::PiPlugin &getPiPlugin() { return *MPlugin; }
@@ -115,7 +115,7 @@ public:
   template <typename Exception = cl::sycl::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
     if (pi_result == PI_PLUGIN_SPECIFIC_ERROR) {
-      char *message;
+      char *message = nullptr;
       pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
 
       // If the warning level is greater then 2 emit the message
@@ -132,7 +132,7 @@ public:
   /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
   template <sycl::errc errc> void checkPiResult(RT::PiResult pi_result) const {
     if (pi_result == PI_PLUGIN_SPECIFIC_ERROR) {
-      char *message;
+      char *message = nullptr;
       pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
 
       // If the warning level is greater then 2 emit the message
@@ -294,7 +294,6 @@ private:
   // represents the unique ids of the last device of each platform
   // index of this vector corresponds to the index in PiPlatforms vector.
   std::vector<int> LastDeviceIds;
-
 }; // class plugin
 } // namespace detail
 } // namespace sycl
