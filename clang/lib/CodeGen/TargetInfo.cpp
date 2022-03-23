@@ -8372,10 +8372,9 @@ void TCETargetCodeGenInfo::setTargetAttributes(
 
         SmallVector<llvm::Metadata *, 5> Operands;
         Operands.push_back(llvm::ConstantAsMetadata::get(F));
-        ASTContext &Ctx = M.getContext();
-        unsigned XDim = Attr->getXDimVal(Ctx)->getZExtValue();
-        unsigned YDim = Attr->getYDimVal(Ctx)->getZExtValue();
-        unsigned ZDim = Attr->getZDimVal(Ctx)->getZExtValue();
+        unsigned XDim = Attr->getXDimVal()->getZExtValue();
+        unsigned YDim = Attr->getYDimVal()->getZExtValue();
+        unsigned ZDim = Attr->getZDimVal()->getZExtValue();
 
         Operands.push_back(llvm::ConstantAsMetadata::get(
             llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, XDim))));
@@ -9255,9 +9254,9 @@ void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
       Max = FlatWGS->getMax()->EvaluateKnownConstInt(Ctx).getExtValue();
     }
     if (ReqdWGS) {
-      XDim = ReqdWGS->getXDimVal(Ctx)->getZExtValue();
-      YDim = ReqdWGS->getYDimVal(Ctx)->getZExtValue();
-      ZDim = ReqdWGS->getZDimVal(Ctx)->getZExtValue();
+      XDim = ReqdWGS->getXDimVal()->getZExtValue();
+      YDim = ReqdWGS->getYDimVal()->getZExtValue();
+      ZDim = ReqdWGS->getZDimVal()->getZExtValue();
     }
     if (ReqdWGS && Min == 0 && Max == 0)
       Min = Max = XDim * YDim * ZDim;
