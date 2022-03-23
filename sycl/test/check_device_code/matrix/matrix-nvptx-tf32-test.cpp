@@ -32,25 +32,25 @@ constexpr int N = 16; // number of cols of accumulator,
                       // number of rows of a.
 constexpr int K = 8;  // number of cols of a/number of rows of b.
 
-// uint32_t is used in this test as the storage type for tf32
-uint32_t A[M * K];
-uint32_t B[K * N];
+// float is used in this test as the storage type for tf32
+float A[M * K];
+float B[K * N];
 float C[M * N];
 float D[M * N];
 
 int main() {
 
-  buffer<uint32_t, 1> bufA(A, range<1>(M * K));
-  buffer<uint32_t, 1> bufB(B, range<1>(K * N));
+  buffer<float, 1> bufA(A, range<1>(M * K)); // will be used as tf32
+  buffer<float, 1> bufB(B, range<1>(K * N)); // will be used as tf32
   buffer<float, 1> bufC(C, range<1>(M * N));
   buffer<float, 1> bufD(D, range<1>(M * N));
 
   queue q;
 
   q.submit([&](handler &cgh) {
-    auto accC = bufC.get_access<access::mode::read_write>(cgh);
     auto accA = bufA.get_access<access::mode::read_write>(cgh);
     auto accB = bufB.get_access<access::mode::read_write>(cgh);
+    auto accC = bufC.get_access<access::mode::read_write>(cgh);
     auto accD = bufD.get_access<access::mode::read_write>(cgh);
 
     cgh.parallel_for<class row_row>(
@@ -58,15 +58,17 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
+          joint_matrix<float, matrix_use::a, M, K, matrix_layout::row_major,
+                       sycl::sub_group, use_tf32::yes>
+              sub_a;
+
+          joint_matrix<float, matrix_use::b, K, N, matrix_layout::row_major,
+                       sycl::sub_group, use_tf32::yes>
+              sub_b;
+
           joint_matrix<float, matrix_use::accumulator, M, N,
                        matrix_layout::row_major>
               sub_c;
-
-          joint_matrix<uint32_t, matrix_use::a, M, K, matrix_layout::row_major>
-              sub_a;
-
-          joint_matrix<uint32_t, matrix_use::b, K, N, matrix_layout::row_major>
-              sub_b;
 
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.f32.p1f32(float addrspace(1)* %_arg_, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), N);
@@ -82,9 +84,9 @@ int main() {
   });
 
   q.submit([&](handler &cgh) {
-    auto accC = bufC.get_access<access::mode::read_write>(cgh);
     auto accA = bufA.get_access<access::mode::read_write>(cgh);
     auto accB = bufB.get_access<access::mode::read_write>(cgh);
+    auto accC = bufC.get_access<access::mode::read_write>(cgh);
     auto accD = bufD.get_access<access::mode::read_write>(cgh);
 
     cgh.parallel_for<class col_col>(
@@ -92,15 +94,17 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
+          joint_matrix<float, matrix_use::a, M, K, matrix_layout::col_major,
+                       sycl::sub_group, use_tf32::yes>
+              sub_a;
+
+          joint_matrix<float, matrix_use::b, K, N, matrix_layout::col_major,
+                       sycl::sub_group, use_tf32::yes>
+              sub_b;
+
           joint_matrix<float, matrix_use::accumulator, M, N,
                        matrix_layout::col_major>
               sub_c;
-
-          joint_matrix<uint32_t, matrix_use::a, M, K, matrix_layout::col_major>
-              sub_a;
-
-          joint_matrix<uint32_t, matrix_use::b, K, N, matrix_layout::col_major>
-              sub_b;
 
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.f32.p1f32(float addrspace(1)* %_arg_, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), N);
