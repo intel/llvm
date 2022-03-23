@@ -4783,8 +4783,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "#endif\n";
     O << "  }\n";
     StringRef ReturnType =
-        (S.Context.getTargetInfo().getInt64Type() == TargetInfo::SignedLong) ?
-            "long" : "long long";
+        (S.Context.getTargetInfo().getInt64Type() == TargetInfo::SignedLong)
+            ? "long"
+            : "long long";
     O << "  // Returns the size of the kernel object in bytes.\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr " << ReturnType << " getKernelSize() { return "
@@ -4819,8 +4820,7 @@ void SYCLIntegrationHeader::startKernel(const FunctionDecl *SyclKernel,
                                         QualType KernelNameType,
                                         SourceLocation KernelLocation,
                                         bool IsESIMDKernel,
-                                        bool IsUnnamedKernel,
-                                        int64_t ObjSize) {
+                                        bool IsUnnamedKernel, int64_t ObjSize) {
   KernelDescs.emplace_back(SyclKernel, KernelNameType, KernelLocation,
                            IsESIMDKernel, IsUnnamedKernel, ObjSize);
 }
