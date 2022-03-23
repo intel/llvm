@@ -5,7 +5,6 @@
 //
 // On nvidia a reduction appears to be unexpectedly executed via the host.
 // XFAIL: hip_nvidia
-// UNSUPPORTED: ze_debug-1,ze_debug4
 
 // This test checks that operators ++, +=, *=, |=, &=, ^= are supported
 // whent the corresponding std::plus<>, std::multiplies, etc are defined.

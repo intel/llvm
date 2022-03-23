@@ -8,7 +8,6 @@
 // work group size not bigger than 1` on Nvidia.
 
 // XFAIL: hip_nvidia
-// UNSUPPORTED: ze_debug-1,ze_debug4
 
 // TODO: Enable the test for HOST when it supports intel::reduce() and barrier()
 // RUNx: %HOST_RUN_PLACEHOLDER %t.out

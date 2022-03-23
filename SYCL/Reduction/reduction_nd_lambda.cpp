@@ -9,7 +9,6 @@
 // Inconsistently fails on HIP AMD, error message `Barrier is not supported on
 // the host device yet.` on HIP Nvidia.
 // UNSUPPORTED: hip_amd || hip_nvidia
-// UNSUPPORTED: ze_debug-1,ze_debug4
 
 // This test performs basic checks of parallel_for(nd_range, reduction, lambda)
 
