@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -O2 %s -o %t.out
+// RUN: %clangxx -fsycl -O2 %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX=1
+// XFAIL: *
 #include <CL/sycl.hpp>
-#if (SYCL_EXT_ONEAPI_MATRIX == 2)
 #include <iostream>
 
 using namespace sycl;
@@ -180,4 +180,3 @@ int main() {
     std::cout << "\n";
   }
 }
-#endif // (SYCL_EXT_ONEAPI_MATRIX == 2)

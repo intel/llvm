@@ -140,8 +140,8 @@ template <typename T, std::size_t R, std::size_t C, MatrixLayout L, MatrixUse U,
           Scope::Flag S = Scope::Flag::Subgroup>
 struct __spirv_JointMatrixINTEL {
   T(*Value)
-  [R][C][static_cast<size_t>(L) + 1][static_cast<size_t>(U) + 1]
-     [static_cast<size_t>(S) + 1];
+  [R][C][static_cast<size_t>(L) + 1][static_cast<size_t>(S) + 1]
+     [static_cast<size_t>(U) + 1];
 };
 
 } // namespace __spv
