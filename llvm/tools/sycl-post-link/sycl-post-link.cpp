@@ -19,7 +19,7 @@
 #include "SYCLDeviceLibReqMask.h"
 #include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
-#include "Utils.h"
+#include "Support.h"
 
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
@@ -96,7 +96,6 @@ cl::opt<bool> SplitEsimd{"split-esimd",
 
 // TODO Design note: sycl-post-link should probably separate different kinds of
 // its functionality on logical and source level:
-//  - LLVM IR module splitting (done)
 //  - Running LLVM IR passes on resulting modules
 //  - Generating additional files (like spec constants, dead arg info,...)
 // The tool itself could be just a "driver" creating needed pipelines from the

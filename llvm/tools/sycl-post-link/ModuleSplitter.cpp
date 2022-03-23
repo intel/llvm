@@ -10,7 +10,7 @@
 
 #include "ModuleSplitter.h"
 #include "DeviceGlobals.h"
-#include "Utils.h"
+#include "Support.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/IR/Function.h"
@@ -104,6 +104,9 @@ EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
 
   case SPLIT_NONE:
     return Scope_Global;
+
+  default:
+    llvm_unreachable("unsupported split mode");
   }
 }
 
@@ -199,7 +202,7 @@ EntryPointGroupVec groupEntryPointsByScope(const Module &M,
         // be controlled by an option.
         error("no '" + Twine(ATTR_SYCL_MODULE_ID) +
               "' attribute for entry point '" + F.getName() +
-              "', per-module split not possible");
+              "', per-module split is not possible");
 
       Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
       StringRef Val = Id.getValueAsString();
@@ -293,9 +296,9 @@ void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
   for (const auto *F : ModuleEntryPoints.Functions)
     GVs.insert(F);
 
-  decltype(GVs.size()) I = 0;
-  while (I != GVs.size()) {
-    const auto *F = cast<Function>(GVs[I++]);
+  decltype(GVs.size()) Idx = 0;
+  while (Idx != GVs.size()) {
+    const auto *F = cast<Function>(GVs[Idx++]);
     for (const auto &I : instructions(F))
       if (const auto *CB = dyn_cast<CallBase>(&I))
         if (const Function *CF = CB->getCalledFunction())
@@ -398,12 +401,10 @@ getSplitterByKernelType(std::unique_ptr<Module> M, bool SplitEsimd,
       *M, SplitEsimd, EmitOnlyKernelsAsEntryPoints);
   bool DoSplit = (Groups.size() > 1);
 
-  std::unique_ptr<ModuleSplitterBase> Splitter;
-  if (!DoSplit)
-    Splitter.reset(new ModuleCopier(std::move(M), std::move(Groups)));
+  if (DoSplit)
+    return std::make_unique<ModuleSplitter>(std::move(M), std::move(Groups));
   else
-    Splitter.reset(new ModuleSplitter(std::move(M), std::move(Groups)));
-  return Splitter;
+    return std::make_unique<ModuleCopier>(std::move(M), std::move(Groups));
 }
 
 std::unique_ptr<ModuleSplitterBase>
@@ -420,12 +421,10 @@ getSplitterByMode(std::unique_ptr<Module> M, IRSplitMode Mode,
   bool DoSplit = (Mode != SPLIT_NONE &&
                   (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 
-  std::unique_ptr<ModuleSplitterBase> Splitter;
-  if (!DoSplit)
-    Splitter.reset(new ModuleCopier(std::move(M), std::move(Groups)));
+  if (DoSplit)
+    return std::make_unique<ModuleSplitter>(std::move(M), std::move(Groups));
   else
-    Splitter.reset(new ModuleSplitter(std::move(M), std::move(Groups)));
-  return Splitter;
+    return std::make_unique<ModuleCopier>(std::move(M), std::move(Groups));
 }
 
 } // namespace module_split

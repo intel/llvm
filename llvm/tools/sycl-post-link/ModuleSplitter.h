@@ -33,10 +33,12 @@ enum IRSplitMode {
 
 // A vector that contains all entry point functions in a split module.
 using EntryPointVec = std::vector<const Function *>;
+
 struct EntryPointGroup {
   StringRef GroupId;
   EntryPointVec Functions;
 };
+
 using EntryPointGroupVec = std::vector<EntryPointGroup>;
 
 struct ModuleDesc {
@@ -64,14 +66,18 @@ protected:
     return *(GroupsIt++);
   }
 
-  Module &getInputModule() { return *InputModule; }
+  Module &getInputModule() {
+    assert(InputModule && "Trying to get a module after releasing.");
+    return *InputModule;
+  }
   std::unique_ptr<Module> releaseInputModule() {
+    assert(InputModule && "Trying to get a module after releasing.");
     return std::move(InputModule);
   }
 
 public:
   explicit ModuleSplitterBase(std::unique_ptr<Module> M,
-                              EntryPointGroupVec &&GroupVec)
+                              EntryPointGroupVec GroupVec)
       : InputModule(std::move(M)), Groups(std::move(GroupVec)) {
     assert(InputModule && "Module is absent");
     assert(!Groups.empty() && "Entry points groups collection is empty!");
