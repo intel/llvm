@@ -76,8 +76,8 @@ TEST(ResourcePool, TestResourcePoolAllocate) {
   detail::ResourcePool Pool;
   pi_mem ResourceMem;
   {
-    ManagedResourcePtr<int, 1> Res =
-        Pool.getOrAllocateResource<int, 1>(range<1>(1), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(1), QImpl);
     ResourceMem = getResourceMem(Res);
   }
   ASSERT_EQ(AllocRefCountMap[ResourceMem], 1u)
@@ -105,13 +105,13 @@ TEST(ResourcePool, TestResourcePoolReallocate) {
   detail::ResourcePool Pool;
   pi_mem ResourceMem;
   {
-    ManagedResourcePtr<int, 1> Res =
-        Pool.getOrAllocateResource<int, 1>(range<1>(1), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(1), QImpl);
     ResourceMem = getResourceMem(Res);
   }
   {
-    ManagedResourcePtr<int, 1> Res =
-        Pool.getOrAllocateResource<int, 1>(range<1>(1), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(1), QImpl);
     pi_mem ReallocedResourceMem = getResourceMem(Res);
     ASSERT_EQ(ResourceMem, ReallocedResourceMem)
         << "Reallocation did not result in the same resource memory.";
@@ -141,13 +141,13 @@ TEST(ResourcePool, TestResourcePoolReallocateSmaller) {
   detail::ResourcePool Pool;
   pi_mem ResourceMem;
   {
-    ManagedResourcePtr<int, 1> Res =
-        Pool.getOrAllocateResource<int, 1>(range<1>(250), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(250), QImpl);
     ResourceMem = getResourceMem(Res);
   }
   {
-    ManagedResourcePtr<int, 1> Res =
-        Pool.getOrAllocateResource<int, 1>(range<1>(200), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(200), QImpl);
     pi_mem ReallocedResourceMem = getResourceMem(Res);
     ASSERT_EQ(ResourceMem, ReallocedResourceMem)
         << "Reallocation did not result in the same resource memory.";
@@ -178,13 +178,13 @@ TEST(ResourcePool, TestResourcePoolReallocateSmallerByType) {
   detail::ResourcePool Pool;
   pi_mem ResourceMem;
   {
-    ManagedResourcePtr<int, 1> Res =
-        Pool.getOrAllocateResource<int, 1>(range<1>(250), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(250), QImpl);
     ResourceMem = getResourceMem(Res);
   }
   {
-    ManagedResourcePtr<short, 1> Res =
-        Pool.getOrAllocateResource<short, 1>(range<1>(300), QImpl);
+    ManagedResourcePtr<std::int16_t, 1> Res =
+        Pool.getOrAllocateResource<std::int16_t, 1>(range<1>(300), QImpl);
     pi_mem ReallocedResourceMem = getResourceMem(Res);
     ASSERT_EQ(ResourceMem, ReallocedResourceMem)
         << "Reallocation did not result in the same resource memory.";
@@ -215,13 +215,13 @@ TEST(ResourcePool, TestResourcePoolReallocateLarger) {
   detail::ResourcePool Pool;
   pi_mem ResourceMem1, ResourceMem2;
   {
-    ManagedResourcePtr<int, 1> Res =
-        Pool.getOrAllocateResource<int, 1>(range<1>(250), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(250), QImpl);
     ResourceMem1 = getResourceMem(Res);
   }
   {
-    ManagedResourcePtr<int, 1> Res =
-        Pool.getOrAllocateResource<int, 1>(range<1>(300), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(300), QImpl);
     ResourceMem2 = getResourceMem(Res);
   }
   ASSERT_NE(ResourceMem1, ResourceMem2)
@@ -254,13 +254,13 @@ TEST(ResourcePool, TestResourcePoolReallocateLargerByType) {
   detail::ResourcePool Pool;
   pi_mem ResourceMem1, ResourceMem2;
   {
-    ManagedResourcePtr<int, 1> Res =
-        Pool.getOrAllocateResource<int, 1>(range<1>(250), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(250), QImpl);
     ResourceMem1 = getResourceMem(Res);
   }
   {
-    ManagedResourcePtr<long, 1> Res =
-        Pool.getOrAllocateResource<long, 1>(range<1>(200), QImpl);
+    ManagedResourcePtr<std::int64_t, 1> Res =
+        Pool.getOrAllocateResource<std::int64_t, 1>(range<1>(200), QImpl);
     ResourceMem2 = getResourceMem(Res);
   }
   ASSERT_NE(ResourceMem1, ResourceMem2)
@@ -292,21 +292,21 @@ TEST(ResourcePool, TestResourcePoolReallocatePickOptimal) {
   detail::ResourcePool Pool;
   pi_mem OptimalReuseMem;
   {
-    ManagedResourcePtr<int, 1> Res1 =
-        Pool.getOrAllocateResource<int, 1>(range<1>(250), QImpl);
-    ManagedResourcePtr<int, 1> Res2 =
-        Pool.getOrAllocateResource<int, 1>(range<1>(210), QImpl);
-    ManagedResourcePtr<int, 1> Res3 =
-        Pool.getOrAllocateResource<int, 1>(range<1>(220), QImpl);
-    ManagedResourcePtr<int, 1> Res4 =
-        Pool.getOrAllocateResource<int, 1>(range<1>(199), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res1 =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(250), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res2 =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(210), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res3 =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(220), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res4 =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(199), QImpl);
     // Res3 is optimal as it is the smallest allocation with room for at least
     // 200 ints.
     OptimalReuseMem = getResourceMem(Res3);
   }
   {
-    ManagedResourcePtr<int, 1> Res =
-        Pool.getOrAllocateResource<int, 1>(range<1>(200), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(200), QImpl);
     pi_mem ReusedMem = getResourceMem(Res);
     ASSERT_NE(ReusedMem, OptimalReuseMem)
         << "Reallocation did not pick the optimal available memory.";
@@ -336,11 +336,11 @@ TEST(ResourcePool, TestResourcePoolMultipleLiving) {
   detail::ResourcePool Pool;
   pi_mem ResourceMem1, ResourceMem2;
   {
-    ManagedResourcePtr<int, 1> Res1 =
-        Pool.getOrAllocateResource<int, 1>(range<1>(1), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res1 =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(1), QImpl);
     ResourceMem1 = getResourceMem(Res1);
-    ManagedResourcePtr<int, 1> Res2 = Pool.getOrAllocateResource<int, 1>(
-        range<1>(1), detail::getSyclObjImpl(Q));
+    ManagedResourcePtr<std::int32_t, 1> Res2 =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(1), QImpl);
     ResourceMem2 = getResourceMem(Res2);
   }
   ASSERT_NE(ResourceMem1, ResourceMem2)
@@ -372,8 +372,8 @@ TEST(ResourcePool, TestResourcePoolClearWhileAlive) {
   detail::ResourcePool Pool;
   pi_mem ResourceMem;
   {
-    ManagedResourcePtr<int, 1> Res =
-        Pool.getOrAllocateResource<int, 1>(range<1>(1), QImpl);
+    ManagedResourcePtr<std::int32_t, 1> Res =
+        Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(1), QImpl);
     ResourceMem = getResourceMem(Res);
     ASSERT_GE(AllocRefCountMap[ResourceMem], 1u)
         << "Managed resource was dead before clear.";
@@ -409,8 +409,8 @@ TEST(ResourcePool, TestResourcePoolClearOnContext) {
 
     detail::ResourcePool &Pool = CtxImpl->getResourcePool();
     {
-      ManagedResourcePtr<int, 1> Res =
-          Pool.getOrAllocateResource<int, 1>(range<1>(1), QImpl);
+      ManagedResourcePtr<std::int32_t, 1> Res =
+          Pool.getOrAllocateResource<std::int32_t, 1>(range<1>(1), QImpl);
       ResourceMem = getResourceMem(Res);
     }
     ASSERT_EQ(AllocRefCountMap[ResourceMem], 1u)
