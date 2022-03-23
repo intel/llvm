@@ -4782,9 +4782,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "    return 0;\n";
     O << "#endif\n";
     O << "  }\n";
+    StringRef ReturnType =
+        (S.Context.getTargetInfo().getInt64Type() == TargetInfo::SignedLong) ?
+            "long" : "long long";
     O << "  // Returns the size of the kernel object in bytes.\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr int64_t getKernelSizeof() { return "
+    O << "  static constexpr " << ReturnType << " getKernelSize() { return "
       << K.ObjSize << "; }\n";
     O << "};\n";
     CurStart += N;
