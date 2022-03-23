@@ -77,7 +77,7 @@ static const bool UseCopyEngineForInOrderQueue = [] {
 // Setting a value >=1 specifies use of immediate commandlists.
 // Note: when immediate commandlists are used then device-only events
 // must be either AllHostVisible or OnDemandHostVisibleProxy.
-// See env var SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS.
+// (See env var SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS).
 static const bool UseImmediateCommandLists = [] {
   const char *ImmediateFlag =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
