@@ -82,7 +82,7 @@ static const bool UseImmediateCommandLists = [] {
   const char *ImmediateFlag =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
   if (!ImmediateFlag)
-    return true;
+    return false;
   return std::stoi(ImmediateFlag) > 0;
 }();
 
@@ -220,7 +220,7 @@ static const enum EventsScope {
   const auto DeviceEventsStr =
       std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
 
-  auto Default = OnDemandHostVisibleProxy;
+  auto Default = LastCommandInBatchHostVisible;
   switch (DeviceEventsStr ? std::atoi(DeviceEventsStr) : Default) {
   case 0:
     return AllHostVisible;
