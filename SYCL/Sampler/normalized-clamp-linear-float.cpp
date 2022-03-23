@@ -4,10 +4,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// UNSUPPORTED: level_zero && windows
 // XFAIL: cuda
-
-// LevelZero on Windows hangs with normalized coordinates. Waiting on fix.
 
 // CUDA works with image_channel_type::fp32, but not with any 8-bit per channel
 // type (such as unorm_int8)
