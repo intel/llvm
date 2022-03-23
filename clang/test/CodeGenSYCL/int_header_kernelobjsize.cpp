@@ -1,8 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-int-header=%t.h %s
 // RUN: FileCheck -input-file=%t.h %s
 
-// This test checks that the getKernelObjectSize() member function
-// is generated into the integration header and that it returns the
+// This test checks that the getKernelSizeof() member function is
+// generated into the integration header and that it returns the
 // size of the kernel object in bytes.
 
 #include "sycl.hpp"
@@ -23,4 +23,4 @@ void testA() {
 }
 // CHECK: template <> struct KernelInfo<KernelName> {
 // CHECK: // Returns the size of the kernel object in bytes.
-// CHECK: static constexpr unsigned long getKernelObjectSize() { return 1024; }
+// CHECK: static constexpr int64_t getKernelSizeof() { return 1024; }
