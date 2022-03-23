@@ -2873,6 +2873,43 @@ void CodeGenModule::AddGlobalAnnotations(const ValueDecl *D,
     Annotations.push_back(EmitAnnotateAttr(GV, I, D->getLocation()));
 }
 
+llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
+    const SYCLAddIRAnnotationsMemberAttr *Attr) {
+  ArrayRef<Expr *> Exprs = {Attr->args_begin(), Attr->args_size()};
+  if (Exprs.empty())
+    return llvm::ConstantPointerNull::get(GlobalsInt8PtrTy);
+
+  llvm::FoldingSetNodeID ID;
+  for (Expr *E : Exprs)
+    ID.Add(cast<clang::ConstantExpr>(E)->getAPValueResult());
+  llvm::Constant *&Lookup = SYCLAnnotationArgs[ID.ComputeHash()];
+  if (Lookup)
+    return Lookup;
+
+  llvm::SmallVector<std::pair<std::string, std::string>, 4>
+      AnnotationNameValPairs =
+          Attr->getFilteredAttributeNameValuePairs(getContext());
+  llvm::SmallVector<llvm::Constant *, 4> LLVMArgs;
+  LLVMArgs.reserve(AnnotationNameValPairs.size() * 2);
+  for (const std::pair<std::string, std::string> &NVP :
+       AnnotationNameValPairs) {
+    LLVMArgs.push_back(EmitAnnotationString(NVP.first));
+    LLVMArgs.push_back(NVP.second == ""
+                           ? llvm::ConstantPointerNull::get(GlobalsInt8PtrTy)
+                           : EmitAnnotationString(NVP.second));
+  }
+  auto *Struct = llvm::ConstantStruct::getAnon(LLVMArgs);
+  auto *GV = new llvm::GlobalVariable(getModule(), Struct->getType(), true,
+                                      llvm::GlobalValue::PrivateLinkage, Struct,
+                                      ".args");
+  GV->setSection(AnnotationSection);
+  GV->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+  auto *Bitcasted = llvm::ConstantExpr::getBitCast(GV, GlobalsInt8PtrTy);
+
+  Lookup = Bitcasted;
+  return Bitcasted;
+}
+
 void CodeGenModule::AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
                                               const RecordDecl *RD) {
   const auto *A = RD->getAttr<SYCLAddIRAttributesGlobalVariableAttr>();

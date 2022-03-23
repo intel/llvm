@@ -10637,6 +10637,11 @@ public:
   void AddSYCLAddIRAttributesGlobalVariableAttr(Decl *D,
                                                 const AttributeCommonInfo &CI,
                                                 MutableArrayRef<Expr *> Args);
+  SYCLAddIRAnnotationsMemberAttr *
+  MergeSYCLAddIRAnnotationsMemberAttr(Decl *D,
+                                      const SYCLAddIRAnnotationsMemberAttr &A);
+  void AddSYCLAddIRAnnotationsMemberAttr(Decl *D, const AttributeCommonInfo &CI,
+                                         MutableArrayRef<Expr *> Args);
   void AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr *XDim, Expr *YDim, Expr *ZDim);
   ReqdWorkGroupSizeAttr *

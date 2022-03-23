@@ -828,6 +828,18 @@ static void instantiateSYCLAddIRAttributesGlobalVariableAttr(
   S.AddSYCLAddIRAttributesGlobalVariableAttr(New, *A, Args);
 }
 
+static void instantiateSYCLAddIRAnnotationsMemberAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLAddIRAnnotationsMemberAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  SmallVector<Expr *, 4> Args;
+  if (S.SubstExprs(ArrayRef<Expr *>(A->args().begin(), A->args().end()),
+                   /*IsCall=*/false, TemplateArgs, Args))
+    return;
+  S.AddSYCLAddIRAnnotationsMemberAttr(New, *A, Args);
+}
+
 static void instantiateWorkGroupSizeHintAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const WorkGroupSizeHintAttr *A, Decl *New) {
@@ -1153,6 +1165,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLAddIRAttributesGlobalVariableAttr>(TmplAttr)) {
       instantiateSYCLAddIRAttributesGlobalVariableAttr(
           *this, TemplateArgs, SYCLAddIRAttributesGlobalVariable, New);
+      continue;
+    }
+    if (const auto *SYCLAddIRAnnotationsMember =
+            dyn_cast<SYCLAddIRAnnotationsMemberAttr>(TmplAttr)) {
+      instantiateSYCLAddIRAnnotationsMemberAttr(
+          *this, TemplateArgs, SYCLAddIRAnnotationsMember, New);
       continue;
     }
     if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(TmplAttr)) {
