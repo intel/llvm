@@ -198,7 +198,7 @@ uint32_t getDeviceLibBits(const std::string &FuncName) {
 // And we don't expect non-spirv functions with "__devicelib_" prefix.
 uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
   // Device libraries will be enabled only for spir-v module.
-  if (!llvm::Triple(M.getTargetTriple()).isSPIR())
+  if (!Triple(M.getTargetTriple()).isSPIR())
     return 0;
   // 0x1 means sycl runtime will link and load libsycl-fallback-assert.spv as
   // default. In fact, default link assert spv is not necessary but dramatic
