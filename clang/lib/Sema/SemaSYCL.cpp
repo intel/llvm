@@ -4782,9 +4782,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "    return 0;\n";
     O << "#endif\n";
     O << "  }\n";
+    O << "  // Returns the size of the kernel object in bytes.\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned long getSize() { return " << K.ObjSize
-      << "; }\n";
+    O << "  static constexpr unsigned long getKernelObjectSize() { return "
+      << K.ObjSize << "; }\n";
     O << "};\n";
     CurStart += N;
   }
