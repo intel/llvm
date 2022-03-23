@@ -612,6 +612,22 @@ struct _pi_context : _pi_object {
 
   // Retrieves a command list for executing on this device.
   // Depending on setting, this could be a standard or immediate commandlist.
+  // When using standard commandlists a fence is also retrieved.
+  // If a command list has been created on this device which has
+  // completed its commands, then that command list and its associated fence
+  // will be reused. Otherwise, a new command list and fence will be created for
+  // running on this device. L0 fences are created on a L0 command queue so the
+  // caller must pass a command queue to create a new fence for the new command
+  // list if a command list/fence pair is not available. All Command Lists &
+  // associated fences are destroyed at Device Release.
+  // If UseCopyEngine is true, the command will eventually be executed in a
+  // copy engine. Otherwise, the command will be executed in a compute engine.
+  // If AllowBatching is true, then the command list returned may already have
+  // command in it, if AllowBatching is false, any open command lists that
+  // already exist in Queue will be closed and executed.
+  // When using immediate commandlists, retrieves an immediate command list
+  // for executing on this device. Immediate commandlists are created only
+  // once per device and after that they are reused.
   pi_result getAvailableCommandList(pi_queue Queue,
                                     pi_command_list_ptr_t &CommandList,
                                     bool UseCopyEngine = false,
@@ -645,34 +661,6 @@ struct _pi_context : _pi_object {
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
 private:
-  // Retrieves a standard (non-immediate) command list for executing on this
-  // device along with a fence to be used in tracking the execution of the list.
-  // If a command list has been created on this device which has
-  // completed its commands, then that command list and its associated fence
-  // will be reused. Otherwise, a new command list and fence will be created for
-  // running on this device. L0 fences are created on a L0 command queue so the
-  // caller must pass a command queue to create a new fence for the new command
-  // list if a command list/fence pair is not available. All Command Lists &
-  // associated fences are destroyed at Device Release.
-  // If UseCopyEngine is true, the command will eventually be executed in a
-  // copy engine. Otherwise, the command will be executed in a compute engine.
-  // If AllowBatching is true, then the command list returned may already have
-  // command in it, if AllowBatching is false, any open command lists that
-  // already exist in Queue will be closed and executed.
-  pi_result getAvailableNonImmCommandList(pi_queue Queue,
-                                          pi_command_list_ptr_t &CommandList,
-                                          bool UseCopyEngine = false,
-                                          bool AllowBatching = false);
-
-  // Retrieves an immediate command list for executing on this device.
-  // Immediate commandlists are created only once per device and after that they
-  // are reused.
-  // If UseCopyEngine is true, the command will eventually be executed in a
-  // copy engine. Otherwise, the command will be executed in a compute engine.
-  pi_result getAvailableImmCommandList(pi_queue Queue,
-                                       pi_command_list_ptr_t &CommandList,
-                                       bool UseCopyEngine = false);
-
   // Following member variables are used to manage assignment of events
   // to event pools.
   //
@@ -871,7 +859,8 @@ struct _pi_queue : _pi_object {
     auto CommandBatch = (IsCopy) ? CopyCommandBatch : ComputeCommandBatch;
     return CommandBatch.OpenCommandList != CommandListMap.end();
   }
-  // Attach a command list to this queue, close, and execute it.
+  // Attach a command list to this queue.
+  // For non-immediate commandlist also close and execute it.
   // Note that this command list cannot be appended to after this.
   // The "IsBlocking" tells if the wait for completion is required.
   // If OKToBatchCommand is true, then this command list may be executed
@@ -879,15 +868,7 @@ struct _pi_queue : _pi_object {
   // batched into.
   // If IsBlocking is true, then batching will not be allowed regardless
   // of the value of OKToBatchCommand
-  pi_result executeNonImmCommandList(pi_command_list_ptr_t CommandList,
-                                     bool IsBlocking = false,
-                                     bool OKToBatchCommand = false);
-  // Attach an immediate command list to this queue.
-  // The "IsBlocking" tells if the wait for completion is required.
-  pi_result executeImmCommandList(pi_command_list_ptr_t CommandList,
-                                  bool IsBlocking = false);
-  // Attach a command list to this queue.
-  // For non-immediate commandlist also close and execute it.
+  // 
   // For immediate commandlists, no close and execute is necessary.
   pi_result executeCommandList(pi_command_list_ptr_t CommandList,
                                bool IsBlocking = false,

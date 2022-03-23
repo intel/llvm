@@ -82,7 +82,7 @@ static const bool UseImmediateCommandLists = [] {
   const char *ImmediateFlag =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
   if (!ImmediateFlag)
-    return false;
+    return true;
   return std::stoi(ImmediateFlag) > 0;
 }();
 
@@ -220,7 +220,7 @@ static const enum EventsScope {
   const auto DeviceEventsStr =
       std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
 
-  auto Default = LastCommandInBatchHostVisible;
+  auto Default = OnDemandHostVisibleProxy;
   switch (DeviceEventsStr ? std::atoi(DeviceEventsStr) : Default) {
   case 0:
     return AllHostVisible;
@@ -1108,11 +1108,18 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 }
 
-// Retrieve an available standard (non-immediate) command list
-// to be used in a PI call.
-pi_result _pi_context::getAvailableNonImmCommandList(
-    pi_queue Queue, pi_command_list_ptr_t &CommandList, bool UseCopyEngine,
-    bool AllowBatching) {
+// Retrieve an available command list to be used in a PI call.
+pi_result
+_pi_context::getAvailableCommandList(pi_queue Queue,
+                                     pi_command_list_ptr_t &CommandList,
+                                     bool UseCopyEngine, bool AllowBatching) {
+  // Immediate commandlists have been pre-allocated and are always available.
+  if (UseImmediateCommandLists) {
+    CommandList =
+        Queue->getQueueGroup(UseCopyEngine).getImmCmdList(UseCopyEngine);
+    return PI_SUCCESS;
+  }
+
   auto &CommandBatch =
       UseCopyEngine ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
   // Handle batching of commands
@@ -1235,28 +1242,6 @@ pi_result _pi_context::getAvailableNonImmCommandList(
   return pi_result;
 }
 
-// Retrieve an available immediate command list to be used in a PI call.
-pi_result _pi_context::getAvailableImmCommandList(
-    pi_queue Queue, pi_command_list_ptr_t &ImmCommandList, bool UseCopyEngine) {
-  ImmCommandList =
-      Queue->getQueueGroup(UseCopyEngine).getImmCmdList(UseCopyEngine);
-  return PI_SUCCESS;
-}
-
-// Retrieve an available command list to be used in a PI call.
-// Based on setting, this could be a standard or immediate commandlist.
-// Caller must hold a lock on the Queue passed in.
-pi_result
-_pi_context::getAvailableCommandList(pi_queue Queue,
-                                     pi_command_list_ptr_t &CommandList,
-                                     bool UseCopyEngine, bool AllowBatching) {
-  if (UseImmediateCommandLists)
-    return getAvailableImmCommandList(Queue, CommandList, UseCopyEngine);
-  else
-    return getAvailableNonImmCommandList(Queue, CommandList, UseCopyEngine,
-                                         AllowBatching);
-}
-
 void _pi_queue::adjustBatchSizeForFullBatch(bool IsCopy) {
   auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   auto &ZeCommandListBatchConfig =
@@ -1310,233 +1295,170 @@ void _pi_queue::adjustBatchSizeForPartialBatch(bool IsCopy) {
   }
 }
 
-pi_result _pi_queue::executeNonImmCommandList(pi_command_list_ptr_t CommandList,
-                                              bool IsBlocking,
-                                              bool OKToBatchCommand) {
-  bool UseCopyEngine = CommandList->second.isCopy(this);
-
-  // If the current LastCommandEvent is the nullptr, then it means
-  // either that no command has ever been issued to the queue
-  // or it means that the LastCommandEvent has been signalled and
-  // therefore that this Queue is idle.
-  //
-  // NOTE: this behavior adds some flakyness to the batching
-  // since last command's event may or may not be completed by the
-  // time we get here depending on timings and system/gpu load.
-  // So, disable it for modes where we print PI traces. Printing
-  // traces incurs much different timings than real execution
-  // ansyway, and many regression tests use it.
-  //
-  bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
-
-  // The list can be empty if command-list only contains signals of proxy
-  // events.
-  if (!CommandList->second.EventList.empty())
-    this->LastCommandEvent = CommandList->second.EventList.back();
-
-  // Batch if allowed to, but don't batch if we know there are no kernels
-  // from this queue that are currently executing.  This is intended to get
-  // kernels started as soon as possible when there are no kernels from this
-  // queue awaiting execution, while allowing batching to occur when there
-  // are kernels already executing. Also, if we are using fixed size batching,
-  // as indicated by !ZeCommandListBatch.dynamic(), then just ignore
-  // CurrentlyEmpty as we want to strictly follow the batching the user
-  // specified.
-  auto &CommandBatch = UseCopyEngine ? CopyCommandBatch : ComputeCommandBatch;
-  auto &ZeCommandListBatchConfig = UseCopyEngine
-                                       ? ZeCommandListBatchCopyConfig
-                                       : ZeCommandListBatchComputeConfig;
-  if (OKToBatchCommand && this->isBatchingAllowed(UseCopyEngine) &&
-      (!ZeCommandListBatchConfig.dynamic() || !CurrentlyEmpty)) {
-
-    if (hasOpenCommandList(UseCopyEngine) &&
-        CommandBatch.OpenCommandList != CommandList)
-      die("executeCommandList: OpenCommandList should be equal to"
-          "null or CommandList");
-
-    if (CommandList->second.size() < CommandBatch.QueueBatchSize) {
-      CommandBatch.OpenCommandList = CommandList;
-      return PI_SUCCESS;
-    }
-
-    adjustBatchSizeForFullBatch(UseCopyEngine);
-    CommandBatch.OpenCommandList = CommandListMap.end();
-  }
-
-  auto &ZeCommandQueue = CommandList->second.ZeQueue;
-  // Scope of the lock must be till the end of the function, otherwise new mem
-  // allocs can be created between the moment when we made a snapshot and the
-  // moment when command list is closed and executed. But mutex is locked only
-  // if indirect access tracking enabled, because std::defer_lock is used.
-  // unique_lock destructor at the end of the function will unlock the mutex if
-  // it was locked (which happens only if IndirectAccessTrackingEnabled is
-  // true).
-  std::unique_lock<std::mutex> ContextsLock(Device->Platform->ContextsMutex,
-                                            std::defer_lock);
-  if (IndirectAccessTrackingEnabled) {
-    // We are going to submit kernels for execution. If indirect access flag is
-    // set for a kernel then we need to make a snapshot of existing memory
-    // allocations in all contexts in the platform. We need to lock the mutex
-    // guarding the list of contexts in the platform to prevent creation of new
-    // memory alocations in any context before we submit the kernel for
-    // execution.
-    ContextsLock.lock();
-    for (auto &Kernel : KernelsToBeSubmitted) {
-      if (!Kernel->hasIndirectAccess())
-        continue;
-
-      auto &Contexts = Device->Platform->Contexts;
-      for (auto &Ctx : Contexts) {
-        for (auto &Elem : Ctx->MemAllocs) {
-          const auto &Pair = Kernel->MemAllocs.insert(&Elem);
-          // Kernel is referencing this memory allocation from now.
-          // If this memory allocation was already captured for this kernel, it
-          // means that kernel is submitted several times. Increase reference
-          // count only once because we release all allocations only when
-          // SubmissionsCount turns to 0. We don't want to know how many times
-          // allocation was retained by each submission.
-          if (Pair.second)
-            Elem.second.RefCount++;
-        }
-      }
-      Kernel->SubmissionsCount++;
-    }
-    KernelsToBeSubmitted.clear();
-  }
-
-  // In this mode all inner-batch events have device visibility only,
-  // and we want the last command in the batch to signal a host-visible
-  // event that anybody waiting for any event in the batch will
-  // really be using.
-  //
-  if (EventsScope == LastCommandInBatchHostVisible) {
-    // Create a "proxy" host-visible event.
-    //
-    pi_event HostVisibleEvent;
-    auto Res = createEventAndAssociateQueue(
-        this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
-    if (Res)
-      return Res;
-
-    // Update each command's event in the command-list to "see" this
-    // proxy event as a host-visible counterpart.
-    for (auto &Event : CommandList->second.EventList) {
-      if (!Event->HostVisibleEvent) {
-        Event->HostVisibleEvent = HostVisibleEvent;
-        PI_CALL(piEventRetain(HostVisibleEvent));
-      }
-    }
-
-    // Decrement the reference count of the event such that all the remaining
-    // references are from the other commands in this batch and from the
-    // command-list itself. This host-visible event will not be waited/released
-    // by SYCL RT, so it must be destroyed after all events in the batch are
-    // gone.
-    PI_CALL(piEventRelease(HostVisibleEvent));
-    PI_CALL(piEventRelease(HostVisibleEvent));
-
-    // Indicate no cleanup is needed for this PI event as it is special.
-    HostVisibleEvent->CleanedUp = true;
-
-    // Finally set to signal the host-visible event at the end of the
-    // command-list.
-    // TODO: see if we need a barrier here (or explicit wait for all events in
-    // the batch).
-    ZE_CALL(zeCommandListAppendSignalEvent,
-            (CommandList->first, HostVisibleEvent->ZeEvent));
-  }
-
-  // Close the command list and have it ready for dispatch.
-  ZE_CALL(zeCommandListClose, (CommandList->first));
-  // Offload command list to the GPU for asynchronous execution
-  auto ZeCommandList = CommandList->first;
-  auto ZeResult = ZE_CALL_NOCHECK(
-      zeCommandQueueExecuteCommandLists,
-      (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
-  if (ZeResult != ZE_RESULT_SUCCESS) {
-    this->Healthy = false;
-    if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
-      // Turn into a more informative end-user error.
-      return PI_COMMAND_EXECUTION_FAILURE;
-    }
-    return mapError(ZeResult);
-  }
-
-  // Check global control to make every command blocking for debugging.
-  if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
-    // Wait until command lists attached to the command queue are executed.
-    ZE_CALL(zeHostSynchronize, (ZeCommandQueue));
-  }
-  return PI_SUCCESS;
-}
-
-pi_result _pi_queue::executeImmCommandList(pi_command_list_ptr_t CommandList,
-                                           bool IsBlocking) {
-  // If the current LastCommandEvent is the nullptr, then it means
-  // either that no command has ever been issued to the queue
-  // or it means that the LastCommandEvent has been signalled and
-  // therefore that this Queue is idle.
-  // The list can be empty if command-list only contains signals of proxy
-  // events.
-  if (!CommandList->second.EventList.empty())
-    this->LastCommandEvent = CommandList->second.EventList.back();
-
-  auto &ZeCommandQueue = CommandList->second.ZeQueue;
-  // Scope of the lock must be till the end of the function, otherwise new mem
-  // allocs can be created between the moment when we made a snapshot and the
-  // moment when command list is closed and executed. But mutex is locked only
-  // if indirect access tracking enabled, because std::defer_lock is used.
-  // unique_lock destructor at the end of the function will unlock the mutex if
-  // it was locked (which happens only if IndirectAccessTrackingEnabled is
-  // true).
-  std::unique_lock<std::mutex> ContextsLock(Device->Platform->ContextsMutex,
-                                            std::defer_lock);
-  if (IndirectAccessTrackingEnabled) {
-    // We are going to submit kernels for execution. If indirect access flag is
-    // set for a kernel then we need to make a snapshot of existing memory
-    // allocations in all contexts in the platform. We need to lock the mutex
-    // guarding the list of contexts in the platform to prevent creation of new
-    // memory alocations in any context before we submit the kernel for
-    // execution.
-    ContextsLock.lock();
-    for (auto &Kernel : KernelsToBeSubmitted) {
-      if (!Kernel->hasIndirectAccess())
-        continue;
-
-      auto &Contexts = Device->Platform->Contexts;
-      for (auto &Ctx : Contexts) {
-        for (auto &Elem : Ctx->MemAllocs) {
-          const auto &Pair = Kernel->MemAllocs.insert(&Elem);
-          // Kernel is referencing this memory allocation from now.
-          // If this memory allocation was already captured for this kernel, it
-          // means that kernel is submitted several times. Increase reference
-          // count only once because we release all allocations only when
-          // SubmissionsCount turns to 0. We don't want to know how many times
-          // allocation was retained by each submission.
-          if (Pair.second)
-            Elem.second.RefCount++;
-        }
-      }
-      Kernel->SubmissionsCount++;
-    }
-    KernelsToBeSubmitted.clear();
-  }
-
-  // Check global control to make every command blocking for debugging.
-  if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
-    // Wait until command lists attached to the command queue are executed.
-    ZE_CALL(zeHostSynchronize, (ZeCommandQueue));
-  }
-  return PI_SUCCESS;
-}
-
 pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
                                         bool IsBlocking,
                                         bool OKToBatchCommand) {
-  if (UseImmediateCommandLists)
-    return executeImmCommandList(CommandList, IsBlocking);
-  else
-    return executeNonImmCommandList(CommandList, IsBlocking, OKToBatchCommand);
+
+  // The list can be empty if command-list only contains signals of proxy
+  // events.
+  if (!CommandList->second.EventList.empty())
+    this->LastCommandEvent = CommandList->second.EventList.back();
+
+  if (!UseImmediateCommandLists) {
+    bool UseCopyEngine = CommandList->second.isCopy(this);
+
+    // If the current LastCommandEvent is the nullptr, then it means
+    // either that no command has ever been issued to the queue
+    // or it means that the LastCommandEvent has been signalled and
+    // therefore that this Queue is idle.
+    //
+    // NOTE: this behavior adds some flakyness to the batching
+    // since last command's event may or may not be completed by the
+    // time we get here depending on timings and system/gpu load.
+    // So, disable it for modes where we print PI traces. Printing
+    // traces incurs much different timings than real execution
+    // anyway, and many regression tests use it.
+    //
+    bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
+
+    // Batch if allowed to, but don't batch if we know there are no kernels
+    // from this queue that are currently executing.  This is intended to get
+    // kernels started as soon as possible when there are no kernels from this
+    // queue awaiting execution, while allowing batching to occur when there
+    // are kernels already executing. Also, if we are using fixed size batching,
+    // as indicated by !ZeCommandListBatch.dynamic(), then just ignore
+    // CurrentlyEmpty as we want to strictly follow the batching the user
+    // specified.
+    auto &CommandBatch = UseCopyEngine ? CopyCommandBatch : ComputeCommandBatch;
+    auto &ZeCommandListBatchConfig = UseCopyEngine
+                                         ? ZeCommandListBatchCopyConfig
+                                         : ZeCommandListBatchComputeConfig;
+    if (OKToBatchCommand && this->isBatchingAllowed(UseCopyEngine) &&
+        (!ZeCommandListBatchConfig.dynamic() || !CurrentlyEmpty)) {
+
+      if (hasOpenCommandList(UseCopyEngine) &&
+          CommandBatch.OpenCommandList != CommandList)
+        die("executeCommandList: OpenCommandList should be equal to"
+            "null or CommandList");
+
+      if (CommandList->second.size() < CommandBatch.QueueBatchSize) {
+        CommandBatch.OpenCommandList = CommandList;
+        return PI_SUCCESS;
+      }
+
+      adjustBatchSizeForFullBatch(UseCopyEngine);
+      CommandBatch.OpenCommandList = CommandListMap.end();
+    }
+  }
+
+  auto &ZeCommandQueue = CommandList->second.ZeQueue;
+  // Scope of the lock must be till the end of the function, otherwise new mem
+  // allocs can be created between the moment when we made a snapshot and the
+  // moment when command list is closed and executed. But mutex is locked only
+  // if indirect access tracking enabled, because std::defer_lock is used.
+  // unique_lock destructor at the end of the function will unlock the mutex
+  // if it was locked (which happens only if IndirectAccessTrackingEnabled is
+  // true).
+  std::unique_lock<std::mutex> ContextsLock(Device->Platform->ContextsMutex,
+                                            std::defer_lock);
+
+  if (IndirectAccessTrackingEnabled) {
+    // We are going to submit kernels for execution. If indirect access flag is
+    // set for a kernel then we need to make a snapshot of existing memory
+    // allocations in all contexts in the platform. We need to lock the mutex
+    // guarding the list of contexts in the platform to prevent creation of new
+    // memory alocations in any context before we submit the kernel for
+    // execution.
+    ContextsLock.lock();
+    for (auto &Kernel : KernelsToBeSubmitted) {
+      if (!Kernel->hasIndirectAccess())
+        continue;
+
+      auto &Contexts = Device->Platform->Contexts;
+      for (auto &Ctx : Contexts) {
+        for (auto &Elem : Ctx->MemAllocs) {
+          const auto &Pair = Kernel->MemAllocs.insert(&Elem);
+          // Kernel is referencing this memory allocation from now.
+          // If this memory allocation was already captured for this kernel, it
+          // means that kernel is submitted several times. Increase reference
+          // count only once because we release all allocations only when
+          // SubmissionsCount turns to 0. We don't want to know how many times
+          // allocation was retained by each submission.
+          if (Pair.second)
+            Elem.second.RefCount++;
+        }
+      }
+      Kernel->SubmissionsCount++;
+    }
+    KernelsToBeSubmitted.clear();
+  }
+
+  if (!UseImmediateCommandLists) {
+    // In this mode all inner-batch events have device visibility only,
+    // and we want the last command in the batch to signal a host-visible
+    // event that anybody waiting for any event in the batch will
+    // really be using.
+    //
+    if (EventsScope == LastCommandInBatchHostVisible) {
+      // Create a "proxy" host-visible event.
+      //
+      pi_event HostVisibleEvent;
+      auto Res = createEventAndAssociateQueue(
+          this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
+      if (Res)
+        return Res;
+
+      // Update each command's event in the command-list to "see" this
+      // proxy event as a host-visible counterpart.
+      for (auto &Event : CommandList->second.EventList) {
+        if (!Event->HostVisibleEvent) {
+          Event->HostVisibleEvent = HostVisibleEvent;
+          PI_CALL(piEventRetain(HostVisibleEvent));
+        }
+      }
+
+      // Decrement the reference count of the event such that all the remaining
+      // references are from the other commands in this batch and from the
+      // command-list itself. This host-visible event will not be
+      // waited/released by SYCL RT, so it must be destroyed after all events in
+      // the batch are gone.
+      PI_CALL(piEventRelease(HostVisibleEvent));
+      PI_CALL(piEventRelease(HostVisibleEvent));
+
+      // Indicate no cleanup is needed for this PI event as it is special.
+      HostVisibleEvent->CleanedUp = true;
+
+      // Finally set to signal the host-visible event at the end of the
+      // command-list.
+      // TODO: see if we need a barrier here (or explicit wait for all events in
+      // the batch).
+      ZE_CALL(zeCommandListAppendSignalEvent,
+              (CommandList->first, HostVisibleEvent->ZeEvent));
+    }
+
+    // Close the command list and have it ready for dispatch.
+    ZE_CALL(zeCommandListClose, (CommandList->first));
+    // Offload command list to the GPU for asynchronous execution
+    auto ZeCommandList = CommandList->first;
+    auto ZeResult = ZE_CALL_NOCHECK(
+        zeCommandQueueExecuteCommandLists,
+        (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
+    if (ZeResult != ZE_RESULT_SUCCESS) {
+      this->Healthy = false;
+      if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+        // Turn into a more informative end-user error.
+        return PI_COMMAND_EXECUTION_FAILURE;
+      }
+      return mapError(ZeResult);
+    }
+  }
+
+  // Check global control to make every command blocking for debugging.
+  if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
+    // Wait until command lists attached to the command queue are executed.
+    ZE_CALL(zeHostSynchronize, (ZeCommandQueue));
+  }
+  return PI_SUCCESS;
 }
 
 bool _pi_queue::isBatchingAllowed(bool IsCopy) const {
