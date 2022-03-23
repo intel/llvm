@@ -176,7 +176,7 @@ void getPossibleStoredVals(Value *Addr, ValueSetImpl &Vals) {
 //   pointer float addrspace(4)* %arg1, float %arg2, i32 %arg3)
 //
 // Example 2 (invoke_simd's target function pointer flows through IR):
-// %"fptr_t = <16 x float> (float addrspace(4)*, <16 x float>, i32)*
+// %fptr_t = <16 x float> (float addrspace(4)*, <16 x float>, i32)*
 // ...
 // %fa_as0 = alloca %fptr_t
 // ...
@@ -198,11 +198,11 @@ bool processInvokeSimdCall(CallInst *CI) {
   if (!V) {
     llvm_unreachable(("bad use of " + Twine(INVOKE_SIMD_PREF)).str().c_str());
   }
-  Function *SimdF = nullptr;
+  auto *SimdF = dyn_cast<Function>(V);
   bool Modified = false;
 
-  if (!(SimdF = dyn_cast<Function>(V))) {
-    LoadInst *LI = dyn_cast<LoadInst>(stripCasts(V));
+  if (!SimdF) {
+    auto *LI = dyn_cast<LoadInst>(stripCasts(V));
 
     if (!LI) {
       llvm_unreachable("unsupported data flow pattern for invoke_simd 0");
@@ -215,7 +215,7 @@ bool processInvokeSimdCall(CallInst *CI) {
     }
     // _Z21__builtin_invoke_simd invokee is an SSA value, replace it with the
     // link-time constant SimdF as computed by getPossibleStoredVals
-    CallInst *CI1 = cast<CallInst>(CI->clone());
+    auto *CI1 = cast<CallInst>(CI->clone());
     constexpr int SimdInvokeInvokeeArgIndex = 0;
     CI1->setOperand(SimdInvokeInvokeeArgIndex, SimdF);
     CI1->insertAfter(CI);
@@ -239,7 +239,7 @@ PreservedAnalyses SYCLLowerInvokeSimdPass::run(Module &M,
     if (!F.isDeclaration() || !F.getName().startswith(INVOKE_SIMD_PREF)) {
       continue;
     }
-    SmallVector<User *, 4> Users(F.users().begin(), F.users().end());
+    SmallVector<User *, 4> Users(F.users());
     for (User *Usr : Users) {
       // a call can be the only use of the invoke_simd built-in
       CallInst *CI = cast<CallInst>(Usr);
