@@ -12,9 +12,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// UNSUPPORTED: windows
-// Temprorary disabled on Windows until intel/llvm-test-suite#664 fixed
-
 // This test checks the behavior of simd_view constructors
 // and assignment operators.
 
@@ -167,8 +164,6 @@ int main(void) {
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
   bool passed = true;
   passed &= testT<char>(q);
-  passed &= testT<short>(q);
-  passed &= testT<int>(q);
   passed &= testT<float>(q);
   passed &= testT<half>(q);
 
