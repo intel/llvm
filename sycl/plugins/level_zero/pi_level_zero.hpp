@@ -610,8 +610,9 @@ struct _pi_context : _pi_object {
   std::unordered_map<ze_device_handle_t, std::list<ze_command_list_handle_t>>
       ZeCopyCommandListCache;
 
-  // Retrieves a command list for executing on this device along with
-  // a fence to be used in tracking the execution of this command list.
+  // Retrieves a command list for executing on this device.
+  // Depending on setting, this could be a standard or immediate commandlist.
+  // When using standard commandlists a fence is also retrieved.
   // If a command list has been created on this device which has
   // completed its commands, then that command list and its associated fence
   // will be reused. Otherwise, a new command list and fence will be created for
@@ -624,6 +625,9 @@ struct _pi_context : _pi_object {
   // If AllowBatching is true, then the command list returned may already have
   // command in it, if AllowBatching is false, any open command lists that
   // already exist in Queue will be closed and executed.
+  // When using immediate commandlists, retrieves an immediate command list
+  // for executing on this device. Immediate commandlists are created only
+  // once per device and after that they are reused.
   pi_result getAvailableCommandList(pi_queue Queue,
                                     pi_command_list_ptr_t &CommandList,
                                     bool UseCopyEngine = false,
@@ -723,10 +727,19 @@ struct _pi_queue : _pi_object {
     // Level Zero command queue handles.
     std::vector<ze_command_queue_handle_t> ZeQueues;
 
+    // Immediate commandlist handles, one per Level Zero command queue handle.
+    // These are created only once, along with the L0 queues (see above)
+    // and reused thereafter.
+    std::vector<pi_command_list_ptr_t> ImmCmdLists;
+
     // This function will return one of possibly multiple available native
     // queues. Currently, a round robin strategy is used. This function also
     // sends back the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
+
+    // This function returns an immediate commandlist that corresponds
+    // to the ZeQueue returned by getZeQueue.
+    pi_command_list_ptr_t &getImmCmdList(bool UseCopyEngine);
 
     // These indices are to filter specific range of the queues to use,
     // and to organize round-robin across them.
@@ -846,7 +859,8 @@ struct _pi_queue : _pi_object {
     auto CommandBatch = (IsCopy) ? CopyCommandBatch : ComputeCommandBatch;
     return CommandBatch.OpenCommandList != CommandListMap.end();
   }
-  // Attach a command list to this queue, close, and execute it.
+  // Attach a command list to this queue.
+  // For non-immediate commandlist also close and execute it.
   // Note that this command list cannot be appended to after this.
   // The "IsBlocking" tells if the wait for completion is required.
   // If OKToBatchCommand is true, then this command list may be executed
@@ -854,6 +868,8 @@ struct _pi_queue : _pi_object {
   // batched into.
   // If IsBlocking is true, then batching will not be allowed regardless
   // of the value of OKToBatchCommand
+  // 
+  // For immediate commandlists, no close and execute is necessary.
   pi_result executeCommandList(pi_command_list_ptr_t CommandList,
                                bool IsBlocking = false,
                                bool OKToBatchCommand = false);
