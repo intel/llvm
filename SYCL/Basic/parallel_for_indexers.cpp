@@ -5,6 +5,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t2.out
 // RUN: %GPU_RUN_PLACEHOLDER %t2.out
 // RUN: %ACC_RUN_PLACEHOLDER %t2.out
+//
+// Incorrect results with hip on AMD
+// XFAIL: hip_amd
 
 #include <CL/sycl.hpp>
 
