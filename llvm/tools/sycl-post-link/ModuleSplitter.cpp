@@ -406,11 +406,9 @@ module_split::getSplitterByKernelType(std::unique_ptr<Module> M,
     return std::make_unique<ModuleCopier>(std::move(M), std::move(Groups));
 }
 
-std::unique_ptr<ModuleSplitterBase>
-module_split::getSplitterByMode(std::unique_ptr<Module> M,
-                                IRSplitMode Mode, bool IROutputOnly,
-                                bool EmitOnlyKernelsAsEntryPoints,
-                                bool DeviceGlobals) {
+std::unique_ptr<ModuleSplitterBase> module_split::getSplitterByMode(
+    std::unique_ptr<Module> M, IRSplitMode Mode, bool IROutputOnly,
+    bool EmitOnlyKernelsAsEntryPoints, bool DeviceGlobals) {
   EntryPointsGroupScope Scope =
       selectDeviceCodeGroupScope(*M, Mode, IROutputOnly);
   EntryPointGroupVec Groups =
