@@ -24,14 +24,6 @@
 
 namespace esimd_test::api::functional::functions {
 
-namespace details {
-
-constexpr int ceil(int a, int b) {
-  return ((a % b) > 0) ? (a / b + 1) : (a / b);
-}
-
-} // namespace details
-
 using use_offset = std::true_type;
 using do_not_use_offset = std::true_type;
 
@@ -238,7 +230,8 @@ bool run_test_for_types(sycl::queue &queue) {
   constexpr int zero_offset_value = 0;
   constexpr int small_offset_value = 1;
   constexpr int large_offset_value =
-      desired_simd_large_size - details::ceil(2 * desired_simd_large_size, 3);
+      desired_simd_large_size -
+      round_up_int_division(2 * desired_simd_large_size, 3);
 
   const auto small_size = get_dimensions<desired_simd_small_size>();
   const auto great_size = get_dimensions<desired_simd_large_size>();
