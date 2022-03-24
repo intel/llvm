@@ -24,10 +24,8 @@ pi_result redefinedDeviceRelease(pi_device) { return PI_SUCCESS; }
 
 platform *Platform;
 
-pi_result redefinedDeviceGetInfo(pi_device device,
-                                 pi_device_info param_name,
-                                 size_t param_value_size,
-                                 void *param_value,
+pi_result redefinedDeviceGetInfo(pi_device device, pi_device_info param_name,
+                                 size_t param_value_size, void *param_value,
                                  size_t *param_value_size_ret) {
   long DevIdx = reinterpret_cast<long>(device) - 1;
 
@@ -37,10 +35,9 @@ pi_result redefinedDeviceGetInfo(pi_device device,
 
   if (param_name == PI_DEVICE_INFO_TYPE) {
     static const std::map<aspect, pi_device_type> Types = {
-      {aspect::cpu, PI_DEVICE_TYPE_CPU},
-      {aspect::gpu, PI_DEVICE_TYPE_GPU},
-      {aspect::accelerator, PI_DEVICE_TYPE_ACC}
-    };
+        {aspect::cpu, PI_DEVICE_TYPE_CPU},
+        {aspect::gpu, PI_DEVICE_TYPE_GPU},
+        {aspect::accelerator, PI_DEVICE_TYPE_ACC}};
 
     if (param_value) {
       bool DeviceTypeSet = false;
@@ -186,4 +183,3 @@ TEST_F(AspectSelector, TestNegative) {
     }
   }
 }
-
