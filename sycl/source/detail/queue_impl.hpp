@@ -63,11 +63,7 @@ public:
     ContextImplPtr DefaultContext = detail::getSyclObjImpl(
         Device->get_platform().ext_oneapi_get_default_context());
 
-    if (DefaultContext->hasDevice(Device))
-      return DefaultContext;
-
-    return detail::getSyclObjImpl(
-        context{createSyclObjFromImpl<device>(Device), {}, {}});
+    return DefaultContext;
   }
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
