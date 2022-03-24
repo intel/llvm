@@ -72,8 +72,9 @@ template <> struct BufferInterop<backend::ext_oneapi_cuda> {
   using ReturnType = CUdeviceptr;
 
   static ReturnType GetNativeObjs(const std::vector<pi_native_handle> &Handle) {
-    ReturnType ReturnValue = 0 if (Handle.size()) {
-      ReturnValue = detail::pi::cast<ReturnType>(NativeVec[0]);
+    ReturnType ReturnValue = 0;
+    if (Handle.size()) {
+      ReturnValue = detail::pi::cast<ReturnType>(Handle[0]);
     }
     return ReturnValue;
   }
