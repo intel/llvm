@@ -19,7 +19,7 @@
 #include <cassert>
 #include <iostream>
 #include <mutex>
-#include <stack>
+#include <unordered_map>
 
 #include <malloc.h>
 
@@ -116,17 +116,28 @@ struct _pi_mem : _pi_object {
   std::mutex mutexLock;
 
   // Surface index
+
   unsigned int SurfaceIndex;
+  // Supplementary data to keep track of the mappings of this memory
+  // created with piEnqueueMemBufferMap
+  struct Mapping {
+    // The offset in the buffer giving the start of the mapped region.
+    size_t Offset;
+    // The size of the mapped region.
+    size_t Size;
+  };
+
+  // The key is the host pointer representing an active mapping.
+  // The value is the information needed to maintain/undo the mapping.
+  // TODO : std::unordered_map is imported from L0.
+  // Use std::stack for strict LIFO behavior checking?
+  std::unordered_map<void *, Mapping> Mappings;
+  // Supporing multi-threaded mapping/unmapping calls
+  std::mutex MappingsMutex;
 
   virtual ~_pi_mem() = default;
 
   _pi_mem_type getMemType() const { return MemType; };
-
-  // TODO: Runtime guarantees LIFO across multiple threads for
-  // piEnqueueMemBufferMap/Unmap? No duplicated mappings for same
-  // (base, offset)?
-  // TODO : 'unordered_map' if duplication check is required
-  std::stack<void *> Mappings;
 
 protected:
   _pi_mem(pi_context ctxt, char *HostPtr, _pi_mem_type MemTypeArg,

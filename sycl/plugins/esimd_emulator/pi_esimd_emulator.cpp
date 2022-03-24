@@ -1088,25 +1088,30 @@ pi_result piMemRelease(pi_mem Mem) {
     if (Status != cm_support::CM_SUCCESS) {
       return PI_INVALID_MEM_OBJECT;
     }
-  }
 
-  // Removing Surface-map entry
-  std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
-  auto MapEntryIt = PiESimdSurfaceMap->find(Mem->SurfaceIndex);
-  if (MapEntryIt != PiESimdSurfaceMap->end()) {
-    PiESimdSurfaceMap->erase(MapEntryIt);
-  } else {
-    if (PrintPiTrace) {
-      std::cerr << "Failure from CM-managed buffer/image deletion" << std::endl;
+    // Removing Surface-map entry
+    std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
+    auto MapEntryIt = PiESimdSurfaceMap->find(Mem->SurfaceIndex);
+    if (MapEntryIt != PiESimdSurfaceMap->end()) {
+      PiESimdSurfaceMap->erase(MapEntryIt);
+    } else {
+      if (PrintPiTrace) {
+        std::cerr << "Failure from CM-managed buffer/image deletion"
+                  << std::endl;
+      }
+      return PI_INVALID_MEM_OBJECT;
     }
-    return PI_INVALID_MEM_OBJECT;
-  }
 
-  while (!Mem->Mappings.empty()) {
-    Mem->Mappings.pop();
-  }
+    // TODO : Erasing should be done during 'piMemRelease'? Or Host has
+    // to call 'piEnqueueMemUnmap' for all mapped addresses before
+    // calling 'piMemRelease'?
+    std::lock_guard<std::mutex> MapLock{Mem->MappingsMutex};
+    for (auto mapit = Mem->Mappings.begin(); mapit != Mem->Mappings.end();) {
+      mapit = Mem->Mappings.erase(mapit);
+    }
 
-  delete Mem;
+    delete Mem;
+  }
   return PI_SUCCESS;
 }
 
@@ -1551,7 +1556,7 @@ pi_result piEnqueueMemBufferFill(pi_queue, pi_mem, const void *, size_t, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
+pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem MemObj,
                                 pi_bool BlockingMap, pi_map_flags MapFlags,
                                 size_t Offset, size_t Size,
                                 pi_uint32 NumEventsInWaitList,
@@ -1559,51 +1564,71 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
                                 void **RetMap) {
 
   std::unique_ptr<_pi_event> RetEv{nullptr};
+  pi_result ret = PI_SUCCESS;
+
   if (Event) {
     RetEv = std::unique_ptr<_pi_event>(new _pi_event());
     RetEv->IsDummyEvent = true;
   }
 
-  *RetMap = Buffer->MapHostPtr + Offset;
+  // Real mapping does not occur here and CPU-accessible address is
+  // returned as the actual memory space for the buffer is located in
+  // CPU memory and the plug-in know its base address
+  // ('_pi_mem::MapHostPtr')
+  *RetMap = MemObj->MapHostPtr + Offset;
 
-  // TODO: Runtime guarantees LIFO across multiple threads for
-  // piEnqueueMemBufferMap/Unmap? No duplicated mappings for same
-  // (base, offset)?
-  Buffer->Mappings.push(*RetMap);
+  {
+    std::lock_guard<std::mutex> Lock{MemObj->MappingsMutex};
+    auto Res = MemObj->Mappings.insert({*RetMap, {Offset, Size}});
+    // False as the second value in pair means that mapping was not inserted
+    // because mapping already exists.
+    if (!Res.second) {
+      ret = PI_INVALID_VALUE;
+      if (PrintPiTrace) {
+        std::cerr << "piEnqueueMemBufferMap: duplicate mapping detected"
+                  << std::endl;
+      }
+    }
+  }
 
   if (Event) {
     *Event = RetEv.release();
   }
-  return PI_SUCCESS;
+  return ret;
 }
 
 pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
                             pi_uint32 NumEventsInWaitList,
                             const pi_event *EventWaitList, pi_event *Event) {
   std::unique_ptr<_pi_event> RetEv{nullptr};
+  pi_result ret = PI_SUCCESS;
+
   if (Event) {
     RetEv = std::unique_ptr<_pi_event>(new _pi_event());
     RetEv->IsDummyEvent = true;
   }
 
-  // TODO: Runtime guarantees LIFO across multiple threads for
-  // piEnqueueMemBufferMap/Unmap? No duplicated mappings for same
-  // (base, offset)?
-  auto peak = MemObj->Mappings.top();
-  if (peak != MappedPtr) {
-    if (PrintPiTrace) {
-      std::cerr << "piEnqueueMemUnmap: unknown memory mapping" << std::endl;
+  // Real unmapping does not occur here and CPU-accessible address is
+  // returned as the actual memory space for the buffer is located in
+  // CPU memory and the plug-in knows its base address
+  // ('_pi_mem::MapHostPtr')
+  {
+    std::lock_guard<std::mutex> Lock(MemObj->MappingsMutex);
+    auto It = MemObj->Mappings.find(MappedPtr);
+    if (It == MemObj->Mappings.end()) {
+      ret = PI_INVALID_VALUE;
+      if (PrintPiTrace) {
+        std::cerr << "piEnqueueMemUnmap: unknown memory mapping" << std::endl;
+      }
     }
-    return PI_INVALID_VALUE;
+    MemObj->Mappings.erase(It);
   }
-
-  MemObj->Mappings.pop();
 
   if (Event) {
     *Event = RetEv.release();
   }
 
-  return PI_SUCCESS;
+  return ret;
 }
 
 pi_result piMemImageGetInfo(pi_mem, pi_image_info, size_t, void *, size_t *) {
@@ -1622,6 +1647,8 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
     assert(false && "ESIMD_EMULATOR does not support Blocking Read");
   }
 
+  // SlicePitch is for 3D image while ESIMD_EMULATOR does not
+  // support. For 2D surfaces, SlicePitch must be 0.
   assert((SlicePitch == 0) && "ESIMD_EMULATOR does not support 3D-image");
 
   // CM_EMU does not support ReadSurface with offset
@@ -1931,8 +1958,10 @@ pi_result piTearDown(void *) {
       return PI_INVALID_MEM_OBJECT;
     }
 
-    while (!Mem->Mappings.empty()) {
-      Mem->Mappings.pop();
+    // No "MappingsMutex" as piTearDown is guaranteed to be called
+    // from single thread for plug-in
+    for (auto mapit = Mem->Mappings.begin(); mapit != Mem->Mappings.end();) {
+      mapit = Mem->Mappings.erase(mapit);
     }
 
     it = PiESimdSurfaceMap->erase(it);
