@@ -16,6 +16,7 @@
 #include <chrono>
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <string>
@@ -98,28 +99,88 @@ bool write_binary_file(const char *fname, const std::vector<T> &vec,
   return !ofs.bad();
 }
 
-template <typename T>
-bool cmp_binary_files(const char *fname1, const char *fname2, T tolerance) {
-  const auto vec1 = read_binary_file<T>(fname1);
-  const auto vec2 = read_binary_file<T>(fname2);
-  if (vec1.size() != vec2.size()) {
-    std::cerr << fname1 << " size is " << vec1.size();
-    std::cerr << " whereas " << fname2 << " size is " << vec2.size()
-              << std::endl;
-    return false;
-  }
-  for (size_t i = 0; i < vec1.size(); i++) {
-    if (abs(vec1[i] - vec2[i]) > tolerance) {
-      std::cerr << "Mismatch at " << i << ' ';
-      if (sizeof(T) == 1) {
-        std::cerr << (int)vec1[i] << " vs " << (int)vec2[i] << std::endl;
-      } else {
-        std::cerr << vec1[i] << " vs " << vec2[i] << std::endl;
-      }
+template <typename T,
+          typename std::enable_if<std::is_integral<T>::value ||
+                                      std::is_floating_point<T>::value,
+                                  int>::type = 0>
+bool cmp_binary_files(const char *testOutFile, const char *referenceFile,
+                      const T tolerance = 0,
+                      const double mismatchRateTolerance = 0,
+                      const int mismatchReportLimit = 9) {
+
+  if (mismatchRateTolerance) {
+    if (mismatchRateTolerance >= 1 || mismatchRateTolerance < 0) {
+      std::cerr << "Tolerated mismatch rate (" << mismatchRateTolerance
+                << ") must be set within [0, 1) range" << std::endl;
       return false;
     }
+
+    std::cerr << "Tolerated mismatch rate set to " << mismatchRateTolerance
+              << std::endl;
   }
-  return true;
+
+  const auto testVec = read_binary_file<T>(testOutFile);
+  const auto referenceVec = read_binary_file<T>(referenceFile);
+
+  if (testVec.size() != referenceVec.size()) {
+    std::cerr << testOutFile << " size is " << testVec.size();
+    std::cerr << " whereas " << referenceFile << " size is "
+              << referenceVec.size() << std::endl;
+    return false;
+  }
+
+  size_t totalMismatches = 0;
+  const size_t size = testVec.size();
+  double maxRelativeDiff = 0;
+  bool status = true;
+  for (size_t i = 0; i < size; i++) {
+    const auto diff = abs(testVec[i] - referenceVec[i]);
+    if (diff > tolerance) {
+      if (!mismatchRateTolerance || (totalMismatches < mismatchReportLimit)) {
+
+        std::cerr << "Mismatch at " << i << ' ';
+        if (sizeof(T) == 1) {
+          std::cerr << (int)testVec[i] << " vs " << (int)referenceVec[i];
+        } else {
+          std::cerr << testVec[i] << " vs " << referenceVec[i];
+        }
+
+        maxRelativeDiff = std::max(maxRelativeDiff,
+                                   static_cast<double>(diff) / referenceVec[i]);
+
+        if (!mismatchRateTolerance) {
+          std::cerr << std::endl;
+          status = false;
+          break;
+        } else {
+          std::cerr << ". Current mismatch rate: " << std::setprecision(8)
+                    << std::fixed << static_cast<double>(totalMismatches) / size
+                    << std::endl;
+        }
+
+      } else if (totalMismatches == mismatchReportLimit) {
+        std::cerr << "Mismatch output stopped." << std::endl;
+      }
+
+      totalMismatches++;
+    }
+  }
+
+  if (totalMismatches) {
+    const auto totalMismatchRate = static_cast<double>(totalMismatches) / size;
+    if (totalMismatchRate > mismatchRateTolerance) {
+      std::cerr << "Mismatch rate of " << totalMismatchRate
+                << " has exceeded the tolerated amount of "
+                << mismatchRateTolerance << std::endl;
+      status = false;
+    }
+
+    std::cerr << "Total mismatch rate is " << totalMismatchRate
+              << " with max relative difference of " << maxRelativeDiff
+              << std::endl;
+  }
+
+  return status;
 }
 
 // dump every element of sequence [first, last) to std::cout

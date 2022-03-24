@@ -36,6 +36,10 @@ using namespace sycl::ext::intel::esimd;
 #define WIDTH 800
 #define HEIGHT 602
 
+#define EMU_TOTAL_MISMATCH_RATE_TOLERANCE                                      \
+  0.0027 // the observed total mismatch rate (due to inherent divergency in host
+         // vs GPU FP computations)
+
 template <typename ACC>
 ESIMD_INLINE void mandelbrot(ACC out_image, int ix, int iy, int crunch,
                              float xOff, float yOff, float scale) {
@@ -94,6 +98,9 @@ int main(int argc, char *argv[]) {
   double kernel_times = 0;
   unsigned num_iters = 10;
 
+  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+          property::queue::enable_profiling{});
+
   try {
     cl::sycl::image<2> imgOutput((unsigned int *)buf, image_channel_order::rgba,
                                  image_channel_type::unsigned_int8,
@@ -106,9 +113,6 @@ int main(int argc, char *argv[]) {
 
     // Number of workitems in a workgroup
     cl::sycl::range<2> LocalRange{1, 1};
-
-    queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
-            property::queue::enable_profiling{});
 
     auto dev = q.get_device();
     auto ctxt = q.get_context();
@@ -164,7 +168,11 @@ int main(int argc, char *argv[]) {
   fclose(dumpfile);
 
   bool passed = true;
-  if (!esimd_test::cmp_binary_files<unsigned char>(out_file, argv[2], 0)) {
+  if (!esimd_test::cmp_binary_files<unsigned char>(
+          out_file, argv[2], 0,
+          q.get_backend() == cl::sycl::backend::ext_intel_esimd_emulator
+              ? EMU_TOTAL_MISMATCH_RATE_TOLERANCE
+              : 0)) {
     std::cerr << out_file << " does not match the reference file " << argv[2]
               << std::endl;
     passed = false;
