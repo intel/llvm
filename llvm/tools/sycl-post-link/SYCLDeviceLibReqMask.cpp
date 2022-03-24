@@ -169,6 +169,7 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_memcpy", DeviceLibExt::cl_intel_devicelib_cstring},
     {"__devicelib_memset", DeviceLibExt::cl_intel_devicelib_cstring},
     {"__devicelib_memcmp", DeviceLibExt::cl_intel_devicelib_cstring},
+    {"__devicelib_erfinvf", DeviceLibExt::cl_intel_devicelib_extmath},
 };
 
 // Each fallback device library corresponds to one bit in "require mask" which
@@ -181,6 +182,7 @@ SYCLDeviceLibFuncMap SDLMap = {
 // fallback-complex:      0x8
 // fallback-complex-fp64: 0x10
 // fallback-cstring:      0x20
+// fallback-cextmath:     0x40
 uint32_t getDeviceLibBits(const std::string &FuncName) {
   auto DeviceLibFuncIter = SDLMap.find(FuncName);
   return ((DeviceLibFuncIter == SDLMap.end())

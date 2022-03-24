@@ -4657,7 +4657,8 @@ class OffloadingActionBuilder final {
           {"libsycl-complex", "libm-fp32"},
           {"libsycl-complex-fp64", "libm-fp64"},
           {"libsycl-cmath", "libm-fp32"},
-          {"libsycl-cmath-fp64", "libm-fp64"}};
+          {"libsycl-cmath-fp64", "libm-fp64"},
+          {"libsycl-cextmath", "libm-fp32"}};
       // For AOT compilation, we need to link sycl_device_fallback_libs as
       // default too.
       const SYCLDeviceLibsList sycl_device_fallback_libs = {
@@ -4666,7 +4667,8 @@ class OffloadingActionBuilder final {
           {"libsycl-fallback-complex", "libm-fp32"},
           {"libsycl-fallback-complex-fp64", "libm-fp64"},
           {"libsycl-fallback-cmath", "libm-fp32"},
-          {"libsycl-fallback-cmath-fp64", "libm-fp64"}};
+          {"libsycl-fallback-cmath-fp64", "libm-fp64"},
+          {"libsycl-fallback-cextmath", "libm-fp32"}};
       // ITT annotation libraries are linked in separately whenever the device
       // code instrumentation is enabled.
       const SYCLDeviceLibsList sycl_device_annotation_libs = {

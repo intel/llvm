@@ -1644,6 +1644,7 @@ extern SYCL_EXTERNAL double atanh(double x);
 extern SYCL_EXTERNAL double frexp(double x, int *exp);
 extern SYCL_EXTERNAL double ldexp(double x, int exp);
 extern SYCL_EXTERNAL double hypot(double x, double y);
+extern SYCL_EXTERNAL float erfinvf(float x);
 
 extern SYCL_EXTERNAL void *memcpy(void *dest, const void *src, size_t n);
 extern SYCL_EXTERNAL void *memset(void *dest, int c, size_t n);

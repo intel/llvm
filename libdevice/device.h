@@ -25,4 +25,8 @@
 #define DEVICE_EXTERN_C DEVICE_EXTERNAL EXTERN_C
 #endif // __SPIR__
 
+#ifdef __LIBDEVICE_HOST_DEVICE__
+#define HOST_DEVICE_EXTERN_C extern "C" __attribute__((weak))
+#endif
+
 #endif // __LIBDEVICE_DEVICE_H__

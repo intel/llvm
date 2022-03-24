@@ -755,6 +755,8 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension) {
     return "libsycl-fallback-complex-fp64.spv";
   case DeviceLibExt::cl_intel_devicelib_cstring:
     return "libsycl-fallback-cstring.spv";
+  case DeviceLibExt::cl_intel_devicelib_extmath:
+    return "libsycl-fallback-cextmath.spv";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
                               PI_INVALID_OPERATION);
@@ -774,6 +776,8 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
     return "cl_intel_devicelib_complex_fp64";
   case DeviceLibExt::cl_intel_devicelib_cstring:
     return "cl_intel_devicelib_cstring";
+  case DeviceLibExt::cl_intel_devicelib_extmath:
+    return "cl_intel_devicelib_extmath";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
                               PI_INVALID_OPERATION);
@@ -940,7 +944,8 @@ static std::vector<RT::PiProgram> getDeviceLibPrograms(
       {DeviceLibExt::cl_intel_devicelib_math_fp64, false},
       {DeviceLibExt::cl_intel_devicelib_complex, false},
       {DeviceLibExt::cl_intel_devicelib_complex_fp64, false},
-      {DeviceLibExt::cl_intel_devicelib_cstring, false}};
+      {DeviceLibExt::cl_intel_devicelib_cstring, false},
+      {DeviceLibExt::cl_intel_devicelib_extmath, false}};
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
