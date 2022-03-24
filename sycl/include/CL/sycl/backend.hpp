@@ -20,6 +20,9 @@
 #if SYCL_EXT_ONEAPI_BACKEND_CUDA
 #include <CL/sycl/detail/backend_traits_cuda.hpp>
 #endif
+#if SYCL_EXT_ONEAPI_BACKEND_HIP
+#include <CL/sycl/detail/backend_traits_hip.hpp>
+#endif
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <CL/sycl/detail/backend_traits_level_zero.hpp>
 #endif
