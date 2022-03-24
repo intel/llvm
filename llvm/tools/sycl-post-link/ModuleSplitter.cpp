@@ -48,7 +48,7 @@ enum EntryPointsGroupScope {
   Scope_Global     // single entry in the map for all kernels
 };
 
-bool hasIndirectFunctionCalls(const Module &M) {
+bool hasIndirectFunctionsOrCalls(const Module &M) {
   for (const auto &F : M.functions()) {
     // There are functions marked with [[intel::device_indirectly_callable]]
     // attribute, because it instructs us to make this function available to the
@@ -93,7 +93,7 @@ EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
       return Scope_Global;
     }
 
-    if (hasIndirectFunctionCalls(M))
+    if (hasIndirectFunctionsOrCalls(M))
       return Scope_Global;
 
     // At the moment, we assume that per-source split is the best way of
@@ -274,8 +274,7 @@ void checkImageScopedDeviceGlobals(const Module &M,
       Workqueue.insert(U);
 
     while (!Workqueue.empty()) {
-      const User *U = Workqueue.back();
-      Workqueue.pop_back();
+      const User *U = Workqueue.pop_back_val();
       if (auto *I = dyn_cast<const Instruction>(U)) {
         auto *F = I->getFunction();
         Workqueue.insert(F);
@@ -296,6 +295,8 @@ void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
   for (const auto *F : ModuleEntryPoints.Functions)
     GVs.insert(F);
 
+  // GVs has SetVector type. This type inserts a value only if it is not yet
+  // present there. So, recursion is not expected here.
   decltype(GVs.size()) Idx = 0;
   while (Idx != GVs.size()) {
     const auto *F = cast<Function>(GVs[Idx++]);

@@ -633,7 +633,7 @@ TableFiles processInputModule(std::unique_ptr<Module> M) {
   // Do we have both Sycl and Esimd code?
   bool SyclAndEsimdCode = (SrcSplit->totalSplits() == 2);
   TableFiles MergedTblFiles;
-  while (!SrcSplit->EOL()) {
+  while (SrcSplit->hasMoreSplits()) {
     module_split::ModuleDesc MDesc = SrcSplit->nextSplit();
     TableFiles ResTblFiles = processOneModule(
         std::move(MDesc.M), SplitEsimd && MDesc.isEsimd(), SyclAndEsimdCode);

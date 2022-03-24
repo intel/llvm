@@ -62,16 +62,16 @@ class ModuleSplitterBase {
 
 protected:
   const EntryPointGroup &nextGroup() {
-    assert(!EOL());
+    assert(hasMoreSplits() && "Reached end of entry point groups list.");
     return *(GroupsIt++);
   }
 
   Module &getInputModule() {
-    assert(InputModule && "Trying to get a module after releasing.");
+    assert(InputModule && "No module to access to.");
     return *InputModule;
   }
   std::unique_ptr<Module> releaseInputModule() {
-    assert(InputModule && "Trying to get a module after releasing.");
+    assert(InputModule && "No module to release.");
     return std::move(InputModule);
   }
 
@@ -79,7 +79,7 @@ public:
   explicit ModuleSplitterBase(std::unique_ptr<Module> M,
                               EntryPointGroupVec GroupVec)
       : InputModule(std::move(M)), Groups(std::move(GroupVec)) {
-    assert(InputModule && "Module is absent");
+    assert(InputModule && "Module is absent.");
     assert(!Groups.empty() && "Entry points groups collection is empty!");
     GroupsIt = Groups.cbegin();
   }
@@ -92,8 +92,8 @@ public:
 
   size_t totalSplits() const { return Groups.size(); }
 
-  // Check that there are no more submodules to split.
-  bool EOL() const { return GroupsIt == Groups.cend(); }
+  // Check that there are still submodules to split.
+  bool hasMoreSplits() const { return GroupsIt != Groups.cend(); }
 };
 
 std::unique_ptr<ModuleSplitterBase>
