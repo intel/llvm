@@ -107,7 +107,7 @@ TEST(GetNative, GetNativeHandle) {
   Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
   Mock.redefine<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
   Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
-        redefinedMemBufferCreate);
+      redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
       redefinedUSMEnqueueMemset);
 
@@ -126,8 +126,8 @@ TEST(GetNative, GetNativeHandle) {
   int Data[1] = {0};
   sycl::buffer<int, 1> Buffer(&Data[0], sycl::range<1>(1));
   Queue.submit([&](sycl::handler &cgh) {
-    auto acc = Buffer.get_access<sycl::access::mode::read_write>(cgh);
-    cgh.single_task<TestKernel>([=]() {});
+    auto Acc = Buffer.get_access<sycl::access::mode::read_write>(cgh);
+    cgh.single_task<TestKernel>([=]() { (void)Acc; });
   });
 
   get_native<backend::opencl>(Context);
@@ -136,7 +136,7 @@ TEST(GetNative, GetNativeHandle) {
   get_native<backend::opencl>(Device);
   get_native<backend::opencl>(Event);
   get_native<backend::opencl>(Buffer);
-  
+
   // Depending on global caches state, piDeviceRetain is called either once or
   // twice, so there'll be 6 or 7 calls.
   ASSERT_EQ(TestCounter, 6 + DeviceRetainCounter - 1)

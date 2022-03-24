@@ -49,34 +49,39 @@ void buffer_impl::destructorNotification(void *UserObj) {
   XPTIRegistry::bufferDestructorNotification(UserObj);
 }
 
-void buffer_impl::addInteropObject(std::vector<pi_native_handle> &Handles) const {
+void buffer_impl::addInteropObject(
+    std::vector<pi_native_handle> &Handles) const {
   if (MOpenCLInterop) {
-    if (std::find(Handles.begin(), Handles.end(), pi::cast<pi_native_handle>(MInteropMemObject)) == Handles.end()) {
+    if (std::find(Handles.begin(), Handles.end(),
+                  pi::cast<pi_native_handle>(MInteropMemObject)) ==
+        Handles.end()) {
       const plugin &Plugin = getPlugin();
-      Plugin.call<PiApiKind::piMemRetain>(pi::cast<RT::PiMem>(MInteropMemObject));
+      Plugin.call<PiApiKind::piMemRetain>(
+          pi::cast<RT::PiMem>(MInteropMemObject));
       Handles.push_back(pi::cast<pi_native_handle>(MInteropMemObject));
     }
   }
 }
 
-std::vector<pi_native_handle> buffer_impl::getNativeVector(backend BackendName) const {
+std::vector<pi_native_handle>
+buffer_impl::getNativeVector(backend BackendName) const {
   std::vector<pi_native_handle> Handles{};
   if (!MRecord) {
     addInteropObject(Handles);
     return Handles;
   }
-  //Handles.reserve(MRecord->MAllocaCommands.size());
 
   for (auto &Cmd : MRecord->MAllocaCommands) {
     RT::PiMem NativeMem = pi::cast<RT::PiMem>(Cmd->getMemAllocation());
     auto Ctx = Cmd->getWorkerContext();
     auto Platform = Ctx->getPlatformImpl();
-    // If Host Shared Memory is not supported then there is alloca for host that doesn't have platform
+    // If Host Shared Memory is not supported then there is alloca for host that
+    // doesn't have platform
     if (!Platform)
       continue;
     auto Plugin = Platform->getPlugin();
 
-    if (Plugin.getBackend() != BackendName) 
+    if (Plugin.getBackend() != BackendName)
       continue;
     if (Plugin.getBackend() == backend::opencl) {
       Plugin.call<PiApiKind::piMemRetain>(NativeMem);

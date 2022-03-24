@@ -15,7 +15,6 @@
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <CL/sycl/backend_types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -23,7 +22,6 @@ namespace sycl {
 class handler;
 class queue;
 template <int dimensions> class range;
-template<backend Backend> struct BufferInterop;
 
 namespace detail {
 template <typename T, int Dimensions, typename AllocatorT>
@@ -31,6 +29,8 @@ buffer<T, Dimensions, AllocatorT, void>
 make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt) {
   return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, Evt);
 }
+
+template <backend Backend> struct BufferInterop;
 } // namespace detail
 
 /// Defines a shared array that can be used by kernels in queues.
@@ -612,31 +612,16 @@ private:
     return newRange[1] == parentRange[1] && newRange[2] == parentRange[2];
   }
 
-  template <backend BackendName, typename DataT, int Dimensions, typename Allocator>
+  template <backend BackendName, typename DataT, int Dimensions,
+            typename Allocator>
   friend auto get_native(const buffer<DataT, Dimensions, Allocator> &Obj)
       -> backend_return_t<BackendName, buffer<DataT, Dimensions, Allocator>>;
 
   template <backend BackendName>
-  backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>> get_native() const {
+  backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>>
+  get_native() const {
     auto NativeHandles = impl->getNativeVector(BackendName);
-    return BufferInterop<BackendName>::GetNativeObjs(NativeHandles);
-    //backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>> ReturnValue;
-    //ReturnValue = BufferInterop<BackendName>::GetNativeObjs(NativeHandles);
-    // if (BackendName == backend::ext_oneapi_cuda) {
-    //   if (NativeHandles.size() == 0)
-    //     NativeHandles.push_back(0);
-    //   return detail::pi::cast<backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>>>(NativeHandles[0]);
-    // }
-
-    // //if (NativeHandles.size() == 0)
-    //   //return ReturnValue;
-    // //ReturnValue.reserve(NativeHandles.size());
-
-    // for (auto &Obj : NativeHandles) {
-    //   ReturnValue.push_back(
-    //       detail::pi::cast<typename decltype(ReturnValue)::value_type>(Obj));
-    // }
-    // return ReturnValue;
+    return detail::BufferInterop<BackendName>::GetNativeObjs(NativeHandles);
   }
 };
 
