@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This pass brings __builtin_invoke_simd intrinsic call the the form consumable
+// This pass brings __builtin_invoke_simd intrinsic call to the form consumable
 // by the back ends:
 // - determines the "invokee" (call target) - actual function address link-time
 //   constant (it can be represented as an SSA value in the input IR)

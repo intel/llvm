@@ -147,7 +147,7 @@ void getPossibleStoredVals(Value *Addr, ValueSetImpl &Vals) {
 
       if (auto *LI = dyn_cast<LoadInst>(V)) {
         // A value loaded from another address is stored at this address -
-        // recurse into the other addresss
+        // recurse into the other address
         getPossibleStoredVals(LI->getPointerOperand(), Vals);
       } else {
         Vals.insert(V);
