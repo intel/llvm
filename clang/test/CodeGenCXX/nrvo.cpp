@@ -1117,30 +1117,37 @@ X test15(bool b) { // http://wg21.link/p2025r2#ex-15
 // CHECK-EH-11-NEXT:  entry:
 // CHECK-EH-11-NEXT:    [[X:%.*]] = alloca [[CLASS_X:%.*]], align 1
 // CHECK-EH-11-NEXT:    [[AGG_TMP:%.*]] = alloca [[CLASS_X]], align 1
+// CHECK-EH-11-NEXT:    [[REF_TMP:%.*]] = alloca [[CLASS_ANON:%.*]], align 4
 // CHECK-EH-11-NEXT:    [[TMP0:%.*]] = getelementptr inbounds [[CLASS_X]], %class.X* [[X]], i32 0, i32 0
 // CHECK-EH-11-NEXT:    call void @llvm.lifetime.start.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
 // CHECK-EH-11-NEXT:    call void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X]])
-// CHECK-EH-11-NEXT:    invoke void @_ZN1XC1ERKS_(%class.X* noundef nonnull align 1 dereferenceable(1) [[AGG_TMP]], %class.X* noundef nonnull align 1 dereferenceable(1) [[X]])
+// CHECK-EH-11-NEXT:    [[TMP1:%.*]] = bitcast %class.anon* [[REF_TMP]] to i8*
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.start.p0i8(i64 4, i8* nonnull [[TMP1]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    [[TMP2:%.*]] = getelementptr inbounds [[CLASS_ANON]], %class.anon* [[REF_TMP]], i32 0, i32 0
+// CHECK-EH-11-NEXT:    store %class.X* [[X]], %class.X** [[TMP2]], align 4, !tbaa [[TBAA3:![0-9]+]]
+// CHECK-EH-11-NEXT:    invoke fastcc void @"_ZZ6test16vENK3$_0clEv"(%class.X* nonnull sret([[CLASS_X]]) align 1 [[AGG_TMP]], %class.anon* noundef nonnull align 4 dereferenceable(4) [[REF_TMP]])
 // CHECK-EH-11-NEXT:    to label [[INVOKE_CONT:%.*]] unwind label [[LPAD:%.*]]
 // CHECK-EH-11:       invoke.cont:
 // CHECK-EH-11-NEXT:    invoke void @_Z8ConsumeX1X(%class.X* noundef nonnull [[AGG_TMP]])
 // CHECK-EH-11-NEXT:    to label [[INVOKE_CONT2:%.*]] unwind label [[LPAD1:%.*]]
 // CHECK-EH-11:       invoke.cont2:
 // CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[AGG_TMP]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 4, i8* nonnull [[TMP1]]) #[[ATTR7]]
 // CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X]]) #[[ATTR7]]
 // CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
 // CHECK-EH-11-NEXT:    ret void
 // CHECK-EH-11:       lpad:
-// CHECK-EH-11-NEXT:    [[TMP1:%.*]] = landingpad { i8*, i32 }
+// CHECK-EH-11-NEXT:    [[TMP3:%.*]] = landingpad { i8*, i32 }
 // CHECK-EH-11-NEXT:    cleanup
 // CHECK-EH-11-NEXT:    br label [[EHCLEANUP:%.*]]
 // CHECK-EH-11:       lpad1:
-// CHECK-EH-11-NEXT:    [[TMP2:%.*]] = landingpad { i8*, i32 }
+// CHECK-EH-11-NEXT:    [[TMP4:%.*]] = landingpad { i8*, i32 }
 // CHECK-EH-11-NEXT:    cleanup
 // CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[AGG_TMP]]) #[[ATTR7]]
 // CHECK-EH-11-NEXT:    br label [[EHCLEANUP]]
 // CHECK-EH-11:       ehcleanup:
-// CHECK-EH-11-NEXT:    [[DOTPN:%.*]] = phi { i8*, i32 } [ [[TMP2]], [[LPAD1]] ], [ [[TMP1]], [[LPAD]] ]
+// CHECK-EH-11-NEXT:    [[DOTPN:%.*]] = phi { i8*, i32 } [ [[TMP4]], [[LPAD1]] ], [ [[TMP3]], [[LPAD]] ]
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 4, i8* nonnull [[TMP1]]) #[[ATTR7]]
 // CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X]]) #[[ATTR7]]
 // CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
 // CHECK-EH-11-NEXT:    resume { i8*, i32 } [[DOTPN]]
@@ -1505,7 +1512,7 @@ X test18(int i) { // http://wg21.link/p2025r2#ex-11
 // CHECK-EH-11-NEXT:    call void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[AGG_RESULT:%.*]])
 // CHECK-EH-11-NEXT:    [[TMP0:%.*]] = getelementptr inbounds [[CLASS_X]], %class.X* [[L]], i32 0, i32 0
 // CHECK-EH-11-NEXT:    call void @llvm.lifetime.start.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
-// CHECK-EH-11-NEXT:    invoke void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[L]])
+// CHECK-EH-11-NEXT:    invoke fastcc void @"_ZZ6test19vENK3$_1clEv"(%class.X* nonnull sret([[CLASS_X]]) align 1 [[L]])
 // CHECK-EH-11-NEXT:    to label [[INVOKE_CONT:%.*]] unwind label [[LPAD:%.*]]
 // CHECK-EH-11:       invoke.cont:
 // CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[L]]) #[[ATTR7]]
@@ -1542,44 +1549,51 @@ X test20() { // http://wg21.link/p2025r2#ex-18
 
 // CHECK-EH-11-LABEL: @_Z17test20instantiatev(
 // CHECK-EH-11-NEXT:  entry:
-// CHECK-EH-11-NEXT:    [[X_I2:%.*]] = alloca [[CLASS_X:%.*]], align 1
-// CHECK-EH-11-NEXT:    [[X_I:%.*]] = alloca [[CLASS_X]], align 1
-// CHECK-EH-11-NEXT:    [[AGG_TMP_ENSURED:%.*]] = alloca [[CLASS_X]], align 1
+// CHECK-EH-11-NEXT:    [[AGG_TMP_ENSURED:%.*]] = alloca [[CLASS_X:%.*]], align 1
 // CHECK-EH-11-NEXT:    [[AGG_TMP_ENSURED1:%.*]] = alloca [[CLASS_X]], align 1
-// CHECK-EH-11-NEXT:    [[TMP0:%.*]] = getelementptr inbounds [[CLASS_X]], %class.X* [[X_I]], i32 0, i32 0
-// CHECK-EH-11-NEXT:    call void @llvm.lifetime.start.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]], !noalias !6
-// CHECK-EH-11-NEXT:    call void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]), !noalias !6
-// CHECK-EH-11-NEXT:    invoke void @_ZN1XC1ERKS_(%class.X* noundef nonnull align 1 dereferenceable(1) [[AGG_TMP_ENSURED]], %class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]])
-// CHECK-EH-11-NEXT:    to label [[_Z6TEST20ILB1EE1XV_EXIT:%.*]] unwind label [[LPAD_I:%.*]]
-// CHECK-EH-11:       common.resume:
-// CHECK-EH-11-NEXT:    [[COMMON_RESUME_OP:%.*]] = phi { i8*, i32 } [ [[TMP1:%.*]], [[LPAD_I]] ], [ [[TMP3:%.*]], [[LPAD_I3:%.*]] ]
-// CHECK-EH-11-NEXT:    resume { i8*, i32 } [[COMMON_RESUME_OP]]
-// CHECK-EH-11:       lpad.i:
-// CHECK-EH-11-NEXT:    [[TMP1]] = landingpad { i8*, i32 }
-// CHECK-EH-11-NEXT:    cleanup
-// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]) #[[ATTR7]]
-// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]], !noalias !6
-// CHECK-EH-11-NEXT:    br label [[COMMON_RESUME:%.*]]
-// CHECK-EH-11:       _Z6test20ILb1EE1Xv.exit:
-// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]) #[[ATTR7]]
-// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]], !noalias !6
+// CHECK-EH-11-NEXT:    call void @_Z6test20ILb1EE1Xv(%class.X* nonnull sret([[CLASS_X]]) align 1 [[AGG_TMP_ENSURED]])
 // CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[AGG_TMP_ENSURED]]) #[[ATTR7]]
-// CHECK-EH-11-NEXT:    [[TMP2:%.*]] = getelementptr inbounds [[CLASS_X]], %class.X* [[X_I2]], i32 0, i32 0
-// CHECK-EH-11-NEXT:    call void @llvm.lifetime.start.p0i8(i64 1, i8* nonnull [[TMP2]]) #[[ATTR7]], !noalias !9
-// CHECK-EH-11-NEXT:    call void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I2]]), !noalias !9
-// CHECK-EH-11-NEXT:    invoke void @_ZN1XC1ERKS_(%class.X* noundef nonnull align 1 dereferenceable(1) [[AGG_TMP_ENSURED1]], %class.X* noundef nonnull align 1 dereferenceable(1) [[X_I2]])
-// CHECK-EH-11-NEXT:    to label [[_Z6TEST20ILB0EE1XV_EXIT:%.*]] unwind label [[LPAD_I3]]
-// CHECK-EH-11:       lpad.i3:
-// CHECK-EH-11-NEXT:    [[TMP3]] = landingpad { i8*, i32 }
-// CHECK-EH-11-NEXT:    cleanup
-// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I2]]) #[[ATTR7]]
-// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP2]]) #[[ATTR7]], !noalias !9
-// CHECK-EH-11-NEXT:    br label [[COMMON_RESUME]]
-// CHECK-EH-11:       _Z6test20ILb0EE1Xv.exit:
-// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I2]]) #[[ATTR7]]
-// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP2]]) #[[ATTR7]], !noalias !9
+// CHECK-EH-11-NEXT:    call void @_Z6test20ILb0EE1Xv(%class.X* nonnull sret([[CLASS_X]]) align 1 [[AGG_TMP_ENSURED1]])
 // CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[AGG_TMP_ENSURED1]]) #[[ATTR7]]
 // CHECK-EH-11-NEXT:    ret void
+
+// CHECK-EH-11: @_Z6test20ILb1EE1Xv
+// CHECK-EH-11-NEXT:  entry:
+// CHECK-EH-11-NEXT:    [[X_I:%.*]] = alloca [[CLASS_X:%.*]], align 1
+// CHECK-EH-11-NEXT:    [[TMP0:%.*]] = getelementptr inbounds [[CLASS_X]], %class.X* [[X_I]], i32 0, i32 0
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.start.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]])
+// CHECK-EH-11-NEXT:    invoke void @_ZN1XC1ERKS_(%class.X* noundef nonnull align 1 dereferenceable(1) %agg.result, %class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]])
+// CHECK-EH-11-NEXT:    to label %[[INVOKE_CONT:.*]] unwind label %[[LPAD:.*]]
+// CHECK-EH-11:       [[INVOKE_CONT]]:
+// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    ret void
+// CHECK-EH-11:       [[LPAD]]:
+// CHECK-EH-11-NEXT:    [[TMP1:%.*]] = landingpad { i8*, i32 }
+// CHECK-EH-11-NEXT:    cleanup
+// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    resume { i8*, i32 } [[TMP1]]
+
+// CHECK-EH-11: @_Z6test20ILb0EE1Xv
+// CHECK-EH-11-NEXT:  entry:
+// CHECK-EH-11-NEXT:    [[X_I:%.*]] = alloca [[CLASS_X:%.*]], align 1
+// CHECK-EH-11-NEXT:    [[TMP0:%.*]] = getelementptr inbounds [[CLASS_X]], %class.X* [[X_I]], i32 0, i32 0
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.start.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]])
+// CHECK-EH-11-NEXT:    invoke void @_ZN1XC1ERKS_(%class.X* noundef nonnull align 1 dereferenceable(1) %agg.result, %class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]])
+// CHECK-EH-11-NEXT:    to label %[[INVOKE_CONT:.*]] unwind label %[[LPAD:.*]]
+// CHECK-EH-11:       [[INVOKE_CONT]]:
+// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    ret void
+// CHECK-EH-11:       [[LPAD]]:
+// CHECK-EH-11-NEXT:    [[TMP1:%.*]] = landingpad { i8*, i32 }
+// CHECK-EH-11-NEXT:    cleanup
+// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    resume { i8*, i32 } [[TMP1]]
 //
 void test20instantiate() {
   test20<true>();
@@ -1778,44 +1792,50 @@ X test25() {
 
 // CHECK-EH-11-LABEL: @_Z17test25instantiatev(
 // CHECK-EH-11-NEXT:  entry:
-// CHECK-EH-11-NEXT:    [[X_I2:%.*]] = alloca [[CLASS_X:%.*]], align 1
-// CHECK-EH-11-NEXT:    [[X_I:%.*]] = alloca [[CLASS_X]], align 1
-// CHECK-EH-11-NEXT:    [[AGG_TMP_ENSURED:%.*]] = alloca [[CLASS_X]], align 1
+// CHECK-EH-11-NEXT:    [[AGG_TMP_ENSURED:%.*]] = alloca [[CLASS_X:%.*]], align 1
 // CHECK-EH-11-NEXT:    [[AGG_TMP_ENSURED1:%.*]] = alloca [[CLASS_X]], align 1
-// CHECK-EH-11-NEXT:    [[TMP0:%.*]] = getelementptr inbounds [[CLASS_X]], %class.X* [[X_I]], i32 0, i32 0
-// CHECK-EH-11-NEXT:    call void @llvm.lifetime.start.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]], !noalias !12
-// CHECK-EH-11-NEXT:    call void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]), !noalias !12
-// CHECK-EH-11-NEXT:    invoke void @_ZN1XC1ERKS_(%class.X* noundef nonnull align 1 dereferenceable(1) [[AGG_TMP_ENSURED]], %class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]])
-// CHECK-EH-11-NEXT:    to label [[_Z6TEST25ILB1EE1XV_EXIT:%.*]] unwind label [[LPAD_I:%.*]]
-// CHECK-EH-11:       common.resume:
-// CHECK-EH-11-NEXT:    [[COMMON_RESUME_OP:%.*]] = phi { i8*, i32 } [ [[TMP1:%.*]], [[LPAD_I]] ], [ [[TMP3:%.*]], [[LPAD_I3:%.*]] ]
-// CHECK-EH-11-NEXT:    resume { i8*, i32 } [[COMMON_RESUME_OP]]
-// CHECK-EH-11:       lpad.i:
-// CHECK-EH-11-NEXT:    [[TMP1]] = landingpad { i8*, i32 }
-// CHECK-EH-11-NEXT:    cleanup
-// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]) #[[ATTR7]]
-// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]], !noalias !12
-// CHECK-EH-11-NEXT:    br label [[COMMON_RESUME:%.*]]
-// CHECK-EH-11:       _Z6test25ILb1EE1Xv.exit:
-// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]) #[[ATTR7]]
-// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]], !noalias !12
+// CHECK-EH-11-NEXT:    call void @_Z6test25ILb1EE1Xv(%class.X* nonnull sret([[CLASS_X]]) align 1 [[AGG_TMP_ENSURED]])
 // CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[AGG_TMP_ENSURED]]) #[[ATTR7]]
-// CHECK-EH-11-NEXT:    [[TMP2:%.*]] = getelementptr inbounds [[CLASS_X]], %class.X* [[X_I2]], i32 0, i32 0
-// CHECK-EH-11-NEXT:    call void @llvm.lifetime.start.p0i8(i64 1, i8* nonnull [[TMP2]]) #[[ATTR7]], !noalias !15
-// CHECK-EH-11-NEXT:    call void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I2]]), !noalias !15
-// CHECK-EH-11-NEXT:    invoke void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[AGG_TMP_ENSURED1]])
-// CHECK-EH-11-NEXT:    to label [[_Z6TEST25ILB0EE1XV_EXIT:%.*]] unwind label [[LPAD_I3]]
-// CHECK-EH-11:       lpad.i3:
-// CHECK-EH-11-NEXT:    [[TMP3]] = landingpad { i8*, i32 }
-// CHECK-EH-11-NEXT:    cleanup
-// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I2]]) #[[ATTR7]]
-// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP2]]) #[[ATTR7]], !noalias !15
-// CHECK-EH-11-NEXT:    br label [[COMMON_RESUME]]
-// CHECK-EH-11:       _Z6test25ILb0EE1Xv.exit:
-// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I2]]) #[[ATTR7]]
-// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP2]]) #[[ATTR7]], !noalias !15
+// CHECK-EH-11-NEXT:    call void @_Z6test25ILb0EE1Xv(%class.X* nonnull sret([[CLASS_X]]) align 1 [[AGG_TMP_ENSURED1]])
 // CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[AGG_TMP_ENSURED1]]) #[[ATTR7]]
+//
+// CHECK-EH-11: @_Z6test25ILb1EE1Xv
+// CHECK-EH-11-NEXT:  entry:
+// CHECK-EH-11-NEXT:    [[X_I:%.*]] = alloca [[CLASS_X:%.*]], align 1
+// CHECK-EH-11-NEXT:    [[TMP0:%.*]] = getelementptr inbounds [[CLASS_X]], %class.X* [[X_I]], i32 0, i32 0
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.start.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]])
+// CHECK-EH-11-NEXT:    invoke void @_ZN1XC1ERKS_(%class.X* noundef nonnull align 1 dereferenceable(1) %agg.result, %class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]])
+// CHECK-EH-11-NEXT:    to label %[[INVOKE_CONT:.*]] unwind label %[[LPAD:.*]]
+// CHECK-EH-11:       [[INVOKE_CONT]]:
+// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
 // CHECK-EH-11-NEXT:    ret void
+// CHECK-EH-11:       [[LPAD]]:
+// CHECK-EH-11-NEXT:    [[TMP1:%.*]] = landingpad { i8*, i32 }
+// CHECK-EH-11-NEXT:    cleanup
+// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    resume { i8*, i32 } [[TMP1]]
+//
+// CHECK-EH-11: @_Z6test25ILb0EE1Xv
+// CHECK-EH-11-NEXT:  entry:
+// CHECK-EH-11-NEXT:    [[X_I:%.*]] = alloca [[CLASS_X:%.*]], align 1
+// CHECK-EH-11-NEXT:    [[TMP0:%.*]] = getelementptr inbounds [[CLASS_X]], %class.X* [[X_I]], i32 0, i32 0
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.start.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]])
+// CHECK-EH-11-NEXT:    invoke void @_ZN1XC1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) %agg.result)
+// CHECK-EH-11-NEXT:    to label %[[INVOKE_CONT:.*]] unwind label %[[LPAD:.*]]
+// CHECK-EH-11:       [[INVOKE_CONT]]:
+// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    ret void
+// CHECK-EH-11:       [[LPAD]]:
+// CHECK-EH-11-NEXT:    [[TMP1:%.*]] = landingpad { i8*, i32 }
+// CHECK-EH-11-NEXT:    cleanup
+// CHECK-EH-11-NEXT:    call void @_ZN1XD1Ev(%class.X* noundef nonnull align 1 dereferenceable(1) [[X_I]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[TMP0]]) #[[ATTR7]]
+// CHECK-EH-11-NEXT:    resume { i8*, i32 } [[TMP1]]
 //
 void test25instantiate() {
   test25<true>();
