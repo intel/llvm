@@ -1505,6 +1505,7 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Stmt::OMPGenericLoopDirectiveClass:
   case Stmt::OMPTeamsGenericLoopDirectiveClass:
   case Stmt::OMPTargetTeamsGenericLoopDirectiveClass:
+  case Stmt::OMPParallelGenericLoopDirectiveClass:
   case Stmt::ReturnStmtClass:
   case Stmt::SEHExceptStmtClass:
   case Stmt::SEHFinallyStmtClass:

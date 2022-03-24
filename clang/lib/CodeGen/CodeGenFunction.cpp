@@ -2705,7 +2705,7 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
     for (const auto *I : D->specific_attrs<AnnotateAttr>())
       V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation(), I);
 
-    return Address::deprecated(V, Addr.getAlignment());
+    return Address(V, Addr.getElementType(), Addr.getAlignment());
   }
 
   llvm::Function *F =
@@ -2738,7 +2738,7 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
         CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
     V = EmitAnnotationCall(F, V, AnnotStr, Location);
 
-    return Address::deprecated(V, Addr.getAlignment());
+    return Address(V, Addr.getElementType(), Addr.getAlignment());
   }
 
   unsigned AS = VTy->getPointerAddressSpace();
@@ -2749,7 +2749,7 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
   V = EmitAnnotationCall(F, V, AnnotStr, Location);
   V = Builder.CreateBitCast(V, VTy);
 
-  return Address::deprecated(V, Addr.getAlignment());
+  return Address(V, Addr.getElementType(), Addr.getAlignment());
 }
 
 CodeGenFunction::CGCapturedStmtInfo::~CGCapturedStmtInfo() { }
