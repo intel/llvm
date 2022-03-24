@@ -419,9 +419,11 @@ void event_impl::cleanDepEventsThroughOneLevel() {
   for (auto &Event : MPreparedHostDepsEvents) {
     Event->cleanupDependencyEvents();
   }
+}
 
 void event_impl::attachEmptyCommand(void *Cmd) {
-  // To do: use MCommand->getType() == HOST_TASK after fix for command type set
+  // To do: use MCommand->getType() == HOST_TASK after fix for command type
+  // set
   assert(MCommand && static_cast<Command *>(MCommand)->getType() ==
                          Command::CommandType::RUN_CG);
   assert((static_cast<ExecCGCommand *>(MCommand))->getCG().getType() ==
@@ -435,7 +437,6 @@ void event_impl::attachEmptyCommand(void *Cmd) {
          "Command type is not acceptable");
 
   MEmptyCmdEvent = TypedCmd->getEvent();
-
 }
 
 } // namespace detail
