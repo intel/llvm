@@ -253,14 +253,26 @@ add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-hostdevice-cextmath.${lib-su
                    DEPENDS sycl-compiler
                    VERBATIM)
 
+set(devicelib-host-obj
+  ${obj_binary_dir}/libsycl-hostdevice-cextmath.${lib-suffix}
+)
+
+add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-host-devicelib.a
+                   COMMAND ar rcs
+                           ${obj_binary_dir}/libsycl-host-devicelib.a
+                           ${obj_binary_dir}/libsycl-hostdevice-cextmath.${lib-suffix}
+                   MAIN_DEPENDENCY ${devicelib-host-obj}
+                   DEPENDS sycl-compiler
+                   VERBATIM)
+
 set(devicelib-obj-itt-files
   ${obj_binary_dir}/libsycl-itt-stubs.${lib-suffix}
   ${obj_binary_dir}/libsycl-itt-compiler-wrappers.${lib-suffix}
   ${obj_binary_dir}/libsycl-itt-user-wrappers.${lib-suffix}
   )
 
-set(devicelib-hostdevice-obj
-  ${obj_binary_dir}/libsycl-hostdevice-cextmath.${lib-suffix}
+set(devicelib-obj-cextmath
+  ${obj_binary_dir}/libsycl-cextmath.${lib-suffix}
 )
 
 add_custom_target(libsycldevice-obj DEPENDS
@@ -268,8 +280,8 @@ add_custom_target(libsycldevice-obj DEPENDS
   ${devicelib-obj-complex}
   ${devicelib-obj-complex-fp64}
   ${devicelib-obj-cmath}
-  ${devicelib-obj-cmath-fp64}
   ${devicelib-obj-cextmath}
+  ${devicelib-obj-cmath-fp64}
   ${devicelib-obj-itt-files}
 )
 add_custom_target(libsycldevice-spv DEPENDS
@@ -291,14 +303,14 @@ add_custom_target(libsycldevice-fallback-obj DEPENDS
   ${obj_binary_dir}/libsycl-fallback-cextmath.${lib-suffix}
 )
 
-add_custom_target(libsycldevice-hostdevice-obj DEPENDS
-  ${obj_binary_dir}/libsycl-hostdevice-cextmath.${lib-suffix}
+add_custom_target(libsycldevice-host DEPENDS
+  ${obj_binary_dir}/libsycl-host-devicelib.a
 )
 
 add_custom_target(libsycldevice DEPENDS
   libsycldevice-obj
   libsycldevice-fallback-obj
-  libsycldevice-hostdevice-obj
+  libsycldevice-host
   libsycldevice-spv)
 
 # Place device libraries near the libsycl.so library in an install
@@ -322,10 +334,10 @@ install(FILES ${devicelib-obj-file}
               ${obj_binary_dir}/libsycl-fallback-cmath.${lib-suffix}
               ${devicelib-obj-cmath-fp64}
               ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
-              ${devicelib-obj-cextmath}
               ${obj_binary_dir}/libsycl-fallback-cextmath.${lib-suffix}
               ${devicelib-obj-itt-files}
-              ${devicelib-hostdevice-obj}
+              ${devicelib-obj-cextmath}
+              ${obj_binary_dir}/libsycl-host-devicelib.a
         DESTINATION ${install_dest_lib}
         COMPONENT libsycldevice)
 
