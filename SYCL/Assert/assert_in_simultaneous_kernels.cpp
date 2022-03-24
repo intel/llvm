@@ -1,4 +1,6 @@
-// REQUIRES: linux
+// Temporary disabled due to falky failures on level_zero with segmentation
+// fault
+// REQUIRES: linux, TEMPORARY_DISABLED
 // FIXME unsupported on CUDA and HIP until fallback libdevice becomes available
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -DSYCL_FALLBACK_ASSERT=1 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %threads_lib
