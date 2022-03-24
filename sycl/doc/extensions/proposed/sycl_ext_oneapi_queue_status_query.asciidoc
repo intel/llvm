@@ -83,11 +83,14 @@ supports.
 This extension adds the following new member functions to the SYCL `queue` class.
 ```
 namespace sycl {
-namespace queue {
- bool empty() const;
- size_t size() const;
- std::vector<event> get_wait_list() const;
-}}
+
+class queue {
+ bool ext_oneapi_empty() const;
+ size_t ext_oneapi_size() const;
+ std::vector<event> ext_oneapi_get_wait_list() const;
+};
+
+} // namespace sycl
 ```
 
 The semantics of the new functions are: 
