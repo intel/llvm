@@ -1927,6 +1927,55 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
 ///
 /// Plugin
 ///
+///
+// Host Pipes
+///
+
+/// Read from pipe of a given name
+///
+/// @param queue a valid host command-queue in which the read / write command
+/// will be queued. command_queue and program must be created with the same
+/// OpenCL context.
+/// @param program a program object with a successfully built executable.
+/// @param pipe_symbol the name of the program scope pipe global variable.
+/// @param blocking indicate if the read and write operations are blocking or
+/// non-blocking
+/// @param ptr a pointer to buffer in host memory that will hold resulting data
+/// from pipe
+/// @param size size of the memory region to read or write, in bytes.
+/// @param num_events_in_waitlist number of events in the wait list.
+/// @param events_waitlist specify events that need to complete before this
+/// particular command can be executed.
+/// @param event returns an event object that identifies this read / write
+/// command and can be used to query or queue a wait for this command to
+/// complete.
+__SYCL_EXPORT pi_result piextEnqueueReadHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event);
+
+/// Write to pipe of a given name
+///
+/// @param queue a valid host command-queue in which the read / write command
+/// will be queued. command_queue and program must be created with the same
+/// OpenCL context.
+/// @param program a program object with a successfully built executable.
+/// @param pipe_symbol the name of the program scope pipe global variable.
+/// @param blocking indicate if the read and write operations are blocking or
+/// non-blocking
+/// @param ptr a pointer to buffer in host memory that holds data to be written
+/// to host pipe.
+/// @param size size of the memory region to read or write, in bytes.
+/// @param num_events_in_waitlist number of events in the wait list.
+/// @param events_waitlist specify events that need to complete before this
+/// particular command can be executed.
+/// @param event returns an event object that identifies this read / write
+/// command and can be used to query or queue a wait for this command to
+/// complete.
+__SYCL_EXPORT pi_result piextEnqueueWriteHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event);
 
 /// API to get Plugin internal data, opaque to SYCL RT. Some devices whose
 /// device code is compiled by the host compiler (e.g. CPU emulators) may use it

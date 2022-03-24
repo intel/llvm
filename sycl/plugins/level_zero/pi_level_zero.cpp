@@ -7933,6 +7933,70 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
       PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ, Queue, Dst, BlockingRead,
       Count, pi_cast<char *>(GlobalVarPtr) + Offset, NumEventsInWaitList,
       EventsWaitList, Event, PreferCopyEngine);
+/// API for Read from host pipe.
+///
+/// \param Queue is the queue
+/// \param Program is the program containing the device variable
+/// \param PipeSymbol is the unique identifier for the device variable
+/// \param Blocking is true if the write should block
+/// \param Ptr is a pointer to where the data will be copied to
+/// \param Size is size of the data that is read/written from/to pipe
+/// \param NumEventsInWaitList is a number of events in the wait list
+/// \param EventWaitList is the wait list
+/// \param Event is the resulting event
+pi_result piextEnqueueReadHostPipe(pi_queue Queue, pi_program Program,
+                                   const char *PipeSymbol, pi_bool Blocking,
+                                   void *Ptr, size_t Size,
+                                   pi_uint32 NumEventsInWaitList,
+                                   const pi_event *EventsWaitList,
+                                   pi_event *Event) {
+  (void)Queue;
+  (void)Program;
+  (void)PipeSymbol;
+  (void)Blocking;
+  (void)Ptr;
+  (void)Size;
+  (void)NumEventsInWaitList;
+  (void)EventsWaitList;
+  (void)Event;
+
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  die("piextEnqueueReadHostPipe: not implemented");
+  return {};
+}
+
+/// API for write to pipe of a given name.
+///
+/// \param Queue is the queue
+/// \param Program is the program containing the device variable
+/// \param PipeSymbol is the unique identifier for the device variable
+/// \param Blocking is true if the write should block
+/// \param Ptr is a pointer to where the data must be copied from
+/// \param Size is size of the data that is read/written from/to pipe
+/// \param NumEventsInWaitList is a number of events in the wait list
+/// \param EventWaitList is the wait list
+/// \param Event is the resulting event
+pi_result piextEnqueueWriteHostPipe(pi_queue Queue, pi_program Program,
+                                    const char *PipeSymbol, pi_bool Blocking,
+                                    void *Ptr, size_t Size,
+                                    pi_uint32 NumEventsInWaitList,
+                                    const pi_event *EventsWaitList,
+                                    pi_event *Event) {
+  (void)Queue;
+  (void)Program;
+  (void)PipeSymbol;
+  (void)Blocking;
+  (void)Ptr;
+  (void)Size;
+  (void)NumEventsInWaitList;
+  (void)EventsWaitList;
+  (void)Event;
+
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  die("piextEnqueueWriteHostPipe: not implemented");
+  return {};
 }
 
 pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
