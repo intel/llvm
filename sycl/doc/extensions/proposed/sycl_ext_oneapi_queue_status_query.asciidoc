@@ -1,4 +1,4 @@
-= sycl_ext_intel_queue_status_querry.asciidoc
+= sycl_ext_oneapi_queue_status_query
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
