@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass goes through input module's function list to detect all SYCL
+// This function goes through input module's function list to detect all SYCL
 // devicelib functions invoked. Each devicelib function invoked is included in
 // one 'fallback' SPIR-V library loaded by SYCL runtime. After scanning all
 // functions in input module, a mask telling which SPIR-V libraries are needed
@@ -192,13 +192,15 @@ uint32_t getDeviceLibBits(const std::string &FuncName) {
                             DeviceLibExt::cl_intel_devicelib_assert)));
 }
 
+} // namespace
+
 // For each device image module, we go through all functions which meets
 // 1. The function name has prefix "__devicelib_"
 // 2. The function is declaration which means it doesn't have function body
 // And we don't expect non-spirv functions with "__devicelib_" prefix.
-uint32_t getModuleDeviceLibReqMask(const Module &M) {
+uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
   // Device libraries will be enabled only for spir-v module.
-  if (!llvm::Triple(M.getTargetTriple()).isSPIR())
+  if (!Triple(M.getTargetTriple()).isSPIR())
     return 0;
   uint32_t ReqMask = 0;
   for (const Function &SF : M) {
@@ -209,11 +211,4 @@ uint32_t getModuleDeviceLibReqMask(const Module &M) {
     }
   }
   return ReqMask;
-}
-} // namespace
-
-char SYCLDeviceLibReqMaskPass::ID = 0;
-bool SYCLDeviceLibReqMaskPass::runOnModule(Module &M) {
-  MReqMask = getModuleDeviceLibReqMask(M);
-  return false;
 }
