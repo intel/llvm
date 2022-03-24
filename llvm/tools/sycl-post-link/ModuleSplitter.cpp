@@ -104,10 +104,9 @@ EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
 
   case SPLIT_NONE:
     return Scope_Global;
-
-  default:
-    llvm_unreachable("unsupported split mode");
   }
+
+  llvm_unreachable("unsupported split mode");
 }
 
 // Return true if the function is a SPIRV or SYCL builtin, e.g.
@@ -389,7 +388,7 @@ public:
 
 } // namespace
 
-bool llvm::module_split::ModuleDesc::isEsimd() {
+bool module_split::ModuleDesc::isEsimd() {
   return (EntryPoints.GroupId == ESIMD_SCOPE_NAME);
 }
 
