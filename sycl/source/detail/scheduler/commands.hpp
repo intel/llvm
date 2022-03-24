@@ -201,10 +201,10 @@ public:
   /// for memory copy commands.
   virtual const QueueImplPtr &getWorkerQueue() const;
 
-  /// Returns true iff the command produces a PI event on non-host devices.
+  /// Returns true if the command produces a PI event on non-host devices.
   virtual bool producesPiEvent() const;
 
-  /// Returns true iff this command can be freed by post enqueue cleanup.
+  /// Returns true if this command can be freed by post enqueue cleanup.
   virtual bool supportsPostEnqueueCleanup() const;
 
 protected:
@@ -216,6 +216,7 @@ protected:
   /// See processDepEvent for details.
   std::vector<EventImplPtr> &MPreparedDepsEvents;
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
+  std::unordered_set<EventImplPtr> &MBlockingExplicitDeps;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
@@ -256,6 +257,7 @@ public:
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
   std::unordered_set<Command *> MUsers;
+
   /// Indicates whether the command can be blocked from enqueueing.
   bool MIsBlockable = false;
   /// Counts the number of memory objects this command is a leaf for.
@@ -332,10 +334,19 @@ public:
   void emitInstrumentationData() override;
 
   bool producesPiEvent() const final;
+  bool supportsPostEnqueueCleanup() const final;
+
+  void addBlockedUser(const EventImplPtr &NewUser);
+  void removeBlockedUser(const EventImplPtr &User);
+  const std::unordered_set<EventImplPtr> &getBlockedUsers() const;
 
 private:
   cl_int enqueueImp() final;
 
+  /// Contains list of commands that depend on the host command explicitly (by
+  /// depends_on). Not involved into cleanup process since it is one-way link
+  /// and not holds resources.
+  std::unordered_set<EventImplPtr> MBlockedUsers;
   // Employing deque here as it allows to push_back/emplace_back without
   // invalidation of pointer or reference to stored data item regardless of
   // iterator invalidation.

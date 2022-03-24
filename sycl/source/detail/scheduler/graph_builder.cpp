@@ -1014,10 +1014,14 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       ToEnqueue.push_back(ConnCmd);
   }
 
-  if (CGType == CG::CGTYPE::CodeplayHostTask)
+  if (CGType == CG::CGTYPE::CodeplayHostTask) {
     NewCmd->MEmptyCmd =
         addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
                     Command::BlockReason::HostTask, ToEnqueue);
+    // Keeping empty command in host task event is essential when host task may
+    // be deleted during post-enqueue cleanup
+    NewCmd->getEvent()->attachEmptyCommand(NewCmd->MEmptyCmd);
+  }
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
