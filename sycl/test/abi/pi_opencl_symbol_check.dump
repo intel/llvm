@@ -33,6 +33,8 @@ piextContextGetNativeHandle
 piextDeviceCreateWithNativeHandle
 piextDeviceGetNativeHandle
 piextDeviceSelectBinary
+piextEnqueueReadHostPipe
+piextEnqueueWriteHostPipe
 piextEventCreateWithNativeHandle
 piextGetDeviceFunctionPointer
 piextKernelCreateWithNativeHandle

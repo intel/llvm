@@ -14,14 +14,14 @@ endif()
 # Repo URLs
 
 set(OCL_HEADERS_REPO
-  "https://github.com/KhronosGroup/OpenCL-Headers.git")
+  "https://github.com/sherry-yuan/OpenCL-Headers.git")
 set(OCL_LOADER_REPO
   "https://github.com/KhronosGroup/OpenCL-ICD-Loader.git")
 
 # Repo tags/hashes
 
-set(OCL_HEADERS_TAG dcd5bede6859d26833cd85f0d6bbcee7382dc9b3)
-set(OCL_LOADER_TAG 5d9177ee79bfbcc75ee9a8cff6415eab2c3113f6)
+set(OCL_HEADERS_TAG 1f2cb76195fb77be7c0b4d811ecff244c864d2e2)
+set(OCL_LOADER_TAG 5f8249691ec8c25775789498951f8e9eb62c201d)
 
 # OpenCL Headers
 if(NOT OpenCL_HEADERS)

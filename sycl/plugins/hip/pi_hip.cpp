@@ -4840,6 +4840,45 @@ pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
+/// Host Pipes
+pi_result hip_piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
+                                       const char *pipe_symbol,
+                                       pi_bool blocking, void *ptr, size_t size,
+                                       pi_uint32 num_events_in_waitlist,
+                                       const pi_event *events_waitlist,
+                                       pi_event *event) {
+  (void)queue;
+  (void)program;
+  (void)pipe_symbol;
+  (void)blocking;
+  (void)ptr;
+  (void)size;
+  (void)num_events_in_waitlist;
+  (void)events_waitlist;
+  (void)event;
+
+  cl::sycl::detail::pi::die("hip_piextEnqueueReadHostPipe not implemented");
+  return {};
+}
+
+pi_result hip_piextEnqueueWriteHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event) {
+  (void)queue;
+  (void)program;
+  (void)pipe_symbol;
+  (void)blocking;
+  (void)ptr;
+  (void)size;
+  (void)num_events_in_waitlist;
+  (void)events_waitlist;
+  (void)event;
+
+  cl::sycl::detail::pi::die("hip_piextEnqueueWriteHostPipe not implemented");
+  return {};
+}
+
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
@@ -4980,6 +5019,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueuePrefetch, hip_piextUSMEnqueuePrefetch)
   _PI_CL(piextUSMEnqueueMemAdvise, hip_piextUSMEnqueueMemAdvise)
   _PI_CL(piextUSMGetMemAllocInfo, hip_piextUSMGetMemAllocInfo)
+
+  // Host Pipe
+  _PI_CL(piextEnqueueReadHostPipe, hip_piextEnqueueReadHostPipe)
+  _PI_CL(piextEnqueueWriteHostPipe, hip_piextEnqueueWriteHostPipe)
 
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
