@@ -169,6 +169,8 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_memcpy", DeviceLibExt::cl_intel_devicelib_cstring},
     {"__devicelib_memset", DeviceLibExt::cl_intel_devicelib_cstring},
     {"__devicelib_memcmp", DeviceLibExt::cl_intel_devicelib_cstring},
+    {"__devicelib_assert_read", DeviceLibExt::cl_intel_devicelib_assert},
+    {"__devicelib_assert_fail", DeviceLibExt::cl_intel_devicelib_assert},
 };
 
 // Each fallback device library corresponds to one bit in "require mask" which
@@ -198,11 +200,7 @@ uint32_t getModuleDeviceLibReqMask(const Module &M) {
   // Device libraries will be enabled only for spir-v module.
   if (!llvm::Triple(M.getTargetTriple()).isSPIR())
     return 0;
-  // 0x1 means sycl runtime will link and load libsycl-fallback-assert.spv as
-  // default. In fact, default link assert spv is not necessary but dramatic
-  // perf regression is observed if we don't link any device library. The perf
-  // regression is caused by a clang issue.
-  uint32_t ReqMask = 0x1;
+  uint32_t ReqMask = 0;
   for (const Function &SF : M) {
     if (SF.getName().startswith(DEVICELIB_FUNC_PREFIX) && SF.isDeclaration()) {
       assert(SF.getCallingConv() == CallingConv::SPIR_FUNC);
