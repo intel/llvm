@@ -167,7 +167,7 @@ __esimd_convertvector_to(vector_type_t<StdTy, N> Val)
 #else
 {
   // TODO implement for host
-  throw sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -180,7 +180,7 @@ __esimd_convertvector_from(vector_type_t<__raw_t<WrapperTy>, N> Val)
 #else
 {
   // TODO implement for host
-  throw sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
