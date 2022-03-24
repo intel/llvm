@@ -431,7 +431,7 @@ bool isEntryPoint(const Function &F) {
   if (CallingConv::SPIR_KERNEL == F.getCallingConv())
     return true;
 
-  // FIXME: sycl-post-link allows t disable treating SYCL_EXTERNAL's as entry
+  // FIXME: sycl-post-link allows to disable treating SYCL_EXTERNAL's as entry
   // points - do we need similar flag here?
   // SYCL_EXTERNAL functions with sycl-module-id attribute
   // are also considered as entry points (except __spirv_* and __sycl_*
