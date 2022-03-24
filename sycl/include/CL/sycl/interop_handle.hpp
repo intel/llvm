@@ -65,7 +65,7 @@ public:
 #else
     (void)Acc;
     // we believe this won't be ever called on device side
-    return 0;
+    return backend_return_t<Backend, buffer<DataT, Dims>>{0};
 #endif
   }
 
@@ -174,7 +174,12 @@ private:
       https://en.cppreference.com/w/cpp/language/reinterpret_cast
       https://en.cppreference.com/w/cpp/language/explicit_cast
       */
-    return (backend_return_t<Backend, buffer<DataT, Dims>>)(getNativeMem(Req));
+    std::vector<pi_native_handle> NativeHandles{getNativeMem(Req)};
+    return BufferInterop<Backend>::GetNativeObjs(NativeHandles);
+    // if (Backend == backend::opencl) {
+    //   return backend_return_t<Backend, buffer<DataT, Dims>>{getNativeMem(Req)};
+    // }
+    // return (backend_return_t<Backend, buffer<DataT, Dims>>)(getNativeMem(Req));
   }
 
   __SYCL_EXPORT pi_native_handle getNativeMem(detail::Requirement *Req) const;

@@ -23,6 +23,7 @@ namespace sycl {
 class handler;
 class queue;
 template <int dimensions> class range;
+template<backend Backend> struct BufferInterop;
 
 namespace detail {
 template <typename T, int Dimensions, typename AllocatorT>
@@ -617,20 +618,26 @@ private:
 
   template <backend BackendName>
   backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>> get_native() const {
-    auto NativeVec = impl->getNative(BackendName);
-    backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>> ReturnValue{};
-    //ReturnValue.reserve(std::distance(begin(), end()));
-    for (auto &i : NativeVec) {
-      ReturnValue.push_back(
-          detail::pi::cast<typename decltype(ReturnValue)::value_type>(i));
-    }
-    return ReturnValue;
-  }
+    auto NativeHandles = impl->getNativeVector(BackendName);
+    return BufferInterop<BackendName>::GetNativeObjs(NativeHandles);
+    //backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>> ReturnValue;
+    //ReturnValue = BufferInterop<BackendName>::GetNativeObjs(NativeHandles);
+    // if (BackendName == backend::ext_oneapi_cuda) {
+    //   if (NativeHandles.size() == 0)
+    //     NativeHandles.push_back(0);
+    //   return detail::pi::cast<backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>>>(NativeHandles[0]);
+    // }
 
-  // std::vector<pi_native_handle> getNativeVector() const {
-  //   std::vector<pi_native_handle> ReturnVector = {impl->getNative()};
-  //   return ReturnVector;
-  // }
+    // //if (NativeHandles.size() == 0)
+    //   //return ReturnValue;
+    // //ReturnValue.reserve(NativeHandles.size());
+
+    // for (auto &Obj : NativeHandles) {
+    //   ReturnValue.push_back(
+    //       detail::pi::cast<typename decltype(ReturnValue)::value_type>(Obj));
+    // }
+    // return ReturnValue;
+  }
 };
 
 #ifdef __cpp_deduction_guides

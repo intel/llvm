@@ -64,6 +64,37 @@ template <backend Backend, typename SyclType>
 using backend_return_t =
     typename backend_traits<Backend>::template return_type<SyclType>;
 
+template<backend Backend> struct BufferInterop;
+
+#if SYCL_EXT_ONEAPI_BACKEND_CUDA
+template<> struct BufferInterop<backend::ext_oneapi_cuda> {
+  using ReturnType = CUdeviceptr;
+
+  static ReturnType GetNativeObjs(const std::vector<pi_native_handle> &Handle) {
+    ReturnType ReturnValue = 0
+    if (Handle.size()) {
+      ReturnValue = detail::pi::cast<ReturnType>(NativeVec[0]);
+    }
+    return ReturnValue; 
+  }
+};
+#endif
+
+#if SYCL_BACKEND_OPENCL
+template<> struct BufferInterop<backend::opencl> {
+  using ReturnType = std::vector<cl_mem>;
+
+  static ReturnType GetNativeObjs(const std::vector<pi_native_handle> &Handle) {
+    ReturnType ReturnValue{};
+    for (auto &Obj : Handle) {
+      ReturnValue.push_back(
+          detail::pi::cast<typename decltype(ReturnValue)::value_type>(Obj));
+    }
+    return ReturnValue; 
+  }
+};
+#endif
+
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT> {
@@ -78,7 +109,9 @@ auto get_native(const SyclObjectT &Obj)
 template <backend BackendName, typename DataT, int Dimensions, typename AllocatorT>
 auto get_native(const buffer<DataT, Dimensions, AllocatorT> &Obj)
     -> backend_return_t<BackendName, buffer<DataT, Dimensions, AllocatorT>> {
-  // No check for backend because buffer is just a placeholder, so allocations can be on any backend
+  // No check for backend mismatch because buffer can be allocated on different backends
+  if (BackendName == backend::ext_oneapi_level_zero)
+    throw sycl::runtime_error(errc::feature_not_supported, "Buffer interop is not supported by level zero yet", PI_INVALID_OPERATION);
   return Obj.template get_native<BackendName>();
 }
 

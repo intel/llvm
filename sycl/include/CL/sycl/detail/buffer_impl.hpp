@@ -176,39 +176,9 @@ public:
 
   void resize(size_t size) { BaseT::MSizeInBytes = size; }
 
-  //backend getBackend() const noexcept;
+  void addInteropObject(std::vector<pi_native_handle> &Handles) const;
 
-  std::vector<pi_native_handle> getNative(backend BackendName) const; 
-  //   auto &Plugin = getPlugin();
-  //   std::vector<RT::PiMem> MemAllocations;
-  //   MemAllocations.reserve(MRecord->MAllocaCommands.size());
-  //   for (auto &Cmd : MRecord->MAllocaCommands) {
-  //     MemAllocations.push_back(pi::cast<RT::PiMem>(Cmd->getMemAllocation()));
-  //   }
-  //   if (Plugin.getBackend() == backend::opencl) {
-  //     for (auto &Alloca : MemAllocations)
-  //       Plugin.call<PiApiKind::piMemRetain>(Alloca);
-  //   }
-
-  //   //if (Plugin.getBackend() == backend::opencl)
-  //   //  Plugin.call<PiApiKind::piMemRetain>(pi_mem mem);       // how to get RT::PiMem
-  //   // MInteropMemObject - OpenCL's memory object handle passed by user to interoperability constructor. Should it be checked (it seems it is deprecated)?
-  //   // Get vector<AllocaBaseCommand> from MRecord (MemObjRecord::MAllocaCommands) and use for every getMemAllocation() - it returns raw pointer
-  //   // pi::cast<RT::PiMem>(MemAllocation)
-  //   std::vector<pi_native_handle> Handles;
-  //   // Handles.reserve(MemAllocations.size());
-  //   // for (auto &Alloc : MemAllocations) {
-  //   //   pi_native_handle Handle;
-  //   //   Plugin.call<PiApiKind::piextMemGetNativeHandle>(Alloc, &Handle);
-  //   //   Handles.push_back(Handle);
-  //   // }
-
-  //   // run loop for every allocation
-  //   // __SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
-  //   //                                             pi_native_handle *nativeHandle);
-  //   //Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
-  //   return Handles;
-  // }
+  std::vector<pi_native_handle> getNativeVector(backend BackendName) const;
 };
 
 } // namespace detail
