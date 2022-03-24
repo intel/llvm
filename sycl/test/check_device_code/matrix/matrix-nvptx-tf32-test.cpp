@@ -59,11 +59,11 @@ int main() {
           sycl::sub_group sg = item.get_sub_group();
 
           joint_matrix<float, matrix_use::a, M, K, matrix_layout::row_major,
-                       sycl::sub_group, use_tf32::yes>
+                       sycl::sub_group, precision::tf32>
               sub_a;
 
           joint_matrix<float, matrix_use::b, K, N, matrix_layout::row_major,
-                       sycl::sub_group, use_tf32::yes>
+                       sycl::sub_group, precision::tf32>
               sub_b;
 
           joint_matrix<float, matrix_use::accumulator, M, N,
@@ -95,11 +95,11 @@ int main() {
           sycl::sub_group sg = item.get_sub_group();
 
           joint_matrix<float, matrix_use::a, M, K, matrix_layout::col_major,
-                       sycl::sub_group, use_tf32::yes>
+                       sycl::sub_group, precision::tf32>
               sub_a;
 
           joint_matrix<float, matrix_use::b, K, N, matrix_layout::col_major,
-                       sycl::sub_group, use_tf32::yes>
+                       sycl::sub_group, precision::tf32>
               sub_b;
 
           joint_matrix<float, matrix_use::accumulator, M, N,
