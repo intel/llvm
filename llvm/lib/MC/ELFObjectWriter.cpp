@@ -848,13 +848,9 @@ void ELFWriter::writeSectionData(const MCAssembler &Asm, MCSection &Sec,
   auto &MC = Asm.getContext();
   const auto &MAI = MC.getAsmInfo();
 
-  // Compressing debug_frame requires handling alignment fragments which is
-  // more work (possibly generalizing MCAssembler.cpp:writeFragment to allow
-  // for writing to arbitrary buffers) for little benefit.
   bool CompressionEnabled =
       MAI->compressDebugSections() != DebugCompressionType::None;
-  if (!CompressionEnabled || !SectionName.startswith(".debug_") ||
-      SectionName == ".debug_frame") {
+  if (!CompressionEnabled || !SectionName.startswith(".debug_")) {
     Asm.writeSectionData(W.OS, &Section, Layout);
     return;
   }
@@ -868,13 +864,8 @@ void ELFWriter::writeSectionData(const MCAssembler &Asm, MCSection &Sec,
   Asm.writeSectionData(VecOS, &Section, Layout);
 
   SmallVector<char, 128> CompressedContents;
-  if (Error E = zlib::compress(
-          StringRef(UncompressedData.data(), UncompressedData.size()),
-          CompressedContents)) {
-    consumeError(std::move(E));
-    W.OS << UncompressedData;
-    return;
-  }
+  zlib::compress(StringRef(UncompressedData.data(), UncompressedData.size()),
+                 CompressedContents);
 
   bool ZlibStyle = MAI->compressDebugSections() == DebugCompressionType::Z;
   if (!maybeWriteCompression(UncompressedData.size(), CompressedContents,

@@ -456,6 +456,11 @@ void RTNAME(Spread)(Descriptor &result, const Descriptor &source, int dim,
   Terminator terminator{sourceFile, line};
   int rank{source.rank() + 1};
   RUNTIME_CHECK(terminator, rank <= maxRank);
+  if (dim < 1 || dim > rank) {
+    terminator.Crash("SPREAD: DIM=%d argument for rank-%d source array "
+                     "must be greater than 1 and less than or equal to %d",
+        dim, rank - 1, rank);
+  }
   ncopies = std::max<std::int64_t>(ncopies, 0);
   SubscriptValue extent[maxRank];
   int k{0};
@@ -520,12 +525,15 @@ void RTNAME(Unpack)(Descriptor &result, const Descriptor &vector,
   }
   mask.GetLowerBounds(maskAt);
   field.GetLowerBounds(fieldAt);
-  SubscriptValue vectorLeft{vector.GetDimension(0).Extent()};
+  SubscriptValue vectorElements{vector.GetDimension(0).Extent()};
+  SubscriptValue vectorLeft{vectorElements};
   for (std::size_t n{result.Elements()}; n-- > 0;) {
     if (IsLogicalElementTrue(mask, maskAt)) {
       if (vectorLeft-- == 0) {
-        terminator.Crash("UNPACK: VECTOR= argument has fewer elements than "
-                         "MASK= has .TRUE. entries");
+        terminator.Crash(
+            "UNPACK: VECTOR= argument has fewer elements (%d) than "
+            "MASK= has .TRUE. entries",
+            vectorElements);
       }
       CopyElement(result, resultAt, vector, &vectorAt, terminator);
       ++vectorAt;

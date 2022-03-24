@@ -574,6 +574,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityAtomicFloat16AddEXT, "AtomicFloat16AddEXT");
   add(CapabilityDebugInfoModuleINTEL, "DebugInfoModuleINTEL");
   add(CapabilityMemoryAccessAliasingINTEL, "MemoryAccessAliasingINTEL");
+  add(CapabilityGroupUniformArithmeticKHR, "GroupUniformArithmeticKHR");
 
   // From spirv_internal.hpp
   add(internal::CapabilityFPGADSPControlINTEL, "FPGADSPControlINTEL");

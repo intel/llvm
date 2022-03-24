@@ -934,7 +934,8 @@ void CoroCloner::create() {
   case coro::ABI::Switch:
     // Bootstrap attributes by copying function attributes from the
     // original function.  This should include optimization settings and so on.
-    NewAttrs = NewAttrs.addFnAttributes(Context, AttrBuilder(Context, OrigAttrs.getFnAttrs()));
+    NewAttrs = NewAttrs.addFnAttributes(
+        Context, AttrBuilder(Context, OrigAttrs.getFnAttrs()));
 
     addFramePointerAttrs(NewAttrs, Context, 0,
                          Shape.FrameSize, Shape.FrameAlign);
@@ -1015,7 +1016,8 @@ void CoroCloner::create() {
   auto *NewVFrame = Builder.CreateBitCast(
       NewFramePtr, Type::getInt8PtrTy(Builder.getContext()), "vFrame");
   Value *OldVFrame = cast<Value>(VMap[Shape.CoroBegin]);
-  OldVFrame->replaceAllUsesWith(NewVFrame);
+  if (OldVFrame != NewVFrame)
+    OldVFrame->replaceAllUsesWith(NewVFrame);
 
   switch (Shape.ABI) {
   case coro::ABI::Switch:
@@ -1919,6 +1921,26 @@ static coro::Shape splitCoroutine(Function &F,
   // Replace all the swifterror operations in the original function.
   // This invalidates SwiftErrorOps in the Shape.
   replaceSwiftErrorOps(F, Shape, nullptr);
+
+  // Finally, salvage the llvm.dbg.{declare,addr} in our original function that
+  // point into the coroutine frame. We only do this for the current function
+  // since the Cloner salvaged debug info for us in the new coroutine funclets.
+  SmallVector<DbgVariableIntrinsic *, 8> Worklist;
+  SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> DbgPtrAllocaCache;
+  for (auto &BB : F) {
+    for (auto &I : BB) {
+      if (auto *DDI = dyn_cast<DbgDeclareInst>(&I)) {
+        Worklist.push_back(DDI);
+        continue;
+      }
+      if (auto *DDI = dyn_cast<DbgAddrIntrinsic>(&I)) {
+        Worklist.push_back(DDI);
+        continue;
+      }
+    }
+  }
+  for (auto *DDI : Worklist)
+    coro::salvageDebugInfo(DbgPtrAllocaCache, DDI, Shape.OptimizeFrame);
 
   return Shape;
 }

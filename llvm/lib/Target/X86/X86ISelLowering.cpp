@@ -497,7 +497,7 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
     setOperationAction(ISD::SRL_PARTS, VT, Custom);
   }
 
-  if (Subtarget.hasSSEPrefetch() || Subtarget.has3DNow())
+  if (Subtarget.hasSSEPrefetch() || Subtarget.hasThreeDNow())
     setOperationAction(ISD::PREFETCH      , MVT::Other, Legal);
 
   setOperationAction(ISD::ATOMIC_FENCE  , MVT::Other, Custom);
@@ -23591,6 +23591,11 @@ static SDValue LowerAndToBT(SDValue And, ISD::CondCode CC,
   return DAG.getNode(X86ISD::BT, dl, MVT::i32, Src, BitNo);
 }
 
+// Check if pre-AVX condcode can be performed by a single FCMP op.
+static bool cheapX86FSETCC_SSE(ISD::CondCode SetCCOpcode) {
+  return (SetCCOpcode != ISD::SETONE) && (SetCCOpcode != ISD::SETUEQ);
+}
+
 /// Turns an ISD::CondCode into a value suitable for SSE floating-point mask
 /// CMPs.
 static unsigned translateX86FSETCC(ISD::CondCode SetCCOpcode, SDValue &Op0,
@@ -23858,7 +23863,7 @@ static SDValue LowerVSETCC(SDValue Op, const X86Subtarget &Subtarget,
 
       // In the two cases not handled by SSE compare predicates (SETUEQ/SETONE),
       // emit two comparisons and a logic op to tie them together.
-      if (SSECC >= 8) {
+      if (!cheapX86FSETCC_SSE(Cond)) {
         // LLVM predicate is SETUEQ or SETONE.
         unsigned CC0, CC1;
         unsigned CombineOpc;
@@ -36264,6 +36269,15 @@ void X86TargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
     }
     break;
   }
+  case X86ISD::AND: {
+    if (Op.getResNo() == 0) {
+      KnownBits Known2;
+      Known = DAG.computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
+      Known2 = DAG.computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
+      Known &= Known2;
+    }
+    break;
+  }
   case X86ISD::ANDNP: {
     KnownBits Known2;
     Known = DAG.computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
@@ -43737,17 +43751,6 @@ static SDValue combineVSelectToBLENDV(SDNode *N, SelectionDAG &DAG,
   if (VT.is512BitVector())
     return SDValue();
 
-  // PreAVX512, without mask-registers, attempt to sign-extend bool vectors to
-  // allow us to use BLENDV.
-  if (!Subtarget.hasAVX512() && BitWidth == 1) {
-    EVT CondVT = VT.changeVectorElementTypeToInteger();
-    if (SDValue ExtCond = combineToExtendBoolVectorInReg(
-            ISD::SIGN_EXTEND, SDLoc(N), CondVT, Cond, DAG, DCI, Subtarget)) {
-      return DAG.getNode(X86ISD::BLENDV, SDLoc(N), VT, ExtCond,
-                         N->getOperand(1), N->getOperand(2));
-    }
-  }
-
   // Don't optimize before the condition has been transformed to a legal type
   // and don't ever optimize vector selects that map to AVX512 mask-registers.
   if (BitWidth < 8 || BitWidth > 64)
@@ -44230,13 +44233,26 @@ static SDValue combineSelect(SDNode *N, SelectionDAG &DAG,
   // If this an avx512 target we can improve the use of zero masking by
   // swapping the operands and inverting the condition.
   if (N->getOpcode() == ISD::VSELECT && Cond.hasOneUse() &&
-       Subtarget.hasAVX512() && CondVT.getVectorElementType() == MVT::i1 &&
+      Subtarget.hasAVX512() && CondVT.getVectorElementType() == MVT::i1 &&
       ISD::isBuildVectorAllZeros(LHS.getNode()) &&
       !ISD::isBuildVectorAllZeros(RHS.getNode())) {
     // Invert the cond to not(cond) : xor(op,allones)=not(op)
     SDValue CondNew = DAG.getNOT(DL, Cond, CondVT);
     // Vselect cond, op1, op2 = Vselect not(cond), op2, op1
     return DAG.getSelect(DL, VT, CondNew, RHS, LHS);
+  }
+
+  // Attempt to convert a (vXi1 bitcast(iX Cond)) selection mask before it might
+  // get split by legalization.
+  if (N->getOpcode() == ISD::VSELECT && Cond.getOpcode() == ISD::BITCAST &&
+      CondVT.getVectorElementType() == MVT::i1 && Cond.hasOneUse() && 
+      TLI.isTypeLegal(VT.getScalarType())) {
+    EVT ExtCondVT = VT.changeVectorElementTypeToInteger();
+    if (SDValue ExtCond = combineToExtendBoolVectorInReg(
+            ISD::SIGN_EXTEND, DL, ExtCondVT, Cond, DAG, DCI, Subtarget)) {
+      ExtCond = DAG.getNode(ISD::TRUNCATE, DL, CondVT, ExtCond);
+      return DAG.getSelect(DL, VT, ExtCond, LHS, RHS);
+    }
   }
 
   // Early exit check
@@ -46808,11 +46824,17 @@ static SDValue convertIntLogicToFPLogic(SDNode *N, SelectionDAG &DAG,
     return DAG.getBitcast(VT, FPLogic);
   }
 
+  if (VT != MVT::i1 || N0.getOpcode() != ISD::SETCC || !N0.hasOneUse() ||
+      !N1.hasOneUse())
+    return SDValue();
+
+  ISD::CondCode CC0 = cast<CondCodeSDNode>(N0.getOperand(2))->get();
+  ISD::CondCode CC1 = cast<CondCodeSDNode>(N1.getOperand(2))->get();
+
   // The vector ISA for FP predicates is incomplete before AVX, so converting
   // COMIS* to CMPS* may not be a win before AVX.
-  // TODO: Check types/predicates to see if they are available with SSE/SSE2.
-  if (!Subtarget.hasAVX() || VT != MVT::i1 || N0.getOpcode() != ISD::SETCC ||
-      !N0.hasOneUse() || !N1.hasOneUse())
+  if (!Subtarget.hasAVX() &&
+      !(cheapX86FSETCC_SSE(CC0) && cheapX86FSETCC_SSE(CC1)))
     return SDValue();
 
   // Convert scalar FP compares and logic to vector compares (COMIS* to CMPS*)
@@ -46829,10 +46851,8 @@ static SDValue convertIntLogicToFPLogic(SDNode *N, SelectionDAG &DAG,
   SDValue Vec01 = DAG.getNode(ISD::SCALAR_TO_VECTOR, DL, VecVT, N01);
   SDValue Vec10 = DAG.getNode(ISD::SCALAR_TO_VECTOR, DL, VecVT, N10);
   SDValue Vec11 = DAG.getNode(ISD::SCALAR_TO_VECTOR, DL, VecVT, N11);
-  SDValue Setcc0 = DAG.getSetCC(DL, BoolVecVT, Vec00, Vec01,
-                                cast<CondCodeSDNode>(N0.getOperand(2))->get());
-  SDValue Setcc1 = DAG.getSetCC(DL, BoolVecVT, Vec10, Vec11,
-                                cast<CondCodeSDNode>(N1.getOperand(2))->get());
+  SDValue Setcc0 = DAG.getSetCC(DL, BoolVecVT, Vec00, Vec01, CC0);
+  SDValue Setcc1 = DAG.getSetCC(DL, BoolVecVT, Vec10, Vec11, CC1);
   SDValue Logic = DAG.getNode(N->getOpcode(), DL, BoolVecVT, Setcc0, Setcc1);
   return DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, VT, Logic, ZeroIndex);
 }
@@ -52075,6 +52095,16 @@ static SDValue combineCMP(SDNode *N, SelectionDAG &DAG) {
                            DAG.getConstant(0, dl, VT));
       }
     }
+  }
+
+  // Peek through any zero-extend if we're only testing for a zero result.
+  if (Op.getOpcode() == ISD::ZERO_EXTEND && onlyZeroFlagUsed(SDValue(N, 0))) {
+    SDValue Src = Op.getOperand(0);
+    EVT SrcVT = Src.getValueType();
+    if (SrcVT.getScalarSizeInBits() >= 8 &&
+        DAG.getTargetLoweringInfo().isTypeLegal(SrcVT))
+      return DAG.getNode(X86ISD::CMP, dl, MVT::i32, Src,
+                         DAG.getConstant(0, dl, SrcVT));
   }
 
   // Look for a truncate.

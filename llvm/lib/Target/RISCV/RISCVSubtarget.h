@@ -82,6 +82,7 @@ private:
   bool HasStdExtZve64x = false;
   bool HasStdExtZve64f = false;
   bool HasStdExtZve64d = false;
+  bool HasStdExtZvfh = false;
   bool HasStdExtZfhmin = false;
   bool HasStdExtZfh = false;
   bool HasStdExtZfinx = false;
@@ -174,6 +175,7 @@ public:
   bool hasStdExtZbs() const { return HasStdExtZbs; }
   bool hasStdExtZbt() const { return HasStdExtZbt; }
   bool hasStdExtZvl() const { return ZvlLen != ExtZvl::NotSet; }
+  bool hasStdExtZvfh() const { return HasStdExtZvfh; }
   bool hasStdExtZfhmin() const { return HasStdExtZfhmin; }
   bool hasStdExtZfh() const { return HasStdExtZfh; }
   bool hasStdExtZfinx() const { return HasStdExtZfinx; }
@@ -206,6 +208,15 @@ public:
     return 0;
   }
   unsigned getMinVLen() const { return ZvlLen; }
+  unsigned getMaxVLen() const { return Zvl65536b; }
+  unsigned getRealMinVLen() const {
+    unsigned VLen = getMinRVVVectorSizeInBits();
+    return VLen == 0 ? getMinVLen() : VLen;
+  }
+  unsigned getRealMaxVLen() const {
+    unsigned VLen = getMaxRVVVectorSizeInBits();
+    return VLen == 0 ? getMaxVLen() : VLen;
+  }
   RISCVABI::ABI getTargetABI() const { return TargetABI; }
   bool isRegisterReservedByUser(Register i) const {
     assert(i < RISCV::NUM_TARGET_REGS && "Register out of range");
@@ -215,7 +226,7 @@ public:
   // Vector codegen related methods.
   bool hasVInstructions() const { return HasStdExtZve32x; }
   bool hasVInstructionsI64() const { return HasStdExtZve64x; }
-  bool hasVInstructionsF16() const { return HasStdExtZve32f && HasStdExtZfh; }
+  bool hasVInstructionsF16() const { return HasStdExtZvfh && HasStdExtZfh; }
   // FIXME: Consider Zfinx in the future
   bool hasVInstructionsF32() const { return HasStdExtZve32f && HasStdExtF; }
   // FIXME: Consider Zdinx in the future

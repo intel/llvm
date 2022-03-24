@@ -54,6 +54,16 @@ static cl::opt<int>
                      cl::ZeroOrMore,
                      cl::desc("Default amount of inlining to perform"));
 
+// We introduce this option since there is a minor compile-time win by avoiding
+// addition of TTI attributes (target-features in particular) to inline
+// candidates when they are guaranteed to be the same as top level methods in
+// some use cases. If we avoid adding the attribute, we need an option to avoid
+// checking these attributes.
+static cl::opt<bool> IgnoreTTIInlineCompatible(
+    "ignore-tti-inline-compatible", cl::Hidden, cl::init(false),
+    cl::desc("Ignore TTI attributes compatibility check between callee/caller "
+             "during inline cost calculation"));
+
 static cl::opt<bool> PrintInstructionComments(
     "print-instruction-comments", cl::Hidden, cl::init(false),
     cl::desc("Prints comments for instruction based on inline cost analysis"));
@@ -133,8 +143,6 @@ static cl::opt<bool> DisableGEPConstOperand(
     cl::desc("Disables evaluation of GetElementPtr with constant operands"));
 
 namespace {
-class InlineCostCallAnalyzer;
-
 /// This function behaves more like CallBase::hasFnAttr: when it looks for the
 /// requested attribute, it check both the call instruction and the called
 /// function (if it's available and operand bundles don't prohibit that).
@@ -151,7 +159,9 @@ Attribute getFnAttr(CallBase &CB, StringRef AttrKind) {
 
   return {};
 }
+} // namespace
 
+namespace llvm {
 Optional<int> getStringFnAttrAsInt(CallBase &CB, StringRef AttrKind) {
   Attribute Attr = getFnAttr(CB, AttrKind);
   int AttrValue;
@@ -159,6 +169,10 @@ Optional<int> getStringFnAttrAsInt(CallBase &CB, StringRef AttrKind) {
     return None;
   return AttrValue;
 }
+} // namespace llvm
+
+namespace {
+class InlineCostCallAnalyzer;
 
 // This struct is used to store information about inline cost of a
 // particular instruction
@@ -903,6 +917,11 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
     if (Optional<int> AttrCost =
             getStringFnAttrAsInt(CandidateCall, "function-inline-cost"))
       Cost = *AttrCost;
+
+    if (Optional<int> AttrCostMult = getStringFnAttrAsInt(
+            CandidateCall,
+            InlineConstants::FunctionInlineCostMultiplierAttributeName))
+      Cost *= *AttrCostMult;
 
     if (Optional<int> AttrThreshold =
             getStringFnAttrAsInt(CandidateCall, "function-inline-threshold"))
@@ -2745,7 +2764,8 @@ static bool functionsHaveCompatibleAttributes(
   // object, and always returns the same object (which is overwritten on each
   // GetTLI call). Therefore we copy the first result.
   auto CalleeTLI = GetTLI(*Callee);
-  return TTI.areInlineCompatible(Caller, Callee) &&
+  return (IgnoreTTIInlineCompatible ||
+          TTI.areInlineCompatible(Caller, Callee)) &&
          GetTLI(*Caller).areInlineCompatible(CalleeTLI,
                                              InlineCallerSupersetNoBuiltin) &&
          AttributeFuncs::areInlineCompatible(*Caller, *Callee);

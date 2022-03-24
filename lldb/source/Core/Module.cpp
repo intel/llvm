@@ -129,8 +129,7 @@ Module *Module::GetAllocatedModuleAtIndex(size_t idx) {
 }
 
 Module::Module(const ModuleSpec &module_spec)
-    : m_object_offset(0), m_file_has_changed(false),
-      m_first_file_changed_log(false) {
+    : m_file_has_changed(false), m_first_file_changed_log(false) {
   // Scope for locker below...
   {
     std::lock_guard<std::recursive_mutex> guard(
@@ -636,9 +635,7 @@ void Module::FindCompileUnits(const FileSpec &path,
 Module::LookupInfo::LookupInfo(ConstString name,
                                FunctionNameType name_type_mask,
                                LanguageType language)
-    : m_name(name), m_lookup_name(), m_language(language),
-      m_name_type_mask(eFunctionNameTypeNone),
-      m_match_name_after_lookup(false) {
+    : m_name(name), m_lookup_name(), m_language(language) {
   const char *name_cstr = name.GetCString();
   llvm::StringRef basename;
   llvm::StringRef context;
@@ -1025,7 +1022,9 @@ void Module::FindTypes(
     llvm::ArrayRef<CompilerContext> pattern, LanguageSet languages,
     llvm::DenseSet<lldb_private::SymbolFile *> &searched_symbol_files,
     TypeMap &types) {
-  LLDB_SCOPED_TIMER();
+  // If a scoped timer is needed, place it in a SymbolFile::FindTypes override.
+  // A timer here is too high volume for some cases, for example when calling
+  // FindTypes on each object file.
   if (SymbolFile *symbols = GetSymbolFile())
     symbols->FindTypes(pattern, languages, searched_symbol_files, types);
 }

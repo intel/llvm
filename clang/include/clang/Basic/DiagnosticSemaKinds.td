@@ -118,6 +118,10 @@ def warn_float_overflow : Warning<
 def warn_float_underflow : Warning<
   "magnitude of floating-point constant too small for type %0; minimum is %1">,
   InGroup<LiteralRange>;
+def warn_float_compare_literal : Warning<
+  "floating-point comparison is always %select{true|false}0; "
+  "constant cannot be represented exactly in type %1">,
+  InGroup<LiteralRange>;
 def warn_double_const_requires_fp64 : Warning<
   "double precision constant requires %select{cl_khr_fp64|cl_khr_fp64 and __opencl_c_fp64}0, "
   "casting to single precision">;
@@ -3061,8 +3065,9 @@ def err_aligned_attribute_argument_not_int : Error<
 def err_align_value_attribute_argument_not_int : Error<
   "'align_value' attribute requires integer constant">;
 def err_alignas_attribute_wrong_decl_type : Error<
-  "%0 attribute cannot be applied to a %select{function parameter|"
-  "variable with 'register' storage class|'catch' variable|bit-field}1">;
+  "%0 attribute cannot be applied to %select{a function parameter|"
+  "a variable with 'register' storage class|a 'catch' variable|a bit-field|"
+  "an enumeration}1">;
 def err_alignas_missing_on_definition : Error<
   "%0 must be specified on definition if it is specified on any declaration">;
 def note_alignas_on_declaration : Note<"declared with %0 attribute here">;
@@ -4096,7 +4101,7 @@ def warn_attribute_nonnull_parm_no_args : Warning<
   InGroup<IgnoredAttributes>;
 def warn_function_stmt_attribute_precedence : Warning<
   "statement attribute %0 has higher precedence than function attribute "
-  "'%select{always_inline|flatten}1'">,
+  "'%select{always_inline|flatten|noinline}1'">,
   InGroup<IgnoredAttributes>;
 def note_declared_nonnull : Note<
   "declared %select{'returns_nonnull'|'nonnull'}0 here">;
@@ -10336,6 +10341,11 @@ def err_openclcxx_placement_new : Error<
 def warn_mig_server_routine_does_not_return_kern_return_t : Warning<
   "'mig_server_routine' attribute only applies to routines that return a kern_return_t">,
   InGroup<IgnoredAttributes>;
+
+def warn_imp_cast_drops_unaligned : Warning<
+  "implicit cast from type %0 to type %1 drops __unaligned qualifier">,
+  InGroup<DiagGroup<"unaligned-qualifier-implicit-cast">>;
+
 } // end of sema category
 
 let CategoryName = "OpenMP Issue" in {
@@ -10956,7 +10966,7 @@ def note_omp_exits_structured_block
     : Note<"jump exits scope of OpenMP structured block">;
 def err_omp_lastprivate_loop_var_non_loop_iteration : Error<
   "only loop iteration variables are allowed in 'lastprivate' clause in "
-  "'omp loop' directives">;
+  "'omp %0' directives">;
 def err_omp_interop_variable_expected : Error<
   "expected%select{| non-const}0 variable of type 'omp_interop_t'">;
 def err_omp_interop_variable_wrong_type : Error<

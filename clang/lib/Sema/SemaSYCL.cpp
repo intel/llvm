@@ -3857,10 +3857,9 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::ReqdWorkGroupSize: {
     auto *RWGSA = cast<ReqdWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-      ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) != RWGSA->getXDimVal(Ctx) ||
-          Existing->getYDimVal(Ctx) != RWGSA->getYDimVal(Ctx) ||
-          Existing->getZDimVal(Ctx) != RWGSA->getZDimVal(Ctx)) {
+      if (*Existing->getXDimVal() != *RWGSA->getXDimVal() ||
+          *Existing->getYDimVal() != *RWGSA->getYDimVal() ||
+          *Existing->getZDimVal() != *RWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3869,10 +3868,9 @@ static void PropagateAndDiagnoseDeviceAttr(
       }
     } else if (auto *Existing =
                    SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      ASTContext &Ctx = S.getASTContext();
-      if (*Existing->getXDimVal() < RWGSA->getXDimVal(Ctx) ||
-          *Existing->getYDimVal() < RWGSA->getYDimVal(Ctx) ||
-          *Existing->getZDimVal() < RWGSA->getZDimVal(Ctx)) {
+      if (*Existing->getXDimVal() < *RWGSA->getXDimVal() ||
+          *Existing->getYDimVal() < *RWGSA->getYDimVal() ||
+          *Existing->getZDimVal() < *RWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3905,10 +3903,9 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelMaxWorkGroupSize: {
     auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-      ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) > *SIMWGSA->getXDimVal() ||
-          Existing->getYDimVal(Ctx) > *SIMWGSA->getYDimVal() ||
-          Existing->getZDimVal(Ctx) > *SIMWGSA->getZDimVal()) {
+      if (*Existing->getXDimVal() > *SIMWGSA->getXDimVal() ||
+          *Existing->getYDimVal() > *SIMWGSA->getYDimVal() ||
+          *Existing->getZDimVal() > *SIMWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);

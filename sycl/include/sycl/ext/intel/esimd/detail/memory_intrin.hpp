@@ -378,7 +378,7 @@ __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
   static_assert(N == 1 || N == 8 || N == 16 || N == 32);
   static_assert(TySizeLog2 <= 2 && Scale == 0);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -469,7 +469,7 @@ __esimd_svm_atomic0(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -493,7 +493,7 @@ __esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
         retv[i] = atomic_add_fetch<Ty>(p, src0[i]);
         break;
       default:
-        throw cl::sycl::feature_not_supported();
+        __ESIMD_UNSUPPORTED_ON_HOST;
       }
     }
   }
@@ -512,7 +512,7 @@ __esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -828,12 +828,12 @@ __esimd_dword_atomic0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
           retv[i] = atomic_add_fetch<Ty>(p, 1);
           break;
         default:
-          throw cl::sycl::feature_not_supported();
+          __ESIMD_UNSUPPORTED_ON_HOST;
         }
       }
     }
   } else {
-    throw cl::sycl::feature_not_supported();
+    __ESIMD_UNSUPPORTED_ON_HOST;
   }
   return retv;
 }
@@ -849,7 +849,7 @@ __esimd_dword_atomic1(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -864,7 +864,7 @@ __esimd_dword_atomic2(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
