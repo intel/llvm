@@ -603,9 +603,9 @@ types listed above.
 
 Properties that are implemented using
 `[[__sycl_detail__::add_ir_annotations_member()]]`, are represented in LLVM IR
-as the fifth metadata parameter to the `@llvm.ptr.annotation` intrinsic
-function.  This parameter is a tuple of metadata values with the following
-sequence:
+as the fifth parameter to the `@llvm.ptr.annotation` intrinsic function.  This
+parameter is a pointer to a global variable with fields corresponding to the
+names and values of the properties in the following sequence:
 
 * Name of the first property
 * Value of the first property
@@ -613,8 +613,10 @@ sequence:
 * Value of the second property
 * Etc.
 
-Since metadata types are not limited to strings, there is no need to convert
-the property values to strings.
+Every field in the global variable pointed to by this parameter are string
+literals in seperate global variables. If the value of a property is either an
+empty string or a `nullptr`, the corresponding field will have a null-pointer
+value.
 
 
 ## Filtering properties
