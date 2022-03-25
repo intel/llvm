@@ -58,11 +58,11 @@ int main() {
   check<event, 16, 8>();
   check<gpu_selector, 8, 8>();
 #ifdef _MSC_VER
-  check<handler, 552, 8>();
+  check<handler, 608, 8>();
   check<detail::buffer_impl, 216, 8>();
   check<detail::image_impl<1>, 272, 8>();
 #else
-  check<handler, 560, 8>();
+  check<handler, 616, 8>();
   check<detail::buffer_impl, 184, 8>();
   check<detail::image_impl<1>, 240, 8>();
 #endif

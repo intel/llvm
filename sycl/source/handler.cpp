@@ -381,6 +381,13 @@ event handler::finalize() {
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
+  case detail::CG::ReadWriteHostPipe:
+    CommandGroup.reset(new detail::CGReadWriteHostPipe(
+        HostPipeName, HostPipeBlocking, HostPipePtr, HostPipeTypeSize,
+        HostPipeRead, std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCodeLoc));
+    break;
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
@@ -812,6 +819,17 @@ void handler::depends_on(const std::vector<event> &Events) {
     }
     MEvents.push_back(EventImpl);
   }
+}
+
+void handler::read_write_host_pipe(const std::string &Name, void *Ptr,
+                                   size_t Size, bool Block, bool Read) {
+  throwIfActionIsCreated();
+  HostPipeName = Name;
+  HostPipePtr = Ptr;
+  HostPipeTypeSize = Size;
+  HostPipeBlocking = Block;
+  HostPipeRead = Read;
+  setType(detail::CG::ReadWriteHostPipe);
 }
 
 } // namespace sycl
