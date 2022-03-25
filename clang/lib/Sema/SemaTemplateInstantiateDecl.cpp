@@ -831,7 +831,7 @@ static void instantiateSYCLAddIRAttributesGlobalVariableAttr(
 static void instantiateSYCLAddIRAnnotationsMemberAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLAddIRAnnotationsMemberAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
+  EnterExpressionEvaluationContext ConstantEvaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   SmallVector<Expr *, 4> Args;
   if (S.SubstExprs(ArrayRef<Expr *>(A->args().begin(), A->args().end()),

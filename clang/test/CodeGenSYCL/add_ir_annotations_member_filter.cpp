@@ -1,6 +1,9 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
 // RUN:    -triple spir64-unknown-unknown -fsycl-is-device -S \
 // RUN:    -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
+// RUN:    -triple spir64-unknown-unknown -fsycl-is-device -DTEST_SCALAR -S \
+// RUN:    -emit-llvm %s -o - | FileCheck %s
 
 // Tests the optional filter parameter of
 // __sycl_detail__::add_ir_annotations_member attributes.
@@ -8,9 +11,15 @@
 #include "mock_properties.hpp"
 #include "sycl.hpp"
 
+#ifdef TEST_SCALAR
+#define TEST_T char
+#else
+#define TEST_T int *
+#endif
+
 template <typename... Properties> class g {
 public:
-  int *x
+  TEST_T x
 #ifdef __SYCL_DEVICE_ONLY__
       [[__sycl_detail__::add_ir_annotations_member(
           {"Prop1", "Prop7", "Prop5"},
@@ -18,8 +27,8 @@ public:
 #endif
       ;
 
-  g() : x(nullptr) {}
-  g(int *_x) : x(_x) {}
+  g() : x() {}
+  g(TEST_T _x) : x(_x) {}
 };
 
 int main() {
@@ -28,7 +37,7 @@ int main() {
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel1>(
         [=]() {
-          (void)*a.x;
+          (void)a.x;
         });
   });
 }

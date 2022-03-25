@@ -1,6 +1,8 @@
-
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
 // RUN:    -triple spir64-unknown-unknown -fsycl-is-device -S \
+// RUN:    -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
+// RUN:    -triple spir64-unknown-unknown -fsycl-is-device -DTEST_SCALAR -S \
 // RUN:    -emit-llvm %s -o - | FileCheck %s
 
 // Tests the generation of IR annotation calls from
@@ -9,21 +11,27 @@
 #include "mock_properties.hpp"
 #include "sycl.hpp"
 
+#ifdef TEST_SCALAR
+#define TEST_T char
+#else
+#define TEST_T int *
+#endif
+
 template <typename... Properties> class g {
 public:
-  int *x
+  TEST_T x
 #ifdef __SYCL_DEVICE_ONLY__
       [[__sycl_detail__::add_ir_annotations_member(Properties::name..., Properties::value...)]]
 #endif
       ;
 
-  g() : x(nullptr) {}
-  g(int *_x) : x(_x) {}
+  g() : x() {}
+  g(TEST_T _x) : x(_x) {}
 };
 
 class h {
 public:
-  int *x
+  TEST_T x
 #ifdef __SYCL_DEVICE_ONLY__
       [[__sycl_detail__::add_ir_annotations_member(
           "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
@@ -31,13 +39,13 @@ public:
 #endif
       ;
 
-  h() : x(nullptr) {}
-  h(int *_x) : x(_x) {}
+  h() : x() {}
+  h(TEST_T _x) : x(_x) {}
 };
 
 template <typename... Properties> class gh {
 public:
-  int *x
+  TEST_T x
 #ifdef __SYCL_DEVICE_ONLY__
       [[__sycl_detail__::add_ir_annotations_member(
           Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
@@ -45,13 +53,13 @@ public:
 #endif
       ;
 
-  gh() : x(nullptr) {}
-  gh(int *_x) : x(_x) {}
+  gh() : x() {}
+  gh(TEST_T _x) : x(_x) {}
 };
 
 template <typename... Properties> class hg {
 public:
-  int *x
+  TEST_T x
 #ifdef __SYCL_DEVICE_ONLY__
       [[__sycl_detail__::add_ir_annotations_member(
           "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", Properties::name...,
@@ -59,8 +67,8 @@ public:
 #endif
       ;
 
-  hg() : x(nullptr) {}
-  hg(int *_x) : x(_x) {}
+  hg() : x() {}
+  hg(TEST_T _x) : x(_x) {}
 };
 
 int main() {
@@ -69,28 +77,28 @@ int main() {
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel1>(
         [=]() {
-          (void)*a.x;
+          (void)a.x;
         });
   });
   h b;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel2>(
         [=]() {
-          (void)*b.x;
+          (void)b.x;
         });
   });
   gh<prop1, prop2, prop3, prop4, prop5, prop6, prop7> c;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel3>(
         [=]() {
-          (void)*c.x;
+          (void)c.x;
         });
   });
   hg<prop1, prop2, prop3, prop4, prop5, prop6, prop7> d;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel4>(
         [=]() {
-          (void)*d.x;
+          (void)d.x;
         });
   });
 }

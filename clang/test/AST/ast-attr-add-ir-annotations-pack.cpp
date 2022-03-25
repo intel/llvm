@@ -1,7 +1,7 @@
 // RUN: not %clang_cc1 -fsycl-is-device -std=gnu++11 -ast-dump %s | FileCheck %s
 
-// Tests the AST produced from instantiating templates using
-// __sycl_detail__::add_ir_annotations_member attributes with pack expansion
+// Tests the AST produced from instantiating templates using the
+// __sycl_detail__::add_ir_annotations_member attribute with pack expansion
 // arguments.
 
 constexpr const char AttrName1[] = "Attr1";
