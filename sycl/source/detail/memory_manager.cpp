@@ -363,19 +363,20 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
   RT::PiMem NewMem = nullptr;
   const detail::plugin &Plugin = TargetContext->getPlugin();
 
-  bool is_mem_channel = PropsList.has_property<sycl::property::buffer::mem_channel>();
-  bool is_buffer_location = PropsList.has_property<property::buffer::detail::buffer_location>();
-  // We need 2 elements for one property
+  bool is_mem_channel =
+      PropsList.has_property<sycl::property::buffer::mem_channel>();
+  bool is_buffer_location =
+      PropsList.has_property<property::buffer::detail::buffer_location>();
+  // Each property requires 2 elements
   int props_size = 1 + (int)is_mem_channel * 2 + (int)is_buffer_location * 2;
 
   if (props_size == 1) {
     memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
                           Size, UserPtr, &NewMem, nullptr);
-  }
-  else {
+  } else {
     std::vector<pi_mem_properties> props(props_size, 0);
     size_t Idx = 0;
-    
+
     if (is_mem_channel) {
       auto Prop = PropsList.get_property<sycl::property::buffer::mem_channel>();
       props[Idx++] = CL_MEM_CHANNEL_INTEL;
@@ -395,53 +396,6 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
                           Size, UserPtr, &NewMem, props.data());
   }
 
-  //------------------------
-  // pi_mem_properties props[] = {0, 0, 0, 0, 0};
-  // size_t Idx = 0;
-  // if (PropsList.has_property<sycl::property::buffer::mem_channel>()) {
-  //   auto Prop = PropsList.get_property<sycl::property::buffer::mem_channel>();
-  //   props[Idx] = CL_MEM_CHANNEL_INTEL;
-  //   ++Idx;
-  //   props[Idx] = Prop.get_channel();
-  //   ++Idx;
-  //   //cl_mem_properties_intel properties[] = {CL_MEM_CHANNEL_INTEL,
-  //   //                                        Prop.get_channel(), 0};
-  // }
-  // if (PropsList.has_property<property::buffer::detail::buffer_location>()) {
-  //   if (TargetContext->isBufferLocationSupported()) {
-  //     auto location =
-  //         PropsList.get_property<property::buffer::detail::buffer_location>()
-  //             .get_buffer_location();
-  //     props[Idx] = PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION;
-  //     ++Idx;
-  //     props[Idx] = location;
-  //   }
-  // }
-    //pi_mem_properties props[3] = {PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
-    //                              location, 0};
-  // if (Idx > 0) {
-  //   memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
-  //                         Size, UserPtr, &NewMem, props);
-
-  // } else {
-  //   memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
-  //                         Size, UserPtr, &NewMem, nullptr);
-  // }
-  // -----------------------------
-
-  // if (PropsList.has_property<property::buffer::detail::buffer_location>())
-  //   if (TargetContext->isBufferLocationSupported()) {
-  //     auto location =
-  //         PropsList.get_property<property::buffer::detail::buffer_location>()
-  //             .get_buffer_location();
-  //     pi_mem_properties props[3] = {PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
-  //                                   location, 0};
-  //     memBufferCreateHelper(Plugin, TargetContext->getHandleRef(),
-  //                           CreationFlags, Size, UserPtr, &NewMem, props);
-  //     return NewMem;
-  //   }
-  // memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
-  //                       Size, UserPtr, &NewMem, nullptr);
   return NewMem;
 }
 
