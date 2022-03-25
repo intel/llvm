@@ -50,7 +50,7 @@ not rely on APIs defined in this specification.*
 == Overview
 
 CUDA has a stream API 
-(link:https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__STREAM.html#group__CUDART__STREAM_1g2021adeb17905c7ec2a3c1bf125c5435[CudaStreamQuery]) with check if all operations in a CUDA stream have been completed. Such feature lack in `sycl::queue`. This extension adds a new query API to introspect queues. In particular, `ext_oneapi_empty` can be used to replace the `CudaStreamQuery`. This should ease the porting applications from CUDA to SYCL.
+(link:https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__STREAM.html#group__CUDART__STREAM_1g2021adeb17905c7ec2a3c1bf125c5435[CudaStreamQuery]) which checks if all operations in a CUDA stream have been completed. Such a feature is lacking in `sycl::queue`. This extension adds a new query API to introspect queues. In particular, `ext_oneapi_empty` can be used to replace the `CudaStreamQuery`. This should ease the porting applications from CUDA to SYCL.
 
 == Specification
 
@@ -102,23 +102,23 @@ The semantics of the new functions are:
 a|
 [source,c++]
 ----
-bool ext_oneapi_empty()
+bool ext_oneapi_empty() const
 ----
 |
-Returns `true` if `size() == 0`.
+Returns `true` if `ext_oneapi_size() == 0`.
 
 // --- ROW BREAK ---
 a|
 [source,c++]
 ----
-size_t ext_oneapi_size()
+size_t ext_oneapi_size() const
 ----
 |
 Returns the number of enqueued `commands` in the queue that have not been 
 completed. Since the implementation completes commands from the queue
 asynchronously, the returned value is a snapshot in time, and the actual 
 number of uncompleted commands may be different by the time the function 
-returns. Note that the behavior of `size()` is associated with the SYCL 
+returns. Note that the behavior of `ext_oneapi_size()` is associated with the SYCL 
 `queue` and not with the underlying native-backend-object.
 
 // --- ROW BREAK ---
@@ -131,11 +131,11 @@ std::vector<event> ext_oneapi_get_wait_list() const
 Returns the list of events such that waiting for all returned events
 guarantees that all enqueued commands in the queue have been completed.
 Implementations are free to omit events that don't contribute
-to the semantic of `get_wait_list()`. For example,
+to the semantic of `ext_oneapi_get_wait_list()`. For example,
 whether already completed events or non-leaf events of the dependency sub-graph
 managed by the queue are included in the returned list is implementation-defined.
-This implies that the number of events returned by `get_wait_list()`
-maybe different from the value returned by `size()`.
+This implies that the number of events returned by `ext_oneapi_get_wait_list()`
+maybe different from the value returned by `ext_oneapi_size()`.
 a|
 |===
 
