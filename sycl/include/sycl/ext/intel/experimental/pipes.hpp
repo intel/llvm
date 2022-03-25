@@ -21,6 +21,8 @@ namespace experimental {
 
 template <class _name, class _dataT, int32_t _min_capacity = 0> class pipe {
 public:
+  using value_type = _dataT;
+  static constexpr int32_t min_capacity = _min_capacity;
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
@@ -159,10 +161,9 @@ public:
 private:
   static constexpr int32_t m_Size = sizeof(_dataT);
   static constexpr int32_t m_Alignment = alignof(_dataT);
-  static constexpr int32_t m_Capacity = _min_capacity;
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr struct ConstantPipeStorage m_Storage = {m_Size, m_Alignment,
-                                                           m_Capacity};
+                                                           min_capacity};
 
   // FPGA BE will recognize this function and extract its arguments.
   // TODO: Pass latency control parameters via the __spirv_* builtin when ready.

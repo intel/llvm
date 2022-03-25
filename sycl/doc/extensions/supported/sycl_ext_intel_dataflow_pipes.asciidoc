@@ -691,6 +691,10 @@ class pipe {
   static dataT read( bool &success_code );
   template <class... _Params>
   static void write( const dataT &data, bool &success_code );
+
+  // Static members
+  using value_type = dataT;
+  size_t min_capacity = min_capacity;
 }
 } // namespace sycl::ext::intel::experimental
 ----
