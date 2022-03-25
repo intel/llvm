@@ -19,7 +19,6 @@
 
 == Notice
 
-[%hardbreaks]
 Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
@@ -36,24 +35,22 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 4 specification.  All
+This extension is written against the SYCL 2020 revision 4 specification. All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
 == Status
 
 This is a proposed extension specification, intended to gather community
-feedback.  Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state.  The specification itself may also change in
+feedback. Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state. The specification itself may also change in
 incompatible ways before it is finalized.  *Shipping software products should
 not rely on APIs defined in this specification.*
 
 == Overview
 
-This extension adds `sycl::queue::size()`, `sycl::queue::empty()`, `sycl::queue::get_wait_list()` member functions.
-
-- `sycl::queue::size()` and `sycl::queue::empty` allow users to query the number of enqueued commands to a queue.
-- `sycl::queue::get_wait_list()` is the queue equivalent of `event::get_wait_list()` 
+CUDA has a stream API 
+(link:https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__STREAM.html#group__CUDART__STREAM_1g2021adeb17905c7ec2a3c1bf125c5435[CudaStreamQuery]) with check if all operations in a CUDA stream have been completed. Such feature lack in `sycl::queue`. This extension adds a new query API to introspect queues. In particular, `ext_oneapi_empty` can be used to replace the `CudaStreamQuery`. This should ease the porting applications from CUDA to SYCL.
 
 == Specification
 
@@ -61,14 +58,14 @@ This extension adds `sycl::queue::size()`, `sycl::queue::empty()`, `sycl::queue:
 
 
 This extension provides a feature-test macro as described in the core SYCL
-specification.  An implementation supporting this extension must predefine the
+specification. An implementation supporting this extension must predefine the
 macro `SYCL_EXT_ONEAPI_QUEUE_STATUS_QUERY` to one of the values defined in the table
-below.  Applications can test for the existence of this macro to determine if
+below. Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
 supports.
 
-[%header,cols="1,5"]
+[%header,cols="2,5"]
 |===
 |Value
 |Description
@@ -81,6 +78,7 @@ supports.
 === Signatures and Semantics 
 
 This extension adds the following new member functions to the SYCL `queue` class.
+
 ```
 namespace sycl {
 
@@ -93,36 +91,57 @@ class queue {
 } // namespace sycl
 ```
 
+
 The semantics of the new functions are: 
 
-```
-empty()
-   Returns `true` if `size() == 0`.
-```
+[frame="topbot",options="header"]
+|===
+|Function |Description
 
-```
-size_t size() const
-   Returns the number of enqueued `commands` in the queue 
-   that have not been completed.
-   Since the implementation completes commands from the queue 
-   asynchronously, the returned value is a snapshot in time,
-   and the actual number of uncompleted commands may be different 
-   by the time the function returns.
-   Note that the behavior of `size()` is associated with the SYCL `queue`
-   and not with the underlying native-backend-object.
-```
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+bool ext_oneapi_empty()
+----
+|
+Returns `true` if `size() == 0`.
 
-(based on similar HipSYCL extension https://github.com/illuhad/hipSYCL/blob/develop/doc/extensions.md#hipsycl_ext_queue_wait_list) 
-```
-std::vector<event> get_wait_list() const
-   Returns the list of events such that waiting for all returned events
-   guarantees that all enqueued commands in the queue have been completed.
-   Implementations are free to omit events that don't contribute
-   to the semantic of `get_wait_list()`. For example,
-   whether already completed events or non-leaf events of the dependency sub-graph
-   managed by the queue are included in the returned list is implementation-defined.
-   This implies that the number of events returned by `get_wait_list()`
-   may be different from the value returned by `size()`.
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+size_t ext_oneapi_size();
+----
+|
+Returns the number of enqueued `commands` in the queue that have not been 
+completed. Since the implementation completes commands from the queue
+asynchronously, the returned value is a snapshot in time, and the actual 
+number of uncompleted commands may be different by the time the function 
+returns. Note that the behavior of `size()` is associated with the SYCL 
+`queue` and not with the underlying native-backend-object.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+std::vector<event> ext_oneapi_get_wait_list() const;
+----
+|
+Returns the list of events such that waiting for all returned events
+guarantees that all enqueued commands in the queue have been completed.
+Implementations are free to omit events that don't contribute
+to the semantic of `get_wait_list()`. For example,
+whether already completed events or non-leaf events of the dependency sub-graph
+managed by the queue are included in the returned list is implementation-defined.
+This implies that the number of events returned by `get_wait_list()`
+maybe different from the value returned by `size()`.
+a|
+|===
+
+== Similar Work
+
+- `ext_oneapi_get_wait_list()` is inspired by the the HIPSYCL extensions  link:https://github.com/illuhad/hipSYCL/blob/develop/doc/extensions.md#hipsycl_ext_queue_wait_list[queue_wait_list()]. 
 
 
- 
+
