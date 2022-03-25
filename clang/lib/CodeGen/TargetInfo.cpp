@@ -9425,10 +9425,9 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
   if (IsHIPKernel)
     F->addFnAttr("uniform-work-group-size", "true");
 
-  const bool IsSYCLKernel =
-      FD && M.getLangOpts().SYCLIsDevice &&
-      F->getCallingConv() == llvm::CallingConv::AMDGPU_KERNEL;
   // Create !{<func-ref>, metadata !"kernel", i32 1} node for SYCL kernels.
+  const bool IsSYCLKernel =
+      FD && M.getLangOpts().SYCLIsDevice && FD->hasAttr<SYCLKernelAttr>();
   if (IsSYCLKernel)
     addAMDGCNMetadata(F, "kernel", 1);
 
