@@ -162,7 +162,8 @@ void propagateAspectsToOtherTypesInModule(
     for (const Type *TT : T->subtypes()) {
       // If TT = %A*** then we want to get TT = %A
       // The same with arrays and vectors
-      while (TT->isPointerTy() || TT->isArrayTy() || TT->isVectorTy()) {
+      while (TT->isPointerTy() || TT->isOpaquePointerTy() || TT->isArrayTy() ||
+             TT->isVectorTy()) {
         TT = TT->getContainedType(0);
       }
 
