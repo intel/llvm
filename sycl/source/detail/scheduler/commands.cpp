@@ -1941,7 +1941,7 @@ static pi_result SetKernelParamsAndLaunch(
     for (ArgDesc &Arg : Args) {
       setFunc(Arg, Arg.MIndex);
     }
-    SetArgs=Args;
+    SetArgs = Args;
   } else {
     // TODO this is not necessary as long as we can guarantee that the arguments
     // are already sorted (e. g. handle the sorting in handler if necessary due
@@ -1999,7 +1999,8 @@ static pi_result SetKernelParamsAndLaunch(
   if (xptiTraceEnabled()) {
     NDRDescT NDRDescT = NDRDesc;
     if (LocalSize != nullptr) {
-      NDRDescT.LocalSize = cl::sycl::range<3>(LocalSize[0],LocalSize[1],LocalSize[2]);
+      NDRDescT.LocalSize =
+          cl::sycl::range<3>(LocalSize[0], LocalSize[1], LocalSize[2]);
     }
     XPTIRegistry::kernelEnqueueNotification(Kernel, NDRDescT, SetArgs, CodeLoc);
   }
