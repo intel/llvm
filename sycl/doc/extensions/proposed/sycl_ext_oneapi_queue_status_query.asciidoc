@@ -111,7 +111,7 @@ Returns `true` if `size() == 0`.
 a|
 [source,c++]
 ----
-size_t ext_oneapi_size();
+size_t ext_oneapi_size()
 ----
 |
 Returns the number of enqueued `commands` in the queue that have not been 
@@ -125,7 +125,7 @@ returns. Note that the behavior of `size()` is associated with the SYCL
 a|
 [source,c++]
 ----
-std::vector<event> ext_oneapi_get_wait_list() const;
+std::vector<event> ext_oneapi_get_wait_list() const
 ----
 |
 Returns the list of events such that waiting for all returned events
@@ -141,7 +141,7 @@ a|
 
 == Similar Work
 
-- `ext_oneapi_get_wait_list()` is inspired by the the HIPSYCL extensions  link:https://github.com/illuhad/hipSYCL/blob/develop/doc/extensions.md#hipsycl_ext_queue_wait_list[queue_wait_list()]. 
+- `ext_oneapi_get_wait_list` is inspired by the the HIPSYCL extensions  link:https://github.com/illuhad/hipSYCL/blob/develop/doc/extensions.md#hipsycl_ext_queue_wait_list[queue_wait_list]. 
 
 
 
