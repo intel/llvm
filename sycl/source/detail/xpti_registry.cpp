@@ -136,6 +136,35 @@ void XPTIRegistry::bufferAccessorNotification(
 #endif
 }
 
+void XPTIRegistry::kernelEnqueueNotification(
+    const void *Kernel, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
+    const detail::code_location &CodeLoc) {
+  (void)(void)CodeLoc;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+
+  uint64_t IId;
+
+  xpti::trace_event_data_t *TraceEvent = createTraceEvent(
+      Kernel, "kernel", IId, CodeLoc, xpti::trace_offload_kernel_enqueue_event);
+  xpti::offload_kernel_enqueue_data_t KernelData{
+      {NDRDesc.GlobalSize[0], NDRDesc.GlobalSize[1], NDRDesc.GlobalSize[2]},
+      {NDRDesc.LocalSize[0], NDRDesc.LocalSize[1], NDRDesc.LocalSize[2]},
+      {NDRDesc.GlobalOffset[0], NDRDesc.GlobalOffset[1],
+       NDRDesc.GlobalOffset[2]},
+      Args.size()};
+  for (size_t i = 0; i < Args.size(); i++) {
+    std::string Prefix("arg");
+    xpti::offload_kernel_arg_data_t arg{(int)Args[i].MType, Args[i].MPtr,
+                                        Args[i].MSize, Args[i].MIndex};
+    xpti::addMetadata(TraceEvent, Prefix + std::to_string(i), arg);
+  }
+
+  xptiNotifySubscribers(GBufferStreamID, xpti::trace_offload_kernel_enqueue,
+                        nullptr, TraceEvent, IId, &KernelData);
+#endif
+}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

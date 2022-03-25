@@ -896,7 +896,6 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
   Stream << " Link : " << this->MLinkedAllocaCmd << "\\n";
   Stream << "\"];" << std::endl;
 
-
   for (const auto &Dep : MDeps) {
     if (Dep.MDepCommand == nullptr)
       continue;
@@ -1041,7 +1040,6 @@ cl_int ReleaseCommand::enqueueImp() {
     // 2. Host allocation should be released if host allocation is "leader".
     // 3. Device alloca in the pair should be in active state in order to be
     //    correctly released.
-
 
     // There is no actual memory allocation if a host alloca command is created
     // being linked to a device allocation.
@@ -1874,8 +1872,10 @@ static pi_result SetKernelParamsAndLaunch(
     RT::PiKernel Kernel, NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
     RT::PiEvent *OutEvent,
     const ProgramManager::KernelArgMask &EliminatedArgMask,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    const cl::sycl::detail::code_location &CodeLoc) {
   const detail::plugin &Plugin = Queue->getPlugin();
+  std::vector<ArgDesc> SetArgs;
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                   &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
@@ -1941,6 +1941,7 @@ static pi_result SetKernelParamsAndLaunch(
     for (ArgDesc &Arg : Args) {
       setFunc(Arg, Arg.MIndex);
     }
+    SetArgs=Args;
   } else {
     // TODO this is not necessary as long as we can guarantee that the arguments
     // are already sorted (e. g. handle the sorting in handler if necessary due
@@ -1962,6 +1963,9 @@ static pi_result SetKernelParamsAndLaunch(
       if (EliminatedArgMask[Arg.MIndex])
         continue;
 
+      ArgDesc CurArg{Arg};
+      CurArg.MIndex = NextTrueIndex;
+      SetArgs.push_back(CurArg);
       setFunc(Arg, NextTrueIndex);
       ++NextTrueIndex;
     }
@@ -1991,7 +1995,15 @@ static pi_result SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    NDRDescT NDRDescT = NDRDesc;
+    if (LocalSize != nullptr) {
+      NDRDescT.LocalSize = cl::sycl::range<3>(LocalSize[0],LocalSize[1],LocalSize[2]);
+    }
+    XPTIRegistry::kernelEnqueueNotification(Kernel, NDRDescT, SetArgs, CodeLoc);
+  }
+#endif
   pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
@@ -2032,7 +2044,8 @@ cl_int enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    const sycl::detail::code_location &CodeLoc) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2098,13 +2111,13 @@ cl_int enqueueImpKernel(
   if (KernelMutex != nullptr) {
     // For cacheable kernels, we use per-kernel mutex
     std::lock_guard<std::mutex> Lock(*KernelMutex);
-    Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, RawEvents, OutEvent,
-                                     EliminatedArgMask, getMemAllocationFunc);
+    Error = SetKernelParamsAndLaunch(
+        Queue, Args, DeviceImageImpl, Kernel, NDRDesc, RawEvents, OutEvent,
+        EliminatedArgMask, getMemAllocationFunc, CodeLoc);
   } else {
-    Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, RawEvents, OutEvent,
-                                     EliminatedArgMask, getMemAllocationFunc);
+    Error = SetKernelParamsAndLaunch(
+        Queue, Args, DeviceImageImpl, Kernel, NDRDesc, RawEvents, OutEvent,
+        EliminatedArgMask, getMemAllocationFunc, CodeLoc);
   }
 
   if (PI_SUCCESS != Error) {
@@ -2299,6 +2312,15 @@ cl_int ExecCGCommand::enqueueImp() {
         const detail::plugin &Plugin = EventImpls[0]->getPlugin();
         Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+      if (xptiTraceEnabled()) {
+        XPTIRegistry::kernelEnqueueNotification(
+            (const void *)ExecKernel->MSyclKernel->getHandleRef(), NDRDesc,
+            Args,
+            {MCommandGroup->MFileName.c_str(), ExecKernel->MKernelName.c_str(),
+             MCommandGroup->MLine, MCommandGroup->MColumn});
+      }
+#endif
 
       if (MQueue->is_host()) {
         ExecKernel->MHostKernel->call(NDRDesc,
@@ -2339,7 +2361,9 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc);
+        KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc,
+        {MCommandGroup->MFileName.c_str(), KernelName.c_str(),
+         MCommandGroup->MLine, MCommandGroup->MColumn});
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
@@ -2380,15 +2404,16 @@ cl_int ExecCGCommand::enqueueImp() {
       Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
     }
     std::vector<interop_handler::ReqToMem> ReqMemObjs;
-    // Extract the Mem Objects for all Requirements, to ensure they are available if
-    // a user ask for them inside the interop task scope
-    const auto& HandlerReq = ExecInterop->MRequirements;
-    std::for_each(std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement* Req) {
-      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-      auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
-      interop_handler::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
-      ReqMemObjs.emplace_back(ReqToMem);
-    });
+    // Extract the Mem Objects for all Requirements, to ensure they are
+    // available if a user ask for them inside the interop task scope
+    const auto &HandlerReq = ExecInterop->MRequirements;
+    std::for_each(
+        std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement *Req) {
+          AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+          auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
+          interop_handler::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
+          ReqMemObjs.emplace_back(ReqToMem);
+        });
 
     std::sort(std::begin(ReqMemObjs), std::end(ReqMemObjs));
     interop_handler InteropHandler(std::move(ReqMemObjs), MQueue);

@@ -13,6 +13,7 @@
 #include <unordered_set>
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/cg_types.hpp>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
@@ -99,6 +100,9 @@ public:
   static void bufferAccessorNotification(const void *, const void *, uint32_t,
                                          uint32_t,
                                          const detail::code_location &);
+  static void kernelEnqueueNotification(const void *,
+		                        NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
+                                        const detail::code_location &);
 
 private:
   std::unordered_set<std::string> MActiveStreams;

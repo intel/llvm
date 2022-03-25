@@ -532,7 +532,8 @@ cl_int enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    const detail::code_location &CodeLoc);
 
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.
@@ -560,9 +561,7 @@ public:
   // This function is only usable for native kernel to prevent access to free'd
   // memory in DispatchNativeKernel.
   // TODO remove when native kernel support is terminated.
-  void releaseCG() {
-    MCommandGroup.release();
-  }
+  void releaseCG() { MCommandGroup.release(); }
 
   bool producesPiEvent() const final;
 
