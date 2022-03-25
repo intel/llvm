@@ -2729,9 +2729,7 @@ llvm::Value *CodeGenFunction::EmitSYCLAnnotationCall(
       Builder.CreateBitCast(CGM.EmitAnnotationString("sycl-properties"),
                             Int8PtrTy),
       Builder.CreateBitCast(CGM.EmitAnnotationUnit(Location), Int8PtrTy),
-      CGM.EmitAnnotationLineNo(Location),
-      CGM.EmitSYCLAnnotationArgs(Attr)
-  };
+      CGM.EmitAnnotationLineNo(Location), CGM.EmitSYCLAnnotationArgs(Attr)};
   return Builder.CreateCall(AnnotationFn, Args);
 }
 
