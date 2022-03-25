@@ -781,6 +781,8 @@ protected:
   friend class queue_impl;
   friend class event_impl;
 
+  friend class ::MockScheduler;
+
   /// Stream buffers structure.
   ///
   /// The structure contains all buffers for a stream object.

@@ -160,6 +160,10 @@ public:
   }
 
   ReadLockT acquireGraphReadLock() { return ReadLockT{MGraphLock}; }
+  WriteLockT acquireOriginSchedGraphWriteLock() {
+    Scheduler &Sched = Scheduler::getInstance();
+    return WriteLockT(Sched.MGraphLock, std::defer_lock);
+  }
 
   cl::sycl::detail::Command *
   insertMemoryMove(cl::sycl::detail::MemObjRecord *Record,
