@@ -177,6 +177,7 @@ set(SYCL_SOURCES
     "detail/global_handler.cpp"
     "detail/helpers.cpp"
     "detail/handler_proxy.cpp"
+    "detail/host_pipe.cpp"
     "detail/image_accessor_util.cpp"
     "detail/image_impl.cpp"
     "detail/jit_compiler.cpp"

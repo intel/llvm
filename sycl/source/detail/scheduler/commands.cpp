@@ -2330,6 +2330,43 @@ pi_int32 enqueueImpKernel(
   return PI_SUCCESS;
 }
 
+pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
+                                  const std::string &PipeName, bool blocking,
+                                  void *ptr, size_t size,
+                                  std::vector<RT::PiEvent> &RawEvents,
+                                  RT::PiEvent *OutEvent, bool read) {
+  // TODO: Few options of getting the kernel name / program object:
+  // 1. Encode this in the pipe registration
+  // 2. Initialize the pipe registration from first kernel launch, but then this
+  // will violate the spec
+  detail::OSModuleHandle M =
+      detail::OSUtil::getOSModuleHandle("HostPipeReadWriteKernelName");
+  RT::PiProgram Program =
+      sycl::detail::ProgramManager::getInstance().getBuiltPIProgram(
+          M, Queue->getContextImplPtr(), Queue->getDeviceImplPtr(),
+          "HostPipeReadWriteKernelName");
+
+  // Get plugin for calling opencl functions
+  const detail::plugin &Plugin = Queue->getPlugin();
+
+  pi_queue pi_q = Queue->getHandleRef();
+  pi_result Error;
+  if (read) {
+    Error =
+        Plugin.call_nocheck<sycl::detail::PiApiKind::piextEnqueueReadHostPipe>(
+            pi_q, Program, PipeName.c_str(), blocking, ptr, size,
+            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+            OutEvent);
+  } else {
+    Error =
+        Plugin.call_nocheck<sycl::detail::PiApiKind::piextEnqueueWriteHostPipe>(
+            pi_q, Program, PipeName.c_str(), blocking, ptr, size,
+            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+            OutEvent);
+  }
+  return Error;
+}
+
 pi_int32 ExecCGCommand::enqueueImp() {
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     waitForPreparedHostEvents();
@@ -2737,6 +2774,22 @@ pi_int32 ExecCGCommand::enqueueImp() {
         Copy->getOSModuleHandle(), std::move(RawEvents), Event);
 
     return CL_SUCCESS;
+  }
+  case CG::CGTYPE::ReadWriteHostPipe: {
+    CGReadWriteHostPipe *ExecReadWriteHostPipe =
+        (CGReadWriteHostPipe *)MCommandGroup.get();
+    std::string pipeName = ExecReadWriteHostPipe->getPipeName();
+    void *hostPtr = ExecReadWriteHostPipe->getHostPtr();
+    size_t typeSize = ExecReadWriteHostPipe->getTypeSize();
+    bool blocking = ExecReadWriteHostPipe->isBlocking();
+    bool read = ExecReadWriteHostPipe->isReadHostPipe();
+
+    if (!Event) {
+      Event = &MEvent->getHandleRef();
+    }
+
+    return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
+                                    typeSize, RawEvents, Event, read);
   }
   case CG::CGTYPE::None:
     throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);

@@ -2646,6 +2646,14 @@ public:
     else
       commonUSMFill2DFallbackKernel(Dest, DestPitch, Pattern, Width, Height);
   }
+  /// Read from or write to host pipes given a host address and
+  /// \param Name name of the host pipe to be passed into lower level runtime
+  /// \param Ptr host pointer of host pipe as identified by address of its const
+  /// expr __pipe member \param Size the size of data getting read back / to.
+  /// /// \param Size the size of data getting read back / to. \param Blocking
+  /// if read/write opeartion is blocking \param Read 1 for read, 0 for write
+  void read_write_host_pipe(const std::string &Name, void *Ptr, size_t Size,
+                            bool Block, bool Read);
 
   /// Copies data from a USM memory region to a device_global.
   /// Throws an exception if the copy operation intends to write outside the
@@ -2781,6 +2789,16 @@ private:
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
+  /// Pipe name that uniquely identifies a pipe.
+  std::string HostPipeName;
+  /// Pipe host pointer, the address of its constexpr __pipe member.
+  void *HostPipePtr = nullptr;
+  /// Host pipe read write operation is blocking.
+  bool HostPipeBlocking = false;
+  /// The size of returned type for each read.
+  size_t HostPipeTypeSize = 0;
+  /// If the pipe operation is read or write, 1 for read 0 for write.
+  bool HostPipeRead = true;
 
   bool MIsHost = false;
 

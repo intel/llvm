@@ -191,7 +191,7 @@ struct IsCompileTimeProperty<intel::experimental::protocol_key>
 
 } // namespace detail
 } // namespace experimental
-} // namespace intel
+} // namespace oneapi
 } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
