@@ -788,6 +788,9 @@ struct _pi_queue : _pi_object {
   // for execution.
   std::vector<pi_kernel> KernelsToBeSubmitted;
 
+  // Update map of memory references made by the kernels about to be submitted
+  void CaptureIndirectAccesses();
+
   // Indicates if we own the ZeCommandQueue or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnZeCommandQueue;
