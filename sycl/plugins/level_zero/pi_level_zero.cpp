@@ -1393,64 +1393,66 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     KernelsToBeSubmitted.clear();
   }
 
-  if (!UseImmediateCommandLists) {
-    // In this mode all inner-batch events have device visibility only,
-    // and we want the last command in the batch to signal a host-visible
-    // event that anybody waiting for any event in the batch will
-    // really be using.
+  // In this mode all inner-batch events have device visibility only,
+  // and we want the last command in the batch to signal a host-visible
+  // event that anybody waiting for any event in the batch will
+  // really be using.
+  //
+  if (EventsScope == LastCommandInBatchHostVisible) {
+    // If immediate commandlists are being used, we don't support
+    // LastCommandInBatchHostVisible mode
+    PI_ASSERT(!UseImmediateCommandLists, PI_INVALID_EVENT);
+
+    // Create a "proxy" host-visible event.
     //
-    if (EventsScope == LastCommandInBatchHostVisible) {
-      // Create a "proxy" host-visible event.
-      //
-      pi_event HostVisibleEvent;
-      auto Res = createEventAndAssociateQueue(
-          this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
-      if (Res)
-        return Res;
+    pi_event HostVisibleEvent;
+    auto Res = createEventAndAssociateQueue(
+        this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
+    if (Res)
+      return Res;
 
-      // Update each command's event in the command-list to "see" this
-      // proxy event as a host-visible counterpart.
-      for (auto &Event : CommandList->second.EventList) {
-        if (!Event->HostVisibleEvent) {
-          Event->HostVisibleEvent = HostVisibleEvent;
-          PI_CALL(piEventRetain(HostVisibleEvent));
-        }
+    // Update each command's event in the command-list to "see" this
+    // proxy event as a host-visible counterpart.
+    for (auto &Event : CommandList->second.EventList) {
+      if (!Event->HostVisibleEvent) {
+        Event->HostVisibleEvent = HostVisibleEvent;
+        PI_CALL(piEventRetain(HostVisibleEvent));
       }
-
-      // Decrement the reference count of the event such that all the remaining
-      // references are from the other commands in this batch and from the
-      // command-list itself. This host-visible event will not be
-      // waited/released by SYCL RT, so it must be destroyed after all events in
-      // the batch are gone.
-      PI_CALL(piEventRelease(HostVisibleEvent));
-      PI_CALL(piEventRelease(HostVisibleEvent));
-
-      // Indicate no cleanup is needed for this PI event as it is special.
-      HostVisibleEvent->CleanedUp = true;
-
-      // Finally set to signal the host-visible event at the end of the
-      // command-list.
-      // TODO: see if we need a barrier here (or explicit wait for all events in
-      // the batch).
-      ZE_CALL(zeCommandListAppendSignalEvent,
-              (CommandList->first, HostVisibleEvent->ZeEvent));
     }
 
-    // Close the command list and have it ready for dispatch.
-    ZE_CALL(zeCommandListClose, (CommandList->first));
-    // Offload command list to the GPU for asynchronous execution
-    auto ZeCommandList = CommandList->first;
-    auto ZeResult = ZE_CALL_NOCHECK(
-        zeCommandQueueExecuteCommandLists,
-        (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
-    if (ZeResult != ZE_RESULT_SUCCESS) {
-      this->Healthy = false;
-      if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
-        // Turn into a more informative end-user error.
-        return PI_COMMAND_EXECUTION_FAILURE;
-      }
-      return mapError(ZeResult);
+    // Decrement the reference count of the event such that all the remaining
+    // references are from the other commands in this batch and from the
+    // command-list itself. This host-visible event will not be
+    // waited/released by SYCL RT, so it must be destroyed after all events in
+    // the batch are gone.
+    PI_CALL(piEventRelease(HostVisibleEvent));
+    PI_CALL(piEventRelease(HostVisibleEvent));
+
+    // Indicate no cleanup is needed for this PI event as it is special.
+    HostVisibleEvent->CleanedUp = true;
+
+    // Finally set to signal the host-visible event at the end of the
+    // command-list.
+    // TODO: see if we need a barrier here (or explicit wait for all events in
+    // the batch).
+    ZE_CALL(zeCommandListAppendSignalEvent,
+            (CommandList->first, HostVisibleEvent->ZeEvent));
+  }
+
+  // Close the command list and have it ready for dispatch.
+  ZE_CALL(zeCommandListClose, (CommandList->first));
+  // Offload command list to the GPU for asynchronous execution
+  auto ZeCommandList = CommandList->first;
+  auto ZeResult = ZE_CALL_NOCHECK(
+      zeCommandQueueExecuteCommandLists,
+      (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    this->Healthy = false;
+    if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+      // Turn into a more informative end-user error.
+      return PI_COMMAND_EXECUTION_FAILURE;
     }
+    return mapError(ZeResult);
   }
 
   // Check global control to make every command blocking for debugging.
@@ -1551,7 +1553,7 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
 }
 
 // This function will return one of possibly multiple available
-// immediate commandlists associated with this Context/Device.
+// immediate commandlists associated with this Queue.
 pi_command_list_ptr_t &
 _pi_queue::pi_queue_group_t::getImmCmdList(bool UseCopyEngine) {
 
@@ -3266,13 +3268,12 @@ pi_result piQueueRelease(pi_queue Queue) {
         if (it->second.InUse) {
           Queue->resetCommandList(it, true);
         }
-        // Immediate commandlists do not have a fence.
-        if (!UseImmediateCommandLists)
-          // TODO: remove "if" when the problem is fixed in the level zero
-          // runtime. Destroy only if a queue is healthy. Destroying a fence may
-          // cause a hang otherwise.
-          if (Queue->Healthy)
-            ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
+        // TODO: remove "if" when the problem is fixed in the level zero
+        // runtime. Destroy only if a queue is healthy. Destroying a fence may
+        // cause a hang otherwise.
+        // If the fence is a nullptr we are using immediate commandlists.
+        if (Queue->Healthy && it->second.ZeFence == nullptr)
+          ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
       }
       Queue->CommandListMap.clear();
     }
