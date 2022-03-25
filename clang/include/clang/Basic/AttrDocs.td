@@ -3624,10 +3624,11 @@ must be integer, floating point, character, boolean, ``const char *``, or an
 enumeration as either a literal or ``constexpr`` value. The first N arguments
 and the second N arguments are zipped into pairs when creating the call to
 ``llvm.ptr.annotation``, i.e. in the constant global variable pointed to by the
-generated annotation intrinsic call the N+1'th argument of the attribute will
+generated annotation intrinsic call, the N+1'th argument of the attribute will
 occur after the first argument of the attribute, the N+2'th argument of the
 attribute will occur after the second argument of the attribute, etc.
-The generated call to ``llvm.ptr.annotation`` will have the following arguments:
+The generated call to ``llvm.ptr.annotation`` will have the following arguments
+in this order:
   * First argument is a pointer to the field.
   * A pointer to a string literal in a constant global variable. This will
     always be "sycl-properties".

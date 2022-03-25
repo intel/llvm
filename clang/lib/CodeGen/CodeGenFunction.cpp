@@ -2730,7 +2730,7 @@ llvm::Value *CodeGenFunction::EmitSYCLAnnotationCall(
                             Int8PtrTy),
       Builder.CreateBitCast(CGM.EmitAnnotationUnit(Location), Int8PtrTy),
       CGM.EmitAnnotationLineNo(Location),
-      CGM.EmitSYCLAnnotationArgs(Attr),
+      CGM.EmitSYCLAnnotationArgs(Attr)
   };
   return Builder.CreateCall(AnnotationFn, Args);
 }
@@ -2743,7 +2743,7 @@ Address CodeGenFunction::EmitFieldSYCLAnnotations(const FieldDecl *D,
   llvm::Type *VTy = V->getType();
 
   // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
-  // don't perform bitcasts if value is integer
+  // don't perform bitcasts if value is integer.
   if (VTy->getPointerElementType()->isIntegerTy()) {
     llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
     V = EmitSYCLAnnotationCall(F, V, D->getLocation(), SYCLAnnotAttr);
