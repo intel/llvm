@@ -465,45 +465,7 @@ When the device compiler generates code to reference the decorated member
 variable, it emits a call to the LLVM intrinsic function
 [`@llvm.ptr.annotation`][10] that annotates the pointer to that member
 variables, similar to the way the existing `[[clang::annotate()]]` attribute
-works.  Illustrating this with some simplified LLVM IR that matches the example
-code above:
-
-[10]: <https://llvm.org/docs/LangRef.html#llvm-ptr-annotation-intrinsic>
-
-```
-@.str = private unnamed_addr constant [16 x i8] c"sycl-properties\00",
-   section "llvm.metadata"
-@.str.1 = private unnamed_addr constant [9 x i8] c"file.cpp\00",
-   section "llvm.metadata"
-@.str.2 = private unnamed_addr constant [9 x i8] c"sycl-foo\00", align 1
-@.str.3 = private unnamed_addr constant [9 x i8] c"sycl-bar\00", align 1
-
-@.args = private unnamed_addr constant { [9 x i8]*, i8*, [9 x i8]*, i32 }
-   {
-     [9 x i8]* @.str.2,   ; Name of first property "sycl-foo"
-     i8* null,            ; Null indicates this property has no value
-     [9 x i8]* @.str.3,   ; Name of second property "sycl-bar"
-     i32 32               ; Value of second property
-   },
-   section "llvm.metadata"
-
-define void @foo(i32* %ptr) {
-  %aptr = alloca %class.annotated_ptr
-  %ptr = getelementptr inbounds %class.annotated_ptr, %class.annotated_ptr* %aptr,
-    i32 0, i32 0
-  %1 = bitcast i32** %ptr to i8*
-
-  %2 = call i8* @llvm.ptr.annotation.p0i8(i8* nonnull %0,
-    i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str, i64 0, i64 0),
-    i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i64 0, i64 0),
-    i32 3,
-    i8* bitcast ({ [9 x i8]*, i8*, [9 x i8]*, i32 }* @.args to i8*))
-
-  %3 = bitcast i8* %2 to i32**
-  store i32* %ptr, i32** %3
-  ret void
-}
-```
+works.
 
 The front-end encodes the properties from the C++ attribute
 `[[__sycl_detail__::add_ir_annotations_member()]]` into the
@@ -882,7 +844,7 @@ produced by `[[__sycl_detail__::add_ir_annotations_member()]]` into another
 ; Contains decorations:
 ;  * 7744 with no value.
 ;  * 7745 with 20 and "str 1" as the values.
-@.str = private unnamed_addr constant [24 x i8] c"{7744}{7745:20,"str 1"}\00",
+@.str = private unnamed_addr constant [24 x i8] c"{7744}{7745:20,\22str 1\22}\00",
   section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [9 x i8] c"file.cpp\00",
    section "llvm.metadata"
