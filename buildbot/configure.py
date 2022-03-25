@@ -77,7 +77,7 @@ def do_configure(args):
         sycl_build_pi_hip_platform = args.hip_platform
         sycl_build_pi_hip = 'ON'
 
-    if args.werror || args.ci_defaults:
+    if args.werror or args.ci_defaults:
         sycl_werror = 'ON'
         xpti_enable_werror = 'ON'
 
