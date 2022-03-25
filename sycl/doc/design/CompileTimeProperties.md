@@ -614,9 +614,9 @@ names and values of the properties in the following sequence:
 * Etc.
 
 Every field in the global variable pointed to by this parameter are string
-literals in seperate global variables. If the value of a property is either an
-empty string or a `nullptr`, the corresponding field will have a null-pointer
-value.
+literals in seperate global variables. Property values are converted to strings
+in the same way as described above, except that the `nullptr` value and the
+empty string (`""`) is represented as `null` in the global variable field.
 
 
 ## Filtering properties
