@@ -1234,10 +1234,20 @@ public:
     }
   };
 
-  /// WeakUndeclaredIdentifiers - Identifiers contained in
-  /// \#pragma weak before declared. rare. may alias another
-  /// identifier, declared or undeclared
-  llvm::MapVector<IdentifierInfo *, WeakInfo> WeakUndeclaredIdentifiers;
+  /// WeakUndeclaredIdentifiers - Identifiers contained in \#pragma weak before
+  /// declared. Rare. May alias another identifier, declared or undeclared.
+  ///
+  /// For aliases, the target identifier is used as a key for eventual
+  /// processing when the target is declared. For the single-identifier form,
+  /// the sole identifier is used as the key. Each entry is a `SetVector`
+  /// (ordered by parse order) of aliases (identified by the alias name) in case
+  /// of multiple aliases to the same undeclared identifier.
+  llvm::MapVector<
+      IdentifierInfo *,
+      llvm::SetVector<
+          WeakInfo, llvm::SmallVector<WeakInfo, 1u>,
+          llvm::SmallDenseSet<WeakInfo, 2u, WeakInfo::DenseMapInfoByAliasOnly>>>
+      WeakUndeclaredIdentifiers;
 
   /// ExtnameUndeclaredIdentifiers - Identifiers contained in
   /// \#pragma redefine_extname before declared.  Used in Solaris system headers
@@ -3208,6 +3218,12 @@ public:
     NotACXX20Module  ///< Not a C++20 TU, or an invalid state was found.
   };
 
+private:
+  /// The parser has begun a translation unit to be compiled as a C++20
+  /// Header Unit, helper for ActOnStartOfTranslationUnit() only.
+  void HandleStartOfHeaderUnit();
+
+public:
   /// The parser has processed a module-declaration that begins the definition
   /// of a module interface or implementation.
   DeclGroupPtrTy ActOnModuleDecl(SourceLocation StartLoc,
@@ -7017,7 +7033,7 @@ public:
   /// Create a new lambda closure type.
   CXXRecordDecl *createLambdaClosureType(SourceRange IntroducerRange,
                                          TypeSourceInfo *Info,
-                                         bool KnownDependent,
+                                         unsigned LambdaDependencyKind,
                                          LambdaCaptureDefault CaptureDefault);
 
   /// Start the definition of a lambda expression.
@@ -10429,7 +10445,7 @@ public:
 
   NamedDecl *DeclClonePragmaWeak(NamedDecl *ND, const IdentifierInfo *II,
                                  SourceLocation Loc);
-  void DeclApplyPragmaWeak(Scope *S, NamedDecl *ND, WeakInfo &W);
+  void DeclApplyPragmaWeak(Scope *S, NamedDecl *ND, const WeakInfo &W);
 
   /// ActOnPragmaWeakID - Called on well formed \#pragma weak ident.
   void ActOnPragmaWeakID(IdentifierInfo* WeakName,

@@ -1926,7 +1926,10 @@ bool CGOpenMPRuntime::emitDeclareTargetVarDefinition(const VarDecl *VD,
       const CGFunctionInfo &FI = CGM.getTypes().arrangeNullaryFunction();
       llvm::FunctionType *FTy = CGM.getTypes().GetFunctionType(FI);
       llvm::Function *Fn = CGM.CreateGlobalInitOrCleanUpFunction(
-          FTy, Twine(Buffer, "_ctor"), FI, Loc);
+          FTy, Twine(Buffer, "_ctor"), FI, Loc, false,
+          llvm::GlobalValue::WeakODRLinkage);
+      if (CGM.getTriple().isAMDGCN())
+        Fn->setCallingConv(llvm::CallingConv::AMDGPU_KERNEL);
       auto NL = ApplyDebugLocation::CreateEmpty(CtorCGF);
       CtorCGF.StartFunction(GlobalDecl(), CGM.getContext().VoidTy, Fn, FI,
                             FunctionArgList(), Loc, Loc);
@@ -1944,7 +1947,6 @@ bool CGOpenMPRuntime::emitDeclareTargetVarDefinition(const VarDecl *VD,
       CtorCGF.FinishFunction();
       Ctor = Fn;
       ID = llvm::ConstantExpr::getBitCast(Fn, CGM.Int8PtrTy);
-      CGM.addUsedGlobal(cast<llvm::GlobalValue>(Ctor));
     } else {
       Ctor = new llvm::GlobalVariable(
           CGM.getModule(), CGM.Int8Ty, /*isConstant=*/true,
@@ -1970,7 +1972,10 @@ bool CGOpenMPRuntime::emitDeclareTargetVarDefinition(const VarDecl *VD,
       const CGFunctionInfo &FI = CGM.getTypes().arrangeNullaryFunction();
       llvm::FunctionType *FTy = CGM.getTypes().GetFunctionType(FI);
       llvm::Function *Fn = CGM.CreateGlobalInitOrCleanUpFunction(
-          FTy, Twine(Buffer, "_dtor"), FI, Loc);
+          FTy, Twine(Buffer, "_dtor"), FI, Loc, false,
+          llvm::GlobalValue::WeakODRLinkage);
+      if (CGM.getTriple().isAMDGCN())
+        Fn->setCallingConv(llvm::CallingConv::AMDGPU_KERNEL);
       auto NL = ApplyDebugLocation::CreateEmpty(DtorCGF);
       DtorCGF.StartFunction(GlobalDecl(), CGM.getContext().VoidTy, Fn, FI,
                             FunctionArgList(), Loc, Loc);
@@ -1989,7 +1994,6 @@ bool CGOpenMPRuntime::emitDeclareTargetVarDefinition(const VarDecl *VD,
       DtorCGF.FinishFunction();
       Dtor = Fn;
       ID = llvm::ConstantExpr::getBitCast(Fn, CGM.Int8PtrTy);
-      CGM.addUsedGlobal(cast<llvm::GlobalValue>(Dtor));
     } else {
       Dtor = new llvm::GlobalVariable(
           CGM.getModule(), CGM.Int8Ty, /*isConstant=*/true,
@@ -6537,7 +6541,7 @@ void CGOpenMPRuntime::emitTargetOutlinedFunctionHelper(
 
   if (CGM.getLangOpts().OpenMPIsDevice) {
     OutlinedFnID = llvm::ConstantExpr::getBitCast(OutlinedFn, CGM.Int8PtrTy);
-    OutlinedFn->setLinkage(llvm::GlobalValue::WeakAnyLinkage);
+    OutlinedFn->setLinkage(llvm::GlobalValue::WeakODRLinkage);
     OutlinedFn->setDSOLocal(false);
     if (CGM.getTriple().isAMDGCN())
       OutlinedFn->setCallingConv(llvm::CallingConv::AMDGPU_KERNEL);
@@ -11939,16 +11943,16 @@ void CGOpenMPRuntime::emitDeclareSimdFunction(const FunctionDecl *FD,
                                               llvm::Function *Fn) {
   ASTContext &C = CGM.getContext();
   FD = FD->getMostRecentDecl();
-  // Map params to their positions in function decl.
-  llvm::DenseMap<const Decl *, unsigned> ParamPositions;
-  if (isa<CXXMethodDecl>(FD))
-    ParamPositions.try_emplace(FD, 0);
-  unsigned ParamPos = ParamPositions.size();
-  for (const ParmVarDecl *P : FD->parameters()) {
-    ParamPositions.try_emplace(P->getCanonicalDecl(), ParamPos);
-    ++ParamPos;
-  }
   while (FD) {
+    // Map params to their positions in function decl.
+    llvm::DenseMap<const Decl *, unsigned> ParamPositions;
+    if (isa<CXXMethodDecl>(FD))
+      ParamPositions.try_emplace(FD, 0);
+    unsigned ParamPos = ParamPositions.size();
+    for (const ParmVarDecl *P : FD->parameters()) {
+      ParamPositions.try_emplace(P->getCanonicalDecl(), ParamPos);
+      ++ParamPos;
+    }
     for (const auto *Attr : FD->specific_attrs<OMPDeclareSimdDeclAttr>()) {
       llvm::SmallVector<ParamAttrTy, 8> ParamAttrs(ParamPositions.size());
       // Mark uniform parameters.
@@ -11960,7 +11964,9 @@ void CGOpenMPRuntime::emitDeclareSimdFunction(const FunctionDecl *FD,
         } else {
           const auto *PVD = cast<ParmVarDecl>(cast<DeclRefExpr>(E)->getDecl())
                                 ->getCanonicalDecl();
-          Pos = ParamPositions[PVD];
+          auto It = ParamPositions.find(PVD);
+          assert(It != ParamPositions.end() && "Function parameter not found");
+          Pos = It->second;
         }
         ParamAttrs[Pos].Kind = Uniform;
       }
@@ -11976,7 +11982,9 @@ void CGOpenMPRuntime::emitDeclareSimdFunction(const FunctionDecl *FD,
         } else {
           const auto *PVD = cast<ParmVarDecl>(cast<DeclRefExpr>(E)->getDecl())
                                 ->getCanonicalDecl();
-          Pos = ParamPositions[PVD];
+          auto It = ParamPositions.find(PVD);
+          assert(It != ParamPositions.end() && "Function parameter not found");
+          Pos = It->second;
           ParmTy = PVD->getType();
         }
         ParamAttrs[Pos].Alignment =
@@ -12000,7 +12008,9 @@ void CGOpenMPRuntime::emitDeclareSimdFunction(const FunctionDecl *FD,
         } else {
           const auto *PVD = cast<ParmVarDecl>(cast<DeclRefExpr>(E)->getDecl())
                                 ->getCanonicalDecl();
-          Pos = ParamPositions[PVD];
+          auto It = ParamPositions.find(PVD);
+          assert(It != ParamPositions.end() && "Function parameter not found");
+          Pos = It->second;
           if (auto *P = dyn_cast<PointerType>(PVD->getType()))
             PtrRescalingFactor = CGM.getContext()
                                      .getTypeSizeInChars(P->getPointeeType())
@@ -12018,8 +12028,10 @@ void CGOpenMPRuntime::emitDeclareSimdFunction(const FunctionDecl *FD,
               if (const auto *StridePVD =
                       dyn_cast<ParmVarDecl>(DRE->getDecl())) {
                 ParamAttr.Kind = LinearWithVarStride;
-                ParamAttr.StrideOrArg = llvm::APSInt::getUnsigned(
-                    ParamPositions[StridePVD->getCanonicalDecl()]);
+                auto It = ParamPositions.find(StridePVD->getCanonicalDecl());
+                assert(It != ParamPositions.end() &&
+                       "Function parameter not found");
+                ParamAttr.StrideOrArg = llvm::APSInt::getUnsigned(It->second);
               }
             }
           } else {
