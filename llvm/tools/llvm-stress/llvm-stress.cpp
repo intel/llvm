@@ -34,14 +34,15 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ToolOutputFile.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/WithColor.h"
+#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -346,8 +347,10 @@ struct LoadModifier: public Modifier {
   void Act() override {
     // Try to use predefined pointers. If non-exist, use undef pointer value;
     Value *Ptr = getRandomPointerValue();
-    Value *V = new LoadInst(Ptr->getType()->getPointerElementType(), Ptr, "L",
-                            BB->getTerminator());
+    Type *Ty = Ptr->getType()->isOpaquePointerTy()
+                   ? pickType()
+                   : Ptr->getType()->getNonOpaquePointerElementType();
+    Value *V = new LoadInst(Ty, Ptr, "L", BB->getTerminator());
     PT->push_back(V);
   }
 };
@@ -359,14 +362,16 @@ struct StoreModifier: public Modifier {
   void Act() override {
     // Try to use predefined pointers. If non-exist, use undef pointer value;
     Value *Ptr = getRandomPointerValue();
-    Value *Val = getRandomValue(Ptr->getType()->getPointerElementType());
-    Type  *ValTy = Val->getType();
+    Type *ValTy = Ptr->getType()->isOpaquePointerTy()
+                      ? pickType()
+                      : Ptr->getType()->getNonOpaquePointerElementType();
 
     // Do not store vectors of i1s because they are unsupported
     // by the codegen.
     if (ValTy->isVectorTy() && ValTy->getScalarSizeInBits() == 1)
       return;
 
+    Value *Val = getRandomValue(ValTy);
     new StoreInst(Val, Ptr, BB->getTerminator());
   }
 };

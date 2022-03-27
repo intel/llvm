@@ -20,6 +20,7 @@
 #include "lldb/Interpreter/ScriptInterpreter.h"
 #include "lldb/Target/MemoryRegionInfo.h"
 #include "lldb/Target/RegisterContext.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/State.h"
 
 #include <mutex>
@@ -66,8 +67,7 @@ lldb::ProcessSP ScriptedProcess::CreateInstance(lldb::TargetSP target_sp,
 
   if (error.Fail() || !process_sp || !process_sp->m_script_object_sp ||
       !process_sp->m_script_object_sp->IsValid()) {
-    LLDB_LOGF(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS), "%s",
-              error.AsCString());
+    LLDB_LOGF(GetLog(LLDBLog::Process), "%s", error.AsCString());
     return nullptr;
   }
 
@@ -170,12 +170,13 @@ Status ScriptedProcess::DoLaunch(Module *exe_module,
 void ScriptedProcess::DidLaunch() {
   CheckInterpreterAndScriptObject();
   m_pid = GetInterface().GetProcessID();
+  GetLoadedDynamicLibrariesInfos();
 }
 
 Status ScriptedProcess::DoResume() {
   CheckInterpreterAndScriptObject();
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   // FIXME: Fetch data from thread.
   const StateType thread_resume_state = eStateRunning;
   LLDB_LOGF(log, "ScriptedProcess::%s thread_resume_state = %s", __FUNCTION__,
@@ -199,7 +200,7 @@ Status ScriptedProcess::DoResume() {
 Status ScriptedProcess::DoStop() {
   CheckInterpreterAndScriptObject();
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
 
   if (GetInterface().ShouldStop()) {
     SetPrivateState(eStateStopped);
@@ -245,8 +246,8 @@ ArchSpec ScriptedProcess::GetArchitecture() {
   return GetTarget().GetArchitecture();
 }
 
-Status ScriptedProcess::GetMemoryRegionInfo(lldb::addr_t load_addr,
-                                            MemoryRegionInfo &region) {
+Status ScriptedProcess::DoGetMemoryRegionInfo(lldb::addr_t load_addr,
+                                              MemoryRegionInfo &region) {
   CheckInterpreterAndScriptObject();
 
   Status error;
@@ -302,6 +303,9 @@ bool ScriptedProcess::DoUpdateThreadList(ThreadList &old_thread_list,
         error);
 
   StructuredData::DictionarySP thread_info_sp = GetInterface().GetThreadsInfo();
+
+  // FIXME: Need to sort the dictionary otherwise the thread ids won't match the
+  // thread indices.
 
   if (!thread_info_sp)
     return ScriptedInterface::ErrorWithMessage<bool>(
@@ -359,6 +363,7 @@ bool ScriptedProcess::DoUpdateThreadList(ThreadList &old_thread_list,
 void ScriptedProcess::RefreshStateAfterStop() {
   // Let all threads recover from stopping and do any clean up based on the
   // previous thread state (if any).
+  m_thread_list.RefreshStateAfterStop();
 }
 
 bool ScriptedProcess::GetProcessInfo(ProcessInstanceInfo &info) {
@@ -372,6 +377,93 @@ bool ScriptedProcess::GetProcessInfo(ProcessInstanceInfo &info) {
                            add_exe_file_as_first_arg);
   }
   return true;
+}
+
+lldb_private::StructuredData::ObjectSP
+ScriptedProcess::GetLoadedDynamicLibrariesInfos() {
+  CheckInterpreterAndScriptObject();
+
+  Status error;
+  auto error_with_message = [&error](llvm::StringRef message) {
+    return ScriptedInterface::ErrorWithMessage<bool>(LLVM_PRETTY_FUNCTION,
+                                                     message.data(), error);
+  };
+
+  StructuredData::ArraySP loaded_images_sp = GetInterface().GetLoadedImages();
+
+  if (!loaded_images_sp || !loaded_images_sp->GetSize())
+    return GetInterface().ErrorWithMessage<StructuredData::ObjectSP>(
+        LLVM_PRETTY_FUNCTION, "No loaded images.", error);
+
+  ModuleList module_list;
+  Target &target = GetTarget();
+
+  auto reload_image = [&target, &module_list, &error_with_message](
+                          StructuredData::Object *obj) -> bool {
+    StructuredData::Dictionary *dict = obj->GetAsDictionary();
+
+    if (!dict)
+      return error_with_message("Couldn't cast image object into dictionary.");
+
+    ModuleSpec module_spec;
+    llvm::StringRef value;
+
+    bool has_path = dict->HasKey("path");
+    bool has_uuid = dict->HasKey("uuid");
+    if (!has_path && !has_uuid)
+      return error_with_message("Dictionary should have key 'path' or 'uuid'");
+    if (!dict->HasKey("load_addr"))
+      return error_with_message("Dictionary is missing key 'load_addr'");
+
+    if (has_path) {
+      dict->GetValueForKeyAsString("path", value);
+      module_spec.GetFileSpec().SetPath(value);
+    }
+
+    if (has_uuid) {
+      dict->GetValueForKeyAsString("uuid", value);
+      module_spec.GetUUID().SetFromStringRef(value);
+    }
+    module_spec.GetArchitecture() = target.GetArchitecture();
+
+    ModuleSP module_sp =
+        target.GetOrCreateModule(module_spec, true /* notify */);
+
+    if (!module_sp)
+      return error_with_message("Couldn't create or get module.");
+
+    lldb::addr_t load_addr = LLDB_INVALID_ADDRESS;
+    lldb::addr_t slide = LLDB_INVALID_OFFSET;
+    dict->GetValueForKeyAsInteger("load_addr", load_addr);
+    dict->GetValueForKeyAsInteger("slide", slide);
+    if (load_addr == LLDB_INVALID_ADDRESS)
+      return error_with_message(
+          "Couldn't get valid load address or slide offset.");
+
+    if (slide != LLDB_INVALID_OFFSET)
+      load_addr += slide;
+
+    bool changed = false;
+    module_sp->SetLoadAddress(target, load_addr, false /*=value_is_offset*/,
+                              changed);
+
+    if (!changed && !module_sp->GetObjectFile())
+      return error_with_message("Couldn't set the load address for module.");
+
+    dict->GetValueForKeyAsString("path", value);
+    FileSpec objfile(value);
+    module_sp->SetFileSpecAndObjectName(objfile, objfile.GetFilename());
+
+    return module_list.AppendIfNeeded(module_sp);
+  };
+
+  if (!loaded_images_sp->ForEach(reload_image))
+    return GetInterface().ErrorWithMessage<StructuredData::ObjectSP>(
+        LLVM_PRETTY_FUNCTION, "Couldn't reload all images.", error);
+
+  target.ModulesDidLoad(module_list);
+
+  return loaded_images_sp;
 }
 
 ScriptedProcessInterface &ScriptedProcess::GetInterface() const {

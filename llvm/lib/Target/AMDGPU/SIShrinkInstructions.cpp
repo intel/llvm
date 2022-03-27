@@ -297,7 +297,7 @@ void SIShrinkInstructions::shrinkMIMG(MachineInstr &MI) {
   MI.getOperand(VAddr0Idx).setIsKill(IsKill);
 
   for (unsigned i = 1; i < Info->VAddrDwords; ++i)
-    MI.RemoveOperand(VAddr0Idx + 1);
+    MI.removeOperand(VAddr0Idx + 1);
 
   if (ToUntie >= 0) {
     MI.tieOperands(
@@ -352,12 +352,6 @@ static bool shrinkScalarLogicOp(const GCNSubtarget &ST,
     }
   } else {
     llvm_unreachable("unexpected opcode");
-  }
-
-  if ((Opc == AMDGPU::S_ANDN2_B32 || Opc == AMDGPU::S_ORN2_B32) &&
-      SrcImm == Src0) {
-    if (!TII->commuteInstruction(MI, false, 1, 2))
-      NewImm = 0;
   }
 
   if (NewImm != 0) {
@@ -464,11 +458,11 @@ static void dropInstructionKeepingImpDefs(MachineInstr &MI,
 // Returns next valid instruction pointer if was able to create v_swap_b32.
 //
 // This shall not be done too early not to prevent possible folding which may
-// remove matched moves, and this should prefereably be done before RA to
+// remove matched moves, and this should preferably be done before RA to
 // release saved registers and also possibly after RA which can insert copies
 // too.
 //
-// This is really just a generic peephole that is not a canocical shrinking,
+// This is really just a generic peephole that is not a canonical shrinking,
 // although requirements match the pass placement and it reduces code size too.
 static MachineInstr* matchSwap(MachineInstr &MovT, MachineRegisterInfo &MRI,
                                const SIInstrInfo *TII) {
@@ -570,7 +564,7 @@ static MachineInstr* matchSwap(MachineInstr &MovT, MachineRegisterInfo &MRI,
         .addReg(X1.Reg, 0, X1.SubReg).getInstr();
       if (MovX->hasRegisterImplicitUseOperand(AMDGPU::EXEC)) {
         // Drop implicit EXEC.
-        MIB->RemoveOperand(MIB->getNumExplicitOperands());
+        MIB->removeOperand(MIB->getNumExplicitOperands());
         MIB->copyImplicitOps(*MBB.getParent(), *MovX);
       }
     }
@@ -586,7 +580,7 @@ static MachineInstr* matchSwap(MachineInstr &MovT, MachineRegisterInfo &MRI,
         unsigned OpNo = MovT.getNumExplicitOperands() + I;
         const MachineOperand &Op = MovT.getOperand(OpNo);
         if (Op.isKill() && TRI.regsOverlap(X, Op.getReg()))
-          MovT.RemoveOperand(OpNo);
+          MovT.removeOperand(OpNo);
       }
     }
 

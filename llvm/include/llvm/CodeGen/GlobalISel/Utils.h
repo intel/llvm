@@ -15,18 +15,20 @@
 #define LLVM_CODEGEN_GLOBALISEL_UTILS_H
 
 #include "GISelWorkList.h"
-#include "LostDebugLocObserver.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/Register.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/Support/Alignment.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/LowLevelTypeImpl.h"
 #include <cstdint>
 
 namespace llvm {
 
 class AnalysisUsage;
+class LostDebugLocObserver;
+class MachineBasicBlock;
 class BlockFrequencyInfo;
 class GISelKnownBits;
 class MachineFunction;
@@ -407,6 +409,30 @@ bool isBuildVectorAllZeros(const MachineInstr &MI,
 bool isBuildVectorAllOnes(const MachineInstr &MI,
                           const MachineRegisterInfo &MRI,
                           bool AllowUndef = false);
+
+/// Return true if the specified instruction is known to be a constant, or a
+/// vector of constants.
+///
+/// If \p AllowFP is true, this will consider G_FCONSTANT in addition to
+/// G_CONSTANT. If \p AllowOpaqueConstants is true, constant-like instructions
+/// such as G_GLOBAL_VALUE will also be considered.
+bool isConstantOrConstantVector(const MachineInstr &MI,
+                                const MachineRegisterInfo &MRI,
+                                bool AllowFP = true,
+                                bool AllowOpaqueConstants = true);
+
+/// Return true if the value is a constant 0 integer or a splatted vector of a
+/// constant 0 integer (with no undefs if \p AllowUndefs is false). This will
+/// handle G_BUILD_VECTOR and G_BUILD_VECTOR_TRUNC as truncation is not an issue
+/// for null values.
+bool isNullOrNullSplat(const MachineInstr &MI, const MachineRegisterInfo &MRI,
+                       bool AllowUndefs = false);
+
+/// Return true if the value is a constant -1 integer or a splatted vector of a
+/// constant -1 integer (with no undefs if \p AllowUndefs is false).
+bool isAllOnesOrAllOnesSplat(const MachineInstr &MI,
+                             const MachineRegisterInfo &MRI,
+                             bool AllowUndefs = false);
 
 /// \returns a value when \p MI is a vector splat. The splat can be either a
 /// Register or a constant.

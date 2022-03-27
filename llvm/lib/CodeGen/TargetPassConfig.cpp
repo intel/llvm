@@ -47,7 +47,6 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils.h"
-#include "llvm/Transforms/Utils/SymbolRewriter.h"
 #include <cassert>
 #include <string>
 
@@ -175,12 +174,12 @@ static cl::opt<bool>
 // Disable MIRProfileLoader before RegAlloc. This is for for debugging and
 // tuning purpose.
 static cl::opt<bool> DisableRAFSProfileLoader(
-    "disable-ra-fsprofile-loader", cl::init(true), cl::Hidden,
+    "disable-ra-fsprofile-loader", cl::init(false), cl::Hidden,
     cl::desc("Disable MIRProfileLoader before RegAlloc"));
 // Disable MIRProfileLoader before BloackPlacement. This is for for debugging
 // and tuning purpose.
 static cl::opt<bool> DisableLayoutFSProfileLoader(
-    "disable-layout-fsprofile-loader", cl::init(true), cl::Hidden,
+    "disable-layout-fsprofile-loader", cl::init(false), cl::Hidden,
     cl::desc("Disable MIRProfileLoader before BlockPlacement"));
 // Specify FSProfile file name.
 static cl::opt<std::string>
@@ -736,21 +735,21 @@ void TargetPassConfig::addPass(Pass *P) {
   if (StopBefore == PassID && StopBeforeCount++ == StopBeforeInstanceNum)
     Stopped = true;
   if (Started && !Stopped) {
-    if (AddingMachinePasses)
+    if (AddingMachinePasses) {
+      // Construct banner message before PM->add() as that may delete the pass.
+      std::string Banner =
+          std::string("After ") + std::string(P->getPassName());
       addMachinePrePasses();
-    std::string Banner;
-    // Construct banner message before PM->add() as that may delete the pass.
-    if (AddingMachinePasses)
-      Banner = std::string("After ") + std::string(P->getPassName());
-    PM->add(P);
-    if (AddingMachinePasses)
+      PM->add(P);
       addMachinePostPasses(Banner);
+    } else {
+      PM->add(P);
+    }
 
     // Add the passes after the pass P if there is any.
-    for (const auto &IP : Impl->InsertedPasses) {
+    for (const auto &IP : Impl->InsertedPasses)
       if (IP.TargetPassID == PassID)
         addPass(IP.getInsertedPass());
-    }
   } else {
     delete P;
   }
@@ -895,6 +894,12 @@ void TargetPassConfig::addIRPasses() {
   addPass(&ShadowStackGCLoweringID);
   addPass(createLowerConstantIntrinsicsPass());
 
+  // For MachO, lower @llvm.global_dtors into @llvm_global_ctors with
+  // __cxa_atexit() calls to avoid emitting the deprecated __mod_term_func.
+  if (TM->getTargetTriple().isOSBinFormatMachO() &&
+      TM->Options.LowerGlobalDtorsViaCxaAtExit)
+    addPass(createLowerGlobalDtorsLegacyPass());
+
   // Make sure that no unreachable blocks are instruction selected.
   addPass(createUnreachableBlockEliminationPass());
 
@@ -922,6 +927,9 @@ void TargetPassConfig::addIRPasses() {
   // Allow disabling it for testing purposes.
   if (!DisableExpandReductions)
     addPass(createExpandReductionsPass());
+
+  if (getOptLevel() != CodeGenOpt::None)
+    addPass(createTLSVariableHoistPass());
 }
 
 /// Turn exception handling constructs into something the code generators can

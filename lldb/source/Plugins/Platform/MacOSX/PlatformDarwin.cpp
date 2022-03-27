@@ -31,6 +31,7 @@
 #include "lldb/Target/Platform.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/ProcessInfo.h"
 #include "lldb/Utility/Status.h"
@@ -46,9 +47,6 @@
 
 using namespace lldb;
 using namespace lldb_private;
-
-/// Default Constructor
-PlatformDarwin::PlatformDarwin(bool is_host) : PlatformPOSIX(is_host) {}
 
 /// Destructor.
 ///
@@ -223,7 +221,7 @@ lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
     const lldb_private::FileSpecList *module_search_paths_ptr,
     llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules, bool *did_create_ptr) {
 
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM));
+  Log *log = GetLog(LLDBLog::Platform);
   LLDB_LOGF(log,
             "[%s] Trying to find module %s/%s - platform path %s/%s symbol "
             "path %s/%s",
@@ -283,7 +281,7 @@ lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
         if (err.Fail())
           return err;
         if (FileSystem::Instance().Exists(module_cache_spec)) {
-          Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM));
+          Log *log = GetLog(LLDBLog::Platform);
           LLDB_LOGF(log, "[%s] module %s/%s was rsynced and is now there",
                     (IsHost() ? "host" : "remote"),
                     module_spec.GetFileSpec().GetDirectory().AsCString(),
@@ -313,7 +311,7 @@ lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
                                              low_remote, high_remote);
           if (low_local != low_remote || high_local != high_remote) {
             // bring in the remote file
-            Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM));
+            Log *log = GetLog(LLDBLog::Platform);
             LLDB_LOGF(log,
                       "[%s] module %s/%s needs to be replaced from remote copy",
                       (IsHost() ? "host" : "remote"),
@@ -329,7 +327,7 @@ lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
         ModuleSpec local_spec(module_cache_spec, module_spec.GetArchitecture());
         module_sp = std::make_shared<Module>(local_spec);
         module_sp->SetPlatformFileSpec(module_spec.GetFileSpec());
-        Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM));
+        Log *log = GetLog(LLDBLog::Platform);
         LLDB_LOGF(log, "[%s] module %s/%s was found in the cache",
                   (IsHost() ? "host" : "remote"),
                   module_spec.GetFileSpec().GetDirectory().AsCString(),
@@ -346,7 +344,7 @@ lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
       if (err.Fail())
         return err;
       if (FileSystem::Instance().Exists(module_cache_spec)) {
-        Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM));
+        Log *log = GetLog(LLDBLog::Platform);
         LLDB_LOGF(log, "[%s] module %s/%s is now cached and fine",
                   (IsHost() ? "host" : "remote"),
                   module_spec.GetFileSpec().GetDirectory().AsCString(),
@@ -742,9 +740,8 @@ lldb::ProcessSP PlatformDarwin::DebugProcess(ProcessLaunchInfo &launch_info,
     // charge of setting the exit status.  However, we still need to reap it
     // from lldb. So, make sure we use a exit callback which does not set exit
     // status.
-    const bool monitor_signals = false;
     launch_info.SetMonitorProcessCallback(
-        &ProcessLaunchInfo::NoOpMonitorCallback, monitor_signals);
+        &ProcessLaunchInfo::NoOpMonitorCallback);
     process_sp = Platform::DebugProcess(launch_info, debugger, target, error);
   } else {
     if (m_remote_platform_sp)
@@ -892,7 +889,7 @@ PlatformDarwin::ParseVersionBuildDir(llvm::StringRef dir) {
 
 llvm::Expected<StructuredData::DictionarySP>
 PlatformDarwin::FetchExtendedCrashInformation(Process &process) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
 
   StructuredData::ArraySP annotations = ExtractCrashInfoAnnotations(process);
 
@@ -911,7 +908,7 @@ PlatformDarwin::FetchExtendedCrashInformation(Process &process) {
 
 StructuredData::ArraySP
 PlatformDarwin::ExtractCrashInfoAnnotations(Process &process) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
 
   ConstString section_name("__crash_info");
   Target &target = process.GetTarget();
@@ -1089,11 +1086,10 @@ void PlatformDarwin::AddClangModuleCompilationOptionsForSDKType(
     case XcodeSDK::Type::bridgeOS:
     case XcodeSDK::Type::Linux:
     case XcodeSDK::Type::unknown:
-      if (lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST)) {
+      if (Log *log = GetLog(LLDBLog::Host)) {
         XcodeSDK::Info info;
         info.type = sdk_type;
-        LLDB_LOGF(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST),
-                  "Clang modules on %s are not supported",
+        LLDB_LOGF(log, "Clang modules on %s are not supported",
                   XcodeSDK::GetCanonicalName(info).c_str());
       }
       return;
@@ -1256,7 +1252,7 @@ lldb_private::Status PlatformDarwin::FindBundleBinaryInExecSearchPaths(
 
     size_t num_module_search_paths = module_search_paths_ptr->GetSize();
     for (size_t i = 0; i < num_module_search_paths; ++i) {
-      Log *log_verbose = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST);
+      Log *log_verbose = GetLog(LLDBLog::Host);
       LLDB_LOGF(
           log_verbose,
           "PlatformRemoteDarwinDevice::GetSharedModule searching for binary in "
@@ -1328,4 +1324,24 @@ FileSpec PlatformDarwin::GetCurrentCommandLineToolsDirectory() {
   if (FileSpec fspec = HostInfo::GetShlibDir())
     return FileSpec(FindComponentInPath(fspec.GetPath(), "CommandLineTools"));
   return {};
+}
+
+llvm::Triple::OSType PlatformDarwin::GetHostOSType() {
+#if !defined(__APPLE__)
+  return llvm::Triple::MacOSX;
+#else
+#if TARGET_OS_OSX
+  return llvm::Triple::MacOSX;
+#elif TARGET_OS_IOS
+  return llvm::Triple::IOS;
+#elif TARGET_OS_WATCH
+  return llvm::Triple::WatchOS;
+#elif TARGET_OS_TV
+  return llvm::Triple::TvOS;
+#elif TARGET_OS_BRIDGE
+  return llvm::Triple::BridgeOS;
+#else
+#error "LLDB being compiled for an unrecognized Darwin OS"
+#endif
+#endif // __APPLE__
 }

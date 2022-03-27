@@ -9,7 +9,7 @@
 #include "src/math/log10f.h"
 #include "common_constants.h" // Lookup table for (1/f)
 #include "src/__support/FPUtil/BasicOperations.h"
-#include "src/__support/FPUtil/FEnvUtils.h"
+#include "src/__support/FPUtil/FEnvImpl.h"
 #include "src/__support/FPUtil/FMA.h"
 #include "src/__support/FPUtil/FPBits.h"
 #include "src/__support/FPUtil/PolyEval.h"
@@ -155,7 +155,7 @@ LLVM_LIBC_FUNCTION(float, log10f, (float x)) {
       return x;
     }
     // Normalize denormal inputs.
-    xbits.val *= 0x1.0p23f;
+    xbits.set_val(xbits.get_val() * 0x1.0p23f);
     m -= 23.0;
   }
 
@@ -164,7 +164,7 @@ LLVM_LIBC_FUNCTION(float, log10f, (float x)) {
   xbits.set_unbiased_exponent(0x7F);
   int f_index = xbits.get_mantissa() >> 16;
 
-  FPBits f(xbits.val);
+  FPBits f = xbits;
   f.bits &= ~0x0000'FFFF;
 
   double d = static_cast<float>(xbits) - static_cast<float>(f);

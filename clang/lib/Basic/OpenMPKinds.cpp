@@ -41,11 +41,15 @@ unsigned clang::getOpenMPSimpleClauseType(OpenMPClauseKind Kind, StringRef Str,
   .Case(#Name, static_cast<unsigned>(OMPC_SCHEDULE_MODIFIER_##Name))
 #include "clang/Basic/OpenMPKinds.def"
         .Default(OMPC_SCHEDULE_unknown);
-  case OMPC_depend:
-    return llvm::StringSwitch<OpenMPDependClauseKind>(Str)
+  case OMPC_depend: {
+    unsigned Type = llvm::StringSwitch<unsigned>(Str)
 #define OPENMP_DEPEND_KIND(Name) .Case(#Name, OMPC_DEPEND_##Name)
 #include "clang/Basic/OpenMPKinds.def"
-        .Default(OMPC_DEPEND_unknown);
+                        .Default(OMPC_DEPEND_unknown);
+    if (LangOpts.OpenMP < 51 && Type == OMPC_DEPEND_inoutset)
+      return OMPC_DEPEND_unknown;
+    return Type;
+  }
   case OMPC_linear:
     return llvm::StringSwitch<OpenMPLinearClauseKind>(Str)
 #define OPENMP_LINEAR_KIND(Name) .Case(#Name, OMPC_LINEAR_##Name)
@@ -491,7 +495,7 @@ bool clang::isOpenMPLoopDirective(OpenMPDirectiveKind DKind) {
          DKind == OMPD_target_teams_distribute_parallel_for ||
          DKind == OMPD_target_teams_distribute_parallel_for_simd ||
          DKind == OMPD_target_teams_distribute_simd || DKind == OMPD_tile ||
-         DKind == OMPD_unroll || DKind == OMPD_loop;
+         DKind == OMPD_unroll || DKind == OMPD_loop || DKind == OMPD_teams_loop;
 }
 
 bool clang::isOpenMPWorksharingDirective(OpenMPDirectiveKind DKind) {
@@ -551,7 +555,8 @@ bool clang::isOpenMPNestingTeamsDirective(OpenMPDirectiveKind DKind) {
   return DKind == OMPD_teams || DKind == OMPD_teams_distribute ||
          DKind == OMPD_teams_distribute_simd ||
          DKind == OMPD_teams_distribute_parallel_for_simd ||
-         DKind == OMPD_teams_distribute_parallel_for;
+         DKind == OMPD_teams_distribute_parallel_for ||
+         DKind == OMPD_teams_loop;
 }
 
 bool clang::isOpenMPTeamsDirective(OpenMPDirectiveKind DKind) {
@@ -595,7 +600,7 @@ bool clang::isOpenMPDistributeDirective(OpenMPDirectiveKind Kind) {
 }
 
 bool clang::isOpenMPGenericLoopDirective(OpenMPDirectiveKind Kind) {
-  return Kind == OMPD_loop;
+  return Kind == OMPD_loop || Kind == OMPD_teams_loop;
 }
 
 bool clang::isOpenMPPrivate(OpenMPClauseKind Kind) {
@@ -695,6 +700,9 @@ void clang::getOpenMPCaptureRegions(
     CaptureRegions.push_back(OMPD_target);
     CaptureRegions.push_back(OMPD_teams);
     CaptureRegions.push_back(OMPD_parallel);
+    break;
+  case OMPD_teams_loop:
+    CaptureRegions.push_back(OMPD_teams);
     break;
   case OMPD_loop:
     // TODO: 'loop' may require different capture regions depending on the bind

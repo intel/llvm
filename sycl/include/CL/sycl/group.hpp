@@ -104,9 +104,15 @@ public:
 
   group() = delete;
 
+  __SYCL2020_DEPRECATED("use sycl::group::get_group_id() instead")
   id<Dimensions> get_id() const { return index; }
 
+  __SYCL2020_DEPRECATED("use sycl::group::get_group_id() instead")
   size_t get_id(int dimension) const { return index[dimension]; }
+
+  id<Dimensions> get_group_id() const { return index; }
+
+  size_t get_group_id(int dimension) const { return index[dimension]; }
 
   range<Dimensions> get_global_range() const { return globalRange; }
 
@@ -114,9 +120,30 @@ public:
     return globalRange[dimension];
   }
 
+  id<Dimensions> get_local_id() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>();
+#else
+    throw runtime_error("get_local_id() is not implemented on host device",
+                        PI_INVALID_DEVICE);
+    // Implementing get_local_id() on host device requires ABI breaking change.
+    // It requires extending class group with local item which represents
+    // local_id. Currently this local id is only used in nd_item and group
+    // cannot access it.
+#endif
+  }
+
+  size_t get_local_linear_id() const {
+    return get_local_linear_id_impl<Dimensions>();
+  }
+
   range<Dimensions> get_local_range() const { return localRange; }
 
   size_t get_local_range(int dimension) const { return localRange[dimension]; }
+
+  size_t get_local_linear_range() const {
+    return get_local_linear_range_impl();
+  }
 
   range<Dimensions> get_group_range() const { return groupRange; }
 
@@ -124,33 +151,20 @@ public:
     return get_group_range()[dimension];
   }
 
+  size_t get_group_linear_range() const {
+    return get_group_linear_range_impl();
+  }
+
+  range<Dimensions> get_max_local_range() const { return get_local_range(); }
+
   size_t operator[](int dimension) const { return index[dimension]; }
 
-  template <int dims = Dimensions>
-  typename detail::enable_if_t<(dims == 1), size_t> get_linear_id() const {
-    return index[0];
-  }
+  __SYCL2020_DEPRECATED("use sycl::group::get_group_linear_id() instead")
+  size_t get_linear_id() const { return get_group_linear_id(); }
 
-  template <int dims = Dimensions>
-  typename detail::enable_if_t<(dims == 2), size_t> get_linear_id() const {
-    return index[0] * groupRange[1] + index[1];
-  }
+  size_t get_group_linear_id() const { return get_group_linear_id_impl(); }
 
-  // SYCL specification 1.2.1rev5, section 4.7.6.5 "Buffer accessor":
-  //    Whenever a multi-dimensional index is passed to a SYCL accessor the
-  //    linear index is calculated based on the index {id1, id2, id3} provided
-  //    and the range of the SYCL accessor {r1, r2, r3} according to row-major
-  //    ordering as follows:
-  //      id3 + (id2 · r3) + (id1 · r3 · r2)            (4.3)
-  // section 4.8.1.8 "group class":
-  //    size_t get_linear_id()const
-  //    Get a linearized version of the work-group id. Calculating a linear
-  //    work-group id from a multi-dimensional index follows the equation 4.3.
-  template <int dims = Dimensions>
-  typename detail::enable_if_t<(dims == 3), size_t> get_linear_id() const {
-    return (index[0] * groupRange[1] * groupRange[2]) +
-           (index[1] * groupRange[2]) + index[2];
-  }
+  bool leader() const { return (get_local_linear_id() == 0); }
 
   template <typename WorkItemFunctionT>
   void parallel_for_work_item(WorkItemFunctionT Func) const {
@@ -396,6 +410,99 @@ private:
   range<Dimensions> localRange;
   range<Dimensions> groupRange;
   id<Dimensions> index;
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 1), size_t>
+  get_local_linear_id_impl() const {
+    id<Dimensions> localId = get_local_id();
+    return localId[0];
+  }
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 2), size_t>
+  get_local_linear_id_impl() const {
+    id<Dimensions> localId = get_local_id();
+    return localId[0] * groupRange[1] + localId[1];
+  }
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 3), size_t>
+  get_local_linear_id_impl() const {
+    id<Dimensions> localId = get_local_id();
+    return (localId[0] * groupRange[1] * groupRange[2]) +
+           (localId[1] * groupRange[2]) + localId[2];
+  }
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 1), size_t>
+  get_local_linear_range_impl() const {
+    auto localRange = get_local_range();
+    return localRange[0];
+  }
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 2), size_t>
+  get_local_linear_range_impl() const {
+    auto localRange = get_local_range();
+    return localRange[0] * localRange[1];
+  }
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 3), size_t>
+  get_local_linear_range_impl() const {
+    auto localRange = get_local_range();
+    return localRange[0] * localRange[1] * localRange[2];
+  }
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 1), size_t>
+  get_group_linear_range_impl() const {
+    auto groupRange = get_group_range();
+    return groupRange[0];
+  }
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 2), size_t>
+  get_group_linear_range_impl() const {
+    auto groupRange = get_group_range();
+    return groupRange[0] * groupRange[1];
+  }
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 3), size_t>
+  get_group_linear_range_impl() const {
+    auto groupRange = get_group_range();
+    return groupRange[0] * groupRange[1] * groupRange[2];
+  }
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 1), size_t>
+  get_group_linear_id_impl() const {
+    return index[0];
+  }
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 2), size_t>
+  get_group_linear_id_impl() const {
+    return index[0] * groupRange[1] + index[1];
+  }
+
+  // SYCL specification 1.2.1rev5, section 4.7.6.5 "Buffer accessor":
+  //    Whenever a multi-dimensional index is passed to a SYCL accessor the
+  //    linear index is calculated based on the index {id1, id2, id3} provided
+  //    and the range of the SYCL accessor {r1, r2, r3} according to row-major
+  //    ordering as follows:
+  //      id3 + (id2 · r3) + (id1 · r3 · r2)            (4.3)
+  // section 4.8.1.8 "group class":
+  //    size_t get_linear_id()const
+  //    Get a linearized version of the work-group id. Calculating a linear
+  //    work-group id from a multi-dimensional index follows the equation 4.3.
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 3), size_t>
+  get_group_linear_id_impl() const {
+    return (index[0] * groupRange[1] * groupRange[2]) +
+           (index[1] * groupRange[2]) + index[2];
+  }
 
   void waitForHelper() const {}
 

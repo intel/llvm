@@ -131,21 +131,123 @@ struct FormatStyle {
   };
   /// if not ``None``, when using initialization for an array of structs
   /// aligns the fields into columns.
+  ///
+  /// NOTE: As of clang-format 15 this option only applied to arrays with equal
+  /// number of columns per row.
+  ///
   /// \version 13
   ArrayInitializerAlignmentStyle AlignArrayOfStructures;
 
-  /// Styles for alignment of consecutive tokens. Tokens can be assignment signs
-  /// (see
-  /// ``AlignConsecutiveAssignments``), bitfield member separators (see
-  /// ``AlignConsecutiveBitFields``), names in declarations (see
-  /// ``AlignConsecutiveDeclarations``) or macro definitions (see
-  /// ``AlignConsecutiveMacros``).
-  enum AlignConsecutiveStyle {
-    ACS_None,
-    ACS_Consecutive,
-    ACS_AcrossEmptyLines,
-    ACS_AcrossComments,
-    ACS_AcrossEmptyLinesAndComments
+  /// Alignment options.
+  ///
+  /// They can also be read as a whole for compatibility. The choices are:
+  /// - None
+  /// - Consecutive
+  /// - AcrossEmptyLines
+  /// - AcrossComments
+  /// - AcrossEmptyLinesAndComments
+  ///
+  /// For example, to align across empty lines and not across comments, either
+  /// of these work.
+  /// \code
+  ///   AlignConsecutiveMacros: AcrossEmptyLines
+  ///
+  ///   AlignConsecutiveMacros:
+  ///     Enabled: true
+  ///     AcrossEmptyLines: true
+  ///     AcrossComments: false
+  /// \endcode
+  struct AlignConsecutiveStyle {
+    /// Whether aligning is enabled.
+    /// \code
+    ///   #define SHORT_NAME       42
+    ///   #define LONGER_NAME      0x007f
+    ///   #define EVEN_LONGER_NAME (2)
+    ///   #define foo(x)           (x * x)
+    ///   #define bar(y, z)        (y + z)
+    ///
+    ///   int a            = 1;
+    ///   int somelongname = 2;
+    ///   double c         = 3;
+    ///
+    ///   int aaaa : 1;
+    ///   int b    : 12;
+    ///   int ccc  : 8;
+    ///
+    ///   int         aaaa = 12;
+    ///   float       b = 23;
+    ///   std::string ccc;
+    /// \endcode
+    bool Enabled;
+    /// Whether to align across empty lines.
+    /// \code
+    ///   true:
+    ///   int a            = 1;
+    ///   int somelongname = 2;
+    ///   double c         = 3;
+    ///
+    ///   int d            = 3;
+    ///
+    ///   false:
+    ///   int a            = 1;
+    ///   int somelongname = 2;
+    ///   double c         = 3;
+    ///
+    ///   int d = 3;
+    /// \endcode
+    bool AcrossEmptyLines;
+    /// Whether to align across comments.
+    /// \code
+    ///   true:
+    ///   int d    = 3;
+    ///   /* A comment. */
+    ///   double e = 4;
+    ///
+    ///   false:
+    ///   int d = 3;
+    ///   /* A comment. */
+    ///   double e = 4;
+    /// \endcode
+    bool AcrossComments;
+    /// Only for ``AlignConsecutiveAssignments``.  Whether compound assignments
+    /// like ``+=`` are aligned along with ``=``.
+    /// \code
+    ///   true:
+    ///   a   &= 2;
+    ///   bbb  = 2;
+    ///
+    ///   false:
+    ///   a &= 2;
+    ///   bbb = 2;
+    /// \endcode
+    bool AlignCompound;
+    /// Only for ``AlignConsecutiveAssignments``.  Whether short assignment
+    /// operators are left-padded to the same length as long ones in order to
+    /// put all assignment operators to the right of the left hand side.
+    /// \code
+    ///   true:
+    ///   a   >>= 2;
+    ///   bbb   = 2;
+    ///
+    ///   a     = 2;
+    ///   bbb >>= 2;
+    ///
+    ///   false:
+    ///   a >>= 2;
+    ///   bbb = 2;
+    ///
+    ///   a     = 2;
+    ///   bbb >>= 2;
+    /// \endcode
+    bool PadOperators;
+    bool operator==(const AlignConsecutiveStyle &R) const {
+      return Enabled == R.Enabled && AcrossEmptyLines == R.AcrossEmptyLines &&
+             AcrossComments == R.AcrossComments &&
+             AlignCompound == R.AlignCompound && PadOperators == R.PadOperators;
+    }
+    bool operator!=(const AlignConsecutiveStyle &R) const {
+      return !(*this == R);
+    }
   };
 
   /// Style of aligning consecutive macro definitions.
@@ -158,67 +260,8 @@ struct FormatStyle {
   ///   #define foo(x)           (x * x)
   ///   #define bar(y, z)        (y + z)
   /// \endcode
-  ///
-  /// Possible values:
-  ///
-  /// * ``ACS_None`` (in configuration: ``None``)
-  ///    Do not align macro definitions on consecutive lines.
-  ///
-  /// * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
-  ///    Align macro definitions on consecutive lines. This will result in
-  ///    formattings like:
-  ///    \code
-  ///      #define SHORT_NAME       42
-  ///      #define LONGER_NAME      0x007f
-  ///      #define EVEN_LONGER_NAME (2)
-  ///
-  ///      #define foo(x) (x * x)
-  ///      /* some comment */
-  ///      #define bar(y, z) (y + z)
-  ///    \endcode
-  ///
-  /// * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
-  ///    Same as ACS_Consecutive, but also spans over empty lines, e.g.
-  ///    \code
-  ///      #define SHORT_NAME       42
-  ///      #define LONGER_NAME      0x007f
-  ///      #define EVEN_LONGER_NAME (2)
-  ///
-  ///      #define foo(x)           (x * x)
-  ///      /* some comment */
-  ///      #define bar(y, z) (y + z)
-  ///    \endcode
-  ///
-  /// * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
-  ///    Same as ACS_Consecutive, but also spans over lines only containing
-  ///    comments, e.g.
-  ///    \code
-  ///      #define SHORT_NAME       42
-  ///      #define LONGER_NAME      0x007f
-  ///      #define EVEN_LONGER_NAME (2)
-  ///
-  ///      #define foo(x)    (x * x)
-  ///      /* some comment */
-  ///      #define bar(y, z) (y + z)
-  ///    \endcode
-  ///
-  /// * ``ACS_AcrossEmptyLinesAndComments``
-  ///   (in configuration: ``AcrossEmptyLinesAndComments``)
-  ///
-  ///    Same as ACS_Consecutive, but also spans over lines only containing
-  ///    comments and empty lines, e.g.
-  ///    \code
-  ///      #define SHORT_NAME       42
-  ///      #define LONGER_NAME      0x007f
-  ///      #define EVEN_LONGER_NAME (2)
-  ///
-  ///      #define foo(x)           (x * x)
-  ///      /* some comment */
-  ///      #define bar(y, z)        (y + z)
-  ///    \endcode
   /// \version 9
   AlignConsecutiveStyle AlignConsecutiveMacros;
-
   /// Style of aligning consecutive assignments.
   ///
   /// ``Consecutive`` will result in formattings like:
@@ -227,68 +270,9 @@ struct FormatStyle {
   ///   int somelongname = 2;
   ///   double c         = 3;
   /// \endcode
-  ///
-  /// Possible values:
-  ///
-  /// * ``ACS_None`` (in configuration: ``None``)
-  ///    Do not align assignments on consecutive lines.
-  ///
-  /// * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
-  ///    Align assignments on consecutive lines. This will result in
-  ///    formattings like:
-  ///    \code
-  ///      int a            = 1;
-  ///      int somelongname = 2;
-  ///      double c         = 3;
-  ///
-  ///      int d = 3;
-  ///      /* A comment. */
-  ///      double e = 4;
-  ///    \endcode
-  ///
-  /// * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
-  ///    Same as ACS_Consecutive, but also spans over empty lines, e.g.
-  ///    \code
-  ///      int a            = 1;
-  ///      int somelongname = 2;
-  ///      double c         = 3;
-  ///
-  ///      int d            = 3;
-  ///      /* A comment. */
-  ///      double e = 4;
-  ///    \endcode
-  ///
-  /// * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
-  ///    Same as ACS_Consecutive, but also spans over lines only containing
-  ///    comments, e.g.
-  ///    \code
-  ///      int a            = 1;
-  ///      int somelongname = 2;
-  ///      double c         = 3;
-  ///
-  ///      int d    = 3;
-  ///      /* A comment. */
-  ///      double e = 4;
-  ///    \endcode
-  ///
-  /// * ``ACS_AcrossEmptyLinesAndComments``
-  ///   (in configuration: ``AcrossEmptyLinesAndComments``)
-  ///
-  ///    Same as ACS_Consecutive, but also spans over lines only containing
-  ///    comments and empty lines, e.g.
-  ///    \code
-  ///      int a            = 1;
-  ///      int somelongname = 2;
-  ///      double c         = 3;
-  ///
-  ///      int d            = 3;
-  ///      /* A comment. */
-  ///      double e         = 4;
-  ///    \endcode
   /// \version 3.8
   AlignConsecutiveStyle AlignConsecutiveAssignments;
-
-  /// Style of aligning consecutive bit field.
+  /// Style of aligning consecutive bit fields.
   ///
   /// ``Consecutive`` will align the bitfield separators of consecutive lines.
   /// This will result in formattings like:
@@ -297,67 +281,8 @@ struct FormatStyle {
   ///   int b    : 12;
   ///   int ccc  : 8;
   /// \endcode
-  ///
-  /// Possible values:
-  ///
-  /// * ``ACS_None`` (in configuration: ``None``)
-  ///    Do not align bit fields on consecutive lines.
-  ///
-  /// * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
-  ///    Align bit fields on consecutive lines. This will result in
-  ///    formattings like:
-  ///    \code
-  ///      int aaaa : 1;
-  ///      int b    : 12;
-  ///      int ccc  : 8;
-  ///
-  ///      int d : 2;
-  ///      /* A comment. */
-  ///      int ee : 3;
-  ///    \endcode
-  ///
-  /// * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
-  ///    Same as ACS_Consecutive, but also spans over empty lines, e.g.
-  ///    \code
-  ///      int aaaa : 1;
-  ///      int b    : 12;
-  ///      int ccc  : 8;
-  ///
-  ///      int d    : 2;
-  ///      /* A comment. */
-  ///      int ee : 3;
-  ///    \endcode
-  ///
-  /// * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
-  ///    Same as ACS_Consecutive, but also spans over lines only containing
-  ///    comments, e.g.
-  ///    \code
-  ///      int aaaa : 1;
-  ///      int b    : 12;
-  ///      int ccc  : 8;
-  ///
-  ///      int d  : 2;
-  ///      /* A comment. */
-  ///      int ee : 3;
-  ///    \endcode
-  ///
-  /// * ``ACS_AcrossEmptyLinesAndComments``
-  ///   (in configuration: ``AcrossEmptyLinesAndComments``)
-  ///
-  ///    Same as ACS_Consecutive, but also spans over lines only containing
-  ///    comments and empty lines, e.g.
-  ///    \code
-  ///      int aaaa : 1;
-  ///      int b    : 12;
-  ///      int ccc  : 8;
-  ///
-  ///      int d    : 2;
-  ///      /* A comment. */
-  ///      int ee   : 3;
-  ///    \endcode
   /// \version 11
   AlignConsecutiveStyle AlignConsecutiveBitFields;
-
   /// Style of aligning consecutive declarations.
   ///
   /// ``Consecutive`` will align the declaration names of consecutive lines.
@@ -367,64 +292,6 @@ struct FormatStyle {
   ///   float       b = 23;
   ///   std::string ccc;
   /// \endcode
-  ///
-  /// Possible values:
-  ///
-  /// * ``ACS_None`` (in configuration: ``None``)
-  ///    Do not align bit declarations on consecutive lines.
-  ///
-  /// * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
-  ///    Align declarations on consecutive lines. This will result in
-  ///    formattings like:
-  ///    \code
-  ///      int         aaaa = 12;
-  ///      float       b = 23;
-  ///      std::string ccc;
-  ///
-  ///      int a = 42;
-  ///      /* A comment. */
-  ///      bool c = false;
-  ///    \endcode
-  ///
-  /// * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
-  ///    Same as ACS_Consecutive, but also spans over empty lines, e.g.
-  ///    \code
-  ///      int         aaaa = 12;
-  ///      float       b = 23;
-  ///      std::string ccc;
-  ///
-  ///      int         a = 42;
-  ///      /* A comment. */
-  ///      bool c = false;
-  ///    \endcode
-  ///
-  /// * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
-  ///    Same as ACS_Consecutive, but also spans over lines only containing
-  ///    comments, e.g.
-  ///    \code
-  ///      int         aaaa = 12;
-  ///      float       b = 23;
-  ///      std::string ccc;
-  ///
-  ///      int  a = 42;
-  ///      /* A comment. */
-  ///      bool c = false;
-  ///    \endcode
-  ///
-  /// * ``ACS_AcrossEmptyLinesAndComments``
-  ///   (in configuration: ``AcrossEmptyLinesAndComments``)
-  ///
-  ///    Same as ACS_Consecutive, but also spans over lines only containing
-  ///    comments and empty lines, e.g.
-  ///    \code
-  ///      int         aaaa = 12;
-  ///      float       b = 23;
-  ///      std::string ccc;
-  ///
-  ///      int         a = 42;
-  ///      /* A comment. */
-  ///      bool        c = false;
-  ///    \endcode
   /// \version 3.8
   AlignConsecutiveStyle AlignConsecutiveDeclarations;
 
@@ -499,7 +366,7 @@ struct FormatStyle {
 
   /// If ``true``, horizontally align operands of binary and ternary
   /// expressions.
-  /// \version 12
+  /// \version 3.5
   OperandAlignmentStyle AlignOperands;
 
   /// If ``true``, aligns trailing comments.
@@ -562,7 +429,7 @@ struct FormatStyle {
   ///     B
   ///   } myEnum;
   /// \endcode
-  /// \version 12
+  /// \version 11
   bool AllowShortEnumsOnASingleLine;
 
   /// Different styles for merging short blocks containing at most one
@@ -987,7 +854,7 @@ struct FormatStyle {
   ///   //                        ^ inserted
   ///   ]
   /// \endcode
-  /// \version 12
+  /// \version 11
   TrailingCommaStyle InsertTrailingCommas;
 
   /// If ``false``, a function declaration's or function definition's
@@ -1770,17 +1637,29 @@ struct FormatStyle {
   /// \version 3.8
   BraceWrappingFlags BraceWrapping;
 
-  /// If ``true``, concept will be placed on a new line.
-  /// \code
-  ///   true:
-  ///    template<typename T>
-  ///    concept ...
-  ///
-  ///   false:
-  ///    template<typename T> concept ...
-  /// \endcode
-  /// \version 13
-  bool BreakBeforeConceptDeclarations;
+  /// Different ways to break before concept declarations.
+  enum BreakBeforeConceptDeclarationsStyle {
+    /// Keep the template declaration line together with ``concept``.
+    /// \code
+    ///   template <typename T> concept C = ...;
+    /// \endcode
+    BBCDS_Never,
+    /// Breaking between template declaration and ``concept`` is allowed. The
+    /// actual behavior depends on the content and line breaking rules and
+    /// penalities.
+    BBCDS_Allowed,
+    /// Always break before ``concept``, putting it in the line after the
+    /// template declaration.
+    /// \code
+    ///   template <typename T>
+    ///   concept C = ...;
+    /// \endcode
+    BBCDS_Always,
+  };
+
+  /// The concept declaration style to use.
+  /// \version 12
+  BreakBeforeConceptDeclarationsStyle BreakBeforeConceptDeclarations;
 
   /// If ``true``, ternary operators will be placed after line breaks.
   /// \code
@@ -2110,7 +1989,7 @@ struct FormatStyle {
   /// Defines when to put an empty line after access modifiers.
   /// ``EmptyLineBeforeAccessModifier`` configuration handles the number of
   /// empty lines between two access modifiers.
-  /// \version 14
+  /// \version 13
   EmptyLineAfterAccessModifierStyle EmptyLineAfterAccessModifier;
 
   /// Different styles for empty line before access modifiers.
@@ -2173,7 +2052,7 @@ struct FormatStyle {
   };
 
   /// Defines in which cases to put empty line before access modifiers.
-  /// \version 13
+  /// \version 12
   EmptyLineBeforeAccessModifierStyle EmptyLineBeforeAccessModifier;
 
   /// If ``true``, clang-format detects whether function calls and
@@ -2285,7 +2164,7 @@ struct FormatStyle {
   ///
   /// For example: `KJ_IF_MAYBE
   /// <https://github.com/capnproto/capnproto/blob/master/kjdoc/tour.md#maybes>`_
-  /// \version 14
+  /// \version 13
   std::vector<std::string> IfMacros;
 
   /// \brief A vector of macros that should be interpreted as type declarations
@@ -2343,7 +2222,7 @@ struct FormatStyle {
   /// \endcode
   ///
   /// For example: BOOST_PP_STRINGIZE
-  /// \version 12
+  /// \version 11
   std::vector<std::string> WhitespaceSensitiveMacros;
 
   tooling::IncludeStyle IncludeStyle;
@@ -2506,10 +2385,13 @@ struct FormatStyle {
   };
 
   /// IndentExternBlockStyle is the type of indenting of extern blocks.
-  /// \version 12
+  /// \version 11
   IndentExternBlockStyle IndentExternBlock;
 
-  /// Indent the requires clause in a template
+  /// Indent the requires clause in a template. This only applies when
+  /// ``RequiresClausePosition`` is ``OwnLine``, or ``WithFollowing``.
+  ///
+  /// In clang-format 12, 13 and 14 it was named ``IndentRequires``.
   /// \code
   ///    true:
   ///    template <typename It>
@@ -2525,8 +2407,8 @@ struct FormatStyle {
   ///      //....
   ///    }
   /// \endcode
-  /// \version 13
-  bool IndentRequires;
+  /// \version 15
+  bool IndentRequiresClause;
 
   /// The number of columns to use for indentation.
   /// \code
@@ -2555,6 +2437,38 @@ struct FormatStyle {
   /// \endcode
   /// \version 3.7
   bool IndentWrappedFunctionNames;
+
+  /// Insert braces after control statements (``if``, ``else``, ``for``, ``do``,
+  /// and ``while``) in C++ unless the control statements are inside macro
+  /// definitions or the braces would enclose preprocessor directives.
+  /// \warning
+  ///  Setting this option to `true` could lead to incorrect code formatting due
+  ///  to clang-format's lack of complete semantic information. As such, extra
+  ///  care should be taken to review code changes made by this option.
+  /// \endwarning
+  /// \code
+  ///   false:                                    true:
+  ///
+  ///   if (isa<FunctionDecl>(D))        vs.      if (isa<FunctionDecl>(D)) {
+  ///     handleFunctionDecl(D);                    handleFunctionDecl(D);
+  ///   else if (isa<VarDecl>(D))                 } else if (isa<VarDecl>(D)) {
+  ///     handleVarDecl(D);                         handleVarDecl(D);
+  ///   else                                      } else {
+  ///     return;                                   return;
+  ///                                             }
+  ///
+  ///   while (i--)                      vs.      while (i--) {
+  ///     for (auto *A : D.attrs())                 for (auto *A : D.attrs()) {
+  ///       handleAttr(A);                            handleAttr(A);
+  ///                                               }
+  ///                                             }
+  ///
+  ///   do                               vs.      do {
+  ///     --i;                                      --i;
+  ///   while (i);                                } while (i);
+  /// \endcode
+  /// \version 15
+  bool InsertBraces;
 
   /// A vector of prefixes ordered by the desired groups for Java imports.
   ///
@@ -2871,7 +2785,7 @@ struct FormatStyle {
   ///            }]
   ///    }
   /// \endcode
-  /// \version 12
+  /// \version 11
   bool ObjCBreakBeforeNestedBlockParam;
 
   /// Add a space in front of an Objective-C protocol list, i.e. use
@@ -2956,7 +2870,7 @@ struct FormatStyle {
   ///    # define BAR
   ///    #endif
   /// \endcode
-  /// \version 14
+  /// \version 13
   int PPIndentWidth;
 
   /// See documentation of ``RawStringFormats``.
@@ -3042,7 +2956,7 @@ struct FormatStyle {
 
   /// \brief Reference alignment style (overrides ``PointerAlignment`` for
   /// references).
-  /// \version 14
+  /// \version 13
   ReferenceAlignmentStyle ReferenceAlignment;
 
   // clang-format off
@@ -3115,6 +3029,87 @@ struct FormatStyle {
   /// \endcode
   /// \version 14
   bool RemoveBracesLLVM;
+
+  /// \brief The possible positions for the requires clause. The
+  /// ``IndentRequires`` option is only used if the ``requires`` is put on the
+  /// start of a line.
+  enum RequiresClausePositionStyle {
+    /// Always put the ``requires`` clause on its own line.
+    /// \code
+    ///   template <typename T>
+    ///   requires C<T>
+    ///   struct Foo {...
+    ///
+    ///   template <typename T>
+    ///   requires C<T>
+    ///   void bar(T t) {...
+    ///
+    ///   template <typename T>
+    ///   void baz(T t)
+    ///   requires C<T>
+    ///   {...
+    /// \endcode
+    RCPS_OwnLine,
+    /// Try to put the clause together with the preceding part of a declaration.
+    /// For class templates: stick to the template declaration.
+    /// For function templates: stick to the template declaration.
+    /// For function declaration followed by a requires clause: stick to the
+    /// parameter list.
+    /// \code
+    ///   template <typename T> requires C<T>
+    ///   struct Foo {...
+    ///
+    ///   template <typename T> requires C<T>
+    ///   void bar(T t) {...
+    ///
+    ///   template <typename T>
+    ///   void baz(T t) requires C<T>
+    ///   {...
+    /// \endcode
+    RCPS_WithPreceding,
+    /// Try to put the ``requires`` clause together with the class or function
+    /// declaration.
+    /// \code
+    ///   template <typename T>
+    ///   requires C<T> struct Foo {...
+    ///
+    ///   template <typename T>
+    ///   requires C<T> void bar(T t) {...
+    ///
+    ///   template <typename T>
+    ///   void baz(T t)
+    ///   requires C<T> {...
+    /// \endcode
+    RCPS_WithFollowing,
+    /// Try to put everything in the same line if possible. Otherwise normal
+    /// line breaking rules take over.
+    /// \code
+    ///   // Fitting:
+    ///   template <typename T> requires C<T> struct Foo {...
+    ///
+    ///   template <typename T> requires C<T> void bar(T t) {...
+    ///
+    ///   template <typename T> void bar(T t) requires C<T> {...
+    ///
+    ///   // Not fitting, one possible example:
+    ///   template <typename LongName>
+    ///   requires C<LongName>
+    ///   struct Foo {...
+    ///
+    ///   template <typename LongName>
+    ///   requires C<LongName>
+    ///   void bar(LongName ln) {
+    ///
+    ///   template <typename LongName>
+    ///   void bar(LongName ln)
+    ///       requires C<LongName> {
+    /// \endcode
+    RCPS_SingleLine,
+  };
+
+  /// \brief The position of the ``requires`` clause.
+  /// \version 15
+  RequiresClausePositionStyle RequiresClausePosition;
 
   /// \brief The style if definition blocks should be separated.
   enum SeparateDefinitionStyle {
@@ -3193,7 +3188,7 @@ struct FormatStyle {
   ///      int bar;                           int bar;
   ///    } // namespace b                   } // namespace b
   /// \endcode
-  /// \version 14
+  /// \version 13
   unsigned ShortNamespaceLines;
 
   /// Include sorting options.
@@ -3500,6 +3495,25 @@ struct FormatStyle {
     ///    object.operator++ (10);                object.operator++(10);
     /// \endcode
     bool AfterOverloadedOperator;
+    /// If ``true``, put space between requires keyword in a requires clause and
+    /// opening parentheses, if there is one.
+    /// \code
+    ///    true:                                  false:
+    ///    template<typename T>            vs.    template<typename T>
+    ///    requires (A<T> && B<T>)                requires(A<T> && B<T>)
+    ///    ...                                    ...
+    /// \endcode
+    bool AfterRequiresInClause;
+    /// If ``true``, put space between requires keyword in a requires expression
+    /// and opening parentheses.
+    /// \code
+    ///    true:                                  false:
+    ///    template<typename T>            vs.    template<typename T>
+    ///    concept C = requires (T t) {           concept C = requires(T t) {
+    ///                  ...                                    ...
+    ///                }                                      }
+    /// \endcode
+    bool AfterRequiresInExpression;
     /// If ``true``, put a space before opening parentheses only if the
     /// parentheses are not empty.
     /// \code
@@ -3513,7 +3527,8 @@ struct FormatStyle {
         : AfterControlStatements(false), AfterForeachMacros(false),
           AfterFunctionDeclarationName(false),
           AfterFunctionDefinitionName(false), AfterIfMacros(false),
-          AfterOverloadedOperator(false), BeforeNonEmptyParentheses(false) {}
+          AfterOverloadedOperator(false), AfterRequiresInClause(false),
+          AfterRequiresInExpression(false), BeforeNonEmptyParentheses(false) {}
 
     bool operator==(const SpaceBeforeParensCustom &Other) const {
       return AfterControlStatements == Other.AfterControlStatements &&
@@ -3523,6 +3538,8 @@ struct FormatStyle {
              AfterFunctionDefinitionName == Other.AfterFunctionDefinitionName &&
              AfterIfMacros == Other.AfterIfMacros &&
              AfterOverloadedOperator == Other.AfterOverloadedOperator &&
+             AfterRequiresInClause == Other.AfterRequiresInClause &&
+             AfterRequiresInExpression == Other.AfterRequiresInExpression &&
              BeforeNonEmptyParentheses == Other.BeforeNonEmptyParentheses;
     }
   };
@@ -3610,7 +3627,7 @@ struct FormatStyle {
     SIAS_Leave
   };
   /// The SpacesInAnglesStyle to use for template argument lists.
-  /// \version 14
+  /// \version 3.4
   SpacesInAnglesStyle SpacesInAngles;
 
   /// If ``true``, spaces will be inserted around if/for/switch/while
@@ -3678,7 +3695,7 @@ struct FormatStyle {
   ///   ///  - Foo                                /// - Foo
   ///   ///    - Bar                              ///   - Bar
   /// \endcode
-  /// \version 14
+  /// \version 13
   SpacesInLineComment SpacesInLineCommentPrefix;
 
   /// If ``true``, spaces will be inserted after ``(`` and before ``)``.
@@ -3889,8 +3906,8 @@ struct FormatStyle {
            IndentGotoLabels == R.IndentGotoLabels &&
            IndentPPDirectives == R.IndentPPDirectives &&
            IndentExternBlock == R.IndentExternBlock &&
-           IndentRequires == R.IndentRequires && IndentWidth == R.IndentWidth &&
-           Language == R.Language &&
+           IndentRequiresClause == R.IndentRequiresClause &&
+           IndentWidth == R.IndentWidth && Language == R.Language &&
            IndentWrappedFunctionNames == R.IndentWrappedFunctionNames &&
            JavaImportGroups == R.JavaImportGroups &&
            JavaScriptQuotes == R.JavaScriptQuotes &&
@@ -3926,6 +3943,7 @@ struct FormatStyle {
            RawStringFormats == R.RawStringFormats &&
            ReferenceAlignment == R.ReferenceAlignment &&
            RemoveBracesLLVM == R.RemoveBracesLLVM &&
+           RequiresClausePosition == R.RequiresClausePosition &&
            SeparateDefinitionBlocks == R.SeparateDefinitionBlocks &&
            ShortNamespaceLines == R.ShortNamespaceLines &&
            SortIncludes == R.SortIncludes &&
@@ -4062,7 +4080,7 @@ bool getPredefinedStyle(StringRef Name, FormatStyle::LanguageKind Language,
 /// document, are retained in \p Style.
 ///
 /// If AllowUnknownOptions is true, no errors are emitted if unknown
-/// format options are occured.
+/// format options are occurred.
 ///
 /// If set all diagnostics are emitted through the DiagHandler.
 std::error_code

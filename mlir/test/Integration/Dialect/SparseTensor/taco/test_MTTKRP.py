@@ -7,7 +7,9 @@ import tempfile
 
 _SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(_SCRIPT_PATH)
+
 from tools import mlir_pytaco_api as pt
+from tools import testing_utils as utils
 
 ###### This PyTACO part is taken from the TACO open-source project. ######
 # See http://tensor-compiler.org/docs/data_analytics/index.html.
@@ -28,8 +30,8 @@ B = pt.read(os.path.join(_SCRIPT_PATH, "data/nell-2.tns"), csf)
 
 # These two lines have been modified from the original program to use static
 # data to support result comparison.
-C = pt.from_array(np.full((B.shape[1], 25), 1, dtype=np.float64))
-D = pt.from_array(np.full((B.shape[2], 25), 2, dtype=np.float64))
+C = pt.from_array(np.full((B.shape[1], 25), 1, dtype=np.float32))
+D = pt.from_array(np.full((B.shape[2], 25), 2, dtype=np.float32))
 
 # Declare the result to be a dense matrix.
 A = pt.tensor([B.shape[0], 25], rm)
@@ -42,12 +44,12 @@ A[i, j] = B[i, k, l] * D[l, j] * C[k, j]
 
 ##########################################################################
 
-# CHECK: Compare result True
 # Perform the MTTKRP computation and write the result to file.
 with tempfile.TemporaryDirectory() as test_dir:
-  actual_file = os.path.join(test_dir, "A.tns")
-  pt.write(actual_file, A)
-  actual = np.loadtxt(actual_file, np.float64)
-  expected = np.loadtxt(
-      os.path.join(_SCRIPT_PATH, "data/gold_A.tns"), np.float64)
-  print(f"Compare result {np.allclose(actual, expected, rtol=0.01)}")
+  golden_file = os.path.join(_SCRIPT_PATH, "data/gold_A.tns")
+  out_file = os.path.join(test_dir, "A.tns")
+  pt.write(out_file, A)
+  #
+  # CHECK: Compare result True
+  #
+  print(f"Compare result {utils.compare_sparse_tns(golden_file, out_file)}")

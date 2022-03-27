@@ -169,8 +169,7 @@ if(LLVM_ENABLE_CURL)
     # Check if curl we found is usable; for example, we may have found a 32-bit
     # library on a 64-bit system which would result in a link-time failure.
     cmake_push_check_state()
-    list(APPEND CMAKE_REQUIRED_INCLUDES ${CURL_INCLUDE_DIRS})
-    list(APPEND CMAKE_REQUIRED_LIBRARIES ${CURL_LIBRARY})
+    list(APPEND CMAKE_REQUIRED_LIBRARIES CURL::libcurl)
     check_symbol_exists(curl_easy_init curl/curl.h HAVE_CURL)
     cmake_pop_check_state()
     if(LLVM_ENABLE_CURL STREQUAL FORCE_ON AND NOT HAVE_CURL)
@@ -650,7 +649,6 @@ else()
       find_ocamlfind_package(ctypes VERSION 0.4 OPTIONAL)
       if( HAVE_OCAML_CTYPES )
         message(STATUS "OCaml bindings enabled.")
-        find_ocamlfind_package(oUnit VERSION 2 OPTIONAL)
         set(LLVM_BINDINGS "${LLVM_BINDINGS} ocaml")
 
         set(LLVM_OCAML_INSTALL_PATH "${OCAML_STDLIB_PATH}" CACHE STRING

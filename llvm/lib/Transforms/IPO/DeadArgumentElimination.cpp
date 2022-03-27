@@ -337,7 +337,8 @@ bool DeadArgumentEliminationPass::RemoveDeadArgumentsFromCallers(Function &Fn) {
 
   for (Use &U : Fn.uses()) {
     CallBase *CB = dyn_cast<CallBase>(U.getUser());
-    if (!CB || !CB->isCallee(&U))
+    if (!CB || !CB->isCallee(&U) ||
+        CB->getFunctionType() != Fn.getFunctionType())
       continue;
 
     // Now go through all unused args and replace them with "undef".
@@ -598,7 +599,8 @@ void DeadArgumentEliminationPass::SurveyFunction(const Function &F) {
     // If the function is PASSED IN as an argument, its address has been
     // taken.
     const auto *CB = dyn_cast<CallBase>(U.getUser());
-    if (!CB || !CB->isCallee(&U)) {
+    if (!CB || !CB->isCallee(&U) ||
+        CB->getFunctionType() != F.getFunctionType()) {
       MarkLive(F);
       return;
     }

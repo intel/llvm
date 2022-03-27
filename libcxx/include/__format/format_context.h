@@ -24,21 +24,12 @@
 #endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
-
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if _LIBCPP_STD_VER > 17
-
-// TODO FMT Remove this once we require compilers with proper C++20 support.
-// If the compiler has no concepts support, the format header will be disabled.
-// Without concepts support enable_if needs to be used and that too much effort
-// to support compilers with partial C++20 support.
-#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
 
 template <class _OutIt, class _CharT>
 requires output_iterator<_OutIt, const _CharT&>
@@ -101,7 +92,7 @@ public:
   basic_format_context& operator=(const basic_format_context&) = delete;
 
   _LIBCPP_HIDE_FROM_ABI basic_format_arg<basic_format_context>
-  arg(size_t __id) const {
+  arg(size_t __id) const noexcept {
     return __args_.get(__id);
   }
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
@@ -132,9 +123,8 @@ private:
 
   template <class __OutIt, class __CharT>
   friend _LIBCPP_HIDE_FROM_ABI basic_format_context<__OutIt, __CharT>
-  _VSTD::__format_context_create(
-      __OutIt, basic_format_args<basic_format_context<__OutIt, __CharT>>,
-      optional<_VSTD::locale>&&);
+  __format_context_create(__OutIt, basic_format_args<basic_format_context<__OutIt, __CharT>>,
+                          optional<_VSTD::locale>&&);
 
   // Note: the Standard doesn't specify the required constructors.
   _LIBCPP_HIDE_FROM_ABI
@@ -146,8 +136,7 @@ private:
 #else
   template <class __OutIt, class __CharT>
   friend _LIBCPP_HIDE_FROM_ABI basic_format_context<__OutIt, __CharT>
-      _VSTD::__format_context_create(
-          __OutIt, basic_format_args<basic_format_context<__OutIt, __CharT>>);
+      __format_context_create(__OutIt, basic_format_args<basic_format_context<__OutIt, __CharT>>);
 
   _LIBCPP_HIDE_FROM_ABI
   explicit basic_format_context(_OutIt __out_it,
@@ -156,12 +145,8 @@ private:
 #endif
 };
 
-#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS)
-
 #endif //_LIBCPP_STD_VER > 17
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___FORMAT_FORMAT_CONTEXT_H

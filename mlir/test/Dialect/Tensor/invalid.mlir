@@ -91,8 +91,7 @@ func @tensor.generate(%m : index, %n : index)
 
 func @tensor.generate(%m : index, %n : index)
     -> tensor<?x3x?xf32> {
-  // expected-error @+2 {{op expects regions to end with 'tensor.yield', found 'std.return'}}
-  // expected-note @+1 {{in custom textual format, the absence of terminator implies 'tensor.yield'}}
+  // expected-error @+4 {{'func.return' op expects parent op 'func.func'}}
   %tnsr = tensor.generate %m, %n {
     ^bb0(%i : index, %j : index, %k : index):
       %elem = arith.constant 8.0 : f32
@@ -363,3 +362,18 @@ func @pad_yield_type(%arg0: tensor<?x4xi32>, %arg1: i8) -> tensor<?x9xi32> {
   return %0 : tensor<?x9xi32>
 }
 
+// -----
+
+func @invalid_splat(%v : f32) {
+  // expected-error@+1 {{invalid kind of type specified}}
+  tensor.splat %v : memref<8xf32>
+  return
+}
+
+// -----
+
+func @invalid_splat(%v : vector<8xf32>) {
+  // expected-error@+1 {{must be integer/index/float type}}
+  %w = tensor.splat %v : tensor<8xvector<8xf32>>
+  return
+}

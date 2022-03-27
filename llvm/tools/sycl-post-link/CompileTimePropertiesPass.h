@@ -63,7 +63,7 @@ inline bool hasProperty(const Attribute &Attr) {
 template <typename Int> Int getAttributeAsInteger(const Attribute &Attr) {
   assert(Attr.isStringAttribute() &&
          "The attribute Attr must be a string attribute");
-  Int Value;
+  Int Value = 0;
   bool Error = Attr.getValueAsString().getAsInteger(10, Value);
   assert(!Error && "The attribute's value is not a number");
   (void)Error;

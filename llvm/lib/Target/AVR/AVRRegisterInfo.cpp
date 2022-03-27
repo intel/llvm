@@ -137,6 +137,7 @@ void AVRRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   const TargetInstrInfo &TII = *TM.getSubtargetImpl()->getInstrInfo();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetFrameLowering *TFI = TM.getSubtargetImpl()->getFrameLowering();
+  const AVRSubtarget &STI = MF.getSubtarget<AVRSubtarget>();
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   int Offset = MFI.getObjectOffset(FrameIndex);
 
@@ -151,7 +152,7 @@ void AVRRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   if (MI.getOpcode() == AVR::FRMIDX) {
     MI.setDesc(TII.get(AVR::MOVWRdRr));
     MI.getOperand(FIOperandNum).ChangeToRegister(AVR::R29R28, false);
-    MI.RemoveOperand(2);
+    MI.removeOperand(2);
 
     assert(Offset > 0 && "Invalid offset");
 
@@ -219,7 +220,8 @@ void AVRRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     // a compare and branch, invalidating the contents of SREG set by the
     // compare instruction because of the add/sub pairs. Conservatively save and
     // restore SREG before and after each add/sub pair.
-    BuildMI(MBB, II, dl, TII.get(AVR::INRdA), AVR::R0).addImm(0x3f);
+    BuildMI(MBB, II, dl, TII.get(AVR::INRdA), AVR::R0)
+        .addImm(STI.getIORegSREG());
 
     MachineInstr *New = BuildMI(MBB, II, dl, TII.get(AddOpc), AVR::R29R28)
                             .addReg(AVR::R29R28, RegState::Kill)
@@ -228,7 +230,7 @@ void AVRRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
     // Restore SREG.
     BuildMI(MBB, std::next(II), dl, TII.get(AVR::OUTARr))
-        .addImm(0x3f)
+        .addImm(STI.getIORegSREG())
         .addReg(AVR::R0, RegState::Kill);
 
     // No need to set SREG as dead here otherwise if the next instruction is a

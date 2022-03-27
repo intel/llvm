@@ -398,6 +398,8 @@ def StdC : StandardSpec<"stdc"> {
 
           FunctionSpec<"log10f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
+          FunctionSpec<"log1pf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
           FunctionSpec<"log2f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
           FunctionSpec<"logf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
@@ -500,6 +502,7 @@ def StdC : StandardSpec<"stdc"> {
           SizeTType,
           BSearchCompareT,
           QSortCompareT,
+          AtexitHandlerT,
       ], // Types
       [], // Enumerations
       [
@@ -536,6 +539,8 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"free", RetValSpec<VoidType>, [ArgSpec<VoidPtr>]>,
 
           FunctionSpec<"_Exit", RetValSpec<NoReturn>, [ArgSpec<IntType>]>,
+          FunctionSpec<"exit", RetValSpec<NoReturn>, [ArgSpec<IntType>]>,
+          FunctionSpec<"atexit", RetValSpec<IntType>, [ArgSpec<AtexitHandlerT>]>,
       ]
   >;
 

@@ -11,13 +11,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/X86BaseInfo.h"
+#include "MCTargetDesc/X86InstrRelaxTables.h"
 #include "MCTargetDesc/X86MCTargetDesc.h"
+#include "bolt/Core/MCPlus.h"
 #include "bolt/Core/MCPlusBuilder.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCFixupKindInfo.h"
+#include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstBuilder.h"
 #include "llvm/MC/MCInstrInfo.h"
+#include "llvm/MC/MCRegister.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Errc.h"
@@ -29,6 +35,17 @@
 
 using namespace llvm;
 using namespace bolt;
+
+namespace opts {
+
+extern cl::OptionCategory BoltOptCategory;
+
+static cl::opt<bool> X86StripRedundantAddressSize(
+    "x86-strip-redundant-address-size",
+    cl::desc("Remove redundant Address-Size override prefix"), cl::init(true),
+    cl::ZeroOrMore, cl::cat(BoltOptCategory));
+
+} // namespace opts
 
 namespace {
 
@@ -44,71 +61,7 @@ unsigned getShortBranchOpcode(unsigned Opcode) {
 }
 
 unsigned getShortArithOpcode(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    return Opcode;
-
-  // IMUL
-  case X86::IMUL16rri:   return X86::IMUL16rri8;
-  case X86::IMUL16rmi:   return X86::IMUL16rmi8;
-  case X86::IMUL32rri:   return X86::IMUL32rri8;
-  case X86::IMUL32rmi:   return X86::IMUL32rmi8;
-  case X86::IMUL64rri32: return X86::IMUL64rri8;
-  case X86::IMUL64rmi32: return X86::IMUL64rmi8;
-
-  // OR
-  case X86::OR16ri:    return X86::OR16ri8;
-  case X86::OR16mi:    return X86::OR16mi8;
-  case X86::OR32ri:    return X86::OR32ri8;
-  case X86::OR32mi:    return X86::OR32mi8;
-  case X86::OR64ri32:  return X86::OR64ri8;
-  case X86::OR64mi32:  return X86::OR64mi8;
-
-  // AND
-  case X86::AND16ri:   return X86::AND16ri8;
-  case X86::AND16mi:   return X86::AND16mi8;
-  case X86::AND32ri:   return X86::AND32ri8;
-  case X86::AND32mi:   return X86::AND32mi8;
-  case X86::AND64ri32: return X86::AND64ri8;
-  case X86::AND64mi32: return X86::AND64mi8;
-
-  // XOR
-  case X86::XOR16ri:   return X86::XOR16ri8;
-  case X86::XOR16mi:   return X86::XOR16mi8;
-  case X86::XOR32ri:   return X86::XOR32ri8;
-  case X86::XOR32mi:   return X86::XOR32mi8;
-  case X86::XOR64ri32: return X86::XOR64ri8;
-  case X86::XOR64mi32: return X86::XOR64mi8;
-
-  // ADD
-  case X86::ADD16ri:   return X86::ADD16ri8;
-  case X86::ADD16mi:   return X86::ADD16mi8;
-  case X86::ADD32ri:   return X86::ADD32ri8;
-  case X86::ADD32mi:   return X86::ADD32mi8;
-  case X86::ADD64ri32: return X86::ADD64ri8;
-  case X86::ADD64mi32: return X86::ADD64mi8;
-
-  // SUB
-  case X86::SUB16ri:   return X86::SUB16ri8;
-  case X86::SUB16mi:   return X86::SUB16mi8;
-  case X86::SUB32ri:   return X86::SUB32ri8;
-  case X86::SUB32mi:   return X86::SUB32mi8;
-  case X86::SUB64ri32: return X86::SUB64ri8;
-  case X86::SUB64mi32: return X86::SUB64mi8;
-
-  // CMP
-  case X86::CMP16ri:   return X86::CMP16ri8;
-  case X86::CMP16mi:   return X86::CMP16mi8;
-  case X86::CMP32ri:   return X86::CMP32ri8;
-  case X86::CMP32mi:   return X86::CMP32mi8;
-  case X86::CMP64ri32: return X86::CMP64ri8;
-  case X86::CMP64mi32: return X86::CMP64mi8;
-
-  // PUSH
-  case X86::PUSHi32:    return X86::PUSH32i8;
-  case X86::PUSHi16:    return X86::PUSH16i8;
-  case X86::PUSH64i32:  return X86::PUSH64i8;
-  }
+  return X86::getShortOpcodeArith(Opcode);
 }
 
 bool isADD(unsigned Opcode) {
@@ -322,6 +275,10 @@ bool isTEST(unsigned Opcode) {
   case X86::TEST8rr:
     return true;
   }
+}
+
+bool isMOVSX64rm32(const MCInst &Inst) {
+  return Inst.getOpcode() == X86::MOVSX64rm32;
 }
 
 class X86MCPlusBuilder : public MCPlusBuilder {
@@ -599,10 +556,6 @@ public:
 
   bool isLEA64r(const MCInst &Inst) const override {
     return Inst.getOpcode() == X86::LEA64r;
-  }
-
-  bool isMOVSX64rm32(const MCInst &Inst) const override {
-    return Inst.getOpcode() == X86::MOVSX64rm32;
   }
 
   bool isLeave(const MCInst &Inst) const override {
@@ -1873,13 +1826,9 @@ public:
       NewOpcode = Check.second;
       if (Check.first == NOCHECK)
         break;
-      if (Check.first == CHECK8 &&
-          ImmVal >= std::numeric_limits<int8_t>::min() &&
-          ImmVal <= std::numeric_limits<int8_t>::max())
+      if (Check.first == CHECK8 && isInt<8>(ImmVal))
         break;
-      if (Check.first == CHECK32 &&
-          ImmVal >= std::numeric_limits<int32_t>::min() &&
-          ImmVal <= std::numeric_limits<int32_t>::max())
+      if (Check.first == CHECK32 && isInt<32>(ImmVal))
         break;
     }
     if (NewOpcode == Inst.getOpcode())
@@ -2094,14 +2043,26 @@ public:
     llvm_unreachable("not implemented");
   }
 
-  bool shortenInstruction(MCInst &Inst) const override {
+  bool shortenInstruction(MCInst &Inst,
+                          const MCSubtargetInfo &STI) const override {
     unsigned OldOpcode = Inst.getOpcode();
     unsigned NewOpcode = OldOpcode;
 
-    // Check and remove EIZ/RIZ. These cases represent ambiguous cases where SIB
-    // byte is present, but no index is used and modrm alone shoud have been
-    // enough. Converting to NoRegister effectively removes the SIB byte.
     int MemOpNo = getMemoryOperandNo(Inst);
+
+    // Check and remove redundant Address-Size override prefix.
+    if (opts::X86StripRedundantAddressSize) {
+      uint64_t TSFlags = Info->get(OldOpcode).TSFlags;
+      unsigned Flags = Inst.getFlags();
+
+      if (!X86_MC::needsAddressSizeOverride(Inst, STI, MemOpNo, TSFlags) &&
+          Flags & X86::IP_HAS_AD_SIZE)
+        Inst.setFlags(Flags ^ X86::IP_HAS_AD_SIZE);
+    }
+
+    // Check and remove EIZ/RIZ. These cases represent ambiguous cases where
+    // SIB byte is present, but no index is used and modrm alone should have
+    // been enough. Converting to NoRegister effectively removes the SIB byte.
     if (MemOpNo >= 0) {
       MCOperand &IndexOp =
           Inst.getOperand(static_cast<unsigned>(MemOpNo) + X86::AddrIndexReg);
@@ -2134,6 +2095,70 @@ public:
       return false;
 
     Inst.setOpcode(NewOpcode);
+    return true;
+  }
+
+  bool
+  convertMoveToConditionalMove(MCInst &Inst, unsigned CC, bool AllowStackMemOp,
+                               bool AllowBasePtrStackMemOp) const override {
+    // - Register-register moves are OK
+    // - Stores are filtered out by opcode (no store CMOV)
+    // - Non-stack loads are prohibited (generally unsafe)
+    // - Stack loads are OK if AllowStackMemOp is true
+    // - Stack loads with RBP are OK if AllowBasePtrStackMemOp is true
+    if (isLoad(Inst)) {
+      // If stack memory operands are not allowed, no loads are allowed
+      if (!AllowStackMemOp)
+        return false;
+
+      // If stack memory operands are allowed, check if it's a load from stack
+      bool IsLoad, IsStore, IsStoreFromReg, IsSimple, IsIndexed;
+      MCPhysReg Reg;
+      int32_t SrcImm;
+      uint16_t StackPtrReg;
+      int64_t StackOffset;
+      uint8_t Size;
+      bool IsStackAccess =
+          isStackAccess(Inst, IsLoad, IsStore, IsStoreFromReg, Reg, SrcImm,
+                        StackPtrReg, StackOffset, Size, IsSimple, IsIndexed);
+      // Prohibit non-stack-based loads
+      if (!IsStackAccess)
+        return false;
+      // If stack memory operands are allowed, check if it's RBP-based
+      if (!AllowBasePtrStackMemOp &&
+          RegInfo->isSubRegisterEq(X86::RBP, StackPtrReg))
+        return false;
+    }
+
+    unsigned NewOpcode = 0;
+    switch (Inst.getOpcode()) {
+    case X86::MOV16rr:
+      NewOpcode = X86::CMOV16rr;
+      break;
+    case X86::MOV16rm:
+      NewOpcode = X86::CMOV16rm;
+      break;
+    case X86::MOV32rr:
+      NewOpcode = X86::CMOV32rr;
+      break;
+    case X86::MOV32rm:
+      NewOpcode = X86::CMOV32rm;
+      break;
+    case X86::MOV64rr:
+      NewOpcode = X86::CMOV64rr;
+      break;
+    case X86::MOV64rm:
+      NewOpcode = X86::CMOV64rm;
+      break;
+    default:
+      return false;
+    }
+    Inst.setOpcode(NewOpcode);
+    // Insert CC at the end of prime operands, before annotations
+    Inst.insert(Inst.begin() + MCPlus::getNumPrimeOperands(Inst),
+                MCOperand::createImm(CC));
+    // CMOV is a 3-operand MCInst, so duplicate the destination as src1
+    Inst.insert(Inst.begin(), Inst.getOperand(0));
     return true;
   }
 
@@ -3012,12 +3037,9 @@ public:
       NewOpcode = Check.second;
       if (Check.first == NOCHECK)
         break;
-      if (Check.first == CHECK8 && Imm >= std::numeric_limits<int8_t>::min() &&
-          Imm <= std::numeric_limits<int8_t>::max())
+      if (Check.first == CHECK8 && isInt<8>(Imm))
         break;
-      if (Check.first == CHECK32 &&
-          Imm >= std::numeric_limits<int32_t>::min() &&
-          Imm <= std::numeric_limits<int32_t>::max())
+      if (Check.first == CHECK32 && isInt<32>(Imm))
         break;
     }
     if (NewOpcode == Inst.getOpcode())
@@ -3036,21 +3058,13 @@ public:
     if (NumFound != 1)
       return false;
 
-    // Iterate backwards to replace the src register before the src/dest
-    // register as in AND, ADD, and SUB Only iterate through src operands that
-    // arent also dest operands
-    for (unsigned Index = InstDesc.getNumOperands() - 1,
-                  E = InstDesc.getNumDefs() + (I.HasLHS ? 0 : -1);
-         Index != E; --Index) {
-      if (!Inst.getOperand(Index).isReg() ||
-          Inst.getOperand(Index).getReg() != Register)
-        continue;
-      MCOperand NewOperand = MCOperand::createImm(Imm);
-      Inst.getOperand(Index) = NewOperand;
-      break;
-    }
-
+    MCOperand TargetOp = Inst.getOperand(0);
+    Inst.clear();
     Inst.setOpcode(NewOpcode);
+    Inst.addOperand(TargetOp);
+    if (I.HasLHS)
+      Inst.addOperand(TargetOp);
+    Inst.addOperand(MCOperand::createImm(Imm));
 
     return true;
   }
@@ -3215,8 +3229,6 @@ public:
   }
 
   MCPhysReg getX86R11() const override { return X86::R11; }
-
-  MCPhysReg getNoRegister() const override { return X86::NoRegister; }
 
   MCPhysReg getIntArgRegister(unsigned ArgNo) const override {
     // FIXME: this should depend on the calling convention.
@@ -3889,7 +3901,7 @@ public:
         return BlocksVectorTy();
 
       CompareInst.addOperand(MCOperand::createImm(CaseIdx));
-      shortenInstruction(CompareInst);
+      shortenInstruction(CompareInst, *Ctx->getSubtargetInfo());
 
       // jump to next target compare.
       NextTarget =

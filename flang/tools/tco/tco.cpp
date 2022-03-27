@@ -17,11 +17,10 @@
 #include "flang/Optimizer/Support/InternalNames.h"
 #include "flang/Optimizer/Support/KindMapping.h"
 #include "flang/Optimizer/Transforms/Passes.h"
-#include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/Parser.h"
+#include "mlir/Parser/Parser.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
@@ -80,13 +79,13 @@ compileFIR(const mlir::PassPipelineCLParser &passPipeline) {
   mlir::MLIRContext context(registry);
   fir::support::loadDialects(context);
   fir::support::registerLLVMTranslation(context);
-  auto owningRef = mlir::parseSourceFile(sourceMgr, &context);
+  auto owningRef = mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, &context);
 
   if (!owningRef) {
     errs() << "Error can't load file " << inputFilename << '\n';
     return mlir::failure();
   }
-  if (mlir::failed(owningRef->verify())) {
+  if (mlir::failed(owningRef->verifyInvariants())) {
     errs() << "Error verifying FIR module\n";
     return mlir::failure();
   }

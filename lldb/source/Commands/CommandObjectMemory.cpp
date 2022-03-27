@@ -295,7 +295,6 @@ public:
             eCommandRequiresTarget | eCommandProcessMustBePaused),
         m_format_options(eFormatBytesWithASCII, 1, 8),
 
-        m_next_addr(LLDB_INVALID_ADDRESS), m_prev_byte_size(0),
         m_prev_format_options(eFormatBytesWithASCII, 1, 8) {
     CommandArgumentEntry arg1;
     CommandArgumentEntry arg2;
@@ -345,9 +344,9 @@ public:
 
   Options *GetOptions() override { return &m_option_group; }
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
-    return m_cmd_name.c_str();
+  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                               uint32_t index) override {
+    return m_cmd_name;
   }
 
 protected:
@@ -877,8 +876,8 @@ protected:
   OptionGroupReadMemory m_memory_options;
   OptionGroupOutputFile m_outfile_options;
   OptionGroupValueObjectDisplay m_varobj_options;
-  lldb::addr_t m_next_addr;
-  lldb::addr_t m_prev_byte_size;
+  lldb::addr_t m_next_addr = LLDB_INVALID_ADDRESS;
+  lldb::addr_t m_prev_byte_size = 0;
   OptionGroupFormat m_prev_format_options;
   OptionGroupReadMemory m_prev_memory_options;
   OptionGroupOutputFile m_prev_outfile_options;
@@ -986,7 +985,7 @@ protected:
   class ProcessMemoryIterator {
   public:
     ProcessMemoryIterator(ProcessSP process_sp, lldb::addr_t base)
-        : m_process_sp(process_sp), m_base_addr(base), m_is_valid(true) {
+        : m_process_sp(process_sp), m_base_addr(base) {
       lldbassert(process_sp.get() != nullptr);
     }
 
@@ -1010,7 +1009,7 @@ protected:
   private:
     ProcessSP m_process_sp;
     lldb::addr_t m_base_addr;
-    bool m_is_valid;
+    bool m_is_valid = true;
   };
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     // No need to check "process" for validity as eCommandRequiresProcess
@@ -1586,9 +1585,9 @@ public:
 
   ~CommandObjectMemoryHistory() override = default;
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
-    return m_cmd_name.c_str();
+  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                               uint32_t index) override {
+    return m_cmd_name;
   }
 
 protected:
@@ -1646,8 +1645,7 @@ public:
                             "an address in the current target process.",
                             "memory region ADDR",
                             eCommandRequiresProcess | eCommandTryTargetAPILock |
-                                eCommandProcessMustBeLaunched),
-        m_prev_end_addr(LLDB_INVALID_ADDRESS) {}
+                                eCommandProcessMustBeLaunched) {}
 
   ~CommandObjectMemoryRegion() override = default;
 
@@ -1665,14 +1663,11 @@ protected:
     m_prev_end_addr = LLDB_INVALID_ADDRESS;
 
     const size_t argc = command.GetArgumentCount();
-    if (argc > 1 || (argc == 0 && load_addr == LLDB_INVALID_ADDRESS)) {
-      result.AppendErrorWithFormat("'%s' takes one argument:\nUsage: %s\n",
-                                   m_cmd_name.c_str(), m_cmd_syntax.c_str());
-      return false;
-    }
+    const lldb::ABISP &abi = process_sp->GetABI();
 
     if (argc == 1) {
       auto load_addr_str = command[0].ref();
+      // Non-address bits in this will be handled later by GetMemoryRegion
       load_addr = OptionArgParser::ToAddress(&m_exe_ctx, load_addr_str,
                                              LLDB_INVALID_ADDRESS, &error);
       if (error.Fail() || load_addr == LLDB_INVALID_ADDRESS) {
@@ -1680,6 +1675,19 @@ protected:
                                      command[0].c_str(), error.AsCString());
         return false;
       }
+    } else if (argc > 1 ||
+               // When we're repeating the command, the previous end address is
+               // used for load_addr. If that was 0xF...F then we must have
+               // reached the end of memory.
+               (argc == 0 && load_addr == LLDB_INVALID_ADDRESS) ||
+               // If the target has non-address bits (tags, limited virtual
+               // address size, etc.), the end of mappable memory will be lower
+               // than that. So if we find any non-address bit set, we must be
+               // at the end of the mappable range.
+               (abi && (abi->FixDataAddress(load_addr) != load_addr))) {
+      result.AppendErrorWithFormat("'%s' takes one argument:\nUsage: %s\n",
+                                   m_cmd_name.c_str(), m_cmd_syntax.c_str());
+      return false;
     }
 
     lldb_private::MemoryRegionInfo range_info;
@@ -1740,14 +1748,14 @@ protected:
     return false;
   }
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
+  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                               uint32_t index) override {
     // If we repeat this command, repeat it without any arguments so we can
     // show the next memory range
-    return m_cmd_name.c_str();
+    return m_cmd_name;
   }
 
-  lldb::addr_t m_prev_end_addr;
+  lldb::addr_t m_prev_end_addr = LLDB_INVALID_ADDRESS;
 };
 
 // CommandObjectMemory

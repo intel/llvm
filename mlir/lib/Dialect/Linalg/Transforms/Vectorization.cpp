@@ -13,14 +13,15 @@
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/Dialect/Vector/VectorTransforms.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Dialect/Vector/Transforms/VectorTransforms.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
@@ -365,7 +366,7 @@ vectorizeOneOp(OpBuilder &b, LinalgOp linalgOp, Operation *op,
 
   // 2. Constant ops don't get vectorized but rather broadcasted at their users.
   // Clone so that the constant is not confined to the linalgOp block .
-  if (isa<arith::ConstantOp, ConstantOp>(op))
+  if (isa<arith::ConstantOp, func::ConstantOp>(op))
     return VectorizationResult{VectorizationStatus::NewOp, b.clone(*op)};
 
   // 3. Only ElementwiseMappable are allowed in the generic vectorization.
@@ -428,8 +429,8 @@ static bool hasOnlyScalarElementwiseOp(Region &r) {
   if (!llvm::hasSingleElement(r))
     return false;
   for (Operation &op : r.front()) {
-    if (!(isa<arith::ConstantOp, ConstantOp, linalg::YieldOp, linalg::IndexOp>(
-              op) ||
+    if (!(isa<arith::ConstantOp, func::ConstantOp, linalg::YieldOp,
+              linalg::IndexOp>(op) ||
           OpTrait::hasElementwiseMappableTraits(&op)) ||
         llvm::any_of(op.getResultTypes(),
                      [](Type type) { return !type.isIntOrIndexOrFloat(); }))
@@ -653,6 +654,38 @@ LogicalResult mlir::linalg::vectorize(RewriterBase &rewriter,
   else
     rewriter.eraseOp(linalgOp);
 
+  return success();
+}
+
+LogicalResult mlir::linalg::vectorizeCopy(RewriterBase &rewriter,
+                                          memref::CopyOp copyOp) {
+
+  auto srcType = copyOp.source().getType().cast<MemRefType>();
+  auto dstType = copyOp.target().getType().cast<MemRefType>();
+  if (!srcType.hasStaticShape() || !dstType.hasStaticShape())
+    return failure();
+
+  auto readType =
+      VectorType::get(srcType.getShape(), getElementTypeOrSelf(srcType));
+  auto writeType =
+      VectorType::get(dstType.getShape(), getElementTypeOrSelf(dstType));
+
+  Location loc = copyOp->getLoc();
+  Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+  SmallVector<Value> indices(srcType.getRank(), zero);
+
+  Value readValue = rewriter.create<vector::TransferReadOp>(
+      loc, readType, copyOp.source(), indices,
+      rewriter.getMultiDimIdentityMap(srcType.getRank()));
+  if (readValue.getType().cast<VectorType>().getRank() == 0) {
+    readValue = rewriter.create<vector::ExtractElementOp>(loc, readValue);
+    readValue = rewriter.create<vector::BroadcastOp>(loc, writeType, readValue);
+  }
+  Operation *writeValue = rewriter.create<vector::TransferWriteOp>(
+      loc, readValue, copyOp.target(), indices,
+      rewriter.getMultiDimIdentityMap(srcType.getRank()));
+  copyOp->getParentOfType<FuncOp>().dump();
+  rewriter.replaceOp(copyOp, writeValue->getResults());
   return success();
 }
 
@@ -1168,11 +1201,11 @@ LogicalResult LinalgCopyVTRForwardingPattern::matchAndRewrite(
   LDBG("with subView " << subView);
 
   // Find the copy into `subView` without interleaved uses.
-  CopyOp copyOp;
+  memref::CopyOp copyOp;
   for (auto &u : subView.getUses()) {
-    if (auto newCopyOp = dyn_cast<CopyOp>(u.getOwner())) {
-      assert(newCopyOp.output().getType().isa<MemRefType>());
-      if (newCopyOp.output() != subView)
+    if (auto newCopyOp = dyn_cast<memref::CopyOp>(u.getOwner())) {
+      assert(newCopyOp.target().getType().isa<MemRefType>());
+      if (newCopyOp.target() != subView)
         continue;
       LDBG("copy candidate " << *newCopyOp);
       if (mayExistInterleavedUses(newCopyOp, xferOp, {viewOrAlloc, subView}))
@@ -1206,10 +1239,10 @@ LogicalResult LinalgCopyVTRForwardingPattern::matchAndRewrite(
   if (maybeFillOp)
     LDBG("with maybeFillOp " << *maybeFillOp);
 
-  // `in` is the subview that linalg.copy reads. Replace it.
-  Value in = copyOp.input();
+  // `in` is the subview that memref.copy reads. Replace it.
+  Value in = copyOp.source();
 
-  // linalg.copy + linalg.fill can be used to create a padded local buffer.
+  // memref.copy + linalg.fill can be used to create a padded local buffer.
   // The `masked` attribute is only valid on this padded buffer.
   // When forwarding to vector.transfer_read, the attribute must be reset
   // conservatively.
@@ -1248,10 +1281,10 @@ LogicalResult LinalgCopyVTWForwardingPattern::matchAndRewrite(
   Value subView = subViewOp.getResult();
 
   // Find the copy from `subView` without interleaved uses.
-  CopyOp copyOp;
+  memref::CopyOp copyOp;
   for (auto &u : subViewOp.getResult().getUses()) {
-    if (auto newCopyOp = dyn_cast<CopyOp>(u.getOwner())) {
-      if (newCopyOp.getInputOperand(0)->get() != subView)
+    if (auto newCopyOp = dyn_cast<memref::CopyOp>(u.getOwner())) {
+      if (newCopyOp.source() != subView)
         continue;
       if (mayExistInterleavedUses(xferOp, newCopyOp, {viewOrAlloc, subView}))
         continue;
@@ -1263,11 +1296,11 @@ LogicalResult LinalgCopyVTWForwardingPattern::matchAndRewrite(
     return failure();
 
   // `out` is the subview copied into that we replace.
-  assert(copyOp.output().getType().isa<MemRefType>());
-  Value out = copyOp.output();
+  assert(copyOp.target().getType().isa<MemRefType>());
+  Value out = copyOp.target();
 
   // Forward vector.transfer into copy.
-  // linalg.copy + linalg.fill can be used to create a padded local buffer.
+  // memref.copy + linalg.fill can be used to create a padded local buffer.
   // The `masked` attribute is only valid on this padded buffer.
   // When forwarding to vector.transfer_write, the attribute must be reset
   // conservatively.
@@ -1322,8 +1355,8 @@ namespace {
 struct Conv1DNwcGenerator : public StructuredGenerator<LinalgOp> {
   Conv1DNwcGenerator(OpBuilder &builder, LinalgOp linalgOp, int strideW,
                      int dilationW)
-      : StructuredGenerator<LinalgOp>(builder, linalgOp), valid(false),
-        strideW(strideW), dilationW(dilationW) {
+      : StructuredGenerator<LinalgOp>(builder, linalgOp), strideW(strideW),
+        dilationW(dilationW) {
     // Determine whether `linalgOp` can be generated with this generator
     if (linalgOp.getNumInputs() != 2 || linalgOp.getNumOutputs() != 1)
       return;
@@ -1632,7 +1665,7 @@ struct Conv1DNwcGenerator : public StructuredGenerator<LinalgOp> {
   }
 
 private:
-  bool valid;
+  bool valid = false;
   int strideW, dilationW;
   Value lhsShaped, rhsShaped, resShaped;
   ShapedType lhsShapedType, rhsShapedType, resShapedType;

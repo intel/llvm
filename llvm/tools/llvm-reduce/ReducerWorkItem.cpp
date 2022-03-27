@@ -16,6 +16,7 @@
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
@@ -169,6 +170,7 @@ void ReducerWorkItem::print(raw_ostream &ROS, void *p) const {
     printMIR(ROS, *M);
     printMIR(ROS, *MF);
   } else {
-    M->print(ROS, nullptr);
+    M->print(ROS, /*AssemblyAnnotationWriter=*/nullptr,
+             /*ShouldPreserveUseListOrder=*/true);
   }
 }

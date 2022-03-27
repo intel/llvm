@@ -34,6 +34,7 @@ set(ASAN_SOURCES
 
 if (NOT WIN32 AND NOT APPLE)
   list(APPEND ASAN_SOURCES
+    asan_rtl_x86_64.S
     asan_interceptors_vfork.S
     )
 endif()
@@ -48,7 +49,6 @@ set(ASAN_STATIC_SOURCES
 
 if (NOT WIN32 AND NOT APPLE)
   list(APPEND ASAN_STATIC_SOURCES
-    asan_rtl_x86_64.S
   )
 endif()
 
@@ -276,7 +276,8 @@ else()
       add_compiler_rt_object_libraries(AsanWeakInterception
         ${SANITIZER_COMMON_SUPPORTED_OS}
         ARCHS ${arch}
-        SOURCES asan_win_weak_interception.cpp
+        SOURCES
+          asan_win_weak_interception.cpp
         CFLAGS ${ASAN_CFLAGS} -DSANITIZER_DYNAMIC
         DEFS ${ASAN_COMMON_DEFINITIONS})
       set(ASAN_DYNAMIC_WEAK_INTERCEPTION

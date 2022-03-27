@@ -432,6 +432,15 @@ fir.global @global_derived : !fir.type<minez(f:i32)> {
   fir.has_value %0 : !fir.type<minez>
 }
 
+// CHECK-LABEL: fir.global linkonce_odr @global_linkonce_odr : i32 {
+// CHECK: [[VAL_130:%.*]] = arith.constant 1 : i32
+// CHECK: fir.has_value [[VAL_130]] : i32
+// CHECK: }
+fir.global linkonce_odr @global_linkonce_odr : i32 {
+  %0 = arith.constant 1 : i32
+  fir.has_value %0 : i32
+}
+
 // CHECK-LABEL: fir.dispatch_table @dispatch_tbl {
 // CHECK: fir.dt_entry "method", @method_impl
 // CHECK: }
@@ -703,6 +712,23 @@ func @test_rebox(%arg0: !fir.box<!fir.array<?xf32>>) {
   return
 }
 
+func private @bar_rebox_test_char(!fir.box<!fir.array<?x!fir.char<1,?>>>)
+// CHECK-LABEL: @test_rebox_char(
+func @test_rebox_char(%arg0: !fir.box<!fir.array<?x!fir.char<1,20>>>) {
+  %c7_i64 = arith.constant 7 : i64
+  %c1_i64 = arith.constant 1 : i64
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %0:3 = fir.box_dims %arg0, %c0 : (!fir.box<!fir.array<?x!fir.char<1,20>>>, index) -> (index, index, index)
+  %1 = fir.slice %c1, %0#1, %c1_i64 substr %c1_i64, %c7_i64 : (index, index, i64, i64, i64) -> !fir.slice<1>
+  // CHECK: fir.rebox %{{.*}} [%{{.*}}] : (!fir.box<!fir.array<?x!fir.char<1,20>>>, !fir.slice<1>) -> !fir.box<!fir.array<?x!fir.char<1,?>>>
+  %2 = fir.rebox %arg0 [%1] : (!fir.box<!fir.array<?x!fir.char<1,20>>>, !fir.slice<1>) -> !fir.box<!fir.array<?x!fir.char<1,?>>>
+  fir.call @bar_rebox_test_char(%2) : (!fir.box<!fir.array<?x!fir.char<1,?>>>) -> ()
+  return
+}
+
+
+func private @array_func() -> !fir.array<?x!fir.char<1,?>>
 // CHECK-LABEL: @test_save_result(
 func @test_save_result(%buffer: !fir.ref<!fir.array<?x!fir.char<1,?>>>) {
   %c100 = arith.constant 100 : index
@@ -746,4 +772,27 @@ func @llvm_ptr_load_store_coordinate(%arg0: !fir.ref<tuple<!fir.ref<!fir.box<!fi
   // CHECK-NEXT: fir.load %[[LLVMPTR]] : !fir.llvm_ptr<!fir.ref<!fir.box<!fir.ptr<f32>>>>
   %1 = fir.load %0 : !fir.llvm_ptr<!fir.ref<!fir.box<!fir.ptr<f32>>>>
   return %1 : !fir.ref<!fir.box<!fir.ptr<f32>>>
+}
+
+func @array_access_ops(%a : !fir.ref<!fir.array<?x?xf32>>) {
+  %c1 = arith.constant 1 : index
+  %n = arith.constant 0 : index
+  %m = arith.constant 50 : index
+  %s = fir.shape %n, %m : (index, index) -> !fir.shape<2>
+  %v = fir.array_load %a(%s) : (!fir.ref<!fir.array<?x?xf32>>, !fir.shape<2>) -> !fir.array<?x?xf32>
+  %p = fir.array_access %v, %c1, %c1 : (!fir.array<?x?xf32>, index, index) -> !fir.ref<f32>
+  // CHECK: %{{.*}} = fir.array_access %{{.*}}, %{{.*}}, %{{.*}} : (!fir.array<?x?xf32>, index, index) -> !fir.ref<f32>
+  return
+}
+
+func @array_amend_ops(%a : !fir.ref<!fir.array<?x?xf32>>) {
+  %c1 = arith.constant 1 : index
+  %n = arith.constant 0 : index
+  %m = arith.constant 50 : index
+  %s = fir.shape %n, %m : (index, index) -> !fir.shape<2>
+  %v = fir.array_load %a(%s) : (!fir.ref<!fir.array<?x?xf32>>, !fir.shape<2>) -> !fir.array<?x?xf32>
+  %p = fir.array_access %v, %c1, %c1 : (!fir.array<?x?xf32>, index, index) -> !fir.ref<f32>
+  %res = fir.array_amend %v, %p : (!fir.array<?x?xf32>, !fir.ref<f32>) -> !fir.array<?x?xf32>
+  // CHECK: %{{.*}} = fir.array_amend %{{.*}}, %{{.*}} : (!fir.array<?x?xf32>, !fir.ref<f32>) -> !fir.array<?x?xf32>
+  return
 }

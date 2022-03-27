@@ -325,7 +325,6 @@
 // MSP430:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // MSP430:#define __FLT_DIG__ 6
 // MSP430:#define __FLT_EPSILON__ 1.19209290e-7F
-// MSP430:#define __FLT_EVAL_METHOD__ 0
 // MSP430:#define __FLT_HAS_DENORM__ 1
 // MSP430:#define __FLT_HAS_INFINITY__ 1
 // MSP430:#define __FLT_HAS_QUIET_NAN__ 1
@@ -513,7 +512,6 @@
 // NVPTX32:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // NVPTX32:#define __FLT_DIG__ 6
 // NVPTX32:#define __FLT_EPSILON__ 1.19209290e-7F
-// NVPTX32:#define __FLT_EVAL_METHOD__ 0
 // NVPTX32:#define __FLT_HAS_DENORM__ 1
 // NVPTX32:#define __FLT_HAS_INFINITY__ 1
 // NVPTX32:#define __FLT_HAS_QUIET_NAN__ 1
@@ -702,7 +700,6 @@
 // NVPTX64:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // NVPTX64:#define __FLT_DIG__ 6
 // NVPTX64:#define __FLT_EPSILON__ 1.19209290e-7F
-// NVPTX64:#define __FLT_EVAL_METHOD__ 0
 // NVPTX64:#define __FLT_HAS_DENORM__ 1
 // NVPTX64:#define __FLT_HAS_INFINITY__ 1
 // NVPTX64:#define __FLT_HAS_QUIET_NAN__ 1
@@ -906,7 +903,6 @@
 // SPARC:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // SPARC:#define __FLT_DIG__ 6
 // SPARC:#define __FLT_EPSILON__ 1.19209290e-7F
-// SPARC:#define __FLT_EVAL_METHOD__ 0
 // SPARC:#define __FLT_HAS_DENORM__ 1
 // SPARC:#define __FLT_HAS_INFINITY__ 1
 // SPARC:#define __FLT_HAS_QUIET_NAN__ 1
@@ -1107,7 +1103,6 @@
 // TCE:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // TCE:#define __FLT_DIG__ 6
 // TCE:#define __FLT_EPSILON__ 1.19209290e-7F
-// TCE:#define __FLT_EVAL_METHOD__ 0
 // TCE:#define __FLT_HAS_DENORM__ 1
 // TCE:#define __FLT_HAS_INFINITY__ 1
 // TCE:#define __FLT_HAS_QUIET_NAN__ 1
@@ -1252,6 +1247,7 @@
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=x86_64-scei-ps4 < /dev/null | FileCheck -match-full-lines -check-prefix PS4 %s
 //
 // PS4:#define _LP64 1
+// PS4:#define __BIGGEST_ALIGNMENT__ 32
 // PS4:#define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
 // PS4:#define __CHAR16_TYPE__ unsigned short
 // PS4:#define __CHAR32_TYPE__ unsigned int
@@ -1274,7 +1270,6 @@
 // PS4:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // PS4:#define __FLT_DIG__ 6
 // PS4:#define __FLT_EPSILON__ 1.19209290e-7F
-// PS4:#define __FLT_EVAL_METHOD__ 0
 // PS4:#define __FLT_HAS_DENORM__ 1
 // PS4:#define __FLT_HAS_INFINITY__ 1
 // PS4:#define __FLT_HAS_QUIET_NAN__ 1
@@ -1489,7 +1484,7 @@
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=wasm32-emscripten \
 // RUN:   < /dev/null \
 // RUN:   | FileCheck -match-full-lines -check-prefixes=WEBASSEMBLY,WEBASSEMBLY32,EMSCRIPTEN %s
-// RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=wasm32-emscripten -pthread -target-feature +atomics \
+// RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=wasm32-emscripten -pthread -target-feature +atomics -target-feature +bulk-memory \
 // RUN:   < /dev/null \
 // RUN:   | FileCheck -match-full-lines -check-prefixes=WEBASSEMBLY,WEBASSEMBLY32,EMSCRIPTEN,EMSCRIPTEN-THREADS %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=wasm64-emscripten \
@@ -1504,7 +1499,7 @@
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=wasm32-unknown-unknown -x c++ \
 // RUN:   < /dev/null \
 // RUN:   | FileCheck -match-full-lines -check-prefixes=WEBASSEMBLY-CXX %s
-// RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=wasm32-unknown-unknown -x c++ -pthread -target-feature +atomics \
+// RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=wasm32-unknown-unknown -x c++ -pthread -target-feature +atomics -target-feature +bulk-memory \
 // RUN:   < /dev/null \
 // RUN:   | FileCheck -match-full-lines -check-prefixes=WEBASSEMBLY-CXX-ATOMICS %s
 //
@@ -1520,6 +1515,7 @@
 // WEBASSEMBLY-NEXT:#define __ATOMIC_RELEASE 3
 // WEBASSEMBLY-NEXT:#define __ATOMIC_SEQ_CST 5
 // WEBASSEMBLY-NEXT:#define __BIGGEST_ALIGNMENT__ 16
+// WEBASSEMBLY-NEXT:#define __BITINT_MAXWIDTH__ 128
 // WEBASSEMBLY-NEXT:#define __BOOL_WIDTH__ 8
 // WEBASSEMBLY-NEXT:#define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
 // WEBASSEMBLY-NEXT:#define __CHAR16_TYPE__ unsigned short
@@ -1575,7 +1571,6 @@
 // WEBASSEMBLY-NEXT:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // WEBASSEMBLY-NEXT:#define __FLT_DIG__ 6
 // WEBASSEMBLY-NEXT:#define __FLT_EPSILON__ 1.19209290e-7F
-// WEBASSEMBLY-NEXT:#define __FLT_EVAL_METHOD__ 0
 // WEBASSEMBLY-NEXT:#define __FLT_HAS_DENORM__ 1
 // WEBASSEMBLY-NEXT:#define __FLT_HAS_INFINITY__ 1
 // WEBASSEMBLY-NEXT:#define __FLT_HAS_QUIET_NAN__ 1
@@ -1945,7 +1940,6 @@
 // AVR:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // AVR:#define __FLT_DIG__ 6
 // AVR:#define __FLT_EPSILON__ 1.19209290e-7F
-// AVR:#define __FLT_EVAL_METHOD__ 0
 // AVR:#define __FLT_HAS_DENORM__ 1
 // AVR:#define __FLT_HAS_INFINITY__ 1
 // AVR:#define __FLT_HAS_QUIET_NAN__ 1
@@ -2081,7 +2075,6 @@
 // AVR:#define __WCHAR_MAX__ 32767
 // AVR:#define __WCHAR_TYPE__ int
 // AVR:#define __WINT_TYPE__ int
-
 
 // RUN: %clang_cc1 -E -dM -ffreestanding \
 // RUN:    -triple i686-windows-msvc -fms-compatibility -x c++ < /dev/null \
@@ -2228,7 +2221,6 @@
 // RISCV32: #define __FLT_DENORM_MIN__ 1.40129846e-45F
 // RISCV32: #define __FLT_DIG__ 6
 // RISCV32: #define __FLT_EPSILON__ 1.19209290e-7F
-// RISCV32: #define __FLT_EVAL_METHOD__ 0
 // RISCV32: #define __FLT_HAS_DENORM__ 1
 // RISCV32: #define __FLT_HAS_INFINITY__ 1
 // RISCV32: #define __FLT_HAS_QUIET_NAN__ 1
@@ -2436,7 +2428,6 @@
 // RISCV64: #define __FLT_DENORM_MIN__ 1.40129846e-45F
 // RISCV64: #define __FLT_DIG__ 6
 // RISCV64: #define __FLT_EPSILON__ 1.19209290e-7F
-// RISCV64: #define __FLT_EVAL_METHOD__ 0
 // RISCV64: #define __FLT_HAS_DENORM__ 1
 // RISCV64: #define __FLT_HAS_INFINITY__ 1
 // RISCV64: #define __FLT_HAS_QUIET_NAN__ 1

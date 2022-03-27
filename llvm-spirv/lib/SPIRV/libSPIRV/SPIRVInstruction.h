@@ -397,12 +397,12 @@ public:
       assert(MemoryAccess.size() > 1 && "Alignment operand is missing");
       Alignment = MemoryAccess[MemAccessNumParam++];
     }
-    if (MemoryAccess[0] & internal::MemoryAccessAliasScopeINTELMask) {
+    if (MemoryAccess[0] & MemoryAccessAliasScopeINTELMaskMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
       AliasScopeInstID = MemoryAccess[MemAccessNumParam++];
     }
-    if (MemoryAccess[0] & internal::MemoryAccessNoAliasINTELMask) {
+    if (MemoryAccess[0] & MemoryAccessNoAliasINTELMaskMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
       NoAliasInstID = MemoryAccess[MemAccessNumParam];
@@ -415,10 +415,10 @@ public:
     return getMemoryAccessMask() & MemoryAccessNontemporalMask;
   }
   SPIRVWord isAliasScope() const {
-    return getMemoryAccessMask() & internal::MemoryAccessAliasScopeINTELMask;
+    return getMemoryAccessMask() & MemoryAccessAliasScopeINTELMaskMask;
   }
   SPIRVWord isNoAlias() const {
-    return getMemoryAccessMask() & internal::MemoryAccessNoAliasINTELMask;
+    return getMemoryAccessMask() & MemoryAccessNoAliasINTELMaskMask;
   }
   SPIRVWord getMemoryAccessMask() const { return TheMemoryAccessMask; }
   SPIRVWord getAlignment() const { return Alignment; }
@@ -3301,6 +3301,31 @@ _SPIRV_OP(JointMatrixLoad, true, 6, true)
 _SPIRV_OP(JointMatrixStore, false, 5, true)
 _SPIRV_OP(JointMatrixMad, true, 7)
 _SPIRV_OP(JointMatrixWorkItemLength, true, 4)
+#undef _SPIRV_OP
+
+class SPIRVGroupUniformArithmeticKHRInstBase : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityGroupUniformArithmeticKHR);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_uniform_group_instructions;
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVGroupUniformArithmeticKHRInstBase,            \
+                            Op##x##KHR, __VA_ARGS__>                           \
+      SPIRV##x##KHR;
+_SPIRV_OP(GroupIMul, true, 6, false, 1)
+_SPIRV_OP(GroupFMul, true, 6, false, 1)
+_SPIRV_OP(GroupBitwiseAnd, true, 6, false, 1)
+_SPIRV_OP(GroupBitwiseOr, true, 6, false, 1)
+_SPIRV_OP(GroupBitwiseXor, true, 6, false, 1)
+_SPIRV_OP(GroupLogicalAnd, true, 6, false, 1)
+_SPIRV_OP(GroupLogicalOr, true, 6, false, 1)
+_SPIRV_OP(GroupLogicalXor, true, 6, false, 1)
 #undef _SPIRV_OP
 } // namespace SPIRV
 

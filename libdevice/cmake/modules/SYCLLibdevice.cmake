@@ -29,6 +29,7 @@ set(compile_opts
 
 if (WIN32)
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
+  list(APPEND compile_opts -D_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
 endif()
 
 set(devicelib-obj-file ${obj_binary_dir}/libsycl-crt.${lib-suffix})

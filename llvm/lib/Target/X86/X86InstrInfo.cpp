@@ -1957,14 +1957,13 @@ unsigned X86InstrInfo::getFMA3OpcodeToCommuteOperands(
   FMAForms[0] = FMA3Group.get132Opcode();
   FMAForms[1] = FMA3Group.get213Opcode();
   FMAForms[2] = FMA3Group.get231Opcode();
-  unsigned FormIndex;
-  for (FormIndex = 0; FormIndex < 3; FormIndex++)
-    if (Opc == FMAForms[FormIndex])
-      break;
 
   // Everything is ready, just adjust the FMA opcode and return it.
-  FormIndex = FormMapping[Case][FormIndex];
-  return FMAForms[FormIndex];
+  for (unsigned FormIndex = 0; FormIndex < 3; FormIndex++)
+    if (Opc == FMAForms[FormIndex])
+      return FMAForms[FormMapping[Case][FormIndex]];
+
+  llvm_unreachable("Illegal FMA3 format");
 }
 
 static void commuteVPTERNLOG(MachineInstr &MI, unsigned SrcOpIdx1,
@@ -2141,7 +2140,7 @@ MachineInstr *X86InstrInfo::commuteInstructionImpl(MachineInstr &MI, bool NewMI,
       if ((MI.getOperand(3).getImm() ^ Mask) == 1) {
         auto &WorkingMI = cloneIfNew(MI);
         WorkingMI.setDesc(get(Opc));
-        WorkingMI.RemoveOperand(3);
+        WorkingMI.removeOperand(3);
         return TargetInstrInfo::commuteInstructionImpl(WorkingMI,
                                                        /*NewMI=*/false,
                                                        OpIdx1, OpIdx2);
@@ -2238,7 +2237,7 @@ MachineInstr *X86InstrInfo::commuteInstructionImpl(MachineInstr &MI, bool NewMI,
     assert(MI.getOperand(3).getImm() == 0x02 && "Unexpected immediate!");
     auto &WorkingMI = cloneIfNew(MI);
     WorkingMI.setDesc(get(X86::MOVSDrr));
-    WorkingMI.RemoveOperand(3);
+    WorkingMI.removeOperand(3);
     return TargetInstrInfo::commuteInstructionImpl(WorkingMI, /*NewMI=*/false,
                                                    OpIdx1, OpIdx2);
   }
@@ -4375,7 +4374,7 @@ bool X86InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
     case X86::SUB8ri:    NewOpcode = X86::CMP8ri;    break;
     }
     CmpInstr.setDesc(get(NewOpcode));
-    CmpInstr.RemoveOperand(0);
+    CmpInstr.removeOperand(0);
     // Mutating this instruction invalidates any debug data associated with it.
     CmpInstr.dropDebugNumber();
     // Fall through to optimize Cmp if Cmp is CMPrr or CMPri.
@@ -4811,7 +4810,7 @@ static bool ExpandMOVImmSExti8(MachineInstrBuilder &MIB,
     BuildMI(MBB, I, DL, TII.get(X86::PUSH32i8)).addImm(Imm);
     MIB->setDesc(TII.get(X86::POP32r));
   }
-  MIB->RemoveOperand(1);
+  MIB->removeOperand(1);
   MIB->addImplicitDefUseOperands(*MBB.getParent());
 
   // Build CFI if necessary.
@@ -4918,7 +4917,7 @@ static bool expandSHXDROT(MachineInstrBuilder &MIB, const MCInstrDesc &Desc) {
   MIB->setDesc(Desc);
   int64_t ShiftAmt = MIB->getOperand(2).getImm();
   // Temporarily remove the immediate so we can add another source register.
-  MIB->RemoveOperand(2);
+  MIB->removeOperand(2);
   // Add the register. Don't copy the kill flag if there is one.
   MIB.addReg(MIB.getReg(1),
              getUndefRegState(MIB->getOperand(1).isUndef()));
@@ -5026,7 +5025,7 @@ bool X86InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     unsigned MaskState = getRegState(MIB->getOperand(1));
     unsigned Opc = (MI.getOpcode() == X86::AVX512_512_SEXT_MASK_64) ?
                    X86::VPTERNLOGQZrrikz : X86::VPTERNLOGDZrrikz;
-    MI.RemoveOperand(1);
+    MI.removeOperand(1);
     MIB->setDesc(get(Opc));
     // VPTERNLOG needs 3 register inputs and an immediate.
     // 0xff will return 1s for any input.
@@ -9440,7 +9439,7 @@ MachineBasicBlock::iterator
 X86InstrInfo::insertOutlinedCall(Module &M, MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator &It,
                                  MachineFunction &MF,
-                                 const outliner::Candidate &C) const {
+                                 outliner::Candidate &C) const {
   // Is it a tail call?
   if (C.CallConstructionID == MachineOutlinerTailCall) {
     // Yes, just insert a JMP.

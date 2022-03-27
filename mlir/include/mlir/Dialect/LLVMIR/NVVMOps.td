@@ -43,7 +43,7 @@ def NVVM_Dialect : Dialect {
 // NVVM op definitions
 //===----------------------------------------------------------------------===//
 
-class NVVM_Op<string mnemonic, list<OpTrait> traits = []> :
+class NVVM_Op<string mnemonic, list<Trait> traits = []> :
   LLVM_OpBase<NVVM_Dialect, mnemonic, traits> {
 }
 
@@ -52,7 +52,7 @@ class NVVM_Op<string mnemonic, list<OpTrait> traits = []> :
 //===----------------------------------------------------------------------===//
 
 class NVVM_IntrOp<string mnem, list<int> overloadedResults,
-                  list<int> overloadedOperands, list<OpTrait> traits,
+                  list<int> overloadedOperands, list<Trait> traits,
                   int numResults>
   : LLVM_IntrOpBase<NVVM_Dialect, mnem, "nvvm_" # !subst(".", "_", mnem),
                     overloadedResults, overloadedOperands, traits, numResults>;
@@ -63,7 +63,7 @@ class NVVM_IntrOp<string mnem, list<int> overloadedResults,
 //===----------------------------------------------------------------------===//
 
 class NVVM_SpecialRegisterOp<string mnemonic,
-    list<OpTrait> traits = []> :
+    list<Trait> traits = []> :
   NVVM_IntrOp<mnemonic, [], [], !listconcat(traits, [NoSideEffect]), 1>,
   Arguments<(ins)> {
   let assemblyFormat = "attr-dict `:` type($res)";
@@ -131,22 +131,11 @@ def NVVM_ShflOp :
       $res = createIntrinsicCall(builder,
           intId, {$dst, $val, $offset, $mask_and_clamp});
   }];
-  let verifier = [{
-    if (!(*this)->getAttrOfType<UnitAttr>("return_value_and_is_valid"))
-      return success();
-    auto type = getType().dyn_cast<LLVM::LLVMStructType>();
-    auto elementType = (type && type.getBody().size() == 2)
-                     ? type.getBody()[1].dyn_cast<IntegerType>()
-                     : nullptr;
-    if (!elementType || elementType.getWidth() != 1)
-      return emitError("expected return type to be a two-element struct with "
-                       "i1 as the second element");
-    return success();
-  }];
   let assemblyFormat = [{
     $kind $dst `,` $val `,` $offset `,` $mask_and_clamp  attr-dict
      `:` type($val) `->` type($res)
    }];
+   let hasVerifier = 1;
 }
 
 def NVVM_VoteBallotOp :
@@ -157,8 +146,7 @@ def NVVM_VoteBallotOp :
       $res = createIntrinsicCall(builder,
             llvm::Intrinsic::nvvm_vote_ballot_sync, {$mask, $pred});
   }];
-  let parser = [{ return parseNVVMVoteBallotOp(parser, result); }];
-  let printer = [{ printNVVMIntrinsicOp(p, this->getOperation()); }];
+  let hasCustomAssemblyFormat = 1;
 }
 
 
@@ -183,12 +171,8 @@ def NVVM_CpAsyncOp : NVVM_Op<"cp.async.shared.global">,
       }
       createIntrinsicCall(builder, id, {$dst, $src});
   }];
-  let verifier = [{
-    if (size() != 4 && size() != 8 && size() != 16)
-      return emitError("expected byte size to be either 4, 8 or 16.");
-    return success();
-  }];
   let assemblyFormat = "$dst `,` $src `,` $size attr-dict";
+  let hasVerifier = 1;
 }
 
 def NVVM_CpAsyncCommitGroupOp : NVVM_Op<"cp.async.commit.group"> {
@@ -220,7 +204,7 @@ def NVVM_MmaOp :
         builder, llvm::Intrinsic::nvvm_mma_m8n8k4_row_col_f32_f32, $args);
   }];
   let assemblyFormat = "$args attr-dict `:` functional-type($args, $res)";
-  let verifier = [{ return ::verify(*this); }];
+  let hasVerifier = 1;
 }
 
 /// Helpers to instantiate different version of wmma intrinsics.
@@ -538,7 +522,7 @@ def NVVM_WMMALoadOp: NVVM_Op<"wmma.load">,
     }];
 
   let assemblyFormat = "$ptr `,` $stride attr-dict `:` functional-type($ptr, $res)";
-  let verifier = [{ return ::verify(*this); }];
+  let hasVerifier = 1;
 }
 
 def NVVM_WMMAStoreOp : NVVM_Op<"wmma.store">,
@@ -593,7 +577,7 @@ def NVVM_WMMAStoreOp : NVVM_Op<"wmma.store">,
   }];
 
   let assemblyFormat = "$ptr `,` $stride `,` $args attr-dict `:` type($ptr) `,` type($args)";
-  let verifier = [{ return ::verify(*this); }];
+  let hasVerifier = 1;
 }
 
 // Base class for all the variants of WMMA mmaOps that may be defined.
@@ -647,7 +631,51 @@ def NVVM_WMMAMmaOp : NVVM_Op<"wmma.mma">,
   }];
 
   let assemblyFormat = "$args attr-dict `:` functional-type($args, $res)";
-  let verifier = [{ return ::verify(*this); }];
+  let hasVerifier = 1;
+}
+
+def NVVM_LdMatrixOp: NVVM_Op<"ldmatrix">,
+  Results<(outs AnyType:$res)>,
+  Arguments<(ins LLVM_AnyPointer: $ptr, I32Attr:$num, MMALayoutAttr:$layout)> {
+
+  let summary = "cooperative matrix load";
+
+  string llvmBuilder = [{
+      auto operands = moduleTranslation.lookupValues(opInst.getOperands());
+      auto intId = getLdMatrixIntrinsicId($layout, $num);
+      $res = createIntrinsicCall(builder, intId, operands, {operands[0]->getType()});
+  }];
+
+  string baseDescription = [{
+    The `nvvm.ldmatrix` operation collectively loads one or more matrices across
+    all threads in a warp from the location indicated by the address operand
+    `ptr` from shared memory.
+
+    The attribute `num` indicates how many 8x8 16-bit matrices are to be loaded.
+
+    All the threads in the warp must execute the same ldmatrix operations.
+
+    Each row of 8 elements needs to be consecutive in memory. Each lane of the
+    warp contains the start address of a row of 8 elements laid out as below:
+
+    ```
+    num | lane 0--7    | Threads 8--15  | Threads 16--31
+    1   | addr0--addr7 |                |
+    2   | addr0--addr7 | addr8--addr15  |
+    4   | addr0--addr7 | addr8--addr15  | addr16--addr31
+    ```
+
+    Example:
+    ```mlir
+    %l1 = nvvm.ldmatrix %ptr {num = 1 : i32, layout = #nvvm.mma_layout<row>} :
+      (!llvm.ptr<i32, 3>) -> i32
+    %l2 = nvvm.ldmatrix %ptr {num = 4 : i32, layout = #nvvm.mma_layout<row>} :
+      (!llvm.ptr<i32, 3>) -> !llvm.struct<(i32, i32, i32, i32)>
+    ```
+  }];
+
+  let assemblyFormat = "$ptr attr-dict `:` functional-type($ptr, $res)";
+  let hasVerifier = 1;
 }
 
 #endif // NVVMIR_OPS

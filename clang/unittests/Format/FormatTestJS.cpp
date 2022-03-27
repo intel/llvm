@@ -195,7 +195,7 @@ TEST_F(FormatTestJS, JSDocComments) {
                    getGoogleJSStyleWithColumns(20)));
 
   // FIXME: this overcounts the */ as a continuation of the 12 when breaking.
-  // Related to the FIXME in BreakableBlockComment::getRangeLength.
+  // Cf. BreakableBlockComment::getRemainingLength.
   EXPECT_EQ("/**\n"
             " * @returns {string}\n"
             " *     jsdoc line line\n"
@@ -323,6 +323,7 @@ TEST_F(FormatTestJS, ReservedWords) {
   verifyFormat("var struct = 2;");
   verifyFormat("var union = 2;");
   verifyFormat("var interface = 2;");
+  verifyFormat("var requires = {};");
   verifyFormat("interface = 2;");
   verifyFormat("x = interface instanceof y;");
   verifyFormat("interface Test {\n"
@@ -2698,7 +2699,7 @@ TEST_F(FormatTestJS, NumericSeparators) {
 
 TEST_F(FormatTestJS, AlignConsecutiveDeclarations) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_JavaScript);
-  Style.AlignConsecutiveDeclarations = FormatStyle::ACS_Consecutive;
+  Style.AlignConsecutiveDeclarations.Enabled = true;
   verifyFormat("let    letVariable = 5;\n"
                "double constVariable = 10;",
                Style);
@@ -2735,7 +2736,7 @@ TEST_F(FormatTestJS, AlignConsecutiveDeclarations) {
 TEST_F(FormatTestJS, AlignConsecutiveAssignments) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_JavaScript);
 
-  Style.AlignConsecutiveAssignments = FormatStyle::ACS_Consecutive;
+  Style.AlignConsecutiveAssignments.Enabled = true;
   verifyFormat("let letVariable      = 5;\n"
                "double constVariable = 10;",
                Style);
@@ -2771,8 +2772,8 @@ TEST_F(FormatTestJS, AlignConsecutiveAssignments) {
 
 TEST_F(FormatTestJS, AlignConsecutiveAssignmentsAndDeclarations) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_JavaScript);
-  Style.AlignConsecutiveDeclarations = FormatStyle::ACS_Consecutive;
-  Style.AlignConsecutiveAssignments = FormatStyle::ACS_Consecutive;
+  Style.AlignConsecutiveDeclarations.Enabled = true;
+  Style.AlignConsecutiveAssignments.Enabled = true;
   verifyFormat("let    letVariable   = 5;\n"
                "double constVariable = 10;",
                Style);

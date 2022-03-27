@@ -89,9 +89,9 @@ func @tensor.from_elements_0d(%arg0: index) -> tensor<index> {
 // CHECK-LABEL:   func @tensor.from_elements_1d(
 // CHECK-SAME:                               %[[ELEM0:.*]]: index,
 // CHECK-SAME:                               %[[ELEM1:.*]]: index) -> tensor<2xindex> {
-// CHECK:           %[[C0:.*]] = arith.constant 0 : index
-// CHECK:           %[[C1:.*]] = arith.constant 1 : index
-// CHECK:           %[[MEMREF:.*]] = memref.alloc() {{.*}} : memref<2xindex>
+// CHECK-DAG:       %[[C0:.*]] = arith.constant 0 : index
+// CHECK-DAG:       %[[C1:.*]] = arith.constant 1 : index
+// CHECK-DAG:       %[[MEMREF:.*]] = memref.alloc() {{.*}} : memref<2xindex>
 // CHECK:           store %[[ELEM0]], %[[MEMREF]][%[[C0]]]
 // CHECK:           store %[[ELEM1]], %[[MEMREF]][%[[C1]]]
 // CHECK:           %[[RET:.*]] = bufferization.to_tensor %[[MEMREF]]
@@ -107,7 +107,7 @@ func @tensor.from_elements_1d(%arg0: index, %arg1: index) -> tensor<2xindex> {
 // CHECK-DAG:     %[[C0:.*]] = arith.constant 0 : index
 // CHECK-DAG:     %[[C1:.*]] = arith.constant 1 : index
 // CHECK-DAG:     %[[C2:.*]] = arith.constant 2 : index
-// CHECK:         %[[MEMREF:.*]] = memref.alloc() {{.*}} : memref<3x2xindex>
+// CHECK-DAG:     %[[MEMREF:.*]] = memref.alloc() {{.*}} : memref<3x2xindex>
 // CHECK:         store %[[ELEM0]], %[[MEMREF]][%[[C0]], %[[C0]]]
 // CHECK:         store %[[ELEM1]], %[[MEMREF]][%[[C0]], %[[C1]]]
 // CHECK:         store %[[ELEM0]], %[[MEMREF]][%[[C1]], %[[C0]]]
@@ -141,7 +141,7 @@ func @tensor.from_elements_2d(%arg0: index, %arg1: index) -> tensor<3x2xindex> {
 // CHECK-DAG: %[[C1:.*]] = arith.constant 1 : index
 // CHECK-DAG: %[[C2:.*]] = arith.constant 2 : index
 
-// CHECK: %[[MEMREF:.*]] = memref.alloc() {{.*}} : memref<3x2x2xf32>
+// CHECK-DAG: %[[MEMREF:.*]] = memref.alloc() {{.*}} : memref<3x2x2xf32>
 
 // CHECK: store %[[F0]], %[[MEMREF]][%[[C0]], %[[C0]], %[[C0]]]
 // CHECK: store %[[F1]], %[[MEMREF]][%[[C0]], %[[C0]], %[[C1]]]
@@ -291,8 +291,8 @@ func @tensor.insert_slice(%t1: tensor<?x?xf32>, %t2: tensor<?x10xf32>,
 //  CHECK-SAME:     %[[t1:.*]]: tensor<5xf32>, %[[idx1:.*]]: index,
 //  CHECK-SAME:     %[[f:.*]]: f32
 func @tensor.insert(%t1: tensor<5xf32>, %idx1: index, %f: f32) -> tensor<5xf32> {
-  // CHECK: %[[alloc:.*]] = memref.alloc() {{.*}} : memref<5xf32>
-  // CHECK: %[[m1:.*]] = bufferization.to_memref %[[t1]] : memref<5xf32>
+  // CHECK-DAG: %[[alloc:.*]] = memref.alloc() {{.*}} : memref<5xf32>
+  // CHECK-DAG: %[[m1:.*]] = bufferization.to_memref %[[t1]] : memref<5xf32>
   // CHECK: memref.copy %[[m1]], %[[alloc]]
   // CHECK: memref.store %[[f]], %[[alloc]][%[[idx1]]]
   %0 = tensor.insert %f into %t1[%idx1] : tensor<5xf32>
@@ -300,4 +300,32 @@ func @tensor.insert(%t1: tensor<5xf32>, %idx1: index, %f: f32) -> tensor<5xf32> 
   // CHECK: %[[r:.*]] = bufferization.to_tensor %[[alloc]]
   // CHECK: return %[[r]]
   return %0 : tensor<5xf32>
+}
+
+// CHECK-LABEL: func @tensor.expand_shape(
+//  CHECK-SAME:     %[[t1:.*]]: tensor<?x10xf32>
+func @tensor.expand_shape(%t1: tensor<?x10xf32>) -> tensor<2x?x10xf32> {
+  // CHECK: %[[m1:.*]] = bufferization.to_memref %[[t1]] : memref<?x10xf32>
+  // CHECK: %[[expanded:.*]] = memref.expand_shape %[[m1]] [
+  // CHECK-SAME: [0, 1], [2]] : memref<?x10xf32> into memref<2x?x10xf32>
+  %0 = tensor.expand_shape %t1 [[0, 1], [2]]
+      : tensor<?x10xf32> into tensor<2x?x10xf32>
+
+  // CHECK: %[[r:.*]] = bufferization.to_tensor %[[expanded]]
+  // CHECK: return %[[r]]
+  return %0 : tensor<2x?x10xf32>
+}
+
+// CHECK-LABEL: func @tensor.collapse_shape(
+//  CHECK-SAME:     %[[t1:.*]]: tensor<2x?x?xf32>
+func @tensor.collapse_shape(%t1: tensor<2x?x?xf32>) -> tensor<?x?xf32> {
+  // CHECK: %[[m1:.*]] = bufferization.to_memref %[[t1]] : memref<2x?x?xf32>
+  // CHECK: %[[collapsed:.*]] = memref.collapse_shape %[[m1]] [
+  // CHECK-SAME: [0, 1], [2]] : memref<2x?x?xf32> into memref<?x?xf32>
+  %0 = tensor.collapse_shape %t1 [[0, 1], [2]]
+      : tensor<2x?x?xf32> into tensor<?x?xf32>
+
+  // CHECK: %[[r:.*]] = bufferization.to_tensor %[[collapsed]]
+  // CHECK: return %[[r]]
+  return %0 : tensor<?x?xf32>
 }

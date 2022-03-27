@@ -555,7 +555,7 @@ void test13(id x) {
 }
 
 // <rdar://problem/10907510>
-void test14() {
+void test14(void) {
   void (^const x[1])(void) = { ^{} };
 }
 
@@ -567,7 +567,7 @@ void test15(int a) {
 }
 
 // rdar://11016025
-void test16() {
+void test16(void) {
   void (^BLKVAR)(void) = ^{ BLKVAR(); };
 
   // CHECK-LABEL: define{{.*}} void @test16(
@@ -727,7 +727,7 @@ void test19(void (^b)(void)) {
 // CHECK-UNOPT: store i8* [[RETAINED]], i8** [[BLOCKCAPTURED]]
 // CHECK-UNOPT: call void @llvm.objc.storeStrong(i8** [[BLOCKCAPTURED]], i8* null)
 
-void test20_callee(void (^)());
+void test20_callee(void (^)(void));
 void test20(const id x) {
   test20_callee(^{ (void)x; });
 }

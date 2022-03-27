@@ -11,7 +11,7 @@
 // CHECK:         call void @llvm.ppc.mtfsb0(i32 10)
 // CHECK-NEXT:    ret void
 //
-void mtfsb0 () {
+void mtfsb0 (void) {
   __mtfsb0 (10);
 }
 
@@ -19,7 +19,7 @@ void mtfsb0 () {
 // CHECK:         call void @llvm.ppc.mtfsb1(i32 0)
 // CHECK-NEXT:    ret void
 //
-void mtfsb1 () {
+void mtfsb1 (void) {
   __mtfsb1 (0);
 }
 
@@ -36,7 +36,7 @@ void mtfsf (unsigned int ui) {
 // CHECK:         call void @llvm.ppc.mtfsfi(i32 7, i32 15)
 // CHECK-NEXT:    ret void
 //
-void mtfsfi () {
+void mtfsfi (void) {
   __mtfsfi (7, 15);
 }
 
@@ -95,10 +95,11 @@ float fnmadds (float f) {
 // CHECK-LABEL: @fnmsub(
 // CHECK:         [[D_ADDR:%.*]] = alloca double, align 8
 // CHECK-NEXT:    store double [[D:%.*]], double* [[D_ADDR]], align 8
+// CHECK-COUNT-3:    load double, double* [[D_ADDR]], align 8
 // CHECK-NEXT:    [[TMP0:%.*]] = load double, double* [[D_ADDR]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load double, double* [[D_ADDR]], align 8
 // CHECK-NEXT:    [[TMP2:%.*]] = load double, double* [[D_ADDR]], align 8
-// CHECK-NEXT:    [[TMP3:%.*]] = call double @llvm.ppc.fnmsub(double [[TMP0]], double [[TMP1]], double [[TMP2]])
+// CHECK-NEXT:    [[TMP3:%.*]] = call double @llvm.ppc.fnmsub.f64(double [[TMP0]], double [[TMP1]], double [[TMP2]])
 // CHECK-NEXT:    ret double [[TMP3]]
 //
 double fnmsub (double d) {
@@ -108,10 +109,11 @@ double fnmsub (double d) {
 // CHECK-LABEL: @fnmsubs(
 // CHECK:         [[F_ADDR:%.*]] = alloca float, align 4
 // CHECK-NEXT:    store float [[F:%.*]], float* [[F_ADDR]], align 4
+// CHECK-COUNT-3:    load float, float* [[F_ADDR]], align 4
 // CHECK-NEXT:    [[TMP0:%.*]] = load float, float* [[F_ADDR]], align 4
 // CHECK-NEXT:    [[TMP1:%.*]] = load float, float* [[F_ADDR]], align 4
 // CHECK-NEXT:    [[TMP2:%.*]] = load float, float* [[F_ADDR]], align 4
-// CHECK-NEXT:    [[TMP3:%.*]] = call float @llvm.ppc.fnmsubs(float [[TMP0]], float [[TMP1]], float [[TMP2]])
+// CHECK-NEXT:    [[TMP3:%.*]] = call float @llvm.ppc.fnmsub.f32(float [[TMP0]], float [[TMP1]], float [[TMP2]])
 // CHECK-NEXT:    ret float [[TMP3]]
 //
 float fnmsubs (float f) {

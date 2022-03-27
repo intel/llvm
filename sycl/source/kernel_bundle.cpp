@@ -218,8 +218,8 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl =
         getSyclObjImpl(DeviceImage);
 
-    CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ref().begin(),
-                             DeviceImageImpl->get_kernel_ids_ref().end());
+    CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ptr()->begin(),
+                             DeviceImageImpl->get_kernel_ids_ptr()->end());
   }
 
   const bool AllKernelIDsRepresented =

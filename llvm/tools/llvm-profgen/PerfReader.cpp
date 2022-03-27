@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include "PerfReader.h"
 #include "ProfileGenerator.h"
+#include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Process.h"
 
@@ -1212,6 +1213,7 @@ void PerfScriptReader::parsePerfTraces() {
   warnTruncatedStack();
   warnInvalidRange();
   generateUnsymbolizedProfile();
+  AggregatedSamples.clear();
 
   if (SkipSymbolization)
     writeUnsymbolizedProfile(OutputFilename);

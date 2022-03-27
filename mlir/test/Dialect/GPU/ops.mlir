@@ -44,6 +44,10 @@ module attributes {gpu.container_module} {
       %gDimY = gpu.grid_dim y
       %gDimZ = gpu.grid_dim z
 
+      %gIdX = gpu.global_id x
+      %gIdY = gpu.global_id y
+      %gIdZ = gpu.global_id z
+
       %sgId = gpu.subgroup_id : index
       %numSg = gpu.num_subgroups : index
       %SgSi = gpu.subgroup_size : index
@@ -158,7 +162,7 @@ module attributes {gpu.container_module} {
     "gpu.func"() ({
     ^bb0(%arg0: f32, %arg1: memref<?xf32>, %arg2: memref<5xf32, 3>, %arg3: memref<5xf32, 5>):
       "gpu.return"() : () -> ()
-    } ) {gpu.kernel, sym_name = "kernel_1", type = (f32, memref<?xf32>) -> (), workgroup_attributions = 1: i64} : () -> ()
+    } ) {function_type = (f32, memref<?xf32>) -> (), gpu.kernel, sym_name = "kernel_1", workgroup_attributions = 1: i64} : () -> ()
   }
 
   func @alloc() {
@@ -238,6 +242,25 @@ module attributes {gpu.container_module} {
     %2 = gpu.subgroup_mma_elementwise addf %1, %1 : (!gpu.mma_matrix<16x16xf32, "COp">, !gpu.mma_matrix<16x16xf32, "COp">) -> !gpu.mma_matrix<16x16xf32, "COp">
     // CHECK: gpu.subgroup_mma_elementwise maxf %{{.*}}, %{{.*}} : (!gpu.mma_matrix<16x16xf32, "COp">, !gpu.mma_matrix<16x16xf32, "COp">) -> !gpu.mma_matrix<16x16xf32, "COp">
     %3 = gpu.subgroup_mma_elementwise maxf %2, %1 : (!gpu.mma_matrix<16x16xf32, "COp">, !gpu.mma_matrix<16x16xf32, "COp">) -> !gpu.mma_matrix<16x16xf32, "COp">
+    return
+  }
+
+  func @async_cp(%dst : memref<2x7x5xf32, 3>, %src : memref<4x5xf32>){
+    // CHECK-LABEL: func @async_cp
+    %c0 = arith.constant 0 : index
+    // CHECK: gpu.device_async_copy %{{.*}}[{{.*}}, {{.*}}], %{{.*}}[{{.*}}, {{.*}}, {{.*}}], 4 : memref<4x5xf32> to memref<2x7x5xf32, 3>
+    %0 = gpu.device_async_copy %src[%c0, %c0], %dst[%c0, %c0, %c0], 4 : memref<4x5xf32> to memref<2x7x5xf32, 3>
+    // CHECK: %{{.*}} = gpu.device_async_create_group
+    %token = gpu.device_async_create_group %0
+    // CHECK: gpu.device_async_wait %{{.*}} {numGroups = 1 : i32}
+    gpu.device_async_wait %token {numGroups = 1 : i32}
+    return
+  }
+
+  // CHECK-LABEL: func @set_default_device
+  func @set_default_device(%arg0: i32) {
+    // CHECK: gpu.set_default_device
+    gpu.set_default_device %arg0
     return
   }
 }

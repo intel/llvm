@@ -15,7 +15,7 @@ include "mlir/Dialect/Bufferization/IR/BufferizationBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/CopyOpInterface.td"
 
-class Bufferization_Op<string mnemonic, list<OpTrait> traits = []>
+class Bufferization_Op<string mnemonic, list<Trait> traits = []>
     : Op<Bufferization_Dialect, mnemonic, traits>;
 
 //===----------------------------------------------------------------------===//
@@ -58,7 +58,6 @@ def Bufferization_CloneOp : Bufferization_Op<"clone", [
   let assemblyFormat = "$input attr-dict `:` type($input) `to` type($output)";
 
   let hasFolder = 1;
-  let verifier = ?;
   let hasCanonicalizer = 1;
 }
 //===----------------------------------------------------------------------===//
@@ -97,8 +96,6 @@ def Bufferization_ToTensorOp : Bufferization_Op<"to_tensor", [
   let arguments = (ins Arg<AnyRankedOrUnrankedMemRef,
                        "the reference to load from", [MemRead]>:$memref);
   let results = (outs AnyTensor:$result);
-  // MemrefToTensor is fully verified by traits.
-  let verifier = ?;
 
   let builders = [
     OpBuilder<(ins "Value":$memref), [{
@@ -128,7 +125,7 @@ def Bufferization_ToTensorOp : Bufferization_Op<"to_tensor", [
     // results as not writable enforces a buffer copy and has the same effect.
 
     LogicalResult bufferize(RewriterBase &rewriter,
-                            const BufferizationState &state) const {
+                            BufferizationState &state) const {
       // to_tensor cannot be bufferized. However, other ops that are using
       // to_tensor's result will eventually be bufferized. At that point, they
       // will start using to_tensor's memref operand. Once all users of
@@ -139,7 +136,7 @@ def Bufferization_ToTensorOp : Bufferization_Op<"to_tensor", [
       return failure();
     }
 
-    bool isWritable(Value value, const BufferizationState &state) const {
+    bool isWritable(Value value, const AnalysisState &state) const {
       // It is unknown whether the memref operand is writable or not.
       return false;
     }
@@ -184,8 +181,6 @@ def Bufferization_ToMemrefOp : Bufferization_Op<"to_memref", [
 
   let arguments = (ins AnyTensor:$tensor);
   let results = (outs AnyRankedOrUnrankedMemRef:$memref);
-  // This op is fully verified by traits.
-  let verifier = ?;
 
   let extraClassDeclaration = [{
     //===------------------------------------------------------------------===//
@@ -199,30 +194,30 @@ def Bufferization_ToMemrefOp : Bufferization_Op<"to_memref", [
     // but such IR may no longer be analyzable by One-Shot analysis.
 
     bool bufferizesToMemoryRead(OpOperand &opOperand,
-                                const BufferizationState &state) const {
+                                const AnalysisState &state) const {
       // It is unknown whether the resulting memref will be read or not.
       return true;
     }
 
     bool bufferizesToMemoryWrite(OpOperand &opOperand,
-                                 const BufferizationState &state) const {
+                                 const AnalysisState &state) const {
       // It is unknown whether the resulting MemRef will be written or not.
       return true;
     }
 
     bool mustBufferizeInPlace(OpOperand &opOperand,
-                              const BufferizationState &state) const {
+                              const AnalysisState &state) const {
       // ToMemrefOps always bufferize inplace.
       return true;
     }
 
-    OpResult getAliasingOpResult(OpOperand &opOperand,
-                                 const BufferizationState &state) const {
-      return OpResult();
+    SmallVector<OpResult> getAliasingOpResult(
+        OpOperand &opOperand, const AnalysisState &state) const {
+      return {};
     }
 
     LogicalResult bufferize(RewriterBase &rewriter,
-                            const BufferizationState &state);
+                            BufferizationState &state);
   }];
 
   let assemblyFormat = "$tensor attr-dict `:` type($memref)";

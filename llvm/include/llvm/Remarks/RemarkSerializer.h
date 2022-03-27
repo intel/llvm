@@ -13,13 +13,16 @@
 #ifndef LLVM_REMARKS_REMARKSERIALIZER_H
 #define LLVM_REMARKS_REMARKSERIALIZER_H
 
-#include "llvm/Remarks/Remark.h"
 #include "llvm/Remarks/RemarkFormat.h"
 #include "llvm/Remarks/RemarkStringTable.h"
-#include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
+
+class raw_ostream;
+
 namespace remarks {
+
+struct Remark;
 
 enum class SerializerMode {
   Separate,  // A mode where the metadata is serialized separately from the

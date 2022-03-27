@@ -120,7 +120,7 @@ bool IsConstantExprHelper<INVARIANT>::operator()(
     } else if (intrinsic->name == "lbound" && call.arguments().size() == 1) {
       // LBOUND(x) without DIM=
       auto base{ExtractNamedEntity(call.arguments()[0]->UnwrapExpr())};
-      return base && IsConstantExprShape(GetLowerBounds(*base));
+      return base && IsConstantExprShape(GetLBOUNDs(*base));
     } else if (intrinsic->name == "ubound" && call.arguments().size() == 1) {
       // UBOUND(x) without DIM=
       auto base{ExtractNamedEntity(call.arguments()[0]->UnwrapExpr())};
@@ -174,6 +174,12 @@ struct IsActuallyConstantHelper {
   }
   template <typename T> bool operator()(const Expr<T> &x) {
     return std::visit([=](const auto &y) { return (*this)(y); }, x.u);
+  }
+  bool operator()(const Expr<SomeType> &x) {
+    if (IsNullPointer(x)) {
+      return true;
+    }
+    return std::visit([this](const auto &y) { return (*this)(y); }, x.u);
   }
   template <typename A> bool operator()(const A *x) { return x && (*this)(*x); }
   template <typename A> bool operator()(const std::optional<A> &x) {
@@ -270,9 +276,6 @@ public:
     return false;
   }
   bool operator()(const StructureConstructor &) const { return false; }
-  template <typename T> bool operator()(const FunctionRef<T> &) {
-    return false;
-  }
   template <typename D, typename R, typename... O>
   bool operator()(const Operation<D, R, O...> &) const {
     return false;
@@ -280,7 +283,11 @@ public:
   template <typename T> bool operator()(const Parentheses<T> &x) const {
     return (*this)(x.left());
   }
-  template <typename T> bool operator()(const FunctionRef<T> &x) const {
+  bool operator()(const ProcedureRef &x) const {
+    if (const SpecificIntrinsic * intrinsic{x.proc().GetSpecificIntrinsic()}) {
+      return intrinsic->characteristics.value().attrs.test(
+          characteristics::Procedure::Attr::NullPointer);
+    }
     return false;
   }
   bool operator()(const Relational<SomeType> &) const { return false; }
@@ -403,7 +410,7 @@ std::optional<Expr<SomeType>> NonPointerInitializationExpr(const Symbol &symbol,
           symbol.owner().context().ShouldWarn(
               common::LanguageFeature::LogicalIntegerAssignment)) {
         context.messages().Say(
-            "nonstandard usage: initialization of %s with %s"_en_US,
+            "nonstandard usage: initialization of %s with %s"_port_en_US,
             symTS->type().AsFortran(), x.GetType().value().AsFortran());
       }
     }
@@ -427,7 +434,7 @@ std::optional<Expr<SomeType>> NonPointerInitializationExpr(const Symbol &symbol,
             // expand the scalar constant to an array
             return ScalarConstantExpander{std::move(*extents),
                 AsConstantExtents(
-                    context, GetLowerBounds(context, NamedEntity{symbol}))}
+                    context, GetRawLowerBounds(context, NamedEntity{symbol}))}
                 .Expand(std::move(folded));
           } else if (auto resultShape{GetShape(context, folded)}) {
             if (CheckConformance(context.messages(), symTS->shape(),
@@ -436,8 +443,8 @@ std::optional<Expr<SomeType>> NonPointerInitializationExpr(const Symbol &symbol,
                     .value_or(false /*fail if not known now to conform*/)) {
               // make a constant array with adjusted lower bounds
               return ArrayConstantBoundChanger{
-                  std::move(*AsConstantExtents(
-                      context, GetLowerBounds(context, NamedEntity{symbol})))}
+                  std::move(*AsConstantExtents(context,
+                      GetRawLowerBounds(context, NamedEntity{symbol})))}
                   .ChangeLbounds(std::move(folded));
             }
           }
@@ -526,15 +533,11 @@ public:
       } else {
         return "dummy procedure argument";
       }
+    } else if (&symbol.owner() != &scope_ || &ultimate.owner() != &scope_) {
+      return std::nullopt; // host association is in play
     } else if (const auto *object{
                    ultimate.detailsIf<semantics::ObjectEntityDetails>()}) {
       if (object->commonBlock()) {
-        return std::nullopt;
-      }
-    }
-    for (const semantics::Scope *s{&scope_}; !s->IsGlobal();) {
-      s = &s->parent();
-      if (s == &ultimate.owner()) {
         return std::nullopt;
       }
     }
@@ -561,7 +564,7 @@ public:
     return std::nullopt;
   }
 
-  template <typename T> Result operator()(const FunctionRef<T> &x) const {
+  Result operator()(const ProcedureRef &x) const {
     if (const auto *symbol{x.proc().GetSymbol()}) {
       const Symbol &ultimate{symbol->GetUltimate()};
       if (!semantics::IsPureProcedure(ultimate)) {
@@ -712,7 +715,7 @@ public:
   Result operator()(const ComplexPart &) const { return false; }
   Result operator()(const Substring &) const { return false; }
 
-  template <typename T> Result operator()(const FunctionRef<T> &x) const {
+  Result operator()(const ProcedureRef &x) const {
     if (auto chars{
             characteristics::Procedure::Characterize(x.proc(), context_)}) {
       if (chars->functionResult) {

@@ -58,11 +58,24 @@ struct Subsection {
 };
 
 using Subsections = std::vector<Subsection>;
+class InputFile;
 
 struct Section {
-  uint64_t address = 0;
+  InputFile *file;
+  StringRef segname;
+  StringRef name;
+  uint32_t flags;
+  uint64_t addr;
   Subsections subsections;
-  Section(uint64_t addr) : address(addr){};
+
+  Section(InputFile *file, StringRef segname, StringRef name, uint32_t flags,
+          uint64_t addr)
+      : file(file), segname(segname), name(name), flags(flags), addr(addr) {}
+  // Ensure pointers to Sections are never invalidated.
+  Section(const Section &) = delete;
+  Section &operator=(const Section &) = delete;
+  Section(Section &&) = delete;
+  Section &operator=(Section &&) = delete;
 };
 
 // Represents a call graph profile edge.
@@ -73,6 +86,9 @@ struct CallGraphEntry {
   uint32_t toIndex;
   // Number of calls from callee to caller in the profile.
   uint64_t count;
+
+  CallGraphEntry(uint32_t fromIndex, uint32_t toIndex, uint64_t count)
+      : fromIndex(fromIndex), toIndex(toIndex), count(count) {}
 };
 
 class InputFile {
@@ -93,7 +109,7 @@ public:
   MemoryBufferRef mb;
 
   std::vector<Symbol *> symbols;
-  std::vector<Section> sections;
+  std::vector<Section *> sections;
 
   // If not empty, this stores the name of the archive containing this file.
   // We use this string for creating error messages.
@@ -177,6 +193,7 @@ public:
 
   void parseLoadCommands(MemoryBufferRef mb);
   void parseReexports(const llvm::MachO::InterfaceFile &interface);
+  bool isReferenced() const { return numReferencedSymbols > 0; }
 
   static bool classof(const InputFile *f) { return f->kind() == DylibKind; }
 
@@ -187,21 +204,17 @@ public:
   uint32_t compatibilityVersion = 0;
   uint32_t currentVersion = 0;
   int64_t ordinal = 0; // Ordinal numbering starts from 1, so 0 is a sentinel
+  unsigned numReferencedSymbols = 0;
   RefState refState;
   bool reexport = false;
   bool forceNeeded = false;
   bool forceWeakImport = false;
   bool deadStrippable = false;
   bool explicitlyLinked = false;
-
-  unsigned numReferencedSymbols = 0;
-
-  bool isReferenced() const { return numReferencedSymbols > 0; }
-
   // An executable can be used as a bundle loader that will load the output
   // file being linked, and that contains symbols referenced, but not
   // implemented in the bundle. When used like this, it is very similar
-  // to a Dylib, so we re-used the same class to represent it.
+  // to a dylib, so we've used the same class to represent it.
   bool isBundleLoader;
 
 private:

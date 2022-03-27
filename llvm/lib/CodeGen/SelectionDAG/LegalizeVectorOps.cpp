@@ -26,11 +26,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
-#include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -1050,10 +1048,7 @@ SDValue VectorLegalizer::ExpandZERO_EXTEND_VECTOR_INREG(SDNode *Node) {
 
   // Shuffle the incoming lanes into the correct position, and pull all other
   // lanes from the zero vector.
-  SmallVector<int, 16> ShuffleMask;
-  ShuffleMask.reserve(NumSrcElements);
-  for (int i = 0; i < NumSrcElements; ++i)
-    ShuffleMask.push_back(i);
+  auto ShuffleMask = llvm::to_vector<16>(llvm::seq<int>(0, NumSrcElements));
 
   int ExtLaneScale = NumSrcElements / NumElements;
   int EndianOffset = DAG.getDataLayout().isBigEndian() ? ExtLaneScale - 1 : 0;
