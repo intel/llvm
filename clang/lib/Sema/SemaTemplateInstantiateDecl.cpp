@@ -595,31 +595,6 @@ static void instantiateDependentAMDGPUWavesPerEUAttr(
   S.addAMDGPUWavesPerEUAttr(New, Attr, MinExpr, MaxExpr);
 }
 
-template <typename AttrName>
-static void instantiateIntelSYCTripleLFunctionAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const AttrName *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-
-  ExprResult Result = S.SubstExpr(Attr->getXDim(), TemplateArgs);
-  if (Result.isInvalid())
-    return;
-  Expr *XDimExpr = Result.getAs<Expr>();
-
-  Result = S.SubstExpr(Attr->getYDim(), TemplateArgs);
-  if (Result.isInvalid())
-    return;
-  Expr *YDimExpr = Result.getAs<Expr>();
-
-  Result = S.SubstExpr(Attr->getZDim(), TemplateArgs);
-  if (Result.isInvalid())
-    return;
-  Expr *ZDimExpr = Result.getAs<Expr>();
-
-  S.addIntelTripleArgAttr<AttrName>(New, *Attr, XDimExpr, YDimExpr, ZDimExpr);
-}
-
 static void instantiateIntelFPGAForcePow2DepthAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const IntelFPGAForcePow2DepthAttr *Attr, Decl *New) {
@@ -891,6 +866,25 @@ static void instantiateSYCLIntelMaxWorkGroupSizeAttr(
                                      ZResult.get());
 }
 
+static void instantiateReqdWorkGroupSizeAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const ReqdWorkGroupSizeAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult XResult = S.SubstExpr(A->getXDim(), TemplateArgs);
+  if (XResult.isInvalid())
+    return;
+  ExprResult YResult = S.SubstExpr(A->getYDim(), TemplateArgs);
+  if (YResult.isInvalid())
+    return;
+  ExprResult ZResult = S.SubstExpr(A->getZDim(), TemplateArgs);
+  if (ZResult.isInvalid())
+    return;
+
+  S.AddReqdWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
+                             ZResult.get());
+}
+
 // This doesn't take any template parameters, but we have a custom action that
 // needs to happen when the kernel itself is instantiated. We need to run the
 // ItaniumMangler to mark the names required to name this kernel.
@@ -1116,8 +1110,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *ReqdWorkGroupSize =
             dyn_cast<ReqdWorkGroupSizeAttr>(TmplAttr)) {
-      instantiateIntelSYCTripleLFunctionAttr<ReqdWorkGroupSizeAttr>(
-          *this, TemplateArgs, ReqdWorkGroupSize, New);
+      instantiateReqdWorkGroupSizeAttr(*this, TemplateArgs, ReqdWorkGroupSize,
+                                       New);
       continue;
     }
     if (const auto *SYCLIntelMaxWorkGroupSize =

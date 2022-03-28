@@ -283,7 +283,7 @@ public:
 
     IRRewriter rewriter(func.getContext());
 
-    propagateShapesInRegion(func.body());
+    propagateShapesInRegion(func.getBody());
 
     // Insert UnrealizedConversionCasts to guarantee ReturnOp agress with
     // the FuncOp type.
@@ -293,7 +293,7 @@ public:
         return;
 
       rewriter.setInsertionPoint(op);
-      FunctionType funcTy = func.getType();
+      FunctionType funcTy = func.getFunctionType();
       auto resultTys = funcTy.getResults();
 
       bool castAdded = false;

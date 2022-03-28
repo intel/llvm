@@ -153,6 +153,9 @@ static bool ParseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
     case clang::driver::options::OPT_emit_obj:
       opts.programAction = EmitObj;
       break;
+    case clang::driver::options::OPT_S:
+      opts.programAction = EmitAssembly;
+      break;
     case clang::driver::options::OPT_fdebug_unparse:
       opts.programAction = DebugUnparse;
       break;
@@ -167,6 +170,9 @@ static bool ParseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
       break;
     case clang::driver::options::OPT_fdebug_dump_parse_tree:
       opts.programAction = DebugDumpParseTree;
+      break;
+    case clang::driver::options::OPT_fdebug_dump_pft:
+      opts.programAction = DebugDumpPFT;
       break;
     case clang::driver::options::OPT_fdebug_dump_all:
       opts.programAction = DebugDumpAll;
@@ -578,6 +584,8 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &res,
   success &= parseSemaArgs(res, args, diags);
   success &= parseDialectArgs(res, args, diags);
   success &= parseDiagArgs(res, args, diags);
+  res.frontendOpts_.llvmArgs =
+      args.getAllArgValues(clang::driver::options::OPT_mllvm);
 
   return success;
 }

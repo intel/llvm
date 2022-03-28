@@ -1297,6 +1297,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     Atomic.legalFor({{S32, LocalPtr}, {S32, RegionPtr}});
     if (ST.hasGFX90AInsts())
       Atomic.legalFor({{S64, LocalPtr}});
+    if (ST.hasGFX940Insts())
+      Atomic.legalFor({{V2S16, LocalPtr}});
   }
   if (ST.hasAtomicFaddInsts())
     Atomic.legalFor({{S32, GlobalPtr}});
@@ -1808,6 +1810,39 @@ Register AMDGPULegalizerInfo::getSegmentAperture(
     return B.buildShl(S32, GetReg, ShiftAmt).getReg(0);
   }
 
+  // TODO: can we be smarter about machine pointer info?
+  MachinePointerInfo PtrInfo(AMDGPUAS::CONSTANT_ADDRESS);
+  Register LoadAddr = MRI.createGenericVirtualRegister(
+    LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS, 64));
+  // For code object version 5, private_base and shared_base are passed through
+  // implicit kernargs.
+  if (AMDGPU::getAmdhsaCodeObjectVersion() == 5) {
+    AMDGPUTargetLowering::ImplicitParameter Param =
+        AS == AMDGPUAS::LOCAL_ADDRESS ? AMDGPUTargetLowering::SHARED_BASE
+                                      : AMDGPUTargetLowering::PRIVATE_BASE;
+    uint64_t Offset =
+        ST.getTargetLowering()->getImplicitParameterOffset(B.getMF(), Param);
+
+    Register KernargPtrReg = MRI.createGenericVirtualRegister(
+        LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS, 64));
+
+    if (!loadInputValue(KernargPtrReg, B,
+                        AMDGPUFunctionArgInfo::KERNARG_SEGMENT_PTR))
+      return Register();
+
+    MachineMemOperand *MMO = MF.getMachineMemOperand(
+        PtrInfo,
+        MachineMemOperand::MOLoad | MachineMemOperand::MODereferenceable |
+            MachineMemOperand::MOInvariant,
+        LLT::scalar(32), commonAlignment(Align(64), Offset));
+
+    // Pointer address
+    B.buildPtrAdd(LoadAddr, KernargPtrReg,
+                  B.buildConstant(LLT::scalar(64), Offset).getReg(0));
+    // Load address
+    return B.buildLoad(S32, LoadAddr, *MMO).getReg(0);
+  }
+
   Register QueuePtr = MRI.createGenericVirtualRegister(
     LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS, 64));
 
@@ -1818,17 +1853,14 @@ Register AMDGPULegalizerInfo::getSegmentAperture(
   // private_segment_aperture_base_hi.
   uint32_t StructOffset = (AS == AMDGPUAS::LOCAL_ADDRESS) ? 0x40 : 0x44;
 
-  // TODO: can we be smarter about machine pointer info?
-  MachinePointerInfo PtrInfo(AMDGPUAS::CONSTANT_ADDRESS);
   MachineMemOperand *MMO = MF.getMachineMemOperand(
       PtrInfo,
       MachineMemOperand::MOLoad | MachineMemOperand::MODereferenceable |
           MachineMemOperand::MOInvariant,
       LLT::scalar(32), commonAlignment(Align(64), StructOffset));
 
-  Register LoadAddr;
-
-  B.materializePtrAdd(LoadAddr, QueuePtr, LLT::scalar(64), StructOffset);
+  B.buildPtrAdd(LoadAddr, QueuePtr,
+                B.buildConstant(LLT::scalar(64), StructOffset).getReg(0));
   return B.buildLoad(S32, LoadAddr, *MMO).getReg(0);
 }
 
@@ -3706,9 +3738,9 @@ bool AMDGPULegalizerInfo::legalizeDSAtomicFPIntrinsic(LegalizerHelper &Helper,
   // The remaining operands were used to set fields in the MemOperand on
   // construction.
   for (int I = 6; I > 3; --I)
-    MI.RemoveOperand(I);
+    MI.removeOperand(I);
 
-  MI.RemoveOperand(1); // Remove the intrinsic ID.
+  MI.removeOperand(1); // Remove the intrinsic ID.
   Observer.changedInstr(MI);
   return true;
 }
@@ -4625,7 +4657,7 @@ bool AMDGPULegalizerInfo::legalizeImageIntrinsic(
       return false;
 
     // TODO: Make sure the TFE operand bit is set.
-    MI.RemoveOperand(1);
+    MI.removeOperand(1);
 
     // Handle the easy case that requires no repack instructions.
     if (Ty == S32) {
@@ -4755,7 +4787,7 @@ bool AMDGPULegalizerInfo::legalizeSBufferLoad(
   // should be fixed to have a memory operand. Since it's readnone, we're not
   // allowed to add one.
   MI.setDesc(B.getTII().get(AMDGPU::G_AMDGPU_S_BUFFER_LOAD));
-  MI.RemoveOperand(1); // Remove intrinsic ID
+  MI.removeOperand(1); // Remove intrinsic ID
 
   // FIXME: When intrinsic definition is fixed, this should have an MMO already.
   // TODO: Should this use datalayout alignment?
@@ -4815,6 +4847,47 @@ bool AMDGPULegalizerInfo::legalizeTrapEndpgm(
 
 bool AMDGPULegalizerInfo::legalizeTrapHsaQueuePtr(
     MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B) const {
+  MachineFunction &MF = B.getMF();
+  const LLT S64 = LLT::scalar(64);
+
+  Register SGPR01(AMDGPU::SGPR0_SGPR1);
+  // For code object version 5, queue_ptr is passed through implicit kernarg.
+  if (AMDGPU::getAmdhsaCodeObjectVersion() == 5) {
+    AMDGPUTargetLowering::ImplicitParameter Param =
+        AMDGPUTargetLowering::QUEUE_PTR;
+    uint64_t Offset =
+        ST.getTargetLowering()->getImplicitParameterOffset(B.getMF(), Param);
+
+    Register KernargPtrReg = MRI.createGenericVirtualRegister(
+        LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS, 64));
+
+    if (!loadInputValue(KernargPtrReg, B,
+                        AMDGPUFunctionArgInfo::KERNARG_SEGMENT_PTR))
+      return false;
+
+    // TODO: can we be smarter about machine pointer info?
+    MachinePointerInfo PtrInfo(AMDGPUAS::CONSTANT_ADDRESS);
+    MachineMemOperand *MMO = MF.getMachineMemOperand(
+        PtrInfo,
+        MachineMemOperand::MOLoad | MachineMemOperand::MODereferenceable |
+            MachineMemOperand::MOInvariant,
+        LLT::scalar(64), commonAlignment(Align(64), Offset));
+
+    // Pointer address
+    Register LoadAddr = MRI.createGenericVirtualRegister(
+        LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS, 64));
+    B.buildPtrAdd(LoadAddr, KernargPtrReg,
+                  B.buildConstant(LLT::scalar(64), Offset).getReg(0));
+    // Load address
+    Register Temp = B.buildLoad(S64, LoadAddr, *MMO).getReg(0);
+    B.buildCopy(SGPR01, Temp);
+    B.buildInstr(AMDGPU::S_TRAP)
+        .addImm(static_cast<unsigned>(GCNSubtarget::TrapID::LLVMAMDHSATrap))
+        .addReg(SGPR01, RegState::Implicit);
+    MI.eraseFromParent();
+    return true;
+  }
+
   // Pass queue pointer to trap handler as input, and insert trap instruction
   // Reference: https://llvm.org/docs/AMDGPUUsage.html#trap-handler-abi
   Register LiveIn =
@@ -4822,7 +4895,6 @@ bool AMDGPULegalizerInfo::legalizeTrapHsaQueuePtr(
   if (!loadInputValue(LiveIn, B, AMDGPUFunctionArgInfo::QUEUE_PTR))
     return false;
 
-  Register SGPR01(AMDGPU::SGPR0_SGPR1);
   B.buildCopy(SGPR01, LiveIn);
   B.buildInstr(AMDGPU::S_TRAP)
       .addImm(static_cast<unsigned>(GCNSubtarget::TrapID::LLVMAMDHSATrap))

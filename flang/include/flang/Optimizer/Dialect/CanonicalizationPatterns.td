@@ -15,6 +15,7 @@
 #define FORTRAN_FIR_REWRITE_PATTERNS
 
 include "mlir/IR/OpBase.td"
+include "mlir/IR/PatternBase.td"
 include "mlir/Dialect/Arithmetic/IR/ArithmeticOps.td"
 include "flang/Optimizer/Dialect/FIROps.td"
 
@@ -48,7 +49,7 @@ def CombineConvertOptPattern
 def createConstantOp
     : NativeCodeCall<"$_builder.create<mlir::arith::ConstantOp>"
                      "($_loc, $_builder.getIndexType(), "
-                     "rewriter.getIndexAttr($1.dyn_cast<IntegerAttr>()"
+                     "rewriter.getIndexAttr($1.dyn_cast<mlir::IntegerAttr>()"
                      ".getInt()))">;
 
 def ForwardConstantConvertPattern

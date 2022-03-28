@@ -48,7 +48,7 @@ ExternalFileUnit &ExternalFileUnit::LookUpOrCrash(
     int unit, const Terminator &terminator) {
   ExternalFileUnit *file{LookUp(unit)};
   if (!file) {
-    terminator.Crash("Not an open I/O unit number: %d", unit);
+    terminator.Crash("%d is not an open I/O unit number", unit);
   }
   return *file;
 }
@@ -299,7 +299,8 @@ bool ExternalFileUnit::Emit(const char *data, std::size_t bytes,
           static_cast<std::intmax_t>(*openRecl));
       return false;
     }
-  } else if (recordLength) {
+  }
+  if (recordLength) {
     // It is possible for recordLength to have a value now for a
     // variable-length output record if the previous operation
     // was a BACKSPACE or non advancing input statement.
@@ -854,7 +855,8 @@ bool ExternalFileUnit::CheckDirectAccess(IoErrorHandler &handler) {
   if (access == Access::Direct) {
     RUNTIME_CHECK(handler, openRecl);
     if (!directAccessRecWasSet_) {
-      handler.SignalError("No REC= was specified for a data transfer with ACCESS='DIRECT'");
+      handler.SignalError(
+          "No REC= was specified for a data transfer with ACCESS='DIRECT'");
       return false;
     }
   }

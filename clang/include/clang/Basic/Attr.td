@@ -728,9 +728,13 @@ def AlignNatural : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
-def AlwaysInline : InheritableAttr {
-  let Spellings = [GCC<"always_inline">, Keyword<"__forceinline">];
-  let Subjects = SubjectList<[Function]>;
+def AlwaysInline : DeclOrStmtAttr {
+  let Spellings = [GCC<"always_inline">, CXX11<"clang", "always_inline">,
+                   C2x<"clang", "always_inline">, Keyword<"__forceinline">];
+  let Accessors = [Accessor<"isClangAlwaysInline", [CXX11<"clang", "always_inline">,
+                                                    C2x<"clang", "always_inline">]>];
+  let Subjects = SubjectList<[Function, Stmt], WarnDiag,
+                             "functions and statements">;
   let Documentation = [AlwaysInlineDocs];
 }
 
@@ -2617,7 +2621,7 @@ def NoInline : DeclOrStmtAttr {
   let Accessors = [Accessor<"isClangNoInline", [CXX11<"clang", "noinline">,
                                                 C2x<"clang", "noinline">]>];
   let Documentation = [NoInlineDocs];
-  let Subjects = SubjectList<[Function, Stmt], ErrorDiag,
+  let Subjects = SubjectList<[Function, Stmt], WarnDiag,
                              "functions and statements">;
   let SimpleHandler = 1;
 }
@@ -3247,17 +3251,20 @@ def ReqdWorkGroupSize : InheritableAttr {
               ExprArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
-    ArrayRef<const Expr *> dimensions() const {
-      return {getXDim(), getYDim(), getZDim()};
+    Optional<llvm::APSInt> getXDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))
+        return CE->getResultAsAPSInt();
+      return None;
     }
-    Optional<llvm::APSInt> getXDimVal(ASTContext &Ctx) const {
-      return getXDim()->getIntegerConstantExpr(Ctx);
+    Optional<llvm::APSInt> getYDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getYDim()))
+        return CE->getResultAsAPSInt();
+      return None;
     }
-    Optional<llvm::APSInt> getYDimVal(ASTContext &Ctx) const {
-      return getYDim()->getIntegerConstantExpr(Ctx);
-    }
-    Optional<llvm::APSInt> getZDimVal(ASTContext &Ctx) const {
-      return getZDim()->getIntegerConstantExpr(Ctx);
+    Optional<llvm::APSInt> getZDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getZDim()))
+        return CE->getResultAsAPSInt();
+      return None;
     }
   }];
   let Documentation = [ReqdWorkGroupSizeAttrDocs];

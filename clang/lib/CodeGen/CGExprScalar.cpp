@@ -2060,12 +2060,12 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     }
 
     if (CGF.SanOpts.has(SanitizerKind::CFIUnrelatedCast)) {
-      if (auto PT = DestTy->getAs<PointerType>()) {
+      if (auto *PT = DestTy->getAs<PointerType>()) {
         CGF.EmitVTablePtrCheckForCast(
             PT->getPointeeType(),
             Address(Src,
                     CGF.ConvertTypeForMem(
-                        E->getType()->getAs<PointerType>()->getPointeeType()),
+                        E->getType()->castAs<PointerType>()->getPointeeType()),
                     CGF.getPointerAlign()),
             /*MayBeNull=*/true, CodeGenFunction::CFITCK_UnrelatedCast,
             CE->getBeginLoc());
@@ -2168,7 +2168,6 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
       DestLV.setTBAAInfo(TBAAAccessInfo::getMayAliasInfo());
       return EmitLoadOfLValue(DestLV, CE->getExprLoc());
     }
-
     return Builder.CreateBitCast(Src, DstTy);
   }
   case CK_AddressSpaceConversion: {
@@ -2663,7 +2662,7 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
           = CGF.getContext().getAsVariableArrayType(type)) {
       llvm::Value *numElts = CGF.getVLASize(vla).NumElts;
       if (!isInc) numElts = Builder.CreateNSWNeg(numElts, "vla.negsize");
-      llvm::Type *elemTy = value->getType()->getPointerElementType();
+      llvm::Type *elemTy = CGF.ConvertTypeForMem(vla->getElementType());
       if (CGF.getLangOpts().isSignedOverflowDefined())
         value = Builder.CreateGEP(elemTy, value, numElts, "vla.inc");
       else
@@ -2969,8 +2968,8 @@ Value *ScalarExprEmitter::VisitOffsetOfExpr(OffsetOfExpr *E) {
       CurrentType = ON.getBase()->getType();
 
       // Compute the offset to the base.
-      const RecordType *BaseRT = CurrentType->getAs<RecordType>();
-      CXXRecordDecl *BaseRD = cast<CXXRecordDecl>(BaseRT->getDecl());
+      auto *BaseRT = CurrentType->castAs<RecordType>();
+      auto *BaseRD = cast<CXXRecordDecl>(BaseRT->getDecl());
       CharUnits OffsetInt = RL.getBaseClassOffset(BaseRD);
       Offset = llvm::ConstantInt::get(ResultType, OffsetInt.getQuantity());
       break;
@@ -3541,7 +3540,7 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
     // GEP indexes are signed, and scaling an index isn't permitted to
     // signed-overflow, so we use the same semantics for our explicit
     // multiply.  We suppress this if overflow is not undefined behavior.
-    llvm::Type *elemTy = pointer->getType()->getPointerElementType();
+    llvm::Type *elemTy = CGF.ConvertTypeForMem(vla->getElementType());
     if (CGF.getLangOpts().isSignedOverflowDefined()) {
       index = CGF.Builder.CreateMul(index, numElements, "vla.index");
       pointer = CGF.Builder.CreateGEP(elemTy, pointer, index, "add.ptr");
@@ -4838,6 +4837,10 @@ Value *ScalarExprEmitter::VisitAsTypeExpr(AsTypeExpr *E) {
       isa<llvm::VectorType>(DstTy)
           ? cast<llvm::FixedVectorType>(DstTy)->getNumElements()
           : 0;
+
+  // Use bit vector expansion for ext_vector_type boolean vectors.
+  if (E->getType()->isExtVectorBoolType())
+    return CGF.emitBoolVecConversion(Src, NumElementsDst, "astype");
 
   // Going from vec3 to non-vec3 is a special case and requires a shuffle
   // vector to get a vec4, then a bitcast if the target type is different.

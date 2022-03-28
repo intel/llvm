@@ -18,6 +18,7 @@
 #include "llvm/Support/CommandLine.h"
 
 using namespace fir;
+using namespace mlir;
 
 namespace {
 
@@ -154,8 +155,9 @@ public:
     if (ifOp.getNumResults() == 0) {
       continueBlock = remainingOpsBlock;
     } else {
-      continueBlock =
-          rewriter.createBlock(remainingOpsBlock, ifOp.getResultTypes());
+      continueBlock = rewriter.createBlock(
+          remainingOpsBlock, ifOp.getResultTypes(),
+          llvm::SmallVector<mlir::Location>(ifOp.getNumResults(), loc));
       rewriter.create<mlir::cf::BranchOp>(loc, remainingOpsBlock);
     }
 

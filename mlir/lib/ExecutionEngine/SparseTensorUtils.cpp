@@ -663,7 +663,8 @@ static SparseTensorCOO<V> *openSparseTensorCOO(char *filename, uint64_t rank,
   // Open the file.
   FILE *file = fopen(filename, "r");
   if (!file) {
-    fprintf(stderr, "Cannot find %s\n", filename);
+    assert(filename && "Received nullptr for filename");
+    fprintf(stderr, "Cannot find file %s\n", filename);
     exit(1);
   }
   // Perform some file format dependent set up.
@@ -914,7 +915,7 @@ extern "C" {
     assert(tensor &&iref &&vref);                                              \
     assert(iref->strides[0] == 1);                                             \
     index_type *indx = iref->data + iref->offset;                              \
-    (V) *value = vref->data + vref->offset;                                    \
+    V *value = vref->data + vref->offset;                                      \
     const uint64_t isize = iref->sizes[0];                                     \
     auto iter = static_cast<SparseTensorCOO<V> *>(tensor);                     \
     const Element<V> *elem = iter->getNext();                                  \
@@ -950,7 +951,7 @@ extern "C" {
     assert(aref->strides[0] == 1);                                             \
     assert(vref->sizes[0] == fref->sizes[0]);                                  \
     index_type *cursor = cref->data + cref->offset;                            \
-    (V) *values = vref->data + vref->offset;                                   \
+    V *values = vref->data + vref->offset;                                     \
     bool *filled = fref->data + fref->offset;                                  \
     index_type *added = aref->data + aref->offset;                             \
     static_cast<SparseTensorStorageBase *>(tensor)->expInsert(                 \
@@ -1180,6 +1181,10 @@ char *getTensorFilename(index_type id) {
   char var[80];
   sprintf(var, "TENSOR%" PRIu64, id);
   char *env = getenv(var);
+  if (!env) {
+    fprintf(stderr, "Environment variable %s is not set\n", var);
+    exit(1);
+  }
   return env;
 }
 

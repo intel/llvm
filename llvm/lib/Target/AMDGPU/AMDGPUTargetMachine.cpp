@@ -27,6 +27,7 @@
 #include "SIMachineScheduler.h"
 #include "TargetInfo/AMDGPUTargetInfo.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
+#include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
 #include "llvm/CodeGen/GlobalISel/Legalizer.h"
@@ -57,6 +58,7 @@
 #include "llvm/Transforms/Vectorize.h"
 
 using namespace llvm;
+using namespace llvm::PatternMatch;
 
 namespace {
 class SGPRRegisterRegAlloc : public RegisterRegAllocBase<SGPRRegisterRegAlloc> {
