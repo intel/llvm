@@ -2805,6 +2805,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
   else if (const auto *A =
                dyn_cast<SYCLAddIRAttributesGlobalVariableAttr>(Attr))
     NewAttr = S.MergeSYCLAddIRAttributesGlobalVariableAttr(D, *A);
+  else if (const auto *A = dyn_cast<ReqdWorkGroupSizeAttr>(Attr))
+    NewAttr = S.MergeReqdWorkGroupSizeAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -3395,27 +3397,6 @@ static void adjustDeclContextForDeclaratorDecl(DeclaratorDecl *NewD,
     FixSemaDC(VD->getDescribedVarTemplate());
 }
 
-template <typename AttributeType>
-static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
-                                             FunctionDecl *Old) {
-  const auto *NewDeclAttr = New->getAttr<AttributeType>();
-  const auto *OldDeclAttr = Old->getAttr<AttributeType>();
-
-  if (!NewDeclAttr || !OldDeclAttr)
-    return;
-
-  ASTContext &Ctx = S.getASTContext();
-  if (NewDeclAttr->getXDimVal(Ctx) != OldDeclAttr->getXDimVal(Ctx) ||
-      NewDeclAttr->getYDimVal(Ctx) != OldDeclAttr->getYDimVal(Ctx) ||
-      NewDeclAttr->getZDimVal(Ctx) != OldDeclAttr->getZDimVal(Ctx)) {
-    S.Diag(New->getLocation(), diag::err_conflicting_sycl_function_attributes)
-        << OldDeclAttr << NewDeclAttr;
-    S.Diag(New->getLocation(), diag::warn_duplicate_attribute) << OldDeclAttr;
-    S.Diag(OldDeclAttr->getLocation(), diag::note_conflicting_attribute);
-    S.Diag(NewDeclAttr->getLocation(), diag::note_conflicting_attribute);
-  }
-}
-
 /// MergeFunctionDecl - We just parsed a function 'New' from
 /// declarator D which has the same name and scope as a previous
 /// declaration 'Old'.  Figure out how to resolve this situation,
@@ -3503,8 +3484,6 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
       return true;
     }
   }
-
-    checkDimensionsAndSetDiagnostics<ReqdWorkGroupSizeAttr>(*this, New, Old);
 
   if (const auto *ILA = New->getAttr<InternalLinkageAttr>())
     if (!Old->hasAttr<InternalLinkageAttr>()) {
