@@ -359,6 +359,8 @@ public:
     Itr->updateKernelNames(Name, StableName);
   }
 
+  void addDeviceGlobalMap() { NeedToEmitDeviceGlobalMap = true; }
+
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -433,6 +435,8 @@ private:
   llvm::SmallVector<SpecConstID, 4> SpecConsts;
 
   Sema &S;
+
+  bool NeedToEmitDeviceGlobalMap = false;
 };
 
 class SYCLIntegrationFooter {
@@ -440,14 +444,12 @@ public:
   SYCLIntegrationFooter(Sema &S) : S(S) {}
   bool emit(StringRef MainSrc);
   void addVarDecl(const VarDecl *VD);
-  bool isDeviceGlobalsEmitted() { return DeviceGlobalsEmitted; }
 
 private:
   bool emit(raw_ostream &O);
   Sema &S;
   llvm::SmallVector<const VarDecl *> GlobalVars;
   void emitSpecIDName(raw_ostream &O, const VarDecl *VD);
-  bool DeviceGlobalsEmitted = false;
 };
 
 /// Tracks expected type during expression parsing, for use in code completion.

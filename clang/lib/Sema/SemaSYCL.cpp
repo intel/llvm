@@ -4656,7 +4656,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // whose sole purpose is to run its constructor before the application's
   // main() function.
 
-  if (S.getSyclIntegrationFooter().isDeviceGlobalsEmitted()) {
+  if (NeedToEmitDeviceGlobalMap) {
     O << "namespace {\n";
 
     O << "class __sycl_device_global_registration {\n";
@@ -5020,6 +5020,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
   llvm::SmallSet<const VarDecl *, 8> Visited;
   bool EmittedFirstSpecConstant = false;
+  bool DeviceGlobalsEmitted = false;
 
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
@@ -5103,6 +5104,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "}\n";
     OS << "} // namespace (unnamed)\n";
     OS << "} // namespace sycl::detail\n";
+
+    S.getSyclIntegrationHeader().addDeviceGlobalMap();
   }
   return true;
 }
