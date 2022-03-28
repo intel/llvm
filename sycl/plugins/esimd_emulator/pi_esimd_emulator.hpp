@@ -74,6 +74,8 @@ struct _pi_device : _pi_object {
       : Platform{ArgPlt}, CmDevicePtr{ArgCmDev}, VersionStr{ArgVersionStr} {}
 
   pi_platform Platform;
+  // TODO: Check if serialization is required when ESIMD_EMULATOR
+  // plug-in calls CM runtime functions
   cm_support::CmDevice *CmDevicePtr = nullptr;
 
   std::string VersionStr;
