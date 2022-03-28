@@ -864,6 +864,8 @@ pi_result piContextRelease(pi_context Context) {
   }
 
   if (--(Context->RefCount) == 0) {
+    /// TODO : Encapsulating accesses (add/remove) for
+    /// Addr2CmBufferSVM
     std::lock_guard<std::mutex> Lock(Context->Addr2CmBufferSVMLock);
     for (auto &Entry : Context->Addr2CmBufferSVM) {
       Context->Device->CmDevicePtr->DestroyBufferSVM(Entry.second);
