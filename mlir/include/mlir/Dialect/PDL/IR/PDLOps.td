@@ -314,7 +314,7 @@ def PDL_OperationOp : PDL_Op<"operation", [AttrSizedOperandSegments]> {
 
     ```mlir
     // Define an instance with single range of operands.
-    %op = pdl.operation "std.return"(%allArgs : !pdl.range<value>)
+    %op = pdl.operation "func.return"(%allArgs : !pdl.range<value>)
     ```
 
     2) A variadic number of either !pdl.value or !pdl.range<value>:
@@ -453,7 +453,7 @@ def PDL_PatternOp : PDL_Op<"pattern", [
     /// Returns the rewrite operation of this pattern.
     RewriteOp getRewriter();
   }];
-  let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -632,7 +632,7 @@ def PDL_RewriteOp : PDL_Op<"rewrite", [
               ($body^)?
     attr-dict-with-keyword
   }];
-  let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//

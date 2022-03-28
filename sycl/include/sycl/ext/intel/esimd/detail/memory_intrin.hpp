@@ -42,12 +42,15 @@ namespace __ESIMD_DNS {
 // Provides access to sycl accessor class' private members.
 class AccessorPrivateProxy {
 public:
-#ifdef __SYCL_DEVICE_ONLY__
   template <typename AccessorTy>
   static auto getNativeImageObj(const AccessorTy &Acc) {
+#ifdef __SYCL_DEVICE_ONLY__
     return Acc.getNativeImageObj();
-  }
 #else  // __SYCL_DEVICE_ONLY__
+    return Acc;
+#endif // __SYCL_DEVICE_ONLY__
+  }
+#ifndef __SYCL_DEVICE_ONLY__
   static void *getPtr(const sycl::detail::AccessorBaseHost &Acc) {
     return Acc.getPtr();
   }
@@ -376,7 +379,7 @@ __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
   static_assert(N == 1 || N == 8 || N == 16 || N == 32);
   static_assert(TySizeLog2 <= 2 && Scale == 0);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -419,8 +422,21 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
   static_assert(TySizeLog2 <= 2);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
 
+  // determine the original element's type size (as __esimd_scatter_scaled
+  // requires vals to be a vector of 4-byte integers)
+  constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
+  using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
+
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
+
+  __ESIMD_DNS::vector_type_t<RestoredTy, N> TypeAdjustedVals;
+  if constexpr (OrigSize == 4) {
+    TypeAdjustedVals = __ESIMD_DNS::bitcast<RestoredTy, Ty, N>(vals);
+  } else {
+    static_assert(OrigSize == 1 || OrigSize == 2);
+    TypeAdjustedVals = __ESIMD_DNS::convert_vector<RestoredTy, Ty, N>(vals);
+  }
 
   if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
     // Scattered-store for Shared Local Memory
@@ -429,8 +445,9 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     char *SlmBase = I->__cm_emu_get_slm_ptr();
     for (int i = 0; i < N; ++i) {
       if (pred[i]) {
-        Ty *addr = reinterpret_cast<Ty *>(elem_offsets[i] + SlmBase);
-        *addr = vals[i];
+        RestoredTy *addr =
+            reinterpret_cast<RestoredTy *>(elem_offsets[i] + SlmBase);
+        *addr = TypeAdjustedVals[i];
       }
     }
   } else {
@@ -446,8 +463,9 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(elem_offsets[idx] + writeBase);
-        *addr = vals[idx];
+        RestoredTy *addr =
+            reinterpret_cast<RestoredTy *>(elem_offsets[idx] + writeBase);
+        *addr = TypeAdjustedVals[idx];
       }
     }
 
@@ -466,7 +484,7 @@ __esimd_svm_atomic0(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -490,7 +508,7 @@ __esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
         retv[i] = atomic_add_fetch<Ty>(p, src0[i]);
         break;
       default:
-        throw cl::sycl::feature_not_supported();
+        __ESIMD_UNSUPPORTED_ON_HOST;
       }
     }
   }
@@ -509,7 +527,7 @@ __esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -625,7 +643,12 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 {
   static_assert(Scale == 0);
 
-  __ESIMD_DNS::vector_type_t<Ty, N> retv = 0;
+  // determine the original element's type size (as __esimd_scatter_scaled
+  // requires vals to be a vector of 4-byte integers)
+  constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
+  using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
+
+  __ESIMD_DNS::vector_type_t<RestoredTy, N> retv = 0;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
@@ -635,7 +658,8 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     char *SlmBase = I->__cm_emu_get_slm_ptr();
     for (int idx = 0; idx < N; ++idx) {
       if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[idx] + SlmBase);
+        RestoredTy *addr =
+            reinterpret_cast<RestoredTy *>(offsets[idx] + SlmBase);
         retv[idx] = *addr;
       }
     }
@@ -650,7 +674,8 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     std::unique_lock<std::mutex> lock(*mutexLock);
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[idx] + readBase);
+        RestoredTy *addr =
+            reinterpret_cast<RestoredTy *>(offsets[idx] + readBase);
         retv[idx] = *addr;
       }
     }
@@ -658,7 +683,12 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     // TODO : Optimize
     I->cm_fence_ptr();
   }
-  return retv;
+
+  if constexpr (OrigSize == 4) {
+    return __ESIMD_DNS::bitcast<Ty, RestoredTy, N>(retv);
+  } else {
+    return __ESIMD_DNS::convert_vector<Ty, RestoredTy, N>(retv);
+  }
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -820,12 +850,12 @@ __esimd_dword_atomic0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
           retv[i] = atomic_add_fetch<Ty>(p, 1);
           break;
         default:
-          throw cl::sycl::feature_not_supported();
+          __ESIMD_UNSUPPORTED_ON_HOST;
         }
       }
     }
   } else {
-    throw cl::sycl::feature_not_supported();
+    __ESIMD_UNSUPPORTED_ON_HOST;
   }
   return retv;
 }
@@ -841,7 +871,7 @@ __esimd_dword_atomic1(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -856,7 +886,7 @@ __esimd_dword_atomic2(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 

@@ -30,6 +30,7 @@
 #include "llvm/Support/Debug.h"
 
 using namespace fir;
+using namespace mlir;
 
 #define DEBUG_TYPE "flang-target-rewrite"
 
@@ -453,7 +454,7 @@ public:
   /// Rewrite the signatures and body of the `FuncOp`s in the module for
   /// the immediately subsequent target code gen.
   void convertSignature(mlir::FuncOp func) {
-    auto funcTy = func.getType().cast<mlir::FunctionType>();
+    auto funcTy = func.getFunctionType().cast<mlir::FunctionType>();
     if (hasPortableSignature(funcTy))
       return;
     llvm::SmallVector<mlir::Type> newResTys;
@@ -542,7 +543,7 @@ public:
       // return ops as required. These fixups are done in place.
       auto loc = func.getLoc();
       const auto fixupSize = fixups.size();
-      const auto oldArgTys = func.getType().getInputs();
+      const auto oldArgTys = func.getFunctionType().getInputs();
       int offset = 0;
       for (std::remove_const_t<decltype(fixupSize)> i = 0; i < fixupSize; ++i) {
         const auto &fixup = fixups[i];
@@ -599,20 +600,20 @@ public:
           auto newArg = func.front().insertArgument(fixup.index,
                                                     newInTys[fixup.index], loc);
           offset++;
-          func.walk([&](mlir::ReturnOp ret) {
+          func.walk([&](mlir::func::ReturnOp ret) {
             rewriter->setInsertionPoint(ret);
             auto oldOper = ret.getOperand(0);
             auto oldOperTy = ReferenceType::get(oldOper.getType());
             auto cast = rewriter->create<ConvertOp>(loc, oldOperTy, newArg);
             rewriter->create<fir::StoreOp>(loc, oldOper, cast);
-            rewriter->create<mlir::ReturnOp>(loc);
+            rewriter->create<mlir::func::ReturnOp>(loc);
             ret.erase();
           });
         } break;
         case FixupTy::Codes::ReturnType: {
           // The function is still returning a value, but its type has likely
           // changed to suit the target ABI convention.
-          func.walk([&](mlir::ReturnOp ret) {
+          func.walk([&](mlir::func::ReturnOp ret) {
             rewriter->setInsertionPoint(ret);
             auto oldOper = ret.getOperand(0);
             auto oldOperTy = ReferenceType::get(oldOper.getType());
@@ -621,7 +622,7 @@ public:
             auto cast = rewriter->create<ConvertOp>(loc, oldOperTy, mem);
             rewriter->create<fir::StoreOp>(loc, oldOper, cast);
             mlir::Value load = rewriter->create<fir::LoadOp>(loc, mem);
-            rewriter->create<mlir::ReturnOp>(loc, load);
+            rewriter->create<mlir::func::ReturnOp>(loc, load);
             ret.erase();
           });
         } break;

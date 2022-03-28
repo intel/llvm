@@ -93,10 +93,6 @@ public:
   static bool isSyclSpecialType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
-  /// half class.
-  static bool isSyclHalfType(QualType Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
   /// accessor_property_list class.
   static bool isAccessorPropertyListType(QualType Ty);
 
@@ -122,10 +118,6 @@ public:
   /// Checks whether given clang type is a full specialization of the SYCL
   /// specialization id class.
   static bool isSyclSpecIdType(QualType Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
-  /// device_global class.
-  static bool isSyclDeviceGlobalType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// kernel_handler class.
@@ -579,7 +571,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
       return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
                  SYCLIntelFPGADisableLoopPipeliningAttr,
                  SYCLIntelFPGAInitiationIntervalAttr,
-                 SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr>(A);
+                 SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr,
+                 SYCLAddIRAttributesFunctionAttr>(A);
     });
   }
 }
@@ -1313,8 +1306,6 @@ class KernelObjVisitor {
                   QualType FieldTy, HandlerTys &... Handlers) {
     if (Util::isSyclSpecialType(FieldTy))
       KF_FOR_EACH(handleSyclSpecialType, Field, FieldTy);
-    else if (Util::isSyclHalfType(FieldTy))
-      KF_FOR_EACH(handleSyclHalfType, Field, FieldTy);
     else if (Util::isSyclSpecConstantType(FieldTy))
       KF_FOR_EACH(handleSyclSpecConstantType, Field, FieldTy);
     else if (FieldTy->isStructureOrClassType()) {
@@ -1383,11 +1374,6 @@ public:
     return true;
   }
 
-  virtual bool handleSyclHalfType(const CXXRecordDecl *,
-                                  const CXXBaseSpecifier &, QualType) {
-    return true;
-  }
-  virtual bool handleSyclHalfType(FieldDecl *, QualType) { return true; }
   virtual bool handleStructType(FieldDecl *, QualType) { return true; }
   virtual bool handleUnionType(FieldDecl *, QualType) { return true; }
   virtual bool handleReferenceType(FieldDecl *, QualType) { return true; }
@@ -1673,8 +1659,12 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
             dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
       const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
       TemplateArgument TA = TAL.get(0);
-      llvm::DenseSet<QualType> Visited;
-      checkSYCLType(SemaRef, TA.getAsType(), Loc, Visited);
+
+      // Parameter packs are used by properties so they are always valid.
+      if (TA.getKind() != TemplateArgument::Pack) {
+        llvm::DenseSet<QualType> Visited;
+        checkSYCLType(SemaRef, TA.getAsType(), Loc, Visited);
+      }
 
       if (TAL.size() > 5)
         return checkPropertyListType(TAL.get(5), Loc.getBegin());
@@ -1811,16 +1801,6 @@ public:
   }
 
   bool handleSyclSpecConstantType(FieldDecl *, QualType) final {
-    CollectionStack.back() = true;
-    return true;
-  }
-
-  bool handleSyclHalfType(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                          QualType) final {
-    CollectionStack.back() = true;
-    return true;
-  }
-  bool handleSyclHalfType(FieldDecl *, QualType) final {
     CollectionStack.back() = true;
     return true;
   }
@@ -2021,6 +2001,12 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
       addParam(FD, ParamTy.getCanonicalType());
+
+      // Propagate add_ir_attributes_kernel_parameter attribute.
+      if (const auto *AddIRAttr =
+              Param->getAttr<SYCLAddIRAttributesKernelParameterAttr>())
+        Params.back()->addAttr(AddIRAttr->clone(SemaRef.getASTContext()));
+
       // FIXME: This code is temporary, and will be removed once __init_esimd
       // is removed and property list refactored.
       // The function handleAccessorType includes a call to
@@ -2230,11 +2216,6 @@ public:
     return handleScalarType(FD, FieldTy);
   }
 
-  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy);
-    return true;
-  }
-
   // Generate kernel argument to initialize specialization constants.
   void handleSyclKernelHandlerType() {
     ASTContext &Context = SemaRef.getASTContext();
@@ -2251,7 +2232,6 @@ public:
     return ArrayRef<ParmVarDecl *>(std::begin(Params) + LastParamIndex,
                                    std::end(Params));
   }
-  using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
 class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
@@ -2328,12 +2308,6 @@ public:
   bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
     return handleScalarType(FD, FieldTy);
   }
-
-  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FieldTy);
-    return true;
-  }
-  using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
 std::string getKernelArgDesc(StringRef KernelArgDescription) {
@@ -2476,16 +2450,10 @@ public:
     return handleScalarType(FD, FieldTy);
   }
 
-  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy);
-    return true;
-  }
-
   void handleSyclKernelHandlerType() {
     addParam(DC.getParamVarDeclsForCurrentField()[0]->getType(),
              "SYCL2020 specialization constant");
   }
-  using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
 static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
@@ -2940,11 +2908,6 @@ public:
     return handleSpecialType(FD, Ty);
   }
 
-  bool handleSyclHalfType(FieldDecl *FD, QualType Ty) final {
-    addSimpleFieldInit(FD, Ty);
-    return true;
-  }
-
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     Expr *PointerRef =
         createPointerParamReferenceExpr(FieldTy, StructDepth != 0);
@@ -3102,8 +3065,6 @@ public:
     removeFieldMemberExpr(FD, ArrayType);
     return true;
   }
-
-  using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
 // Kernels are only the unnamed-lambda feature if the feature is enabled, AND
@@ -3263,11 +3224,6 @@ public:
     return handleScalarType(FD, FieldTy);
   }
 
-  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
-    return true;
-  }
-
   void handleSyclKernelHandlerType(QualType Ty) {
     // The compiler generated kernel argument used to initialize SYCL 2020
     // specialization constants, `specialization_constants_buffer`, should
@@ -3321,7 +3277,6 @@ public:
   }
 
   using SyclKernelFieldHandler::enterStruct;
-  using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::leaveStruct;
 };
 
@@ -3902,10 +3857,9 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::ReqdWorkGroupSize: {
     auto *RWGSA = cast<ReqdWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-      ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) != RWGSA->getXDimVal(Ctx) ||
-          Existing->getYDimVal(Ctx) != RWGSA->getYDimVal(Ctx) ||
-          Existing->getZDimVal(Ctx) != RWGSA->getZDimVal(Ctx)) {
+      if (*Existing->getXDimVal() != *RWGSA->getXDimVal() ||
+          *Existing->getYDimVal() != *RWGSA->getYDimVal() ||
+          *Existing->getZDimVal() != *RWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3914,10 +3868,9 @@ static void PropagateAndDiagnoseDeviceAttr(
       }
     } else if (auto *Existing =
                    SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      ASTContext &Ctx = S.getASTContext();
-      if (*Existing->getXDimVal() < RWGSA->getXDimVal(Ctx) ||
-          *Existing->getYDimVal() < RWGSA->getYDimVal(Ctx) ||
-          *Existing->getZDimVal() < RWGSA->getZDimVal(Ctx)) {
+      if (*Existing->getXDimVal() < *RWGSA->getXDimVal() ||
+          *Existing->getYDimVal() < *RWGSA->getYDimVal() ||
+          *Existing->getZDimVal() < *RWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3950,10 +3903,9 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelMaxWorkGroupSize: {
     auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-      ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) > *SIMWGSA->getXDimVal() ||
-          Existing->getYDimVal(Ctx) > *SIMWGSA->getYDimVal() ||
-          Existing->getZDimVal(Ctx) > *SIMWGSA->getZDimVal()) {
+      if (*Existing->getXDimVal() > *SIMWGSA->getXDimVal() ||
+          *Existing->getYDimVal() > *SIMWGSA->getYDimVal() ||
+          *Existing->getZDimVal() > *SIMWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3989,6 +3941,7 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelFPGAInitiationInterval:
   case attr::Kind::SYCLIntelUseStallEnableClusters:
   case attr::Kind::SYCLDeviceHas:
+  case attr::Kind::SYCLAddIRAttributesFunction:
     SYCLKernel->addAttr(A);
     break;
   case attr::Kind::IntelNamedSubGroupSize:
@@ -4896,7 +4849,8 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
     return;
   // Step 1: ensure that this is of the correct type template specialization.
   if (!Util::isSyclSpecIdType(VD->getType()) &&
-      !Util::isSyclDeviceGlobalType(VD->getType())) {
+      !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+          VD->getType())) {
     // Handle the case where this could be a deduced type, such as a deduction
     // guide. We have to do this here since this function, unlike most of the
     // rest of this file, is called during Sema instead of after it. We will
@@ -5076,7 +5030,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     // Skip if this isn't a SpecIdType or DeviceGlobal.  This can happen if it
     // was a deduced type.
     if (!Util::isSyclSpecIdType(VD->getType()) &&
-        !Util::isSyclDeviceGlobalType(VD->getType()))
+        !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            VD->getType()))
       continue;
 
     // Skip if we've already visited this.
@@ -5090,7 +5045,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     Visited.insert(VD);
     std::string TopShim = EmitShims(OS, ShimCounter, Policy, VD);
-    if (Util::isSyclDeviceGlobalType(VD->getType())) {
+    if (S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            VD->getType())) {
       DeviceGlobalsEmitted = true;
       DeviceGlobOS << "device_global_map::add(";
       DeviceGlobOS << "(void *)&";
@@ -5158,16 +5114,6 @@ bool Util::isSyclSpecialType(const QualType Ty) {
   return RecTy->hasAttr<SYCLSpecialClassAttr>();
 }
 
-bool Util::isSyclHalfType(QualType Ty) {
-  std::array<DeclContextDesc, 5> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "detail"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "half_impl"),
-      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "half")};
-  return matchQualifiedTypeName(Ty, Scopes);
-}
-
 bool Util::isSyclSpecConstantType(QualType Ty) {
   std::array<DeclContextDesc, 6> Scopes = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
@@ -5187,18 +5133,6 @@ bool Util::isSyclSpecIdType(QualType Ty) {
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "specialization_id")};
   return matchQualifiedTypeName(Ty, Scopes);
-}
-
-bool Util::isSyclDeviceGlobalType(QualType Ty) {
-  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
-  if (!RecTy)
-    return false;
-  if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
-    ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
-    if (CXXRecordDecl *RD = Template->getTemplatedDecl())
-      return RD->hasAttr<SYCLDeviceGlobalAttr>();
-  }
-  return RecTy->hasAttr<SYCLDeviceGlobalAttr>();
 }
 
 bool Util::isSyclKernelHandlerType(QualType Ty) {

@@ -35,6 +35,7 @@ class InquireIOLengthState;
 class ExternalMiscIoStatementState;
 class CloseStatementState;
 class NoopStatementState; // CLOSE or FLUSH on unknown unit
+class ErroneousIoStatementState;
 
 template <Direction, typename CHAR = char>
 class InternalFormattedIoStatementState;
@@ -168,6 +169,10 @@ public:
   std::optional<char32_t> NextInField(
       std::optional<int> &remaining, const DataEdit &);
 
+  // Detect and signal any end-of-record condition after input.
+  // Returns true if at EOR and remaining input should be padded with blanks.
+  bool CheckForEndOfRecord();
+
   // Skips spaces, advances records, and ignores NAMELIST comments
   std::optional<char32_t> GetNextNonBlank() {
     auto ch{GetCurrentChar()};
@@ -223,7 +228,8 @@ private:
       std::reference_wrapper<InquireNoUnitState>,
       std::reference_wrapper<InquireUnconnectedFileState>,
       std::reference_wrapper<InquireIOLengthState>,
-      std::reference_wrapper<ExternalMiscIoStatementState>>
+      std::reference_wrapper<ExternalMiscIoStatementState>,
+      std::reference_wrapper<ErroneousIoStatementState>>
       u_;
 };
 
@@ -672,6 +678,20 @@ public:
 
 private:
   Which which_;
+};
+
+class ErroneousIoStatementState : public IoStatementBase {
+public:
+  explicit ErroneousIoStatementState(
+      Iostat iostat, const char *sourceFile = nullptr, int sourceLine = 0)
+      : IoStatementBase{sourceFile, sourceLine}, iostat_{iostat} {}
+  int EndIoStatement();
+  ConnectionState &GetConnectionState() { return connection_; }
+  MutableModes &mutableModes() { return connection_.modes; }
+
+private:
+  Iostat iostat_;
+  ConnectionState connection_;
 };
 
 } // namespace Fortran::runtime::io

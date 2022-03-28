@@ -894,11 +894,6 @@ some can only be checked when producing an object file:
 * No global value in the expression can be a declaration, since that
   would require a relocation, which is not possible.
 
-* If either the alias or the aliasee may be replaced by a symbol outside the
-  module at link time or runtime, any optimization cannot replace the alias with
-  the aliasee, since the behavior may be different. The alias may be used as a
-  name guaranteed to point to the content in the current module.
-
 .. _langref_ifunc:
 
 IFuncs
@@ -1384,6 +1379,14 @@ Currently, only the following parameter attributes are defined:
     information that is not mapped to base types in the backend (for example,
     over-alignment specification through language attributes).
 
+``allocalign``
+    The function parameter marked with this attribute is is the alignment in bytes of the
+    newly allocated block returned by this function. The returned value must either have
+    the specified alignment or be the null pointer. The return value MAY be more aligned
+    than the requested alignment, but not less aligned.  Invalid (e.g. non-power-of-2)
+    alignments are permitted for the allocalign parameter, so long as the returned pointer
+    is null. This attribute may only be applied to integer parameters.
+
 .. _gc:
 
 Garbage Collector Strategy Names
@@ -1783,6 +1786,9 @@ example:
     trap or generate asynchronous exceptions. Exception handling schemes
     that are recognized by LLVM to handle asynchronous exceptions, such
     as SEH, will still provide their implementation defined semantics.
+``nosanitize_bounds``
+    This attribute indicates that bounds checking sanitizer instrumentation
+    is disabled for this function.
 ``nosanitize_coverage``
     This attribute indicates that SanitizerCoverage instrumentation is disabled
     for this function.
@@ -2108,6 +2114,11 @@ example:
     function with a tail call. The prototype of a thunk should not be used for
     optimization purposes. The caller is expected to cast the thunk prototype to
     match the thunk target prototype.
+
+``"tls-load-hoist"``
+    This attribute indicates that the function will try to reduce redundant
+    tls address caculation by hoisting tls variable.
+
 ``uwtable[(sync|async)]``
     This attribute indicates that the ABI being targeted requires that
     an unwind table entry be produced for this function even if we can
@@ -19901,6 +19912,126 @@ Examples:
      call void @llvm.masked.store.v8i8.p0v8i8(<8 x i8> %val, <8 x i8>* %ptr, i32 4, <8 x i1> %mask)
 
 
+.. _int_experimental_vp_strided_load:
+
+'``llvm.experimental.vp.strided.load``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+    declare <4 x float> @llvm.experimental.vp.strided.load.v4f32.i64(float* %ptr, i64 %stride, <4 x i1> %mask, i32 %evl)
+    declare <vscale x 2 x i16> @llvm.experimental.vp.strided.load.nxv2i16.i64(i16* %ptr, i64 %stride, <vscale x 2 x i1> %mask, i32 %evl)
+
+Overview:
+"""""""""
+
+The '``llvm.experimental.vp.strided.load``' intrinsic loads, into a vector, scalar values from
+memory locations evenly spaced apart by '``stride``' number of bytes, starting from '``ptr``'.
+
+Arguments:
+""""""""""
+
+The first operand is the base pointer for the load. The second operand is the stride
+value expressed in bytes. The third operand is a vector of boolean values
+with the same number of elements as the return type. The fourth is the explicit
+vector length of the operation. The base pointer underlying type matches the type of the scalar
+elements of the return operand.
+
+The :ref:`align <attr_align>` parameter attribute can be provided for the first
+operand.
+
+Semantics:
+""""""""""
+
+The '``llvm.experimental.vp.strided.load``' intrinsic loads, into a vector, multiple scalar
+values from memory in the same way as the :ref:`llvm.vp.gather <int_vp_gather>` intrinsic,
+where the vector of pointers is in the form:
+
+   ``%ptrs = <%ptr, %ptr + %stride, %ptr + 2 * %stride, ... >``,
+
+with '``ptr``' previously casted to a pointer '``i8``', '``stride``' always interpreted as a signed
+integer and all arithmetic occurring in the pointer type.
+
+Examples:
+"""""""""
+
+.. code-block:: text
+
+	 %r = call <8 x i64> @llvm.experimental.vp.strided.load.v8i64.i64(i64* %ptr, i64 %stride, <8 x i64> %mask, i32 %evl)
+	 ;; The operation can also be expressed like this:
+
+	 %addr = bitcast i64* %ptr to i8*
+	 ;; Create a vector of pointers %addrs in the form:
+	 ;; %addrs = <%addr, %addr + %stride, %addr + 2 * %stride, ...>
+	 %ptrs = bitcast <8 x i8* > %addrs to <8 x i64* >
+	 %also.r = call <8 x i64> @llvm.vp.gather.v8i64.v8p0i64(<8 x i64* > %ptrs, <8 x i64> %mask, i32 %evl)
+
+
+.. _int_experimental_vp_strided_store:
+
+'``llvm.experimental.vp.strided.store``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+    declare void @llvm.experimental.vp.strided.store.v4f32.i64(<4 x float> %val, float* %ptr, i64 %stride, <4 x i1> %mask, i32 %evl)
+    declare void @llvm.experimental.vp.strided.store.nxv2i16.i64(<vscale x 2 x i16> %val, i16* %ptr, i64 %stride, <vscale x 2 x i1> %mask, i32 %evl)
+
+Overview:
+"""""""""
+
+The '``@llvm.experimental.vp.strided.store``' intrinsic stores the elements of
+'``val``' into memory locations evenly spaced apart by '``stride``' number of
+bytes, starting from '``ptr``'.
+
+Arguments:
+""""""""""
+
+The first operand is the vector value to be written to memory. The second
+operand is the base pointer for the store. Its underlying type matches the
+scalar element type of the value operand. The third operand is the stride value
+expressed in bytes. The fourth operand is a vector of boolean values with the
+same number of elements as the return type. The fifth is the explicit vector
+length of the operation.
+
+The :ref:`align <attr_align>` parameter attribute can be provided for the
+second operand.
+
+Semantics:
+""""""""""
+
+The '``llvm.experimental.vp.strided.store``' intrinsic stores the elements of
+'``val``' in the same way as the :ref:`llvm.vp.scatter <int_vp_scatter>` intrinsic,
+where the vector of pointers is in the form:
+
+	``%ptrs = <%ptr, %ptr + %stride, %ptr + 2 * %stride, ... >``,
+
+with '``ptr``' previously casted to a pointer '``i8``', '``stride``' always interpreted as a signed
+integer and all arithmetic occurring in the pointer type.
+
+Examples:
+"""""""""
+
+.. code-block:: text
+
+	 call void @llvm.experimental.vp.strided.store.v8i64.i64(<8 x i64> %val, i64* %ptr, i64 %stride, <8 x i1> %mask, i32 %evl)
+	 ;; The operation can also be expressed like this:
+
+	 %addr = bitcast i64* %ptr to i8*
+	 ;; Create a vector of pointers %addrs in the form:
+	 ;; %addrs = <%addr, %addr + %stride, %addr + 2 * %stride, ...>
+	 %ptrs = bitcast <8 x i8* > %addrs to <8 x i64* >
+	 call void @llvm.vp.scatter.v8i64.v8p0i64(<8 x i64> %val, <8 x i64*> %ptrs, <8 x i1> %mask, i32 %evl)
+
+
 .. _int_vp_gather:
 
 '``llvm.vp.gather``' Intrinsic
@@ -20026,9 +20157,9 @@ This is an overloaded intrinsic.
 
 ::
 
-      declare <16 x float>  @llvm.vp.fptosi.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
-      declare <vscale x 4 x float>  @llvm.vp.fptosi.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
-      declare <256 x double>  @llvm.vp.fptosi.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
+      declare <16 x i32>  @llvm.vp.fptosi.v16i32.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.fptosi.nxv4i32.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.fptosi.v256i64.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
 
 Overview:
 """""""""
@@ -20068,6 +20199,61 @@ Examples:
       ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
 
       %t = fptosi <4 x float> %a to <4 x i32>
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+
+.. _int_vp_sitofp:
+
+'``llvm.vp.sitofp.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.sitofp.v16f32.v16i32 (<16 x i32> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.sitofp.nxv4f32.nxv4i32 (<vscale x 4 x i32> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.sitofp.v256f64.v256i64 (<256 x i64> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.sitofp``' intrinsic converts its signed integer operand to the
+:ref:`floating-point <t_floating>` return type.  The operation has a mask and
+an explicit vector length parameter.
+
+
+Arguments:
+""""""""""
+
+The '``llvm.vp.sitofp``' intrinsic takes a value to cast as its first operand.
+The value to cast must be vector of :ref:`integer <t_integer>` type.  The
+return type is the type to cast the value to.  The return type must be a vector
+of :ref:`floating-point <t_floating>` type.  The second operand is the vector
+mask. The return type, the value to cast, and the vector mask have the same
+number of elements.  The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.sitofp``' intrinsic interprets its first operand as a signed
+integer quantity and converts it to the corresponding floating-point value. If
+the value cannot be exactly represented, it is rounded using the default
+rounding mode.  The conversion is performed on lane positions below the
+explicit vector length and where the vector mask is true.  Masked-off lanes are
+undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.sitofp.v4f32.v4i32(<4 x i32> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = sitofp <4 x i32> %a to <4 x float>
       %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
 
 
