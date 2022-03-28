@@ -250,6 +250,8 @@ public:
   std::string &getKernelName() { return MKernelName; }
   sycl::detail::OSModuleHandle &getOSModuleHandle() { return MOSModuleHandle; }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
+  std::unique_ptr<sycl::detail::HostTask> &getHostTask() { return MHostTask; }
+  std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
 
   void setType(sycl::detail::CG::CGTYPE Type) {
     static_cast<sycl::handler *>(this)->MCGType = Type;
