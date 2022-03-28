@@ -50,7 +50,6 @@ LogicalResult YieldOp::verify() {
 
 MutableOperandRange
 YieldOp::getMutableSuccessorOperands(Optional<unsigned> index) {
-  assert(!index.hasValue());
   return operandsMutable();
 }
 
@@ -63,6 +62,15 @@ constexpr char kOperandSegmentSizesAttr[] = "operand_segment_sizes";
 OperandRange ExecuteOp::getSuccessorEntryOperands(unsigned index) {
   assert(index == 0 && "invalid region index");
   return operands();
+}
+
+bool ExecuteOp::areTypesCompatible(Type lhs, Type rhs) {
+  const auto getValueOrTokenType = [](Type type) {
+    if (auto value = type.dyn_cast<ValueType>())
+      return value.getValueType();
+    return type;
+  };
+  return getValueOrTokenType(lhs) == getValueOrTokenType(rhs);
 }
 
 void ExecuteOp::getSuccessorRegions(Optional<unsigned> index,
@@ -228,7 +236,7 @@ ParseResult ExecuteOp::parse(OpAsmParser &parser, OperationState &result) {
   return success();
 }
 
-LogicalResult ExecuteOp::verify() {
+LogicalResult ExecuteOp::verifyRegions() {
   // Unwrap async.execute value operands types.
   auto unwrappedTypes = llvm::map_range(operands(), [](Value operand) {
     return operand.getType().cast<ValueType>().getValueType();

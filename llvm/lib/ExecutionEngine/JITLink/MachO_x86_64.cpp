@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/JITLink/MachO_x86_64.h"
+#include "llvm/ExecutionEngine/JITLink/DWARFRecordSectionSplitter.h"
 #include "llvm/ExecutionEngine/JITLink/x86_64.h"
 
 #include "MachOLinkGraphBuilder.h"
@@ -504,7 +505,7 @@ void link_MachO_x86_64(std::unique_ptr<LinkGraph> G,
 }
 
 LinkGraphPassFunction createEHFrameSplitterPass_MachO_x86_64() {
-  return EHFrameSplitter("__TEXT,__eh_frame");
+  return DWARFRecordSectionSplitter("__TEXT,__eh_frame");
 }
 
 LinkGraphPassFunction createEHFrameEdgeFixerPass_MachO_x86_64() {

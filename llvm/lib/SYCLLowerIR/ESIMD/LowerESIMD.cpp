@@ -1589,22 +1589,18 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
   for (auto &G : M.getGlobalList()) {
     if (!G.hasAttribute("genx_volatile"))
       continue;
-    auto PTy = dyn_cast<PointerType>(G.getType());
-    if (!PTy)
-      continue;
-    auto GTy = dyn_cast<StructType>(PTy->getPointerElementType());
+    auto GTy = dyn_cast<StructType>(G.getValueType());
     // TODO FIXME relying on type name in LLVM IR is fragile, needs rework
     if (!GTy || !GTy->getName()
                      .rtrim(".0123456789")
-                     .endswith("sycl::ext::intel::experimental::esimd::simd"))
+                     .endswith("sycl::ext::intel::esimd::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
     if ((GTy = dyn_cast<StructType>(VTy))) {
       assert(GTy->getName()
                  .rtrim(".0123456789")
-                 .endswith("sycl::ext::intel::experimental::esimd::detail::"
-                           "simd_obj_impl"));
+                 .endswith("sycl::ext::intel::esimd::detail::simd_obj_impl"));
       VTy = GTy->getContainedType(0);
     }
     assert(VTy->isVectorTy());

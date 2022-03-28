@@ -106,16 +106,15 @@ attributes #6 = { "sycl-unique-id"="6da74a122db9f35d____ZL7no_dg_int1" "device_i
 ;  1. 8 bytes denoting the bit-size of the byte array, here 64 bits or 8 bytes.
 ;  2. 4 bytes with the value of the 32-bit uint32_t integer with the size of the
 ;     underlying type of the device global variable. Its value being 1.
-;  3. 1 byte with the value of the 8-bit uint8_t integer with the flag that
+;  3. 4 byte with the value of the 32-bit uint32_t integer with the flag that
 ;     the device global variable has the 'device_image_scope' property.
 ;     Its value being 1, property is present.
-;  4. Any 3 bytes used as padding to align the structure to 8 bytes.
 ;
 ; CHECK-PROP: [SYCL/device globals]
-; CHECK-PROP-NEXT: 6da74a122db9f35d____ZL7dg_int1=2|ABAAAAAAAAABAAAAA
-; CHECK-PROP-NEXT: 7da74a1187b9f35d____ZL7dg_int2=2|ABAAAAAAAAABAAAAA
-; CHECK-PROP-NEXT: 9d329ad59055e972____ZL8dg_bool3=2|ABAAAAAAAAQAAAAAB
-; CHECK-PROP-NEXT: dda2bad52c45c432____ZL8dg_bool4=2|ABAAAAAAAAQAAAAAB
+; CHECK-PROP-NEXT: 6da74a122db9f35d____ZL7dg_int1=2|ABAAAAAAAAABAAAAAAAAAA
+; CHECK-PROP-NEXT: 7da74a1187b9f35d____ZL7dg_int2=2|ABAAAAAAAAABAAAAAAAAAA
+; CHECK-PROP-NEXT: 9d329ad59055e972____ZL8dg_bool3=2|ABAAAAAAAAQAAAAABAAAAA
+; CHECK-PROP-NEXT: dda2bad52c45c432____ZL8dg_bool4=2|ABAAAAAAAAQAAAAABAAAAA
 ;
 ; The variable is not a device global one and must be ignored
 ; CHECK-PROP-NOT: 6da74a122db9f35d____ZL7no_dg_int1
