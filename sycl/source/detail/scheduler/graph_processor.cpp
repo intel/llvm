@@ -58,11 +58,15 @@ bool Scheduler::GraphProcessor::enqueueCommand(
     return false;
   }
 
-  // Recursively enqueue all the dependencies first and
-  // exit immediately if any of the commands cannot be enqueued.
-  for (DepDesc &Dep : Cmd->MDeps) {
-    if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, ToCleanUp, Blocking))
-      return false;
+  // Recursively enqueue all explicit dependencies first (deps built via
+  // depends_on) and implicit (mem obj requirement) and exit immediately if any
+  // of the commands cannot be enqueued. If not to do that we may end up with
+  // the case when not all MPreparedDepsEvents contain PiEvent and on enqueueImp
+  // some of dependencies may be lost.
+  for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {
+    if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
+      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, Blocking))
+        return false;
   }
 
   // Asynchronous host operations (amongst dependencies of an arbitrary command)

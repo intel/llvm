@@ -252,6 +252,10 @@ public:
     return MPreparedHostDepsEvents;
   }
 
+  const std::vector<EventImplPtr> &getPreparedDepsEvents() const {
+    return MPreparedDepsEvents;
+  }
+
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
