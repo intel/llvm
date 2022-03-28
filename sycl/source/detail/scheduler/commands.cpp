@@ -589,10 +589,7 @@ const QueueImplPtr &Command::getWorkerQueue() const { return MQueue; }
 
 bool Command::producesPiEvent() const { return true; }
 
-bool Command::supportsPostEnqueueCleanup() const {
-  // Isolated commands are cleaned up separately
-  return !MUsers.empty() || !MDeps.empty();
-}
+bool Command::supportsPostEnqueueCleanup() const { return true; }
 
 Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
   Command *ConnectionCmd = nullptr;
