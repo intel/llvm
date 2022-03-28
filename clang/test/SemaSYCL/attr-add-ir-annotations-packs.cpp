@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -std=gnu++11 -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
 
 // Tests that __sycl_detail__::add_ir_annotations_member allows pack expansions
 // in its arguments.
