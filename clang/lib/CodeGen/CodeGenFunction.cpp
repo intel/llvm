@@ -2739,25 +2739,19 @@ Address CodeGenFunction::EmitFieldSYCLAnnotations(const FieldDecl *D,
   assert(SYCLAnnotAttr && "no add_ir_annotations_member attribute");
   llvm::Value *V = Addr.getPointer();
   llvm::Type *VTy = V->getType();
-
-  // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
-  // don't perform bitcasts if value is integer.
-  if (VTy->getPointerElementType()->isIntegerTy()) {
-    llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
-    V = EmitSYCLAnnotationCall(F, V, D->getLocation(), SYCLAnnotAttr);
-    return Address::deprecated(V, Addr.getAlignment());
-  }
-
   auto *PTy = dyn_cast<llvm::PointerType>(VTy);
   unsigned AS = PTy ? PTy->getAddressSpace() : 0;
-  llvm::PointerType *IntrinTy =
-      llvm::PointerType::getWithSamePointeeType(CGM.Int8PtrTy, AS);
+  llvm::Type *IntrType = VTy;
+  if (!VTy->getPointerElementType()->isIntegerTy())
+    IntrType = llvm::PointerType::getWithSamePointeeType(CGM.Int8PtrTy, AS);
   llvm::Function *F =
-      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, IntrinTy);
+      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, IntrType);
 
-  V = Builder.CreateBitCast(V, IntrinTy);
+  if (VTy != IntrType)
+    V = Builder.CreateBitCast(V, IntrType);
   V = EmitSYCLAnnotationCall(F, V, D->getLocation(), SYCLAnnotAttr);
-  V = Builder.CreateBitCast(V, VTy);
+  if (VTy != IntrType)
+    V = Builder.CreateBitCast(V, VTy);
   return Address(V, Addr.getElementType(), Addr.getAlignment());
 }
 

@@ -1,4 +1,4 @@
-// RUN: not %clang_cc1 -fsycl-is-device -std=gnu++11 -ast-dump %s | FileCheck %s
+// RUN: not %clang_cc1 -fsycl-is-device -ast-dump %s | FileCheck %s
 
 // Tests the AST produced from instantiating templates using the
 // __sycl_detail__::add_ir_annotations_member attribute with pack expansion
