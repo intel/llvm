@@ -169,7 +169,7 @@ enum class atomic_op : uint8_t {
   min = 0x4,
   /// Maximum: <code>*addr = max(*addr, src0)</code>.
   max = 0x5,
-  /// Exchange. <code>*addr == src0;</code>
+  /// Exchange. <code>*addr = src0;</code>
   xchg = 0x6,
   /// Compare and exchange. <code>if (*addr == src0) *sddr = src1;</code>
   cmpxchg = 0x7,
@@ -177,7 +177,7 @@ enum class atomic_op : uint8_t {
   bit_and = 0x8,
   /// Bit \c or: <code>*addr = *addr | src0</code>.
   bit_or = 0x9,
-  /// Bit \c xor: <code>*addr = *addr | src0</code>.
+  /// Bit \c xor: <code>*addr = *addr ^ src0</code>.
   bit_xor = 0xa,
   /// Minimum (signed integer): <code>*addr = min(*addr, src0)</code>.
   minsint = 0xb,
