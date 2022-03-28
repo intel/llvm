@@ -62,9 +62,9 @@
 #endif
 <<<<<<< HEAD
 #include <sycl/ext/oneapi/barrier.hpp>
-=======
+    =======
 #include <sycl/ext/oneapi/bf16_storage_builtins.hpp>
->>>>>>> sycl
+    >>>>>>> sycl
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
