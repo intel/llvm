@@ -278,11 +278,11 @@ bool handleInvalidValue(const device_impl &DeviceImpl,
       Device, PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(MaxNWGs),
       &MaxNWGs, nullptr);
   for (unsigned int I = 0; I < NDRDesc.Dims; I++) {
-    size_t n_wgs = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
-    if (n_wgs > MaxNWGs[I])
+    size_t NWgs = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
+    if (NWgs > MaxNWGs[I])
       throw sycl::nd_range_error(
           "Number of work-groups exceed limit for dimension " +
-              std::to_string(I) + " : " + std::to_string(n_wgs) + " > " +
+              std::to_string(I) + " : " + std::to_string(NWgs) + " > " +
               std::to_string(MaxNWGs[I]),
           PI_INVALID_VALUE);
   }
