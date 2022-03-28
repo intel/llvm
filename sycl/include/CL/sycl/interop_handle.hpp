@@ -49,9 +49,10 @@ public:
   /// accessor), the exception `cl::sycl::invalid_object` is thrown
   /// asynchronously.
   template <backend Backend = backend::opencl, typename DataT, int Dims,
-            access::mode Mode, access::target Target, access::placeholder IsPlh>
+            access::mode Mode, access::target Target, access::placeholder IsPlh, 
+            typename PropertyListT = ext::oneapi::accessor_property_list<>>
   backend_return_t<Backend, buffer<DataT, Dims>>
-  get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &Acc) const {
+  get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh, PropertyListT> &Acc) const {
     static_assert(Target == access::target::device ||
                       Target == access::target::constant_buffer,
                   "The method is available only for target::device accessors");
