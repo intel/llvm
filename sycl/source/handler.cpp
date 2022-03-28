@@ -468,6 +468,13 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
+
+  if (!IsESIMD &&
+      MQueue->getPlugin().getBackend() == backend::ext_intel_esimd_emulator)
+    throw runtime_error("Non-ESIMD kernel is not supported on "
+                        "backend::ext_intel_esimd_emulator",
+                        PI_INVALID_OPERATION);
+
   using detail::kernel_param_kind_t;
 
   switch (Kind) {
