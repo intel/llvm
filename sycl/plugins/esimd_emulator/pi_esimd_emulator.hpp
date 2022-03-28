@@ -52,6 +52,8 @@ struct _pi_object {
   _pi_object() : RefCount{1} {}
 
   std::atomic<pi_uint32> RefCount;
+
+  virtual ~_pi_object() = default;
 };
 struct _pi_platform {
   _pi_platform() = default;
@@ -79,6 +81,8 @@ struct _pi_device : _pi_object {
   cm_support::CmDevice *CmDevicePtr = nullptr;
 
   std::string VersionStr;
+
+  virtual ~_pi_device() = default;
 };
 
 struct _pi_context : _pi_object {
@@ -93,6 +97,8 @@ struct _pi_context : _pi_object {
   // A lock guarding access to Addr2CmBufferSVM
   std::mutex Addr2CmBufferSVMLock;
 
+  virtual ~_pi_context() = default;
+
   bool checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr);
 };
 
@@ -103,6 +109,8 @@ struct _pi_queue : _pi_object {
   // Keeps the PI context to which this queue belongs.
   pi_context Context = nullptr;
   cm_support::CmQueue *CmQueuePtr = nullptr;
+
+  virtual ~_pi_queue() = default;
 };
 
 struct _pi_mem : _pi_object {
@@ -113,9 +121,7 @@ struct _pi_mem : _pi_object {
   // To be used for piEnqueueMemBufferMap
   char *MapHostPtr = nullptr;
 
-  // Mutex for load/store accessing to CM-managed surfaces from memory
-  // instrinsic implementations
-  std::mutex mutexLock;
+  std::mutex SurfaceLock;
 
   // Surface index
 
@@ -124,9 +130,9 @@ struct _pi_mem : _pi_object {
   // created with piEnqueueMemBufferMap
   struct Mapping {
     // The offset in the buffer giving the start of the mapped region.
-    size_t Offset;
+    size_t Offset = 0;
     // The size of the mapped region.
-    size_t Size;
+    size_t Size = 0;
   };
 
   // The key is the host pointer representing an active mapping.
@@ -212,6 +218,8 @@ struct _pi_event : _pi_object {
   cm_support::CmQueue *OwnerQueue = nullptr;
   pi_context Context = nullptr;
   bool IsDummyEvent = false;
+
+  virtual ~_pi_event() = default;
 };
 
 struct _pi_program : _pi_object {
@@ -219,10 +227,14 @@ struct _pi_program : _pi_object {
 
   // Keep the context of the program.
   pi_context Context;
+
+  virtual ~_pi_program() = default;
 };
 
 struct _pi_kernel : _pi_object {
   _pi_kernel() {}
+
+  virtual ~_pi_kernel() = default;
 };
 
 #include <sycl/ext/intel/esimd/emu/detail/esimd_emulator_device_interface.hpp>

@@ -227,7 +227,7 @@ __esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind, uint32_t offset)
 
     I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (offset >= width) {
@@ -271,7 +271,7 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
 
     I->sycl_get_cm_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (offset < width) {
@@ -459,7 +459,7 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     I->sycl_get_cm_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
     writeBase += global_offset;
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
@@ -594,7 +594,7 @@ __esimd_gather_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
     readBase += global_offset;
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
@@ -671,7 +671,7 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
 
     readBase += global_offset;
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
         RestoredTy *addr =
@@ -724,7 +724,7 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
 
     I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (addr >= width) {
@@ -763,7 +763,7 @@ __ESIMD_INTRIN
     uint32_t width;
     std::mutex *mutexLock;
     I->sycl_get_cm_buffer_params_ptr(surf_ind, &ReadBase, &width, &mutexLock);
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
   }
 
   ReadBase += global_offset;
@@ -806,7 +806,7 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
     uint32_t width;
     std::mutex *mutexLock;
     I->sycl_get_cm_buffer_params_ptr(surf_ind, &WriteBase, &width, &mutexLock);
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
   }
 
   WriteBase += global_offset;
@@ -926,7 +926,7 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
   sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_image_params_ptr(
       handle, &readBase, &imgWidth, &imgHeight, &bpp, &mutexLock);
 
-  std::unique_lock<std::mutex> lock(*mutexLock);
+  std::lock_guard<std::mutex> lock(*mutexLock);
 
   int x_pos_a, y_pos_a, offset, index;
 
@@ -1064,7 +1064,7 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
   // TODO : Remove intermediate 'out' matrix
   std::vector<std::vector<Ty>> out(M, std::vector<Ty>(N));
 
-  std::unique_lock<std::mutex> lock(*mutexLock);
+  std::lock_guard<std::mutex> lock(*mutexLock);
 
   for (int i = 0, k = 0; i < M; i++) {
     for (int j = 0; j < N; j++) {
