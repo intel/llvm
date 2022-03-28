@@ -61,6 +61,7 @@
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #endif
 #include <sycl/ext/oneapi/bf16_storage_builtins.hpp>
+#include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
