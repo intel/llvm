@@ -563,11 +563,20 @@ instance of a device global variable in a `pi_program`.  This functionality is
 exposed as two new PI interfaces:
 
 ```
-pi_result piextCopyToDeviceVariable(pi_device Device, pi_program Program,
-  const char *name, const void *src, size_t count, size_t offset);
+pi_result piextEnqueueDeviceVariableRead(pi_queue Queue, pi_program Program,
+                                         const char *Name, pi_bool BlockingRead,
+                                         size_t Count, size_t Offset, void *Dst,
+                                         pi_uint32 NumEventsInWaitList,
+                                         const pi_event *EventsWaitList,
+                                         pi_event *Event);
 
-pi_result piextCopyFromDeviceVariable(pi_device Device, pi_program Program,
-  const char *name, void *dst, size_t count, size_t offset);
+pi_result piextEnqueueDeviceVariableWrite(pi_queue Queue, pi_program Program,
+                                          const char *Name,
+                                          pi_bool BlockingWrite, size_t Count,
+                                          size_t Offset, const void *Src,
+                                          pi_uint32 NumEventsInWaitList,
+                                          const pi_event *EventsWaitList,
+                                          pi_event *Event);
 ```
 
 In both cases the `name` parameter is the same as the `sycl-unique-id` string
@@ -616,8 +625,8 @@ depends upon implementation of that OpenCL extension.
 
 [10]: <opencl-extensions/cl_intel_global_variable_access.asciidoc>
 
-The CUDA backend has existing APIs `cudaMemcpyToSymbol()` and
-`cudaMemcpyFromSymbol()` which can be used to implement these PI interfaces.
+The CUDA backend has existing APIs `cuModuleGetGlobal()` and `cuMemcpyAsync()`
+which can be used to implement these PI interfaces.
 
 
 ## Design choices
