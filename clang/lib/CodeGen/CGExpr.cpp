@@ -2841,6 +2841,14 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
     } else if (VD->isStaticLocal()) {
       llvm::Constant *var = CGM.getOrCreateStaticVarDecl(
           *VD, CGM.getLLVMLinkageVarDefinition(VD, /*IsConstant=*/false));
+
+      // Force completion of static variable for SYCL since if it wasn't emitted
+      // already that means it is defined in host code and its parent function
+      // won't be emitted.
+      if (getLangOpts().SYCLIsDevice)
+        EmitStaticVarDecl(
+            *VD, CGM.getLLVMLinkageVarDefinition(VD, /*IsConstant=*/false));
+
       addr = Address(
           var, ConvertTypeForMem(VD->getType()), getContext().getDeclAlign(VD));
 
