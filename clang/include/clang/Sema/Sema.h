@@ -10541,9 +10541,6 @@ public:
 
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
-  template <typename AttrType>
-  void addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
-                             Expr *XDimExpr, Expr *YDimExpr, Expr *ZDimExpr);
   void AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr *XDim, Expr *YDim, Expr *ZDim);
   WorkGroupSizeHintAttr *
@@ -10640,6 +10637,10 @@ public:
   void AddSYCLAddIRAttributesGlobalVariableAttr(Decl *D,
                                                 const AttributeCommonInfo &CI,
                                                 MutableArrayRef<Expr *> Args);
+  void AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *XDim, Expr *YDim, Expr *ZDim);
+  ReqdWorkGroupSizeAttr *
+  MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -11271,6 +11272,11 @@ public:
   StmtResult ActOnOpenMPTeamsDirective(ArrayRef<OMPClause *> Clauses,
                                        Stmt *AStmt, SourceLocation StartLoc,
                                        SourceLocation EndLoc);
+  /// Called on well-formed '\#pragma omp teams loop' after parsing of the
+  /// associated statement.
+  StmtResult ActOnOpenMPTeamsGenericLoopDirective(
+      ArrayRef<OMPClause *> Clauses, Stmt *AStmt, SourceLocation StartLoc,
+      SourceLocation EndLoc, VarsWithInheritedDSAType &VarsWithImplicitDSA);
   /// Called on well-formed '\#pragma omp cancellation point'.
   StmtResult
   ActOnOpenMPCancellationPointDirective(SourceLocation StartLoc,
@@ -13323,7 +13329,8 @@ private:
                           const FunctionDecl *FD = nullptr);
 
 public:
-  void CheckFloatComparison(SourceLocation Loc, Expr *LHS, Expr *RHS);
+  void CheckFloatComparison(SourceLocation Loc, Expr *LHS, Expr *RHS,
+                            BinaryOperatorKind Opcode);
 
 private:
   void CheckImplicitConversions(Expr *E, SourceLocation CC = SourceLocation());
@@ -13735,62 +13742,6 @@ public:
            (VDecl->getType().getAddressSpace() == LangAS::sycl_private);
   }
 };
-
-inline Expr *checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
-                                      Expr *E) {
-  assert(E && "Attribute must have an argument.");
-
-  if (!E->isInstantiationDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult ICE = S.VerifyIntegerConstantExpression(E, &ArgVal);
-
-    if (ICE.isInvalid())
-      return nullptr;
-
-    E = ICE.get();
-
-    if (ArgVal.isNegative()) {
-      S.Diag(E->getExprLoc(),
-             diag::warn_attribute_requires_non_negative_integer_argument)
-          << E->getType() << S.Context.UnsignedLongLongTy
-          << E->getSourceRange();
-      return E;
-    }
-
-    unsigned Val = ArgVal.getZExtValue();
-    if (Val == 0) {
-      S.Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
-          << CI << E->getSourceRange();
-      return nullptr;
-    }
-  }
-  return E;
-}
-
-template <typename WorkGroupAttrType>
-void Sema::addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
-                                 Expr *XDimExpr, Expr *YDimExpr,
-                                 Expr *ZDimExpr) {
-
-  assert((XDimExpr && YDimExpr && ZDimExpr) &&
-         "argument has unexpected null value");
-
-  // Accept template arguments for now as they depend on something else.
-  // We'll get to check them when they eventually get instantiated.
-  if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
-      !ZDimExpr->isValueDependent()) {
-
-    // Save ConstantExpr in semantic attribute
-    XDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, XDimExpr);
-    YDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, YDimExpr);
-    ZDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, ZDimExpr);
-
-    if (!XDimExpr || !YDimExpr || !ZDimExpr)
-      return;
-  }
-  D->addAttr(::new (Context)
-                 WorkGroupAttrType(Context, CI, XDimExpr, YDimExpr, ZDimExpr));
-}
 
 /// RAII object that enters a new expression evaluation context.
 class EnterExpressionEvaluationContext {
