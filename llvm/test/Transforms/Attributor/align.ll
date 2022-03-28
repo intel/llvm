@@ -16,6 +16,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 ; CHECK: @[[A1:[a-zA-Z0-9_$"\\.-]+]] = common global i8 0, align 8
 ; CHECK: @[[A2:[a-zA-Z0-9_$"\\.-]+]] = common global i8 0, align 16
 ; CHECK: @[[CND:[a-zA-Z0-9_$"\\.-]+]] = external global i1
+; CHECK: @[[G:[a-zA-Z0-9_$"\\.-]+]] = global i8 0, align 32
 ;.
 define i32* @test1(i32* align 8 %0) #0 {
 ; CHECK: Function Attrs: nofree noinline norecurse nosync nounwind readnone willreturn uwtable
@@ -135,23 +136,14 @@ define i32* @test6_2() #0 {
 
 ; Function Attrs: nounwind readnone ssp uwtable
 define internal i8* @f1(i8* readnone %0) local_unnamed_addr #0 {
-; IS__CGSCC_OPM: Function Attrs: nofree noinline norecurse nosync nounwind readnone willreturn uwtable
-; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@f1
-; IS__CGSCC_OPM-SAME: (i8* noalias nocapture nofree nonnull readnone align 8 dereferenceable(1) [[TMP0:%.*]]) local_unnamed_addr #[[ATTR0]] {
-; IS__CGSCC_OPM-NEXT:    br label [[TMP3:%.*]]
-; IS__CGSCC_OPM:       2:
-; IS__CGSCC_OPM-NEXT:    unreachable
-; IS__CGSCC_OPM:       3:
-; IS__CGSCC_OPM-NEXT:    ret i8* undef
-;
-; IS__CGSCC_NPM: Function Attrs: nofree noinline norecurse nosync nounwind readnone willreturn uwtable
-; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@f1
-; IS__CGSCC_NPM-SAME: () local_unnamed_addr #[[ATTR0]] {
-; IS__CGSCC_NPM-NEXT:    br label [[TMP2:%.*]]
-; IS__CGSCC_NPM:       1:
-; IS__CGSCC_NPM-NEXT:    unreachable
-; IS__CGSCC_NPM:       2:
-; IS__CGSCC_NPM-NEXT:    ret i8* undef
+; IS__CGSCC____: Function Attrs: nofree noinline norecurse nosync nounwind readnone willreturn uwtable
+; IS__CGSCC____-LABEL: define {{[^@]+}}@f1
+; IS__CGSCC____-SAME: (i8* noalias nofree noundef nonnull readnone returned align 8 dereferenceable(1) "no-capture-maybe-returned" [[TMP0:%.*]]) local_unnamed_addr #[[ATTR0]] {
+; IS__CGSCC____-NEXT:    br label [[TMP3:%.*]]
+; IS__CGSCC____:       2:
+; IS__CGSCC____-NEXT:    unreachable
+; IS__CGSCC____:       3:
+; IS__CGSCC____-NEXT:    ret i8* [[TMP0]]
 ;
   %2 = icmp eq i8* %0, null
   br i1 %2, label %3, label %5
@@ -172,29 +164,31 @@ define internal i8* @f2(i8* readnone %0) local_unnamed_addr #0 {
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@f2
 ; IS__CGSCC_OPM-SAME: (i8* readnone [[TMP0:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 ; IS__CGSCC_OPM-NEXT:    [[TMP2:%.*]] = icmp eq i8* [[TMP0]], null
-; IS__CGSCC_OPM-NEXT:    br i1 [[TMP2]], label [[TMP4:%.*]], label [[TMP3:%.*]]
+; IS__CGSCC_OPM-NEXT:    br i1 [[TMP2]], label [[TMP5:%.*]], label [[TMP3:%.*]]
 ; IS__CGSCC_OPM:       3:
-; IS__CGSCC_OPM-NEXT:    br label [[TMP6:%.*]]
-; IS__CGSCC_OPM:       4:
-; IS__CGSCC_OPM-NEXT:    [[TMP5:%.*]] = tail call i8* @f3(i8* nonnull @a2)
-; IS__CGSCC_OPM-NEXT:    br label [[TMP6]]
-; IS__CGSCC_OPM:       6:
-; IS__CGSCC_OPM-NEXT:    [[TMP7:%.*]] = phi i8* [ undef, [[TMP3]] ], [ [[TMP5]], [[TMP4]] ]
-; IS__CGSCC_OPM-NEXT:    ret i8* [[TMP7]]
+; IS__CGSCC_OPM-NEXT:    [[TMP4:%.*]] = tail call i8* @f1(i8* noalias noundef nonnull readnone align 4294967296 dereferenceable(4294967295) [[TMP0]])
+; IS__CGSCC_OPM-NEXT:    br label [[TMP7:%.*]]
+; IS__CGSCC_OPM:       5:
+; IS__CGSCC_OPM-NEXT:    [[TMP6:%.*]] = tail call i8* @f3(i8* nonnull @a2)
+; IS__CGSCC_OPM-NEXT:    br label [[TMP7]]
+; IS__CGSCC_OPM:       7:
+; IS__CGSCC_OPM-NEXT:    [[TMP8:%.*]] = phi i8* [ [[TMP4]], [[TMP3]] ], [ [[TMP6]], [[TMP5]] ]
+; IS__CGSCC_OPM-NEXT:    ret i8* [[TMP8]]
 ;
-; IS__CGSCC_NPM: Function Attrs: noinline norecurse nounwind uwtable
+; IS__CGSCC_NPM: Function Attrs: noinline nounwind uwtable
 ; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@f2
 ; IS__CGSCC_NPM-SAME: (i8* readnone [[TMP0:%.*]]) local_unnamed_addr #[[ATTR1:[0-9]+]] {
 ; IS__CGSCC_NPM-NEXT:    [[TMP2:%.*]] = icmp eq i8* [[TMP0]], null
-; IS__CGSCC_NPM-NEXT:    br i1 [[TMP2]], label [[TMP4:%.*]], label [[TMP3:%.*]]
+; IS__CGSCC_NPM-NEXT:    br i1 [[TMP2]], label [[TMP5:%.*]], label [[TMP3:%.*]]
 ; IS__CGSCC_NPM:       3:
-; IS__CGSCC_NPM-NEXT:    br label [[TMP6:%.*]]
-; IS__CGSCC_NPM:       4:
-; IS__CGSCC_NPM-NEXT:    [[TMP5:%.*]] = tail call i8* @f3()
-; IS__CGSCC_NPM-NEXT:    br label [[TMP6]]
-; IS__CGSCC_NPM:       6:
-; IS__CGSCC_NPM-NEXT:    [[TMP7:%.*]] = phi i8* [ undef, [[TMP3]] ], [ @a1, [[TMP4]] ]
-; IS__CGSCC_NPM-NEXT:    ret i8* [[TMP7]]
+; IS__CGSCC_NPM-NEXT:    [[TMP4:%.*]] = tail call i8* @f1(i8* noalias noundef nonnull readnone align 4294967296 dereferenceable(4294967295) [[TMP0]])
+; IS__CGSCC_NPM-NEXT:    br label [[TMP7:%.*]]
+; IS__CGSCC_NPM:       5:
+; IS__CGSCC_NPM-NEXT:    [[TMP6:%.*]] = tail call i8* @f3()
+; IS__CGSCC_NPM-NEXT:    br label [[TMP7]]
+; IS__CGSCC_NPM:       7:
+; IS__CGSCC_NPM-NEXT:    [[TMP8:%.*]] = phi i8* [ [[TMP4]], [[TMP3]] ], [ [[TMP6]], [[TMP5]] ]
+; IS__CGSCC_NPM-NEXT:    ret i8* [[TMP8]]
 ;
   %2 = icmp eq i8* %0, null
   br i1 %2, label %5, label %3
@@ -219,12 +213,13 @@ define internal i8* @f3(i8* readnone %0) local_unnamed_addr #0 {
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@f3
 ; IS__CGSCC_OPM-SAME: (i8* readnone [[TMP0:%.*]]) local_unnamed_addr #[[ATTR2]] {
 ; IS__CGSCC_OPM-NEXT:    [[TMP2:%.*]] = icmp eq i8* [[TMP0]], null
-; IS__CGSCC_OPM-NEXT:    br i1 [[TMP2]], label [[TMP3:%.*]], label [[TMP4:%.*]]
+; IS__CGSCC_OPM-NEXT:    br i1 [[TMP2]], label [[TMP3:%.*]], label [[TMP5:%.*]]
 ; IS__CGSCC_OPM:       3:
-; IS__CGSCC_OPM-NEXT:    br label [[TMP4]]
-; IS__CGSCC_OPM:       4:
-; IS__CGSCC_OPM-NEXT:    [[TMP5:%.*]] = phi i8* [ @a2, [[TMP3]] ], [ @a1, [[TMP1:%.*]] ]
-; IS__CGSCC_OPM-NEXT:    ret i8* [[TMP5]]
+; IS__CGSCC_OPM-NEXT:    [[TMP4:%.*]] = tail call i8* @f1(i8* noalias noundef nonnull readnone align 16 dereferenceable(1) @a2)
+; IS__CGSCC_OPM-NEXT:    br label [[TMP5]]
+; IS__CGSCC_OPM:       5:
+; IS__CGSCC_OPM-NEXT:    [[TMP6:%.*]] = phi i8* [ [[TMP4]], [[TMP3]] ], [ @a1, [[TMP1:%.*]] ]
+; IS__CGSCC_OPM-NEXT:    ret i8* [[TMP6]]
 ;
 ; IS__CGSCC_NPM: Function Attrs: nofree noinline norecurse nosync nounwind readnone willreturn uwtable
 ; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@f3
@@ -233,7 +228,7 @@ define internal i8* @f3(i8* readnone %0) local_unnamed_addr #0 {
 ; IS__CGSCC_NPM:       1:
 ; IS__CGSCC_NPM-NEXT:    unreachable
 ; IS__CGSCC_NPM:       2:
-; IS__CGSCC_NPM-NEXT:    ret i8* undef
+; IS__CGSCC_NPM-NEXT:    ret i8* @a1
 ;
   %2 = icmp eq i8* %0, null
   br i1 %2, label %3, label %5
@@ -311,7 +306,7 @@ define internal i8* @f2b(i8* readnone %0) local_unnamed_addr #0 {
 ; IS__CGSCC_OPM-NEXT:    [[TMP7:%.*]] = phi i8* [ undef, [[TMP3]] ], [ [[TMP5]], [[TMP4]] ]
 ; IS__CGSCC_OPM-NEXT:    ret i8* [[TMP7]]
 ;
-; IS__CGSCC_NPM: Function Attrs: noinline norecurse nounwind uwtable
+; IS__CGSCC_NPM: Function Attrs: noinline nounwind uwtable
 ; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@f2b
 ; IS__CGSCC_NPM-SAME: (i8* readnone [[TMP0:%.*]]) local_unnamed_addr #[[ATTR1]] {
 ; IS__CGSCC_NPM-NEXT:    [[TMP2:%.*]] = icmp eq i8* [[TMP0]], null
@@ -322,7 +317,7 @@ define internal i8* @f2b(i8* readnone %0) local_unnamed_addr #0 {
 ; IS__CGSCC_NPM-NEXT:    [[TMP5:%.*]] = tail call i8* @f3b()
 ; IS__CGSCC_NPM-NEXT:    br label [[TMP6]]
 ; IS__CGSCC_NPM:       6:
-; IS__CGSCC_NPM-NEXT:    [[TMP7:%.*]] = phi i8* [ undef, [[TMP3]] ], [ @a1, [[TMP4]] ]
+; IS__CGSCC_NPM-NEXT:    [[TMP7:%.*]] = phi i8* [ undef, [[TMP3]] ], [ [[TMP5]], [[TMP4]] ]
 ; IS__CGSCC_NPM-NEXT:    ret i8* [[TMP7]]
 ;
   %2 = icmp eq i8* %0, null
@@ -363,7 +358,7 @@ define internal i8* @f3b(i8* readnone %0) local_unnamed_addr #0 {
 ; IS__CGSCC_NPM:       1:
 ; IS__CGSCC_NPM-NEXT:    unreachable
 ; IS__CGSCC_NPM:       2:
-; IS__CGSCC_NPM-NEXT:    ret i8* undef
+; IS__CGSCC_NPM-NEXT:    ret i8* @a1
 ;
   %2 = icmp eq i8* %0, null
   br i1 %2, label %3, label %5
@@ -1114,6 +1109,74 @@ define void @align4_caller(i8* %p) {
 
 declare void @align4_callee(i8* align(4) %p)
 
+@G = global i8 0, align 32
+
+define internal i8* @aligned_8_return(i8* %a, i1 %c1, i1 %c2) norecurse {
+; NOT_CGSCC_OPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; NOT_CGSCC_OPM-LABEL: define {{[^@]+}}@aligned_8_return
+; NOT_CGSCC_OPM-SAME: (i8* noalias nofree readnone align 16 "no-capture-maybe-returned" [[A:%.*]], i1 [[C1:%.*]], i1 [[C2:%.*]]) #[[ATTR9]] {
+; NOT_CGSCC_OPM-NEXT:    [[STACK:%.*]] = alloca i8*, align 8
+; NOT_CGSCC_OPM-NEXT:    br i1 [[C1]], label [[T:%.*]], label [[F:%.*]]
+; NOT_CGSCC_OPM:       t:
+; NOT_CGSCC_OPM-NEXT:    [[GEP:%.*]] = getelementptr i8, i8* @G, i32 8
+; NOT_CGSCC_OPM-NEXT:    [[SEL:%.*]] = select i1 [[C2]], i8* [[A]], i8* [[GEP]]
+; NOT_CGSCC_OPM-NEXT:    store i8* [[SEL]], i8** [[STACK]], align 8
+; NOT_CGSCC_OPM-NEXT:    br label [[END:%.*]]
+; NOT_CGSCC_OPM:       f:
+; NOT_CGSCC_OPM-NEXT:    store i8* @G, i8** [[STACK]], align 8
+; NOT_CGSCC_OPM-NEXT:    br label [[END]]
+; NOT_CGSCC_OPM:       end:
+; NOT_CGSCC_OPM-NEXT:    [[L:%.*]] = load i8*, i8** [[STACK]], align 8
+; NOT_CGSCC_OPM-NEXT:    ret i8* [[L]]
+;
+; IS__CGSCC_OPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@aligned_8_return
+; IS__CGSCC_OPM-SAME: (i8* noalias nofree readnone align 16 "no-capture-maybe-returned" [[A:%.*]], i1 [[C1:%.*]], i1 [[C2:%.*]]) #[[ATTR10]] {
+; IS__CGSCC_OPM-NEXT:    [[STACK:%.*]] = alloca i8*, align 8
+; IS__CGSCC_OPM-NEXT:    br i1 [[C1]], label [[T:%.*]], label [[F:%.*]]
+; IS__CGSCC_OPM:       t:
+; IS__CGSCC_OPM-NEXT:    [[GEP:%.*]] = getelementptr i8, i8* @G, i32 8
+; IS__CGSCC_OPM-NEXT:    [[SEL:%.*]] = select i1 [[C2]], i8* [[A]], i8* [[GEP]]
+; IS__CGSCC_OPM-NEXT:    store i8* [[SEL]], i8** [[STACK]], align 8
+; IS__CGSCC_OPM-NEXT:    br label [[END:%.*]]
+; IS__CGSCC_OPM:       f:
+; IS__CGSCC_OPM-NEXT:    store i8* @G, i8** [[STACK]], align 8
+; IS__CGSCC_OPM-NEXT:    br label [[END]]
+; IS__CGSCC_OPM:       end:
+; IS__CGSCC_OPM-NEXT:    [[L:%.*]] = load i8*, i8** [[STACK]], align 8
+; IS__CGSCC_OPM-NEXT:    ret i8* [[L]]
+;
+  %stack = alloca i8*
+  br i1 %c1, label %t, label %f
+t:
+  %gep = getelementptr i8, i8* @G, i32 8
+  %sel = select i1 %c2, i8* %a, i8* %gep
+  store i8* %sel, i8** %stack
+  br label %end
+f:
+  store i8* @G, i8** %stack
+  br label %end
+end:
+  %l = load i8*, i8** %stack
+  ret i8* %l
+}
+
+define i8* @aligned_8_return_caller(i8* align(16) %a, i1 %c1, i1 %c2) {
+; NOT_CGSCC_OPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; NOT_CGSCC_OPM-LABEL: define {{[^@]+}}@aligned_8_return_caller
+; NOT_CGSCC_OPM-SAME: (i8* nofree readnone align 16 "no-capture-maybe-returned" [[A:%.*]], i1 [[C1:%.*]], i1 [[C2:%.*]]) #[[ATTR9]] {
+; NOT_CGSCC_OPM-NEXT:    [[R:%.*]] = call align 8 i8* @aligned_8_return(i8* noalias nofree readnone align 16 "no-capture-maybe-returned" [[A]], i1 [[C1]], i1 [[C2]]) #[[ATTR12:[0-9]+]]
+; NOT_CGSCC_OPM-NEXT:    ret i8* [[R]]
+;
+; IS__CGSCC_OPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@aligned_8_return_caller
+; IS__CGSCC_OPM-SAME: (i8* nofree readnone align 16 "no-capture-maybe-returned" [[A:%.*]], i1 [[C1:%.*]], i1 [[C2:%.*]]) #[[ATTR10]] {
+; IS__CGSCC_OPM-NEXT:    [[R:%.*]] = call align 8 i8* @aligned_8_return(i8* noalias nofree readnone align 16 "no-capture-maybe-returned" [[A]], i1 [[C1]], i1 [[C2]]) #[[ATTR13:[0-9]+]]
+; IS__CGSCC_OPM-NEXT:    ret i8* [[R]]
+;
+  %r = call i8* @aligned_8_return(i8* %a, i1 %c1, i1 %c2)
+  ret i8* %r
+}
 
 attributes #0 = { nounwind uwtable noinline }
 attributes #1 = { uwtable noinline }
@@ -1131,6 +1194,7 @@ attributes #2 = { null_pointer_is_valid }
 ; IS__TUNIT____: attributes #[[ATTR9]] = { nofree norecurse nosync nounwind readnone willreturn }
 ; IS__TUNIT____: attributes #[[ATTR10]] = { nofree norecurse nosync nounwind readonly willreturn }
 ; IS__TUNIT____: attributes #[[ATTR11]] = { nofree nosync nounwind readonly willreturn }
+; IS__TUNIT____: attributes #[[ATTR12]] = { nofree nosync nounwind readnone willreturn }
 ;.
 ; IS__CGSCC_OPM: attributes #[[ATTR0]] = { nofree noinline norecurse nosync nounwind readnone willreturn uwtable }
 ; IS__CGSCC_OPM: attributes #[[ATTR1]] = { nofree noinline nosync nounwind readnone willreturn uwtable }
@@ -1145,9 +1209,10 @@ attributes #2 = { null_pointer_is_valid }
 ; IS__CGSCC_OPM: attributes #[[ATTR10]] = { nofree norecurse nosync nounwind readnone willreturn }
 ; IS__CGSCC_OPM: attributes #[[ATTR11]] = { nofree norecurse nosync nounwind readonly willreturn }
 ; IS__CGSCC_OPM: attributes #[[ATTR12]] = { readonly willreturn }
+; IS__CGSCC_OPM: attributes #[[ATTR13]] = { readnone willreturn }
 ;.
 ; IS__CGSCC_NPM: attributes #[[ATTR0]] = { nofree noinline norecurse nosync nounwind readnone willreturn uwtable }
-; IS__CGSCC_NPM: attributes #[[ATTR1]] = { noinline norecurse nounwind uwtable }
+; IS__CGSCC_NPM: attributes #[[ATTR1]] = { noinline nounwind uwtable }
 ; IS__CGSCC_NPM: attributes #[[ATTR2]] = { nounwind }
 ; IS__CGSCC_NPM: attributes #[[ATTR3]] = { nofree nosync nounwind }
 ; IS__CGSCC_NPM: attributes #[[ATTR4]] = { argmemonly nofree norecurse nosync nounwind readonly willreturn }
@@ -1158,4 +1223,5 @@ attributes #2 = { null_pointer_is_valid }
 ; IS__CGSCC_NPM: attributes #[[ATTR9]] = { nofree norecurse nosync nounwind readnone willreturn }
 ; IS__CGSCC_NPM: attributes #[[ATTR10]] = { nofree norecurse nosync nounwind readonly willreturn }
 ; IS__CGSCC_NPM: attributes #[[ATTR11]] = { readonly willreturn }
+; IS__CGSCC_NPM: attributes #[[ATTR12]] = { readnone willreturn }
 ;.

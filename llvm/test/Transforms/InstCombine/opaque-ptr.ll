@@ -493,3 +493,37 @@ define void @dse(ptr %p) {
   store i8 1, ptr %p
   ret void
 }
+
+declare void @call_i64(i64)
+declare void @call_byval(i64, ptr byval(i64))
+
+define void @call_cast_ptr_to_int(ptr %p) {
+; CHECK-LABEL: @call_cast_ptr_to_int(
+; CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint ptr [[P:%.*]] to i64
+; CHECK-NEXT:    call void @call_i64(i64 [[TMP1]])
+; CHECK-NEXT:    ret void
+;
+  call void @call_i64(ptr %p)
+  ret void
+}
+
+define void @call_cast_byval(ptr %p, ptr %p2) {
+; CHECK-LABEL: @call_cast_byval(
+; CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint ptr [[P:%.*]] to i64
+; CHECK-NEXT:    call void @call_byval(i64 [[TMP1]], ptr byval(double) [[P2:%.*]])
+; CHECK-NEXT:    ret void
+;
+  call void @call_byval(ptr %p, ptr byval(double) %p2)
+  ret void
+}
+
+declare float @fmodf(float, float)
+
+define i32 @const_fold_call_with_func_type_mismatch() {
+; CHECK-LABEL: @const_fold_call_with_func_type_mismatch(
+; CHECK-NEXT:    [[V:%.*]] = call float @fmodf(float 0x40091EB860000000, float 2.000000e+00)
+; CHECK-NEXT:    ret i32 1066527622
+;
+  %v = call i32 @fmodf(float 0x40091EB860000000, float 2.000000e+00)
+  ret i32 %v
+}

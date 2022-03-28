@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // <span>
 
@@ -86,7 +85,7 @@ void test_std_array() {
     }
 }
 
-#ifndef _LIBCPP_HAS_NO_INCOMPLETE_RANGES
+#ifndef TEST_HAS_NO_INCOMPLETE_RANGES
 void test_range_std_container() {
     {
     std::string str{"ABCDE"};
@@ -104,7 +103,7 @@ void test_range_std_container() {
     assert(s.data() == str.data());
     }
 }
-#endif // _LIBCPP_HAS_NO_INCOMPLETE_RANGES
+#endif // TEST_HAS_NO_INCOMPLETE_RANGES
 
 int main(int, char**)
 {
@@ -112,9 +111,9 @@ int main(int, char**)
   test_c_array();
   test_std_array();
 
-#ifndef _LIBCPP_HAS_NO_INCOMPLETE_RANGES
+#ifndef TEST_HAS_NO_INCOMPLETE_RANGES
   test_range_std_container();
-#endif // _LIBCPP_HAS_NO_INCOMPLETE_RANGES
+#endif // TEST_HAS_NO_INCOMPLETE_RANGES
 
   return 0;
 }

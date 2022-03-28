@@ -266,12 +266,11 @@ SPIRVConstant *SPIRVTypeArray::getLength() const {
 _SPIRV_IMP_ENCDEC3(SPIRVTypeArray, Id, ElemType, Length)
 
 void SPIRVTypeForwardPointer::encode(spv_ostream &O) const {
-  getEncoder(O) << Pointer << SC;
+  getEncoder(O) << PointerId << SC;
 }
 
 void SPIRVTypeForwardPointer::decode(std::istream &I) {
   auto Decoder = getDecoder(I);
-  SPIRVId PointerId;
   Decoder >> PointerId >> SC;
 }
 

@@ -128,7 +128,7 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
   StructType *FrameTy;
   Align FrameAlign;
   uint64_t FrameSize;
-  Instruction *FramePtr;
+  Value *FramePtr;
   BasicBlock *AllocaSpillBlock;
 
   /// This would only be true if optimization are enabled.
@@ -210,10 +210,9 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
 
   FunctionType *getResumeFunctionType() const {
     switch (ABI) {
-    case coro::ABI::Switch: {
-      auto *FnPtrTy = getSwitchResumePointerType();
-      return cast<FunctionType>(FnPtrTy->getPointerElementType());
-    }
+    case coro::ABI::Switch:
+      return FunctionType::get(Type::getVoidTy(FrameTy->getContext()),
+                               FrameTy->getPointerTo(), /*IsVarArg*/false);
     case coro::ABI::Retcon:
     case coro::ABI::RetconOnce:
       return RetconLowering.ResumePrototype->getFunctionType();
@@ -265,6 +264,12 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
     if (ABI == coro::ABI::Switch)
       return SwitchLowering.PromiseAlloca;
     return nullptr;
+  }
+
+  Instruction *getInsertPtAfterFramePtr() const {
+    if (auto *I = dyn_cast<Instruction>(FramePtr))
+      return I->getNextNode();
+    return &cast<Argument>(FramePtr)->getParent()->getEntryBlock().front();
   }
 
   /// Allocate memory according to the rules of the active lowering.

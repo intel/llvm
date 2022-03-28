@@ -7,11 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "MLIRServer.h"
-#include "lsp/Logging.h"
-#include "lsp/Protocol.h"
+#include "../lsp-server-support/Logging.h"
+#include "../lsp-server-support/Protocol.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/Operation.h"
-#include "mlir/Parser.h"
 #include "mlir/Parser/AsmParserState.h"
+#include "mlir/Parser/Parser.h"
 #include "llvm/Support/SourceMgr.h"
 
 using namespace mlir;
@@ -37,8 +38,7 @@ static lsp::Range getRangeFromLoc(llvm::SourceMgr &mgr, SMRange range) {
 }
 
 /// Returns a language server location from the given source range.
-static lsp::Location getLocationFromLoc(llvm::SourceMgr &mgr,
-                                        SMRange range,
+static lsp::Location getLocationFromLoc(llvm::SourceMgr &mgr, SMRange range,
                                         const lsp::URIForFile &uri) {
   return lsp::Location{uri, getRangeFromLoc(mgr, range)};
 }
@@ -81,8 +81,7 @@ getLocationFromLoc(llvm::SourceMgr &sourceMgr, Location loc,
       // Use range of potential identifier starting at location, else length 1
       // range.
       location->range.end.character += 1;
-      if (Optional<SMRange> range =
-              AsmParserState::convertIdLocToRange(loc)) {
+      if (Optional<SMRange> range = AsmParserState::convertIdLocToRange(loc)) {
         auto lineCol = sourceMgr.getLineAndColumn(range->End);
         location->range.end.character =
             std::max(fileLoc.getColumn() + 1, lineCol.second - 1);
@@ -133,9 +132,8 @@ static bool isDefOrUse(const AsmParserState::SMDefinition &def, SMLoc loc,
   }
 
   // Check the uses.
-  const auto *useIt = llvm::find_if(def.uses, [&](const SMRange &range) {
-    return contains(range, loc);
-  });
+  const auto *useIt = llvm::find_if(
+      def.uses, [&](const SMRange &range) { return contains(range, loc); });
   if (useIt != def.uses.end()) {
     if (overlappedRange)
       *overlappedRange = *useIt;
@@ -187,8 +185,7 @@ static unsigned getBlockNumber(Block *block) {
 
 /// Given a block and source location, print the source name of the block to the
 /// given output stream.
-static void printDefBlockName(raw_ostream &os, Block *block,
-                              SMRange loc = {}) {
+static void printDefBlockName(raw_ostream &os, Block *block, SMRange loc = {}) {
   // Try to extract a name from the source location.
   Optional<StringRef> text = getTextFromRange(loc);
   if (text && text->startswith("^")) {
@@ -287,10 +284,9 @@ struct MLIRDocument {
   Optional<lsp::Hover>
   buildHoverForOperation(SMRange hoverRange,
                          const AsmParserState::OperationDefinition &op);
-  lsp::Hover buildHoverForOperationResult(SMRange hoverRange,
-                                          Operation *op, unsigned resultStart,
-                                          unsigned resultEnd,
-                                          SMLoc posLoc);
+  lsp::Hover buildHoverForOperationResult(SMRange hoverRange, Operation *op,
+                                          unsigned resultStart,
+                                          unsigned resultEnd, SMLoc posLoc);
   lsp::Hover buildHoverForBlock(SMRange hoverRange,
                                 const AsmParserState::BlockDefinition &block);
   lsp::Hover
@@ -716,7 +712,7 @@ private:
   int64_t version;
 
   /// The number of lines in the file.
-  int64_t totalNumLines;
+  int64_t totalNumLines = 0;
 
   /// The chunks of this file. The order of these chunks is the order in which
   /// they appear in the text file.
@@ -728,7 +724,7 @@ MLIRTextFile::MLIRTextFile(const lsp::URIForFile &uri, StringRef fileContents,
                            int64_t version, DialectRegistry &registry,
                            std::vector<lsp::Diagnostic> &diagnostics)
     : context(registry, MLIRContext::Threading::DISABLED),
-      contents(fileContents.str()), version(version), totalNumLines(0) {
+      contents(fileContents.str()), version(version) {
   context.allowUnregisteredDialects();
 
   // Split the file into separate MLIR documents.

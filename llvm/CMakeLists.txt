@@ -467,6 +467,7 @@ option(LLVM_ENABLE_PEDANTIC "Compile with pedantic enabled." ON)
 option(LLVM_ENABLE_WERROR "Fail and stop if a warning is triggered." OFF)
 
 option(LLVM_ENABLE_DUMP "Enable dump functions even when assertions are disabled" OFF)
+option(LLVM_UNREACHABLE_OPTIMIZE "Optimize llvm_unreachable() as undefined behavior (default), guaranteed trap when OFF" ON)
 
 if( NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
   option(LLVM_ENABLE_ASSERTIONS "Enable assertions" OFF)
@@ -744,7 +745,13 @@ endif()
 
 set(LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE_default}" CACHE STRING
   "Default target for which LLVM will generate code." )
-set(TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
+if (TARGET_TRIPLE)
+  message(WARNING "TARGET_TRIPLE is deprecated and will be removed in a future release. "
+                  "Please use LLVM_DEFAULT_TARGET_TRIPLE instead.")
+  set(LLVM_TARGET_TRIPLE "${TARGET_TRIPLE}")
+else()
+  set(LLVM_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
+endif()
 message(STATUS "LLVM host triple: ${LLVM_HOST_TRIPLE}")
 message(STATUS "LLVM default target triple: ${LLVM_DEFAULT_TARGET_TRIPLE}")
 
@@ -1140,9 +1147,6 @@ if( LLVM_INCLUDE_TESTS )
     DEPENDS ${LLVM_LIT_DEPENDS} ${LLVM_ADDITIONAL_TEST_TARGETS}
     ARGS ${LLVM_LIT_EXTRA_ARGS}
     )
-  if(TARGET check-runtimes)
-    add_dependencies(check-all check-runtimes)
-  endif()
   add_custom_target(test-depends
                     DEPENDS ${LLVM_LIT_DEPENDS} ${LLVM_ADDITIONAL_TEST_DEPENDS})
   set_target_properties(test-depends PROPERTIES FOLDER "Tests")

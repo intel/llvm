@@ -537,7 +537,7 @@ def LLVM_CallOp : LLVM_Op<"call",
   let builders = [
     OpBuilder<(ins "LLVMFuncOp":$func, "ValueRange":$operands,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes), [{
-      Type resultType = func.getType().getReturnType();
+      Type resultType = func.getFunctionType().getReturnType();
       if (!resultType.isa<LLVM::LLVMVoidType>())
         $_state.addTypes(resultType);
       $_state.addAttribute("callee", SymbolRefAttr::get(func));
@@ -874,7 +874,7 @@ def LLVM_AddressOfOp : LLVM_Op<"mlir.addressof", [NoSideEffect]> {
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
     [{
       build($_builder, $_state,
-            LLVM::LLVMPointerType::get(func.getType()), func.getName());
+            LLVM::LLVMPointerType::get(func.getFunctionType()), func.getName());
       $_state.addAttributes(attrs);
     }]>
   ];
@@ -1140,6 +1140,7 @@ def LLVM_GlobalOp : LLVM_Op<"mlir.global",
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 def LLVM_GlobalCtorsOp : LLVM_Op<"mlir.global_ctors", [
@@ -1235,11 +1236,14 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
     ```
   }];
 
-  let arguments = (ins DefaultValuedAttr<Linkage, "Linkage::External">:$linkage,
-                   UnitAttr:$dso_local,
-                   OptionalAttr<FlatSymbolRefAttr>:$personality,
-                   OptionalAttr<StrAttr>:$garbageCollector,
-                   OptionalAttr<ArrayAttr>:$passthrough);
+  let arguments = (ins
+    TypeAttrOf<LLVM_FunctionType>:$function_type,
+    DefaultValuedAttr<Linkage, "Linkage::External">:$linkage,
+    UnitAttr:$dso_local,
+    OptionalAttr<FlatSymbolRefAttr>:$personality,
+    OptionalAttr<StrAttr>:$garbageCollector,
+    OptionalAttr<ArrayAttr>:$passthrough
+  );
 
   let regions = (region AnyRegion:$body);
 
@@ -1258,25 +1262,18 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
     // to match the signature of the function.
     Block *addEntryBlock();
 
-    LLVMFunctionType getType() {
-      return getTypeAttr().getValue().cast<LLVMFunctionType>();
-    }
-    bool isVarArg() { return getType().isVarArg(); }
+    bool isVarArg() { return getFunctionType().isVarArg(); }
 
     /// Returns the argument types of this function.
-    ArrayRef<Type> getArgumentTypes() { return getType().getParams(); }
+    ArrayRef<Type> getArgumentTypes() { return getFunctionType().getParams(); }
 
     /// Returns the result types of this function.
-    ArrayRef<Type> getResultTypes() { return getType().getReturnTypes(); }
-
-    /// Hook for FunctionOpInterface, called after verifying that the 'type'
-    /// attribute is present.  This can check for preconditions of the
-    /// getNumArguments hook not failing.
-    LogicalResult verifyType();
+    ArrayRef<Type> getResultTypes() { return getFunctionType().getReturnTypes(); }
   }];
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 def LLVM_NullOp

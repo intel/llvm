@@ -850,10 +850,6 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   if (SanArgs.needsStatsRt() && SanArgs.linkRuntimes())
     StaticRuntimes.push_back("stats_client");
 
-  // Always link the static runtime regardless of DSO or executable.
-  if (SanArgs.needsAsanRt())
-    HelperStaticRuntimes.push_back("asan_static");
-
   // Collect static runtimes.
   if (Args.hasArg(options::OPT_shared)) {
     // Don't link static runtimes into DSOs.
@@ -1238,7 +1234,7 @@ tools::ParsePICArgs(const ToolChain &ToolChain, const ArgList &Args) {
             O.matches(options::OPT_fPIE) || O.matches(options::OPT_fPIC);
       } else {
         PIE = PIC = false;
-        if (EffectiveTriple.isPS4CPU()) {
+        if (EffectiveTriple.isPS4()) {
           Arg *ModelArg = Args.getLastArg(options::OPT_mcmodel_EQ);
           StringRef Model = ModelArg ? ModelArg->getValue() : "";
           if (Model != "kernel") {
@@ -1254,7 +1250,7 @@ tools::ParsePICArgs(const ToolChain &ToolChain, const ArgList &Args) {
   // Introduce a Darwin and PS4-specific hack. If the default is PIC, but the
   // PIC level would've been set to level 1, force it back to level 2 PIC
   // instead.
-  if (PIC && (Triple.isOSDarwin() || EffectiveTriple.isPS4CPU()))
+  if (PIC && (Triple.isOSDarwin() || EffectiveTriple.isPS4()))
     IsPICLevelTwo |= ToolChain.isPICDefault();
 
   // This kernel flags are a trump-card: they will disable PIC/PIE
@@ -1784,6 +1780,12 @@ bool tools::GetSDLFromOffloadArchive(
     // code object is found in heterogenous archive library.
     std::string AdditionalArgs("-allow-missing-bundles");
     UBArgs.push_back(C.getArgs().MakeArgString(AdditionalArgs));
+
+    // Add this flag to treat hip and hipv4 offload kinds as compatible with
+    // openmp offload kind while extracting code objects from a heterogenous
+    // archive library. Vice versa is also considered compatible.
+    std::string HipCompatibleArgs("-hip-openmp-compatible");
+    UBArgs.push_back(C.getArgs().MakeArgString(HipCompatibleArgs));
 
     C.addCommand(std::make_unique<Command>(
         JA, T, ResponseFileSupport::AtFileCurCP(), UBProgram, UBArgs, Inputs,

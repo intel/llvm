@@ -432,6 +432,15 @@ fir.global @global_derived : !fir.type<minez(f:i32)> {
   fir.has_value %0 : !fir.type<minez>
 }
 
+// CHECK-LABEL: fir.global linkonce_odr @global_linkonce_odr : i32 {
+// CHECK: [[VAL_130:%.*]] = arith.constant 1 : i32
+// CHECK: fir.has_value [[VAL_130]] : i32
+// CHECK: }
+fir.global linkonce_odr @global_linkonce_odr : i32 {
+  %0 = arith.constant 1 : i32
+  fir.has_value %0 : i32
+}
+
 // CHECK-LABEL: fir.dispatch_table @dispatch_tbl {
 // CHECK: fir.dt_entry "method", @method_impl
 // CHECK: }
@@ -703,6 +712,23 @@ func @test_rebox(%arg0: !fir.box<!fir.array<?xf32>>) {
   return
 }
 
+func private @bar_rebox_test_char(!fir.box<!fir.array<?x!fir.char<1,?>>>)
+// CHECK-LABEL: @test_rebox_char(
+func @test_rebox_char(%arg0: !fir.box<!fir.array<?x!fir.char<1,20>>>) {
+  %c7_i64 = arith.constant 7 : i64
+  %c1_i64 = arith.constant 1 : i64
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %0:3 = fir.box_dims %arg0, %c0 : (!fir.box<!fir.array<?x!fir.char<1,20>>>, index) -> (index, index, index)
+  %1 = fir.slice %c1, %0#1, %c1_i64 substr %c1_i64, %c7_i64 : (index, index, i64, i64, i64) -> !fir.slice<1>
+  // CHECK: fir.rebox %{{.*}} [%{{.*}}] : (!fir.box<!fir.array<?x!fir.char<1,20>>>, !fir.slice<1>) -> !fir.box<!fir.array<?x!fir.char<1,?>>>
+  %2 = fir.rebox %arg0 [%1] : (!fir.box<!fir.array<?x!fir.char<1,20>>>, !fir.slice<1>) -> !fir.box<!fir.array<?x!fir.char<1,?>>>
+  fir.call @bar_rebox_test_char(%2) : (!fir.box<!fir.array<?x!fir.char<1,?>>>) -> ()
+  return
+}
+
+
+func private @array_func() -> !fir.array<?x!fir.char<1,?>>
 // CHECK-LABEL: @test_save_result(
 func @test_save_result(%buffer: !fir.ref<!fir.array<?x!fir.char<1,?>>>) {
   %c100 = arith.constant 100 : index

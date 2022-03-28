@@ -663,6 +663,8 @@ bool isSPIRVType(llvm::Type *Ty, StringRef BaseTyName, StringRef *Postfix = 0);
 
 bool isSYCLHalfType(llvm::Type *Ty);
 
+bool isSYCLBfloat16Type(llvm::Type *Ty);
+
 /// Decorate a function name as __spirv_{Name}_
 std::string decorateSPIRVFunction(const std::string &S);
 
