@@ -1765,8 +1765,8 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-    cl::sycl::detail::pi::die("Device info request not implemented");
-    return {};
+  cl::sycl::detail::pi::die("Device info request not implemented");
+  return {};
 }
 
 /// Gets the native CUDA handle of a PI device object
