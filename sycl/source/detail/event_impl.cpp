@@ -123,8 +123,9 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
         "clEvent.",
         PI_INVALID_CONTEXT);
   }
-
-  getPlugin().call<PiApiKind::piEventRetain>(MEvent);
+  // Ref count should be incremented for OpenCL backend only.
+  if (getPlugin().getBackend() == cl::sycl::backend::opencl)
+    getPlugin().call<PiApiKind::piEventRetain>(MEvent);
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
