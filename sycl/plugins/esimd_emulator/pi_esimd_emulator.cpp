@@ -124,6 +124,7 @@ static std::mutex *PiPlatformCacheLock = new std::mutex;
 // Mapping between surface index and CM-managed surface
 static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap =
     new std::unordered_map<unsigned int, _pi_mem *>;
+// TODO/FIXME : Memory leak. Handle with 'piTearDown'.
 static std::mutex *PiESimdSurfaceMapLock = new std::mutex;
 
 // To be compared with ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION in device
