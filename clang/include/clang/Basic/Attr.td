@@ -4807,7 +4807,7 @@ def Builtin : InheritableAttr {
 
 def EnforceTCB : InheritableAttr {
   let Spellings = [Clang<"enforce_tcb">];
-  let Subjects = SubjectList<[Function]>;
+  let Subjects = SubjectList<[Function, ObjCMethod]>;
   let Args = [StringArgument<"TCBName">];
   let Documentation = [EnforceTCBDocs];
   bit InheritEvenIfAlreadyPresent = 1;
@@ -4815,7 +4815,7 @@ def EnforceTCB : InheritableAttr {
 
 def EnforceTCBLeaf : InheritableAttr {
   let Spellings = [Clang<"enforce_tcb_leaf">];
-  let Subjects = SubjectList<[Function]>;
+  let Subjects = SubjectList<[Function, ObjCMethod]>;
   let Args = [StringArgument<"TCBName">];
   let Documentation = [EnforceTCBLeafDocs];
   bit InheritEvenIfAlreadyPresent = 1;
