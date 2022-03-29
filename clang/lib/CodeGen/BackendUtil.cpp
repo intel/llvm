@@ -1067,11 +1067,13 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
     PerModulePasses.add(createSYCLMutatePrintfAddrspaceLegacyPass());
   }
 
-  // Add the InferAddressSpaces pass for all the SPIR[V] targets
-  if (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) {
-    // This function pass should run after inlining, so it is added to MPM
-    PerModulePasses.add(
-        createInferAddressSpacesPass((4))); // TODO make/use the constant
+  if (!CodeGenOpts.DisableLLVMPasses) {
+    // Add the InferAddressSpaces pass for all the SPIR[V] targets
+    if (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) {
+      // This function pass should run after inlining, so it is added to MPM
+      PerModulePasses.add(
+          createInferAddressSpacesPass((4))); // TODO make/use the constant
+    }
   }
 
   switch (Action) {
