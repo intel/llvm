@@ -139,7 +139,10 @@ void XPTIRegistry::bufferAccessorNotification(
 void XPTIRegistry::kernelEnqueueNotification(
     const void *Kernel, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const detail::code_location &CodeLoc) {
-  (void)(void)CodeLoc;
+  (void)Kernel;
+  (void)NDRDesc;
+  (void)Args;
+  (void)CodeLoc;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
     return;
