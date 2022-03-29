@@ -2,6 +2,11 @@
 
 // The tests checks that invoke_simd API is compileable.
 
+// TODO For now, compiling functors and lambdas as invoke_simd targets requires
+// setting this macro before inclusion of invoke_simd.hpp macro. Remove when
+// they are fully supported.
+#define __INVOKE_SIMD_ENABLE_ALL_CALLABLES
+
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
@@ -12,8 +17,16 @@
 #include <type_traits>
 
 using namespace sycl::ext::oneapi::experimental;
+using namespace cl::sycl;
 namespace esimd = sycl::ext::intel::esimd;
+
 constexpr int VL = 16;
+
+#ifndef INVOKE_SIMD
+#define INVOKE_SIMD 1
+#endif
+
+constexpr bool use_invoke_simd = INVOKE_SIMD != 0;
 
 __attribute__((always_inline)) esimd::simd<float, VL>
 ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
@@ -27,8 +40,6 @@ simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
                                       int i) SYCL_ESIMD_FUNCTION;
 
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
-
-using namespace cl::sycl;
 
 class ESIMDSelector : public device_selector {
   // Require GPU device unless HOST is requested in SYCL_DEVICE_FILTER env
@@ -65,10 +76,6 @@ inline auto createExceptionHandler() {
     }
   };
 }
-
-#ifndef INVOKE_SIMD
-#define INVOKE_SIMD 1
-#endif
 
 int main(void) {
   constexpr unsigned Size = 1024;
@@ -107,13 +114,14 @@ int main(void) {
             uint32_t i =
                 sg.get_group_linear_id() * VL + g.get_linear_id() * GroupSize;
             uint32_t wi_id = i + sg.get_local_id();
+            float res = 0;
 
-#if INVOKE_SIMD != 0
-            float res =
-                invoke_simd(sg, SIMD_CALLEE, uniform{A}, B[wi_id], uniform{i});
-#else
-        float res = SPMD_CALLEE(A, B[wi_id], wi_id);
-#endif
+            if constexpr (use_invoke_simd) {
+              res = invoke_simd(sg, SIMD_CALLEE, uniform{A}, B[wi_id],
+                                uniform{i});
+            } else {
+              res = SPMD_CALLEE(A, B[wi_id], wi_id);
+            }
             C[wi_id] = res;
           });
     });
@@ -148,4 +156,104 @@ simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
                                       int i) SYCL_ESIMD_FUNCTION {
   esimd::simd<float, VL> res = ESIMD_CALLEE(A, b, i);
   return res;
+}
+
+// Other test cases for compilation
+// TODO convert to executable once lambdas and functors are supported in the
+// middle-end.
+
+// A functor with multiple '()' operator overloads.
+struct SIMD_FUNCTOR {
+  int Val;
+  constexpr SIMD_FUNCTOR(int x) : Val(x) {}
+  // annotated signature encoding wrt caller's return and argument types:
+  // u - uniform, N - non-uniform, P - pointer (must be always uniform)
+
+  // A - u(N, u)
+  __regcall char operator()(simd<float, 16>, float) const;
+  // B - u(N, u, u)
+  __regcall int operator()(simd<float, 8>, float, int) const;
+  // C - u(N, P)
+  __regcall uniform<simd<float, 7>> operator()(simd<float, 16>, float *) const;
+  // D - u(P, u, u) - "all uniform", subgroup size does not matter
+  __regcall uniform<simd<float, 8>> operator()(float *, simd<float, 3>,
+                                               simd<int, 5>) const;
+  // E - N(u, N)
+  __regcall simd<short, 8> operator()(simd<float, 3>, simd<int, 8>) const;
+};
+
+// Functor-based tests.
+SYCL_EXTERNAL void foo(sub_group sg, float a, float b, float *ptr) {
+  SIMD_FUNCTOR ftor{10};
+  // the target is "A" SIMD_FUNCTOR::() overload:
+  auto x = invoke_simd(sg, ftor, 1.f, uniform{a});
+  static_assert(std::is_same_v<decltype(x), uniform<char>>);
+
+  // the target is "B" SIMD_FUNCTOR::() overload:
+  auto y = invoke_simd(sg, ftor, b, uniform{1.f}, uniform{10});
+  static_assert(std::is_same_v<decltype(y), uniform<int>>);
+
+  // the target is "C" SIMD_FUNCTOR::() overload:
+  auto z = invoke_simd(sg, ftor, b, uniform{ptr});
+  static_assert(std::is_same_v<decltype(z), uniform<simd<float, 7>>>);
+
+  // the target is "D" SIMD_FUNCTOR::() overload:
+  auto u = invoke_simd(sg, ftor, uniform{ptr}, uniform{simd<float, 3>{1}},
+                       uniform{simd<int, 5>{2}});
+  static_assert(std::is_same_v<decltype(u), uniform<simd<float, 8>>>);
+
+  // the target is "E" SIMD_FUNCTOR::() overload:
+  auto v = invoke_simd(sg, ftor, uniform{simd<float, 3>{1}}, 1);
+  static_assert(std::is_same_v<decltype(v), short>);
+}
+
+// Lambda-based tests, repeat functor test cases above.
+SYCL_EXTERNAL auto bar(sub_group sg, float a, float b, float *ptr, char ch) {
+  {
+    const auto ftor = [=](simd<float, 16>, float) {
+      // capturing lambda
+      return ch;
+    };
+    auto x = invoke_simd(sg, ftor, 1.f, uniform{a});
+    static_assert(std::is_same_v<decltype(x), uniform<char>>);
+  }
+  {
+    const auto ftor = [=](simd<float, 8>, float, int) {
+      // non-capturing lambda
+      return (int)10;
+    };
+    auto y = invoke_simd(sg, ftor, b, uniform{1.f}, uniform{10});
+    static_assert(std::is_same_v<decltype(y), uniform<int>>);
+  }
+  {
+    const auto ftor = [=](simd<float, 16>, float *) {
+      simd<float, 7> val{ch};
+      return uniform{val};
+    };
+    auto z = invoke_simd(sg, ftor, b, uniform{ptr});
+    static_assert(std::is_same_v<decltype(z), uniform<simd<float, 7>>>);
+  }
+  {
+    const auto ftor = [=](float *, simd<float, 3>, simd<int, 5>) {
+      simd<float, 8> val{ch};
+      return uniform{val};
+    };
+    auto u = invoke_simd(sg, ftor, uniform{ptr}, uniform{simd<float, 3>{1}},
+                         uniform{simd<int, 5>{2}});
+    static_assert(std::is_same_v<decltype(u), uniform<simd<float, 8>>>);
+  }
+  {
+    const auto ftor = [=](simd<float, 3>, simd<int, 8>) {
+      return simd<short, 8>{};
+    };
+    auto v = invoke_simd(sg, ftor, uniform{simd<float, 3>{1}}, 1);
+    static_assert(std::is_same_v<decltype(v), short>);
+  }
+}
+
+// Function-pointer-based test
+SYCL_EXTERNAL auto barx(sub_group sg, float a, char ch,
+                        __regcall char(f)(simd<float, 16>, float)) {
+  auto x = invoke_simd(sg, f, 1.f, uniform{a});
+  static_assert(std::is_same_v<decltype(x), uniform<char>>);
 }

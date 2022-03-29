@@ -11,6 +11,7 @@
 
 #pragma once
 
+// SYCL extension macro definition as required by the SYCL specification.
 // 1 - Initial extension version. Base features are supported.
 #define SYCL_EXT_ONEAPI_UNIFORM 1
 
@@ -69,6 +70,12 @@ template <class T> class uniform {
 
 public:
   explicit uniform(T x) noexcept : Val(x) {}
+
+  // TODO provide a ways to reflect this conversion from uniform to T in the IR
+  // so that the compiler can take advantage of uniformness. Could be marked
+  // with some intrinsic call like `__builtin_uniform_unwrap(Val);`
+
+  /// Implicit conversion to the underlying type.
   operator const T() const { return Val; }
 
   uniform &operator=(const uniform &) = delete;
