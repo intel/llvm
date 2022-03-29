@@ -47,6 +47,15 @@ objects and `copy_to` intrinsics are used which are avaiable only in the ESIMD e
 Full runnable code sample can be found on the
 [github repo](https://github.com/intel/llvm-test-suite/blob/intel/SYCL/ESIMD/vadd_usm.cpp).
 
+#### ESIMD_EMULATOR backend
+
+Under Linux environment, ESIMD kernels can run on CPU with
+ESIMD_EMULATOR backend without any hardware support. This means
+generated kernels can run like normal x86_64 Linux applications with
+debugger attached. Limitations are applied, such as limitation on
+number of software threads each of which emulates one hardware thread,
+or online-compilation.
+
 #### Compiling and running ESIMD code.
 
 Code that uses the ESIMD extension can be compiled and run using the same commands
@@ -61,14 +70,21 @@ To compile using Intel(R) OneAPI Toolkit:
 To run on an Intel GPU device through the Level Zero backend:
 > `$ SYCL_DEVICE_FILTER=level_zero:gpu ./a.out`
 
-The resulting executable (`a.out`) can only be run on Intel GPU hardware, such as
-Intel(R) UHD Graphics 600 or later. The DPC++ runtime automatically recognizes ESIMD
-kernels and dispatches their execution, so no additional setup is needed. Both Linux
-and Windows platforms are supported, including OpenCL and Level Zero backends.
+To run on an ESIMD_EMULATOR backend:
+> `$ SYCL_DEVICE_FILTER=ext_intel_esimd_emulator:gpu ./a.out`
 
-Regular SYCL and ESIMD kernels can co-exist in the same translation unit and in
-the same application, however interoperability (e.g. invocation of ESIMD
-functions from a standard SYCL code) between them is not yet supported.
+The resulting executable (`a.out`) can be run on either Intel GPU
+hardware, such as Intel(R) UHD Graphics 600 or later, or
+ESIMD_EMULATOR backend. The DPC++ runtime automatically recognizes
+ESIMD kernels and dispatches their execution, so no additional setup
+is needed. For OpenCL and Level Zero backends, both Linux and Windows
+platforms are supported. ESIMD_EMULATOR backend supports only Linux.
+
+For OpenCL and Level Zero backends, regular SYCL and ESIMD kernels can
+co-exist in the same translation unit and in the same application,
+however interoperability (e.g. invocation of ESIMD functions from a
+standard SYCL code) between them is not yet supported. ESIMD_EMULATOR
+supports only ESIMD kernels.
 
 #### Restrictions
 
@@ -76,8 +92,6 @@ This section contains lists of the main restrictions that apply when using the E
 extension.
 > **Note**: Some restrictions are not enforced by the compiler, which may lead to
 > undefined program behavior if violated.
-
-
 
 ##### Features not supported with ESIMD extension:
 - The [C and C++ Standard libraries support](../supported/C-CXX-StandardLibrary.rst)
@@ -95,6 +109,6 @@ done via explicit APIs; e.g. `sycl::ext::intel::experimental::esimd::block_store
 - `sycl::sampler` and `sycl::stream` classes
 
 ##### Other restrictions:
-- Only Intel GPU device is supported
+- For running ESIMD kernels on actual hardware, only Intel GPU device is supported
 - Interoperability between regular SYCL and ESIMD kernels is not yet supported.
   I.e., it's not possible to invoke an ESIMD kernel from SYCL kernel and vice-versa.
