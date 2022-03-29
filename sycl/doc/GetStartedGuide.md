@@ -178,7 +178,12 @@ the system, refer to
 or
 [NVIDIA CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html)
 
-**_NOTE:_** An installation of at least [CUDA 11.6](https://developer.nvidia.com/cuda-downloads) is recommended because there is a known issue with some math builtins when using -O1/O2/O3 Optimization options for CUDA toolkits prior to 11.6 (This is due to a bug in earlier versions of the CUDA toolkit: see [this issue](https://forums.developer.nvidia.com/t/libdevice-functions-causing-ptxas-segfault/193352).
+**_NOTE:_** An installation of at least
+[CUDA 11.6](https://developer.nvidia.com/cuda-downloads) is recommended because
+there is a known issue with some math builtins when using -O1/O2/O3
+Optimization options for CUDA toolkits prior to 11.6 (This is due to a bug in
+earlier versions of the CUDA toolkit: see
+[this issue](https://forums.developer.nvidia.com/t/libdevice-functions-causing-ptxas-segfault/193352).
 
 An installation of at least
 [CUDA 11.0](https://developer.nvidia.com/cuda-11.0-download-archive)
