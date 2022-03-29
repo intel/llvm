@@ -21,10 +21,14 @@ constexpr auto Backend = sycl::backend::ext_oneapi_level_zero;
 
 #ifdef USE_CUDA
 #include <CL/sycl/detail/backend_traits_cuda.hpp>
+
+constexpr auto Backend = sycl::backend::ext_oneapi_cuda;
+#endif
+
 #ifdef USE_HIP
 #include <CL/sycl/detail/backend_traits_hip.hpp>
 
-constexpr auto Backend = sycl::backend::ext_oneapi_cuda;
+constexpr auto Backend = sycl::backend::ext_oneapi_hip;
 #endif
 
 #include <sycl/sycl.hpp>
