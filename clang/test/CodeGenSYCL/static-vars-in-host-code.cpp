@@ -17,7 +17,6 @@
 // CHECK: define{{.*}}@_Z3fooi(i32 noundef %In)
 // CHECK-NOT: define{{.*}}@main()
 
-
 template <class T> struct S {
   static const T Member = 1;
   int Parrots = 38;
