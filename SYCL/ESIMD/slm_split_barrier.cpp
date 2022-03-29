@@ -69,9 +69,9 @@ void load_to_slm(uint grpSize, uint localId, uint slmOffset, char *addr,
   }
 
   esimd::fence(fence_mask::global_coherent_fence);
-  experimental::esimd::sbarrier(
+  experimental::esimd::split_barrier(
       experimental::esimd::split_barrier_action::signal);
-  experimental::esimd::sbarrier(
+  experimental::esimd::split_barrier(
       experimental::esimd::split_barrier_action::wait);
 }
 
