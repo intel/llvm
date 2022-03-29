@@ -180,7 +180,7 @@ static CoroMachinery setupCoroMachinery(FuncOp func) {
   // `async.await` op lowering will create resume blocks for async
   // continuations, and will conditionally branch to cleanup or suspend blocks.
 
-  for (Block &block : func.body().getBlocks()) {
+  for (Block &block : func.getBody().getBlocks()) {
     if (&block == entryBlock || &block == cleanupBlock ||
         &block == suspendBlock)
       continue;
@@ -614,7 +614,8 @@ static CoroMachinery rewriteFuncAsCoroutine(FuncOp func) {
   resultTypes.reserve(func.getCallableResults().size());
   llvm::transform(func.getCallableResults(), std::back_inserter(resultTypes),
                   [](Type type) { return ValueType::get(type); });
-  func.setType(FunctionType::get(ctx, func.getType().getInputs(), resultTypes));
+  func.setType(
+      FunctionType::get(ctx, func.getFunctionType().getInputs(), resultTypes));
   func.insertResult(0, TokenType::get(ctx), {});
   for (Block &block : func.getBlocks()) {
     Operation *terminator = block.getTerminator();
@@ -677,7 +678,7 @@ funcsToCoroutines(ModuleOp module,
     // this dict between the passes is ugly.
     if (isAllowedToBlock(func) ||
         outlinedFunctions.find(func) == outlinedFunctions.end()) {
-      for (Operation &op : func.body().getOps()) {
+      for (Operation &op : func.getBody().getOps()) {
         if (dyn_cast<AwaitOp>(op) || dyn_cast<AwaitAllOp>(op)) {
           funcWorklist.push_back(func);
           break;

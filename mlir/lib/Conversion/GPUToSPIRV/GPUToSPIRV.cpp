@@ -55,7 +55,8 @@ public:
 /// attribute on the surrounding FuncOp is used to replace the gpu::BlockDimOp.
 class WorkGroupSizeConversion : public OpConversionPattern<gpu::BlockDimOp> {
 public:
-  using OpConversionPattern<gpu::BlockDimOp>::OpConversionPattern;
+  WorkGroupSizeConversion(TypeConverter &typeConverter, MLIRContext *context)
+      : OpConversionPattern(typeConverter, context, /*benefit*/ 10) {}
 
   LogicalResult
   matchAndRewrite(gpu::BlockDimOp op, OpAdaptor adaptor,
@@ -159,6 +160,9 @@ LogicalResult WorkGroupSizeConversion::matchAndRewrite(
     gpu::BlockDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto workGroupSizeAttr = spirv::lookupLocalWorkGroupSize(op);
+  if (!workGroupSizeAttr)
+    return failure();
+
   auto val = workGroupSizeAttr
                  .getValues<int32_t>()[static_cast<int32_t>(op.dimension())];
   auto convertedType =
@@ -180,7 +184,7 @@ lowerAsEntryFunction(gpu::GPUFuncOp funcOp, TypeConverter &typeConverter,
                      ConversionPatternRewriter &rewriter,
                      spirv::EntryPointABIAttr entryPointInfo,
                      ArrayRef<spirv::InterfaceVarABIAttr> argABIInfo) {
-  auto fnType = funcOp.getType();
+  auto fnType = funcOp.getFunctionType();
   if (fnType.getNumResults()) {
     funcOp.emitError("SPIR-V lowering only supports entry functions"
                      "with no return values right now");
@@ -197,7 +201,8 @@ lowerAsEntryFunction(gpu::GPUFuncOp funcOp, TypeConverter &typeConverter,
   // LowerABIAttributesPass.
   TypeConverter::SignatureConversion signatureConverter(fnType.getNumInputs());
   {
-    for (const auto &argType : enumerate(funcOp.getType().getInputs())) {
+    for (const auto &argType :
+         enumerate(funcOp.getFunctionType().getInputs())) {
       auto convertedType = typeConverter.convertType(argType.value());
       signatureConverter.addInputs(argType.index(), convertedType);
     }
@@ -366,8 +371,11 @@ void mlir::populateGPUToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
       GPUModuleEndConversion, GPUReturnOpConversion,
       LaunchConfigConversion<gpu::BlockIdOp, spirv::BuiltIn::WorkgroupId>,
       LaunchConfigConversion<gpu::GridDimOp, spirv::BuiltIn::NumWorkgroups>,
+      LaunchConfigConversion<gpu::BlockDimOp, spirv::BuiltIn::WorkgroupSize>,
       LaunchConfigConversion<gpu::ThreadIdOp,
                              spirv::BuiltIn::LocalInvocationId>,
+      LaunchConfigConversion<gpu::GlobalIdOp,
+                             spirv::BuiltIn::GlobalInvocationId>,
       SingleDimLaunchConfigConversion<gpu::SubgroupIdOp,
                                       spirv::BuiltIn::SubgroupId>,
       SingleDimLaunchConfigConversion<gpu::NumSubgroupsOp,

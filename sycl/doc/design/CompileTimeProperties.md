@@ -6,7 +6,7 @@ specifying properties which are known at compile time.  This extension is not
 itself a feature, but rather a building block that can be incorporated into
 other features.
 
-[1]: <../extensions/proposed/sycl_ext_oneapi_properties.asciidoc>
+[1]: <../extensions/experimental/sycl_ext_oneapi_properties.asciidoc>
 
 There are a number of situations where we plan to use compile-time constant
 properties, but this design document does not attempt to address them all.
@@ -274,7 +274,7 @@ the [sycl\_ext\_oneapi\_properties][8] extension.  There are two ways the
 application can specify these properties.  The first is by passing a
 `property_list` parameter to the function that submits the kernel:
 
-[8]: <../extensions/proposed/sycl_ext_oneapi_properties.asciidoc>
+[8]: <../extensions/experimental/sycl_ext_oneapi_properties.asciidoc>
 
 ```
 namespace sycl {

@@ -1175,14 +1175,27 @@ def BUFFER_WBINVL1_VOL : MUBUF_Invalidate <"buffer_wbinvl1_vol",
 
 let SubtargetPredicate = isGFX90APlus in {
   def BUFFER_WBL2  : MUBUF_Invalidate<"buffer_wbl2"> {
+    let has_glc = 1;
+    let has_sccb = 1;
+    let InOperandList = (ins CPol_0:$cpol);
+    let AsmOperands = "$cpol";
   }
   def BUFFER_INVL2 : MUBUF_Invalidate<"buffer_invl2"> {
+    let SubtargetPredicate = isGFX90AOnly;
   }
 
   defm BUFFER_ATOMIC_ADD_F64 : MUBUF_Pseudo_Atomics<"buffer_atomic_add_f64", VReg_64, f64, int_amdgcn_global_atomic_fadd>;
   defm BUFFER_ATOMIC_MIN_F64 : MUBUF_Pseudo_Atomics<"buffer_atomic_min_f64", VReg_64, f64, int_amdgcn_global_atomic_fmin>;
   defm BUFFER_ATOMIC_MAX_F64 : MUBUF_Pseudo_Atomics<"buffer_atomic_max_f64", VReg_64, f64, int_amdgcn_global_atomic_fmax>;
 } // End SubtargetPredicate = isGFX90APlus
+
+def BUFFER_INV : MUBUF_Invalidate<"buffer_inv"> {
+  let SubtargetPredicate = isGFX940Plus;
+  let has_glc = 1;
+  let has_sccb = 1;
+  let InOperandList = (ins CPol_0:$cpol);
+  let AsmOperands = "$cpol";
+}
 
 let SubtargetPredicate = isGFX10Plus in {
   def BUFFER_GL0_INV : MUBUF_Invalidate<"buffer_gl0_inv">;
@@ -1386,6 +1399,37 @@ multiclass BufferAtomicPat<string OpPrefix, ValueType vt, string Inst> {
   } // end foreach RtnMode
 }
 
+multiclass BufferAtomicCmpSwapPat<ValueType vt, ValueType data_vt, string Inst> {
+  foreach RtnMode = ["ret", "noret"] in {
+
+  defvar Op = !cast<SDPatternOperator>("AMDGPUatomic_cmp_swap_global_" # RtnMode
+                                       # "_" # vt.Size);
+  defvar InstSuffix = !if(!eq(RtnMode, "ret"), "_RTN", "");
+
+  defvar OffsetResDag = (!cast<MUBUF_Pseudo>(Inst # "_OFFSET" # InstSuffix)
+    getVregSrcForVT<data_vt>.ret:$vdata_in, SReg_128:$srsrc, SCSrc_b32:$soffset,
+    offset:$offset);
+  def : Pat<
+    (vt (Op (MUBUFOffset v4i32:$srsrc, i32:$soffset, i16:$offset), data_vt:$vdata_in)),
+    !if(!eq(RtnMode, "ret"),
+      (EXTRACT_SUBREG OffsetResDag, !if(!eq(vt, i32), sub0, sub0_sub1)),
+      OffsetResDag)
+  >;
+
+  defvar Addr64ResDag = (!cast<MUBUF_Pseudo>(Inst # "_ADDR64" # InstSuffix)
+    getVregSrcForVT<data_vt>.ret:$vdata_in, VReg_64:$vaddr, SReg_128:$srsrc,
+    SCSrc_b32:$soffset, offset:$offset);
+  def : Pat<
+    (vt (Op (MUBUFAddr64 v4i32:$srsrc, i64:$vaddr, i32:$soffset, i16:$offset),
+      data_vt:$vdata_in)),
+    !if(!eq(RtnMode, "ret"),
+      (EXTRACT_SUBREG Addr64ResDag, !if(!eq(vt, i32), sub0, sub0_sub1)),
+      Addr64ResDag)
+  >;
+
+  } // end foreach RtnMode
+}
+
 foreach Ty = [i32, i64] in {
 
 defvar Suffix = !if(!eq(Ty, i64), "_X2", "");
@@ -1404,6 +1448,9 @@ defm : BufferAtomicPat<"atomic_inc_global", Ty, "BUFFER_ATOMIC_INC" # Suffix>;
 defm : BufferAtomicPat<"atomic_dec_global", Ty, "BUFFER_ATOMIC_DEC" # Suffix>;
 
 } // end foreach Ty
+
+defm : BufferAtomicCmpSwapPat<i32, v2i32, "BUFFER_ATOMIC_CMPSWAP">;
+defm : BufferAtomicCmpSwapPat<i64, v2i64, "BUFFER_ATOMIC_CMPSWAP_X2">;
 
 multiclass SIBufferAtomicPat<string OpPrefix, ValueType vt, string Inst,
                              list<string> RtnModes = ["ret", "noret"]> {
@@ -2366,9 +2413,28 @@ class MUBUF_Real_gfx90a <bits<7> op, MUBUF_Pseudo ps,
   let Inst{55}    = acc;
 }
 
+class MUBUF_Real_gfx940 <bits<7> op, MUBUF_Pseudo ps> :
+  MUBUF_Real_Base_vi<op, ps, SIEncodingFamily.GFX940> {
+  let AssemblerPredicate = isGFX940Plus;
+  let DecoderNamespace = "GFX9";
+  let AsmString = ps.Mnemonic # !subst("$tfe", "", ps.AsmOperands);
+
+  let Inst{55} = acc;
+}
+
 multiclass MUBUF_Real_vi_gfx90a<bits<7> op, MUBUF_Pseudo ps> {
   def _vi :     MUBUF_Real_vi<op, ps>;
-  def _gfx90a : MUBUF_Real_gfx90a<op, ps, !and(ps.has_sccb,!not(ps.FPAtomic))>;
+
+  foreach _ = BoolToList<!not(ps.FPAtomic)>.ret in
+    def _gfx90a : MUBUF_Real_gfx90a<op, ps>;
+
+  foreach _ = BoolToList<ps.FPAtomic>.ret in {
+    def _gfx90a : MUBUF_Real_gfx90a<op, ps, 0> {
+      let SubtargetPredicate = isGFX90AOnly;
+      let AssemblerPredicate = isGFX90AOnly;
+    }
+    def _gfx940 : MUBUF_Real_gfx940<op, ps>;
+  }
 }
 
 multiclass MUBUF_Real_AllAddr_vi<bits<7> op> {
@@ -2558,8 +2624,16 @@ let SubtargetPredicate = isGFX90APlus in {
 } // End SubtargetPredicate = isGFX90APlus, AssemblerPredicate = isGFX90APlus
 
 def BUFFER_WBL2_gfx90a  : MUBUF_Real_gfx90a<0x28, BUFFER_WBL2> {
+  let AsmString = BUFFER_WBL2.Mnemonic; // drop flags
+  let AssemblerPredicate = isGFX90AOnly;
+  let SubtargetPredicate = isGFX90AOnly;
 }
 def BUFFER_INVL2_gfx90a : MUBUF_Real_gfx90a<0x29, BUFFER_INVL2>;
+
+let SubtargetPredicate = isGFX940Plus in {
+def BUFFER_WBL2_gfx940  : MUBUF_Real_gfx940<0x28, BUFFER_WBL2>;
+def BUFFER_INV_gfx940   : MUBUF_Real_gfx940<0x29, BUFFER_INV>;
+}
 
 class MTBUF_Real_Base_vi <bits<4> op, MTBUF_Pseudo ps, int Enc> :
   MTBUF_Real<ps>,

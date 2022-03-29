@@ -181,6 +181,12 @@ func @simpleCFGUsingBBArgs(i32, i64) {
 // CHECK: }
 }
 
+// CHECK-LABEL: func @block_label_empty_list
+func @block_label_empty_list() {
+^bb0():
+  return
+}
+
 // CHECK-LABEL: func @multiblock() {
 func @multiblock() {
   return     // CHECK:   return
@@ -1410,7 +1416,7 @@ test.graph_region {
   %1 = "foo"(%1, %2) : (i64, i64) -> i64
   %2 = "bar"(%1) : (i64) -> i64
   "unregistered_terminator"() : () -> ()
-}) {sym_name = "unregistered_op_dominance_violation_ok", type = () -> i1} : () -> ()
+}) {sym_name = "unregistered_op_dominance_violation_ok", function_type = () -> i1} : () -> ()
 
 // This is an unregister operation, the printing/parsing is handled by the dialect.
 // CHECK: test.dialect_custom_printer custom_format

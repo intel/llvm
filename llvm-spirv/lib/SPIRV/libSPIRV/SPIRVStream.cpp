@@ -121,6 +121,15 @@ template <class T> const SPIRVEncoder &encode(const SPIRVEncoder &O, T V) {
   return O << static_cast<SPIRVWord>(V);
 }
 
+template <>
+const SPIRVEncoder &operator<<(const SPIRVEncoder &O, SPIRVType *P) {
+  if (!P->hasId() && P->getOpCode() == OpTypeForwardPointer)
+    return O << static_cast<SPIRVTypeForwardPointer *>(
+                    static_cast<SPIRVEntry *>(P))
+                    ->getPointerId();
+  return O << P->getId();
+}
+
 #define SPIRV_DEF_ENCDEC(Type)                                                 \
   const SPIRVDecoder &operator>>(const SPIRVDecoder &I, Type &V) {             \
     return decode(I, V);                                                       \

@@ -101,10 +101,10 @@ struct TransferrableTargetInfo {
   unsigned char AccumScale;
   unsigned char LongAccumScale;
 
-  unsigned char SuitableAlign;
   unsigned char DefaultAlignForAttributeAligned;
   unsigned char MinGlobalAlign;
 
+  unsigned short SuitableAlign;
   unsigned short NewAlign;
   unsigned MaxVectorAlign;
   unsigned MaxTLSAlign;
@@ -1371,6 +1371,13 @@ public:
 
   // Get the character to be added for mangling purposes for cpu_specific.
   virtual char CPUSpecificManglingCharacter(StringRef Name) const {
+    llvm_unreachable(
+        "cpu_specific Multiversioning not implemented on this target");
+  }
+
+  // Get the value for the 'tune-cpu' flag for a cpu_specific variant with the
+  // programmer-specified 'Name'.
+  virtual StringRef getCPUSpecificTuneName(StringRef Name) const {
     llvm_unreachable(
         "cpu_specific Multiversioning not implemented on this target");
   }

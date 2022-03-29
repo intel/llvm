@@ -1117,10 +1117,8 @@ private:
       // callbacks.
       SmallVector<Value *, 8> Args;
       for (auto *CI : MergableCIs) {
-        Value *Callee =
-            CI->getArgOperand(CallbackCalleeOperand)->stripPointerCasts();
-        FunctionType *FT =
-            cast<FunctionType>(Callee->getType()->getPointerElementType());
+        Value *Callee = CI->getArgOperand(CallbackCalleeOperand);
+        FunctionType *FT = OMPInfoCache.OMPBuilder.ParallelTask;
         Args.clear();
         Args.push_back(OutlinedFn->getArg(0));
         Args.push_back(OutlinedFn->getArg(1));
@@ -2800,7 +2798,7 @@ struct AAExecutionDomainFunction : public AAExecutionDomain {
   SmallSetVector<const BasicBlock *, 16> SingleThreadedBBs;
 
   /// Total number of basic blocks in this function.
-  long unsigned NumBBs;
+  long unsigned NumBBs = 0;
 };
 
 ChangeStatus AAExecutionDomainFunction::updateImpl(Attributor &A) {
@@ -2963,6 +2961,11 @@ struct AAHeapToSharedFunction : public AAHeapToShared {
   }
 
   void initialize(Attributor &A) override {
+    if (DisableOpenMPOptDeglobalization) {
+      indicatePessimisticFixpoint();
+      return;
+    }
+
     auto &OMPInfoCache = static_cast<OMPInformationCache &>(A.getInfoCache());
     auto &RFI = OMPInfoCache.RFIs[OMPRTL___kmpc_alloc_shared];
 

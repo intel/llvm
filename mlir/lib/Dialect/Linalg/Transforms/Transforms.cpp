@@ -13,6 +13,7 @@
 
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/HoistPadding.h"
@@ -549,7 +550,8 @@ mlir::linalg::LinalgTileAndFuseTensorOpsPattern::
     : RewritePattern(opName, benefit, context), filter(std::move(f)),
       options(std::move(options)) {}
 
-LogicalResult mlir::linalg::LinalgTileAndFuseTensorOpsPattern::matchAndRewrite(
+FailureOr<mlir::linalg::TileLoopNest>
+mlir::linalg::LinalgTileAndFuseTensorOpsPattern::returningMatchAndRewrite(
     Operation *op, PatternRewriter &rewriter) const {
   LinalgOp rootOp = dyn_cast<LinalgOp>(op);
   if (!rootOp)
@@ -604,7 +606,7 @@ LogicalResult mlir::linalg::LinalgTileAndFuseTensorOpsPattern::matchAndRewrite(
   // Apply the filter if specified.
   for (LinalgOp linalgOp : tileLoopNest->getAllTiledAndFusedOps())
     filter.replaceLinalgTransformationFilter(rewriter, linalgOp);
-  return success();
+  return tileLoopNest;
 }
 
 /// Linalg generic interchange pattern.
@@ -782,8 +784,10 @@ PadOpTransformationPattern::matchAndRewrite(tensor::PadOp padOp,
       loc, resultShapedType.getShape(), resultShapedType.getElementType());
 
   // Initialize tensor with the pad value
-  Value tmpTensor =
-      rewriter.create<linalg::FillOp>(loc, padValue, initTensor).result();
+  Value tmpTensor = rewriter
+                        .create<linalg::FillOp>(loc, ValueRange{padValue},
+                                                ValueRange{initTensor})
+                        .result();
 
   // Copy original contents into new tensor
   // Uses linalg.generic, but could be done with tensor.insert_slice

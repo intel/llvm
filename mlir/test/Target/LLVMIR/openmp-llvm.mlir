@@ -663,6 +663,48 @@ llvm.func @test_omp_wsloop_guided_simd(%lb : i64, %ub : i64, %step : i64) -> () 
 
 // -----
 
+// CHECK-LABEL: @simdloop_simple
+llvm.func @simdloop_simple(%lb : i64, %ub : i64, %step : i64, %arg0: !llvm.ptr<f32>) {
+  "omp.simdloop" (%lb, %ub, %step) ({
+    ^bb0(%iv: i64):
+      %3 = llvm.mlir.constant(2.000000e+00 : f32) : f32
+      // The form of the emitted IR is controlled by OpenMPIRBuilder and
+      // tested there. Just check that the right metadata is added.
+      // CHECK: llvm.access.group
+      %4 = llvm.getelementptr %arg0[%iv] : (!llvm.ptr<f32>, i64) -> !llvm.ptr<f32>
+      llvm.store %3, %4 : !llvm.ptr<f32>
+      omp.yield
+  }) {operand_segment_sizes = dense<[1,1,1]> : vector<3xi32>} :
+    (i64, i64, i64) -> () 
+
+  llvm.return
+}
+// CHECK: llvm.loop.parallel_accesses
+// CHECK-NEXT: llvm.loop.vectorize.enable
+
+// -----
+
+// CHECK-LABEL: @simdloop_simple_multiple
+llvm.func @simdloop_simple_multiple(%lb1 : i64, %ub1 : i64, %step1 : i64, %lb2 : i64, %ub2 : i64, %step2 : i64, %arg0: !llvm.ptr<f32>, %arg1: !llvm.ptr<f32>) {
+  omp.simdloop (%iv1, %iv2) : i64 = (%lb1, %lb2) to (%ub1, %ub2) step (%step1, %step2) {
+    %3 = llvm.mlir.constant(2.000000e+00 : f32) : f32
+    // The form of the emitted IR is controlled by OpenMPIRBuilder and
+    // tested there. Just check that the right metadata is added.
+    // CHECK: llvm.access.group
+    // CHECK-NEXT: llvm.access.group
+    %4 = llvm.getelementptr %arg0[%iv1] : (!llvm.ptr<f32>, i64) -> !llvm.ptr<f32>
+    %5 = llvm.getelementptr %arg1[%iv2] : (!llvm.ptr<f32>, i64) -> !llvm.ptr<f32>
+    llvm.store %3, %4 : !llvm.ptr<f32>
+    llvm.store %3, %5 : !llvm.ptr<f32>
+    omp.yield
+  } 
+  llvm.return
+}
+// CHECK: llvm.loop.parallel_accesses
+// CHECK-NEXT: llvm.loop.vectorize.enable
+
+// -----
+
 omp.critical.declare @mutex hint(contended)
 
 // CHECK-LABEL: @omp_critical
@@ -928,6 +970,85 @@ llvm.func @omp_atomic_write(%x: !llvm.ptr<i32>, %expr: i32) -> () {
   omp.atomic.write %x = %expr memory_order(release) : !llvm.ptr<i32>, i32
   // CHECK: store atomic i32 %[[expr]], i32* %[[x]] monotonic, align 4
   omp.atomic.write %x = %expr memory_order(relaxed) : !llvm.ptr<i32>, i32
+  llvm.return
+}
+
+// -----
+
+// Checking simple atomicrmw and cmpxchg based translation. This also checks for
+// ambigous alloca insert point by putting llvm.mul as the first update operation.
+// CHECK-LABEL: @omp_atomic_update
+// CHECK-SAME: (i32* %[[x:.*]], i32 %[[expr:.*]], i1* %[[xbool:.*]], i1 %[[exprbool:.*]])
+llvm.func @omp_atomic_update(%x:!llvm.ptr<i32>, %expr: i32, %xbool: !llvm.ptr<i1>, %exprbool: i1) {
+  // CHECK: %[[t1:.*]] = mul i32 %[[x_old:.*]], %[[expr]]
+  // CHECK: store i32 %[[t1]], i32* %[[x_new:.*]]
+  // CHECK: %[[t2:.*]] = load i32, i32* %[[x_new]]
+  // CHECK: cmpxchg i32* %[[x]], i32 %[[x_old]], i32 %[[t2]]
+  omp.atomic.update %x : !llvm.ptr<i32> {
+  ^bb0(%xval: i32):
+    %newval = llvm.mul %xval, %expr : i32
+    omp.yield(%newval : i32)
+  }
+  // CHECK: atomicrmw add i32* %[[x]], i32 %[[expr]] monotonic
+  omp.atomic.update %x : !llvm.ptr<i32> {
+  ^bb0(%xval: i32):
+    %newval = llvm.add %xval, %expr : i32
+    omp.yield(%newval : i32)
+  }
+  llvm.return
+}
+
+// -----
+
+// Checking an order-dependent operation when the order is `expr binop x`
+// CHECK-LABEL: @omp_atomic_update_ordering
+// CHECK-SAME: (i32* %[[x:.*]], i32 %[[expr:.*]])
+llvm.func @omp_atomic_update_ordering(%x:!llvm.ptr<i32>, %expr: i32) {
+  // CHECK: %[[t1:.*]] = shl i32 %[[expr]], %[[x_old:[^ ,]*]]
+  // CHECK: store i32 %[[t1]], i32* %[[x_new:.*]]
+  // CHECK: %[[t2:.*]] = load i32, i32* %[[x_new]]
+  // CHECK: cmpxchg i32* %[[x]], i32 %[[x_old]], i32 %[[t2]]
+  omp.atomic.update %x : !llvm.ptr<i32> {
+  ^bb0(%xval: i32):
+    %newval = llvm.shl %expr, %xval : i32
+    omp.yield(%newval : i32)
+  }
+  llvm.return
+}
+
+// -----
+
+// Checking an order-dependent operation when the order is `x binop expr`
+// CHECK-LABEL: @omp_atomic_update_ordering
+// CHECK-SAME: (i32* %[[x:.*]], i32 %[[expr:.*]])
+llvm.func @omp_atomic_update_ordering(%x:!llvm.ptr<i32>, %expr: i32) {
+  // CHECK: %[[t1:.*]] = shl i32 %[[x_old:.*]], %[[expr]]
+  // CHECK: store i32 %[[t1]], i32* %[[x_new:.*]]
+  // CHECK: %[[t2:.*]] = load i32, i32* %[[x_new]]
+  // CHECK: cmpxchg i32* %[[x]], i32 %[[x_old]], i32 %[[t2]] monotonic
+  omp.atomic.update %x : !llvm.ptr<i32> {
+  ^bb0(%xval: i32):
+    %newval = llvm.shl %xval, %expr : i32
+    omp.yield(%newval : i32)
+  }
+  llvm.return
+}
+
+// -----
+
+// Checking intrinsic translation.
+// CHECK-LABEL: @omp_atomic_update_intrinsic
+// CHECK-SAME: (i32* %[[x:.*]], i32 %[[expr:.*]])
+llvm.func @omp_atomic_update_intrinsic(%x:!llvm.ptr<i32>, %expr: i32) {
+  // CHECK: %[[t1:.*]] = call i32 @llvm.smax.i32(i32 %[[x_old:.*]], i32 %[[expr]])
+  // CHECK: store i32 %[[t1]], i32* %[[x_new:.*]]
+  // CHECK: %[[t2:.*]] = load i32, i32* %[[x_new]]
+  // CHECK: cmpxchg i32* %[[x]], i32 %[[x_old]], i32 %[[t2]]
+  omp.atomic.update %x : !llvm.ptr<i32> {
+  ^bb0(%xval: i32):
+    %newval = "llvm.intr.smax"(%xval, %expr) : (i32, i32) -> i32
+    omp.yield(%newval : i32)
+  }
   llvm.return
 }
 

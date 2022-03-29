@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "bolt/Passes/LongJmp.h"
-#include "llvm/Support/Alignment.h"
 
 #define DEBUG_TYPE "longjmp"
 
@@ -19,10 +18,9 @@ using namespace llvm;
 
 namespace opts {
 extern cl::OptionCategory BoltOptCategory;
-
-extern cl::opt<bool> UseOldText;
+extern llvm::cl::opt<unsigned> AlignText;
 extern cl::opt<unsigned> AlignFunctions;
-extern cl::opt<unsigned> AlignFunctionsMaxBytes;
+extern cl::opt<bool> UseOldText;
 extern cl::opt<bool> HotFunctionsAtEnd;
 
 static cl::opt<bool>
@@ -297,13 +295,14 @@ void LongJmpPass::tentativeBBLayout(const BinaryFunction &Func) {
 uint64_t LongJmpPass::tentativeLayoutRelocColdPart(
     const BinaryContext &BC, std::vector<BinaryFunction *> &SortedFunctions,
     uint64_t DotAddress) {
+  DotAddress = alignTo(DotAddress, llvm::Align(opts::AlignFunctions));
   for (BinaryFunction *Func : SortedFunctions) {
     if (!Func->isSplit())
       continue;
     DotAddress = alignTo(DotAddress, BinaryFunction::MinAlign);
     uint64_t Pad =
-        offsetToAlignment(DotAddress, llvm::Align(opts::AlignFunctions));
-    if (Pad <= opts::AlignFunctionsMaxBytes)
+        offsetToAlignment(DotAddress, llvm::Align(Func->getAlignment()));
+    if (Pad <= Func->getMaxColdAlignmentBytes())
       DotAddress += Pad;
     ColdAddresses[Func] = DotAddress;
     LLVM_DEBUG(dbgs() << Func->getPrintName() << " cold tentative: "
@@ -344,13 +343,13 @@ uint64_t LongJmpPass::tentativeLayoutRelocMode(
           tentativeLayoutRelocColdPart(BC, SortedFunctions, DotAddress);
       ColdLayoutDone = true;
       if (opts::HotFunctionsAtEnd)
-        DotAddress = alignTo(DotAddress, BC.PageAlign);
+        DotAddress = alignTo(DotAddress, opts::AlignText);
     }
 
     DotAddress = alignTo(DotAddress, BinaryFunction::MinAlign);
     uint64_t Pad =
-        offsetToAlignment(DotAddress, llvm::Align(opts::AlignFunctions));
-    if (Pad <= opts::AlignFunctionsMaxBytes)
+        offsetToAlignment(DotAddress, llvm::Align(Func->getAlignment()));
+    if (Pad <= Func->getMaxAlignmentBytes())
       DotAddress += Pad;
     HotAddresses[Func] = DotAddress;
     LLVM_DEBUG(dbgs() << Func->getPrintName() << " tentative: "
@@ -392,11 +391,11 @@ void LongJmpPass::tentativeLayout(
   // Initial padding
   if (opts::UseOldText && EstimatedTextSize <= BC.OldTextSectionSize) {
     DotAddress = BC.OldTextSectionAddress;
-    uint64_t Pad = offsetToAlignment(DotAddress, llvm::Align(BC.PageAlign));
+    uint64_t Pad = offsetToAlignment(DotAddress, llvm::Align(opts::AlignText));
     if (Pad + EstimatedTextSize <= BC.OldTextSectionSize)
       DotAddress += Pad;
   } else {
-    DotAddress = alignTo(BC.LayoutStartAddress, BC.PageAlign);
+    DotAddress = alignTo(BC.LayoutStartAddress, opts::AlignText);
   }
 
   tentativeLayoutRelocMode(BC, SortedFunctions, DotAddress);
