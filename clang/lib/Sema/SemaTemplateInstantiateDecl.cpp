@@ -1568,7 +1568,8 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
   if (!InstantiatingVarTemplate) {
     SemaRef.addSyclVarDecl(Var);
     if (SemaRef.getLangOpts().SYCLIsDevice) {
-      if (SemaRef.isDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(Var->getType())) {
+      if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+              Var->getType())) {
         if (!Var->hasGlobalStorage() || Var->isLocalVarDeclOrParm()) {
           SemaRef.Diag(D->getLocation(),
                        diag::err_sycl_device_global_incorrect_scope);
@@ -1680,7 +1681,8 @@ Decl *TemplateDeclInstantiator::VisitFieldDecl(FieldDecl *D) {
   // global without checking access modifier.
   if (SemaRef.getLangOpts().SYCLIsDevice) {
     if (auto Value = dyn_cast<ValueDecl>(Field)) {
-      if (SemaRef.isDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(Value->getType())) {
+      if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+              Value->getType())) {
         SemaRef.Diag(D->getLocation(),
                      diag::err_sycl_device_global_incorrect_scope)
             << Value;
