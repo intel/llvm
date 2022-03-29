@@ -117,6 +117,14 @@ public:
   void expandVEDWithSYCLTypeSRetArg(Function *F);
   void expandVIDWithSYCLTypeByValComp(Function *F);
 
+  // According to the specification, the operands of a shift instruction must be
+  // a scalar/vector of integer. When LLVM-IR contains a shift instruction with
+  // i1 operands, they are treated as a bool. We need to extend them to i32 to
+  // comply with the specification. For example: "%shift = lshr i1 0, 1";
+  // The bit instruction should be changed to the extended version
+  // "%shift = lshr i32 0, 1" so the args are treated as int operands.
+  Value *extendBitInstBoolArg(Instruction *OldInst);
+
   static std::string lowerLLVMIntrinsicName(IntrinsicInst *II);
   void adaptStructTypes(StructType *ST);
   static char ID;
@@ -412,6 +420,31 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
     expandVIDWithSYCLTypeByValComp(F);
 }
 
+Value *SPIRVRegularizeLLVMBase::extendBitInstBoolArg(Instruction *II) {
+  IRBuilder<> Builder(II);
+  auto *ArgTy = II->getOperand(0)->getType();
+  Type *NewArgType = nullptr;
+  if (ArgTy->isIntegerTy()) {
+    NewArgType = Builder.getInt32Ty();
+  } else if (ArgTy->isVectorTy() &&
+             cast<VectorType>(ArgTy)->getElementType()->isIntegerTy()) {
+    unsigned NumElements = cast<FixedVectorType>(ArgTy)->getNumElements();
+    NewArgType = VectorType::get(Builder.getInt32Ty(), NumElements, false);
+  } else {
+    llvm_unreachable("Unexpected type");
+  }
+  auto *NewBase = Builder.CreateZExt(II->getOperand(0), NewArgType);
+  auto *NewShift = Builder.CreateZExt(II->getOperand(1), NewArgType);
+  switch (II->getOpcode()) {
+  case Instruction::LShr:
+    return Builder.CreateLShr(NewBase, NewShift);
+  case Instruction::Shl:
+    return Builder.CreateShl(NewBase, NewShift);
+  default:
+    return II;
+  }
+}
+
 void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
   if (!ST->hasName())
     return;
@@ -554,6 +587,21 @@ bool SPIRVRegularizeLLVMBase::regularize() {
             else if (II->getIntrinsicID() == Intrinsic::umul_with_overflow)
               lowerUMulWithOverflow(II);
           }
+        }
+
+        // Translator treats i1 as boolean, but bit instructions take
+        // a scalar/vector integers, so we have to extend such arguments
+        if (II.isLogicalShift() &&
+            II.getOperand(0)->getType()->isIntOrIntVectorTy(1)) {
+          auto *NewInst = extendBitInstBoolArg(&II);
+          for (auto *U : II.users()) {
+            if (cast<Instruction>(U)->getOpcode() == Instruction::ZExt) {
+              U->dropAllReferences();
+              U->replaceAllUsesWith(NewInst);
+              ToErase.push_back(cast<Instruction>(U));
+            }
+          }
+          ToErase.push_back(&II);
         }
 
         // Remove optimization info not supported by SPIRV
