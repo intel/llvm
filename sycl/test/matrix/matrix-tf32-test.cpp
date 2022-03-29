@@ -104,6 +104,7 @@ precision::tf32 B[MATRIX_K][MATRIX_N];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
 
+// this is a hack and should be replaced with a spirv function
 precision::tf32 make_tf32(float x) {
   uint32_t y = reinterpret_cast<uint32_t const &>(x);
   y += 0x1000u;
