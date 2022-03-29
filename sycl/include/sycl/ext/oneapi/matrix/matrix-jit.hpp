@@ -70,6 +70,27 @@ public:
   }
 };
 
+// class tf32 should not hold actual data. It is a tag type only, an empty class
+// with no member variables. Morally, it is equivalent to an enumeration--it
+// just uses the type system to communicate the desired accuracy of arithmetic
+// computations. Users can't construct a tf32
+namespace precision {
+class tf32 {};
+} // namespace precision
+
+// Differentiating between the "element type" and the "storage element type"
+template <typename T> struct helper_traits {
+  typedef T element_type;
+  typedef T storage_element_type;
+  typedef T fill_argument_type;
+};
+
+template <> struct helper_traits<precision::tf32> {
+  typedef precision::tf32 element_type;
+  typedef float storage_element_type;
+  typedef float fill_argument_type;
+};
+
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout = matrix_layout::row_major,
           access::address_space Space>
@@ -231,12 +252,16 @@ class wi_element {
   std::size_t idx;
 
 public:
+  typedef typename helper_traits<T>::storage_element_type storage_element_type;
   wi_element(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
-  operator T() {
+  operator storage_element_type() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(M.spvm, idx);
+    // TODO:  __spirv_VectorExtractDynamic should also return
+    // storage_element_type
+    T elem = __spirv_VectorExtractDynamic(M.spvm, idx);
+    return reinterpret_cast<storage_element_type &>(elem);
 #else
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -245,7 +270,11 @@ public:
 
   explicit operator bool() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(M.spvm, idx) != static_cast<T>(0);
+    // TODO:  __spirv_VectorExtractDynamic should also return
+    // storage_element_type
+    T elem = __spirv_VectorExtractDynamic(M.spvm, idx);
+    storage_element_type elems = reinterpret_cast<storage_element_type &>(elem);
+    return elems != static_cast<storage_element_type>(0);
 #else
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -277,12 +306,17 @@ public:
   }
 
 #if __SYCL_DEVICE_ONLY__
+  // TODO: __spirv_VectorInsertDynamic should take storage element type as
+  // argument
 #define OP(op)                                                                 \
   template <typename T2> wi_element &operator op##=(const T2 &rhs) {           \
+    T elem = __spirv_VectorExtractDynamic(M.spvm, idx);                        \
+    storage_element_type elems =                                               \
+        reinterpret_cast<storage_element_type &>(elem);                        \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm,                                                                \
-        static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx)               \
-                           op static_cast<T>(rhs)),                            \
+        static_cast<storage_element_type>(                                     \
+            elems op static_cast<storage_element_type>(rhs)),                  \
         idx);                                                                  \
     return *this;                                                              \
   }
