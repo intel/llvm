@@ -1034,39 +1034,22 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   // Jumps are expensive, compared to logic
   setJumpIsExpensive();
 
-  setTargetDAGCombine(ISD::ADD);
-  setTargetDAGCombine(ISD::SUB);
-  setTargetDAGCombine(ISD::AND);
-  setTargetDAGCombine(ISD::OR);
-  setTargetDAGCombine(ISD::XOR);
-  if (Subtarget.hasStdExtZbp()) {
-    setTargetDAGCombine(ISD::ROTL);
-    setTargetDAGCombine(ISD::ROTR);
-  }
+  setTargetDAGCombine({ISD::INTRINSIC_WO_CHAIN, ISD::ADD, ISD::SUB, ISD::AND,
+                       ISD::OR, ISD::XOR});
+
+  if (Subtarget.hasStdExtZbp())
+    setTargetDAGCombine({ISD::ROTL, ISD::ROTR});
   if (Subtarget.hasStdExtZbkb())
     setTargetDAGCombine(ISD::BITREVERSE);
-  setTargetDAGCombine(ISD::INTRINSIC_WO_CHAIN);
   if (Subtarget.hasStdExtZfh() || Subtarget.hasStdExtZbb())
     setTargetDAGCombine(ISD::SIGN_EXTEND_INREG);
-  if (Subtarget.hasStdExtF()) {
-    setTargetDAGCombine(ISD::ZERO_EXTEND);
-    setTargetDAGCombine(ISD::FP_TO_SINT);
-    setTargetDAGCombine(ISD::FP_TO_UINT);
-    setTargetDAGCombine(ISD::FP_TO_SINT_SAT);
-    setTargetDAGCombine(ISD::FP_TO_UINT_SAT);
-  }
-  if (Subtarget.hasVInstructions()) {
-    setTargetDAGCombine(ISD::FCOPYSIGN);
-    setTargetDAGCombine(ISD::MGATHER);
-    setTargetDAGCombine(ISD::MSCATTER);
-    setTargetDAGCombine(ISD::VP_GATHER);
-    setTargetDAGCombine(ISD::VP_SCATTER);
-    setTargetDAGCombine(ISD::SRA);
-    setTargetDAGCombine(ISD::SRL);
-    setTargetDAGCombine(ISD::SHL);
-    setTargetDAGCombine(ISD::STORE);
-    setTargetDAGCombine(ISD::SPLAT_VECTOR);
-  }
+  if (Subtarget.hasStdExtF())
+    setTargetDAGCombine({ISD::ZERO_EXTEND, ISD::FP_TO_SINT, ISD::FP_TO_UINT,
+                         ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT});
+  if (Subtarget.hasVInstructions())
+    setTargetDAGCombine({ISD::FCOPYSIGN, ISD::MGATHER, ISD::MSCATTER,
+                         ISD::VP_GATHER, ISD::VP_SCATTER, ISD::SRA, ISD::SRL,
+                         ISD::SHL, ISD::STORE, ISD::SPLAT_VECTOR});
 
   setLibcallName(RTLIB::FPEXT_F16_F32, "__extendhfsf2");
   setLibcallName(RTLIB::FPROUND_F32_F16, "__truncsfhf2");
@@ -8931,22 +8914,23 @@ bool RISCVTargetLowering::targetShrinkDemandedConstant(
   return UseMask(NewMask);
 }
 
-static void computeGREV(APInt &Src, unsigned ShAmt) {
-  ShAmt &= Src.getBitWidth() - 1;
-  uint64_t x = Src.getZExtValue();
-  if (ShAmt & 1)
-    x = ((x & 0x5555555555555555LL) << 1) | ((x & 0xAAAAAAAAAAAAAAAALL) >> 1);
-  if (ShAmt & 2)
-    x = ((x & 0x3333333333333333LL) << 2) | ((x & 0xCCCCCCCCCCCCCCCCLL) >> 2);
-  if (ShAmt & 4)
-    x = ((x & 0x0F0F0F0F0F0F0F0FLL) << 4) | ((x & 0xF0F0F0F0F0F0F0F0LL) >> 4);
-  if (ShAmt & 8)
-    x = ((x & 0x00FF00FF00FF00FFLL) << 8) | ((x & 0xFF00FF00FF00FF00LL) >> 8);
-  if (ShAmt & 16)
-    x = ((x & 0x0000FFFF0000FFFFLL) << 16) | ((x & 0xFFFF0000FFFF0000LL) >> 16);
-  if (ShAmt & 32)
-    x = ((x & 0x00000000FFFFFFFFLL) << 32) | ((x & 0xFFFFFFFF00000000LL) >> 32);
-  Src = x;
+static uint64_t computeGREVOrGORC(uint64_t x, unsigned ShAmt, bool IsGORC) {
+  static const uint64_t GREVMasks[] = {
+      0x5555555555555555ULL, 0x3333333333333333ULL, 0x0F0F0F0F0F0F0F0FULL,
+      0x00FF00FF00FF00FFULL, 0x0000FFFF0000FFFFULL, 0x00000000FFFFFFFFULL};
+
+  for (unsigned Stage = 0; Stage != 6; ++Stage) {
+    unsigned Shift = 1 << Stage;
+    if (ShAmt & Shift) {
+      uint64_t Mask = GREVMasks[Stage];
+      uint64_t Res = ((x & Mask) << Shift) | ((x >> Shift) & Mask);
+      if (IsGORC)
+        Res |= x;
+      x = Res;
+    }
+  }
+
+  return x;
 }
 
 void RISCVTargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
@@ -9011,12 +8995,16 @@ void RISCVTargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
     Known.Zero.setBitsFrom(LowBits);
     break;
   }
-  case RISCVISD::GREV: {
+  case RISCVISD::GREV:
+  case RISCVISD::GORC: {
     if (auto *C = dyn_cast<ConstantSDNode>(Op.getOperand(1))) {
       Known = DAG.computeKnownBits(Op.getOperand(0), Depth + 1);
-      unsigned ShAmt = C->getZExtValue();
-      computeGREV(Known.Zero, ShAmt);
-      computeGREV(Known.One, ShAmt);
+      unsigned ShAmt = C->getZExtValue() & (Known.getBitWidth() - 1);
+      bool IsGORC = Op.getOpcode() == RISCVISD::GORC;
+      // To compute zeros, we need to invert the value and invert it back after.
+      Known.Zero =
+          ~computeGREVOrGORC(~Known.Zero.getZExtValue(), ShAmt, IsGORC);
+      Known.One = computeGREVOrGORC(Known.One.getZExtValue(), ShAmt, IsGORC);
     }
     break;
   }
