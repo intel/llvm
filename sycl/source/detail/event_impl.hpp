@@ -169,6 +169,9 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
+  /// \return a native handle or initializes if it is defaultly constructed examplar.
+  pi_native_handle lazyInit(backend Backend) const;
+
   /// Returns vector of event dependencies.
   ///
   /// @return a reference to MPreparedDepsEvents.

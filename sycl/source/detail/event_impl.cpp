@@ -341,10 +341,30 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
+context_impl getContext(backend Backend) {
+  for (auto el : GlobalHandler::getPlatformCache()) {
+    if (getImplBackend(el) == Backend) {
+      return (*GlobalHandler::instance()
+                   .getPlatformToDefaultContextCache()
+                   .find(el))
+          .second;
+    }
+  }
+  return nullptr;
+}
+
 pi_native_handle event_impl::getNative() const {
+  auto Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
+  return Handle;
+}
+
+pi_native_handle event_impl::lazyInit(backend Backend) const {
   if (!MContext) {
-    static context SyclContext;
-    MContext = getSyclObjImpl(SyclContext);
+    MContext = getContext(Backend);
     MHostEvent = MContext->is_host();
     MOpenCLInterop = !MHostEvent;
   }

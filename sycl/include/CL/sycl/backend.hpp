@@ -82,12 +82,9 @@ template <>
 inline backend_return_t<backend::opencl, event>
 get_native<backend::opencl, event>(const event &Obj) {
   // TODO use SYCL 2020 exception when implemented
-  if (Obj.get_backend() != backend::opencl) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_INVALID_OPERATION);
-  }
   backend_return_t<backend::opencl, event> ReturnValue;
-  for (auto const &element : Obj.getNativeVector()) {
+  std::vector<pi_native_handle> NativeVector = {Obj.lazyInit(backend::opencl)};
+  for (auto const &element : NativeVector) {
     ReturnValue.push_back(
         reinterpret_cast<
             typename detail::interop<backend::opencl, event>::value_type>(
@@ -105,12 +102,8 @@ __SYCL_DEPRECATED(
 inline backend_return_t<backend::opencl, event> get_native<
     backend::opencl, event>(const event &Obj) {
   // TODO use SYCL 2020 exception when implemented
-  if (Obj.get_backend() != backend::opencl) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_INVALID_OPERATION);
-  }
   return reinterpret_cast<
-      typename detail::interop<backend::opencl, event>::type>(Obj.getNative());
+      typename detail::interop<backend::opencl, event>::type>(Obj.lazyInit(backend::opencl));
 }
 #endif
 

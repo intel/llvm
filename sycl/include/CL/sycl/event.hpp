@@ -133,13 +133,15 @@ public:
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   backend_return_t<Backend, event> get_native() const {
-    return reinterpret_cast<backend_return_t<Backend, event>>(getNative());
+    return reinterpret_cast<backend_return_t<Backend, event>>(lazyInit(Backend));
   }
 
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
 
   pi_native_handle getNative() const;
+
+  pi_native_handle lazyInit(backend Backend) const;
 
   std::vector<pi_native_handle> getNativeVector() const;
 
