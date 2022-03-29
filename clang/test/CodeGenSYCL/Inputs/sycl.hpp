@@ -149,6 +149,7 @@ template <int dim>
 struct id {
   template <typename... T>
   id(T... args) {} // fake constructor
+  int get(int) const { return 0; } // fake getter
 private:
   // Some fake field added to see using of id arguments in the
   // kernel wrapper
@@ -205,6 +206,14 @@ public:
   template <typename... T>
   void use(T... args) const {}
   _ImplT<dimensions> impl;
+
+  // Operator returns a reference to a temporary value but this is a fake
+  // operator for testings only. Operator is marked as 'const' to let us
+  // use it in kernels.
+  dataT &operator[](int) const {
+    const dataT Data{};
+    return const_cast<dataT &>(Data);
+  }
 
 private:
   void __init(__attribute__((opencl_global)) dataT *Ptr, range<dimensions> AccessRange,
