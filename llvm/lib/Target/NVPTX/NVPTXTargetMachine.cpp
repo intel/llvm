@@ -84,7 +84,7 @@ void initializeNVPTXLowerAllocaPass(PassRegistry &);
 void initializeNVPTXProxyRegErasurePass(PassRegistry &);
 
 void initializeGlobalOffsetLegacyPass(PassRegistry &);
-void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
+void initializeLocalAccessorToSharedMemoryLegacyPass(PassRegistry &);
 
 } // end namespace llvm
 
@@ -109,7 +109,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
 
   // SYCL-specific passes, needed here to be available to `opt`.
   initializeGlobalOffsetLegacyPass(PR);
-  initializeLocalAccessorToSharedMemoryPass(PR);
+  initializeLocalAccessorToSharedMemoryLegacyPass(PR);
 }
 
 static std::string computeDataLayout(bool is64Bit, bool UseShortPointers) {
@@ -341,7 +341,7 @@ void NVPTXPassConfig::addIRPasses() {
   // See createNVPTXLowerArgsPass as an example
   if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA) {
     addPass(createGlobalOffsetPassLegacy());
-    addPass(createLocalAccessorToSharedMemoryPass());
+    addPass(createLocalAccessorToSharedMemoryPassLegacy());
   }
 
   if (getOptLevel() != CodeGenOpt::None)

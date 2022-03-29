@@ -388,7 +388,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
 
   // SYCL-specific passes, needed here to be available to `opt`.
   initializeGlobalOffsetLegacyPass(*PR);
-  initializeLocalAccessorToSharedMemoryPass(*PR);
+  initializeLocalAccessorToSharedMemoryLegacyPass(*PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -640,6 +640,10 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         }
         if (PassName == "amdgpu-lower-module-lds") {
           PM.addPass(AMDGPULowerModuleLDSPass());
+          return true;
+        }
+        if (PassName == "localaccessortosharedmemory") {
+          PM.addPass(LocalAccessorToSharedMemoryPass());
           return true;
         }
         if (PassName == "globaloffset") {
@@ -1048,7 +1052,7 @@ void AMDGPUPassConfig::addIRPasses() {
 
   if (TM.getTargetTriple().getArch() == Triple::amdgcn &&
       TM.getTargetTriple().getOS() == Triple::OSType::AMDHSA) {
-    addPass(createLocalAccessorToSharedMemoryPass());
+    addPass(createLocalAccessorToSharedMemoryPassLegacy());
     addPass(createGlobalOffsetPassLegacy());
   }
 }

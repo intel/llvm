@@ -18,11 +18,41 @@
 #define LLVM_SYCL_LOCALACCESSORTOSHAREDMEMORY_H
 
 #include "llvm/IR/Module.h"
-#include "llvm/Pass.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/SYCLLowerIR/TargetHelpers.h"
 
 namespace llvm {
 
-ModulePass *createLocalAccessorToSharedMemoryPass();
+class ModulePass;
+class PassRegistry;
+
+class LocalAccessorToSharedMemoryPass
+    : public PassInfoMixin<LocalAccessorToSharedMemoryPass> {
+private:
+  using KernelPayload = TargetHelpers::KernelPayload;
+  using ArchType = TargetHelpers::ArchType;
+
+public:
+  explicit LocalAccessorToSharedMemoryPass() {}
+
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  static StringRef getPassName() {
+    return "SYCL Local Accessor to Shared Memory";
+  }
+
+private:
+  Function *processKernel(Module &M, Function *F);
+  void postProcessKernels(
+      SmallVectorImpl<std::pair<Function *, KernelPayload>> &NewToOldKernels);
+
+private:
+  // The value for NVVM's ADDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen to
+  // be 3.
+  const unsigned SharedASValue = 3;
+};
+
+ModulePass *createLocalAccessorToSharedMemoryPassLegacy();
+void initializeLocalAccessorToSharedMemoryLegacyPass(PassRegistry &);
 
 } // end namespace llvm
 
