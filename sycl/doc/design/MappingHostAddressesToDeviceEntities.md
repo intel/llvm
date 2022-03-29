@@ -150,7 +150,10 @@ The function accepts the following arguments:
 
 The compiler guarantees that the function will be called zero or more times
 (depending on the amount of uniquely identifiable objects found in a program)
-_before_ application's `main()` function, i.e. in a global constructor.
+_before_ application's `main()` function and _before_ any other global
+constructor defined in the same translation unit: this is needed to allow usages
+of `specialization_id` and `device_global` variables from user-defined global
+constructors.
 
 That poses some restrictions on those uniquely identifiable object, i.e. that
 they can't be used from another global object due to risk of accessing a
