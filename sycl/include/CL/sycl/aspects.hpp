@@ -12,6 +12,9 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+// NB! The list of aspects should be consistent with the list from
+// the file llvm/lib/SYCLLowerIR/Aspects.def
+
 enum class aspect {
   host = 0,
   cpu = 1,
