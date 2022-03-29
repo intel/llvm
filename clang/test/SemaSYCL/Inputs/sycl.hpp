@@ -102,6 +102,13 @@ template <int dim>
 struct id {
 };
 
+template <int dim> struct item {
+  template <typename... T>
+  item(T... args) {}
+private:
+  int Data;
+};
+
 template <int dim>
 struct _ImplT {
   range<dim> AccessRange;
@@ -291,6 +298,16 @@ ATTR_SYCL_KERNEL void kernel_parallel_for_work_group(const KernelType &KernelFun
 #endif
 }
 
+template <typename KernelName, typename KernelType, int Dims>
+ATTR_SYCL_KERNEL void
+kernel_parallel_for_work_group(const KernelType &KernelFunc) { // #KernelPFWG2
+#ifdef __SYCL_DEVICE_ONLY__
+  KernelFunc(group<Dims>());
+#else
+  (void)KernelFunc;
+#endif
+}
+
 class handler {
 public:
   template <typename KernelName = auto_name, typename KernelType>
@@ -314,6 +331,17 @@ public:
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
     kernel_parallel_for_work_group<NameT>(kernelFunc, kh);
   }
+  template <typename KernelName = auto_name, typename KernelType, int Dims>
+  void parallel_for_work_group(range<Dims> numWorkGroups, range<Dims> WorkGroupSize, const KernelType &kernelFunc) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for_work_group<NameT, KernelType, Dims>(kernelFunc);
+#else
+    group<Dims> G;
+    kernelFunc(G);
+#endif
+  }
+
 };
 
 class __attribute__((sycl_special_class)) stream {

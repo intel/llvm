@@ -923,7 +923,7 @@ public:
       : LambdaFn(nullptr), LambdaObjTy(LambdaObjTy) {}
 
   bool VisitCallExpr(CallExpr *Call) {
-    auto *M = dyn_cast<CXXMethodDecl>(Call->getDirectCallee());
+    auto *M = dyn_cast_or_null<CXXMethodDecl>(Call->getDirectCallee());
     if (!M || (M->getOverloadedOperator() != OO_Call))
       return true;
 
@@ -2538,13 +2538,16 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return CompoundStmt::Create(SemaRef.getASTContext(), BodyStmts, {}, {});
   }
 
-  void markParallelWorkItemCalls() {
+  void markParallelWorkItemCalls(SourceLocation SrcLoc) {
     if (getKernelInvocationKind(KernelCallerFunc) ==
         InvokeParallelForWorkGroup) {
       FindPFWGLambdaFnVisitor V(KernelObj);
       V.TraverseStmt(KernelCallerFunc->getBody());
       CXXMethodDecl *WGLambdaFn = V.getLambdaFn();
-      assert(WGLambdaFn && "PFWG lambda not found");
+      if (!WGLambdaFn) {
+        SemaRef.Diag(SrcLoc, diag::err_sycl_kernel_invoked_wrong_signature);
+        return;
+      }
       // Mark the function that it "works" in a work group scope:
       // NOTE: In case of parallel_for_work_item the marker call itself is
       // marked with work item scope attribute, here  the '()' operator of the
@@ -2878,7 +2881,7 @@ public:
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
         KernelCallerSrcLoc(KernelCallerFunc->getLocation()) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
-    markParallelWorkItemCalls();
+    markParallelWorkItemCalls(KernelCallerSrcLoc);
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
                                         KernelCallerSrcLoc, KernelCallerSrcLoc);
