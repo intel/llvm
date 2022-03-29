@@ -38,7 +38,7 @@ the first one with integration footer and another one with modification of the
 host compiler.
 
 Both approaches have their pros and cons and they are expected to be implemented
-and exists in the implementation at the same time, but only one of them will be
+and exist in the implementation at the same time, but only one of them will be
 used at a time depending on whether 3rd-party host compiler is used or not.
 
 Integration footer can be used with 3rd-party host compilers, but it requires
@@ -77,7 +77,7 @@ things:
   unique string identifier of a variable it is attached to. The rules for
   creating this string are the same as for `__builtin_sycl_unique_stable_id` and
   the same algorithm can be used when generating the string for the attribute
-- emit `sycl-uid-type` LLVM IR attribute alongside `sycl-unique-id`, which
+- emit `sycl-uid-kind` LLVM IR attribute alongside `sycl-unique-id`, which
   contains the `kind` string passed to
   `[[__sycl_detail__::uniquely_identifiable_object(kind)]]` attribute
 
@@ -99,10 +99,14 @@ attributes should appear in LLVM IR for both host and device code. When DPC++
 compiler is only used as a device compiler, then we don't expect the attribute
 to be handled on host, apparently.
 
-Another thing we need from DPC++ FE compiler is to define a special macro, which
-will allow to distinguish it from other compilers. That is needed to apply the
-aforementioned attribute conditionally to avoid spamming users with warnings
-about unknown attributes.
+Another thing we need from DPC++ FE host compiler is to define a special macro,
+which will allow to distinguish it from other host compilers. That is needed to
+apply the aforementioned attribute conditionally to avoid spamming users with
+warnings about unknown attributes.
+
+**NOTE:** Alternatively we could simply set a macro which tells us whether or
+not integration footer is enabled in the compiler driver instead of creating
+a special macro for differentiating our own host compiler.
 
 The suggested macro name is `__INTEL_SYCL_HOST_COMPILER__`. It should be defined
 when the compiler is invoked in SYCL host mode (`-fsycl-is-host` `-cc1` flag).
