@@ -170,7 +170,7 @@ public:
   pi_native_handle getNative() const;
 
   /// \return a native handle or initializes if it is defaultly constructed examplar.
-  pi_native_handle lazyInit(backend Backend) const;
+  pi_native_handle lazyInit(context_impl SyclContext) const;
 
   /// Returns vector of event dependencies.
   ///
