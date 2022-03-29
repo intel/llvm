@@ -599,6 +599,15 @@ constexpr pi_mem_properties PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION =
 // make the translation to OpenCL transparent.
 using pi_usm_mem_properties = pi_bitfield;
 constexpr pi_usm_mem_properties PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_WRTITE_COMBINED =
+    CL_MEM_ALLOC_WRITE_COMBINED_INTEL;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE =
+    CL_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE_INTEL;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_INITIAL_PLACEMENT_HOST =
+    CL_MEM_ALLOC_INITIAL_PLACEMENT_HOST_INTEL;
+// Hints that the device/shared allocation will not be written on device.
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_DEVICE_READ_ONLY = (1 << 3);
+
 constexpr pi_usm_mem_properties PI_MEM_USM_ALLOC_BUFFER_LOCATION =
     CL_MEM_ALLOC_BUFFER_LOCATION_INTEL;
 

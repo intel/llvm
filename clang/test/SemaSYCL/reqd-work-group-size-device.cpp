@@ -48,11 +48,8 @@ public:
 #ifdef TRIGGER_ERROR
 class Functor32 {
 public:
-  // expected-note@+3{{conflicting attribute is here}}
-  // expected-warning@+3{{attribute 'reqd_work_group_size' is already applied with different arguments}}
-  // expected-error@+2 {{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
-  [[sycl::reqd_work_group_size(32, 1, 1)]] // expected-note {{conflicting attribute is here}}
-  [[sycl::reqd_work_group_size(1, 1, 32)]] void
+  [[sycl::reqd_work_group_size(32, 1, 1)]]      // expected-note {{previous attribute is here}}
+  [[sycl::reqd_work_group_size(1, 1, 32)]] void // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
   operator()() const {}
 };
 #endif
@@ -118,6 +115,10 @@ int main() {
     });
 
 #endif
+    // Ignore duplicate attribute.
+    h.single_task<class test_kernel11>(
+        []() [[sycl::reqd_work_group_size(2, 2, 2),
+               sycl::reqd_work_group_size(2, 2, 2)]] {});
   });
   return 0;
 }
@@ -166,3 +167,16 @@ int main() {
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 32
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
+//
+// CHECK: FunctionDecl {{.*}}test_kernel11
+// CHECK: ReqdWorkGroupSizeAttr
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 2
+// CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 2
+// CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 2
+// CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+// CHECK-NOT:   ReqdWorkGroupSizeAttr

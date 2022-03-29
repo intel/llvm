@@ -1002,13 +1002,6 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   bool LinkDeviceLibs = (DeviceLibReqMask != 0);
 
-  // TODO: Currently, online linking isn't implemented yet on Level Zero.
-  // To enable device libraries and unify the behaviors on all backends,
-  // online linking is disabled temporarily, all fallback device libraries
-  // will be linked offline. When Level Zero supports online linking, we need
-  // to remove the line of code below and switch back to online linking.
-  LinkDeviceLibs = false;
-
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
   // due to unrecognized SPIR-V format of those libraries.
@@ -1217,13 +1210,13 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           // The supplied device_global info property is expected to contain:
           // * 8 bytes - Size of the property.
           // * 4 bytes - Size of the underlying type in the device_global.
-          // * 1 byte  - 0 if device_global has device_image_scope and any value
+          // * 4 bytes - 0 if device_global has device_image_scope and any value
           //             otherwise.
-          // Note: Property may be padded.
-          assert(DeviceGlobalInfo.size() >= 13 && "Unexpected property size");
+          assert(DeviceGlobalInfo.size() == 16 && "Unexpected property size");
           const std::uint32_t TypeSize =
               *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[8]);
-          const std::uint32_t DeviceImageScopeDecorated = DeviceGlobalInfo[12];
+          const std::uint32_t DeviceImageScopeDecorated =
+              *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[12]);
           Entry->second.initialize(TypeSize, DeviceImageScopeDecorated);
         }
       }
