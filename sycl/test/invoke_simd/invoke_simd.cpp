@@ -170,16 +170,18 @@ struct SIMD_FUNCTOR {
   // u - uniform, N - non-uniform, P - pointer (must be always uniform)
 
   // A - u(N, u)
-  __regcall char operator()(simd<float, 16>, float) const;
+  SYCL_EXTERNAL __regcall char operator()(simd<float, 16>, float) const;
   // B - u(N, u, u)
-  __regcall int operator()(simd<float, 8>, float, int) const;
+  SYCL_EXTERNAL __regcall int operator()(simd<float, 8>, float, int) const;
   // C - u(N, P)
-  __regcall uniform<simd<float, 7>> operator()(simd<float, 16>, float *) const;
+  SYCL_EXTERNAL __regcall uniform<simd<float, 7>> operator()(simd<float, 16>,
+                                                             float *) const;
   // D - u(P, u, u) - "all uniform", subgroup size does not matter
-  __regcall uniform<simd<float, 8>> operator()(float *, simd<float, 3>,
-                                               simd<int, 5>) const;
+  SYCL_EXTERNAL __regcall uniform<simd<float, 8>>
+  operator()(float *, simd<float, 3>, simd<int, 5>) const;
   // E - N(u, N)
-  __regcall simd<short, 8> operator()(simd<float, 3>, simd<int, 8>) const;
+  SYCL_EXTERNAL __regcall simd<short, 8> operator()(simd<float, 3>,
+                                                    simd<int, 8>) const;
 };
 
 // Functor-based tests.
@@ -210,7 +212,7 @@ SYCL_EXTERNAL void foo(sub_group sg, float a, float b, float *ptr) {
 // Lambda-based tests, repeat functor test cases above.
 SYCL_EXTERNAL auto bar(sub_group sg, float a, float b, float *ptr, char ch) {
   {
-    const auto ftor = [=](simd<float, 16>, float) {
+    const auto ftor = [=] [[gnu::regcall]] (simd<float, 16>, float) {
       // capturing lambda
       return ch;
     };
@@ -218,7 +220,7 @@ SYCL_EXTERNAL auto bar(sub_group sg, float a, float b, float *ptr, char ch) {
     static_assert(std::is_same_v<decltype(x), uniform<char>>);
   }
   {
-    const auto ftor = [=](simd<float, 8>, float, int) {
+    const auto ftor = [=] [[gnu::regcall]] (simd<float, 8>, float, int) {
       // non-capturing lambda
       return (int)10;
     };
@@ -226,7 +228,7 @@ SYCL_EXTERNAL auto bar(sub_group sg, float a, float b, float *ptr, char ch) {
     static_assert(std::is_same_v<decltype(y), uniform<int>>);
   }
   {
-    const auto ftor = [=](simd<float, 16>, float *) {
+    const auto ftor = [=] [[gnu::regcall]] (simd<float, 16>, float *) {
       simd<float, 7> val{ch};
       return uniform{val};
     };
@@ -234,7 +236,8 @@ SYCL_EXTERNAL auto bar(sub_group sg, float a, float b, float *ptr, char ch) {
     static_assert(std::is_same_v<decltype(z), uniform<simd<float, 7>>>);
   }
   {
-    const auto ftor = [=](float *, simd<float, 3>, simd<int, 5>) {
+    const auto ftor = [=] [[gnu::regcall]] (float *, simd<float, 3>,
+                                            simd<int, 5>) {
       simd<float, 8> val{ch};
       return uniform{val};
     };
@@ -243,7 +246,7 @@ SYCL_EXTERNAL auto bar(sub_group sg, float a, float b, float *ptr, char ch) {
     static_assert(std::is_same_v<decltype(u), uniform<simd<float, 8>>>);
   }
   {
-    const auto ftor = [=](simd<float, 3>, simd<int, 8>) {
+    const auto ftor = [=] [[gnu::regcall]] (simd<float, 3>, simd<int, 8>) {
       return simd<short, 8>{};
     };
     auto v = invoke_simd(sg, ftor, uniform{simd<float, 3>{1}}, 1);

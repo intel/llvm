@@ -17,6 +17,7 @@
 
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
 
+#include <CL/sycl/sub_group.hpp>
 #include <std/experimental/simd.hpp>
 #include <sycl/detail/boost/mp11.hpp>
 
@@ -213,6 +214,18 @@ static constexpr int get_sg_size() {
   }
 }
 
+// This function is a wrapper around a call to a functor with field or a lambda
+// with captures. Note __regcall - this is needed for efficient argument
+// forwarding.
+template <int N, class Callable, class... T>
+__regcall detail::SimdRetType<N, Callable, T...>
+simd_call_helper(const void *obj_ptr,
+                 typename detail::spmd2simd<T, N>::type... simd_args) {
+  auto f =
+      *reinterpret_cast<const std::remove_reference_t<Callable> *>(obj_ptr);
+  return f(simd_args...);
+};
+
 } // namespace detail
 
 // --- The main API
@@ -235,7 +248,7 @@ static constexpr int get_sg_size() {
 ///   the specification.
 // TODO works only for functions now, enable for other callables.
 template <class Callable, class... T>
-__attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
+__attribute__((always_inline)) auto invoke_simd(sycl::ext::oneapi::sub_group sg,
                                                 Callable &&f, T... args) {
   // If the invoke_simd call site is fully uniform, then it does not matter
   // what the subgroup size is and arguments don't need widening and return
@@ -257,15 +270,8 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
     // implemented in LowerInvokeSimd.cpp which, finds actual invoke_simd
     // target function, can't handle this case yet.
     return __builtin_invoke_simd<is_function, RetSpmd>(
-        // this magic 'plus' before the lambda (1) requires that the lambda has
-        // no captures and (2) converts it to a function pointer
-        +[](const void *f1,
-            typename detail::spmd2simd<T, N>::type... simd_args) {
-          auto f2 =
-              *reinterpret_cast<const std::remove_reference_t<Callable> *>(f1);
-          return f2(simd_args...);
-        },
-        &f, detail::unwrap_uniform<T>::impl(args)...);
+        detail::simd_call_helper<N, Callable, T...>, &f,
+        detail::unwrap_uniform<T>::impl(args)...);
   }
 // TODO Temporary macro and assert to enable API compilation testing.
 // LowerInvokeSimd.cpp does not support this case yet.

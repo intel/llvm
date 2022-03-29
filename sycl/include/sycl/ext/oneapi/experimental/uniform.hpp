@@ -17,6 +17,7 @@
 
 #include <type_traits>
 
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declarations of types not allowed to be wrapped in uniform:
 
@@ -31,9 +32,17 @@ namespace oneapi {
 
 struct sub_group;
 
-namespace experimental {
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
 namespace detail {
+
 template <class T, template <int> class Tmpl>
 struct is_instance_of_tmpl_int : std::false_type {};
 template <int N, template <int> class T, template <int> class Tmpl>
