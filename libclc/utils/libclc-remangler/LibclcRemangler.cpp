@@ -58,8 +58,8 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Utils/ValueMapper.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include <iostream>
 #include <memory>
@@ -155,7 +155,7 @@ class DefaultAllocator {
 public:
   void reset() { Alloc.reset(); }
 
-  template <typename T, typename... Args> T *makeNode(Args &&... args) {
+  template <typename T, typename... Args> T *makeNode(Args &&...args) {
     return new (Alloc.allocate(sizeof(T))) T(std::forward<Args>(args)...);
   }
 
@@ -578,9 +578,9 @@ bool createCloneFromMap(
 }
 
 bool createClones(Module *M, std::string originalMangledName,
-                   std::string remangledName,
-                   const itanium_demangle::Node *functionTree,
-                   TargetTypeReplacements replacements) {
+                  std::string remangledName,
+                  const itanium_demangle::Node *functionTree,
+                  TargetTypeReplacements replacements) {
   // create clone of original function
   if (!createCloneFromMap(M, originalMangledName, functionTree,
                           replacements.getCloneTypeReplacements(),
@@ -628,7 +628,7 @@ bool remangleFunction(Function &func, Module *M,
     // Make a clone of a suitable function using the old name if there is a
     // type-mapping and the corresponding clonee function exists.
     if (!createClones(M, MangledName, RemangledName, FunctionTree,
-                       replacements))
+                      replacements))
       return false;
   }
 
@@ -670,7 +670,7 @@ int main(int argc, const char **argv) {
     FuncList.push_back(&Func);
 
   bool Success = true;
-  for (auto Func : FuncList){
+  for (auto Func : FuncList) {
     Success = remangleFunction(*Func, M.get(), Replacements) && Success;
   }
   // Only fail after all to give as much context as possible.
