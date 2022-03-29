@@ -105,6 +105,7 @@ struct id {
 template <int dim> struct item {
   template <typename... T>
   item(T... args) {}
+
 private:
   int Data;
 };
@@ -341,7 +342,6 @@ public:
     kernelFunc(G);
 #endif
   }
-
 };
 
 class __attribute__((sycl_special_class)) stream {
