@@ -1,0 +1,119 @@
+= sycl_ext_oneapi_interop_ownership
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 4 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+SYCL backend interop API does not define how ownership of backend objects is handled when they are passed to or returned from one of the interop API functions. This is not an issue for the OpenCL backand, as all objects it uses are reference counted. Other backends that do not use refernece counting need to either transfer or keep the ownership of the backend objects. As backend interop API as defined in SYCL specification does not support specifying what to do with ownership, only one of these options can be supported by a backend.
+
+Level zero backend works around this issue for functions creating SYCL objects from Level 0 objecty by defining that these functions accept a struct containing both the backend object and a flag whether to keep or transfer ownership. Creating structs just because a fucntion is defined to take just one argument is a bit awkward. Also this workaround is not possible for functions returning backend objects from SYCL objects.
+
+This specification defines an alternative interop API that allows specifying what to do with ownership.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_INTEROP_OWNERSHIP` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+
+=== Interface
+
+For each SYCL type that supports backend interoperability (if functions `get_native` and `make_{SYCL type}` are defined in the namespace `sycl` for that backend and type) functions with same names are defined in namespace `sycl::ext::oneapi`. These have the same interface as the ones defined by the SYCL specification, except they take an extra argument `own`. In all functions `own` has a default value of `ownership::keep`.
+
+`own` is of type `enum class ownership` that has the following two values:
+
+`ownership::keep`: means that no ownership is transfered. 
+If `make_{SYCL type}` is passed this value, the user is responsible for keeping the backend type passed to this call alive while the SYCL object is in use and any cleanup of the passed backend type after it is no longer in use.
+If `get_native` is passed this value, SYCL runtime will keep the passed backend object alive while the returned SYCL object is alive and clean it up when the SYCL object is destroyed. The backend object can be used after this call if the returned SYCL object is still alive.
+
+`ownership::transfer`: means that the ownership is transferred.
+If `make_{SYCL type}` is passed this value, SYCL runtime will keep the passed backend object alive while the returned SYCL object is alive and clean it up when the SYCL object is destroyed. The backend object can be used after this call if the returned SYCL object is still alive.
+If `get_native` is passed this value, the user is responsible for keeping the backend type passed to this call alive while the SYCL object is in use and any cleanup of the passed backend type after it is no longer in use.
+
+
+=== Sample header
+```
+namespace sycl::ext::oneapi {
+
+enum class ownership { transfer, keep };
+
+template<backend Backend, class T>
+backend_return_t<Backend, T> get_native(const T &syclObject, ownership own = keep);
+
+template<backend Backend>
+{SYCL type} make_{SYCL type}(const backend_input_t<Backend, {SYCL type}> &backendObject, ownership own = keep);
+
+[overloads for other types]
+
+}
+```
+
+
+=== Backends with reference counting
+
+Some backends, such as OpenCL, use reference counting for their objects. For such a backend this interface is still available, but the `own` argument is ignored. Regardless of the value of `own`, ownership of the backend object is shared by both the user code and the SYCL runtime. The backend object is only cleaned up when no references to it remain.
