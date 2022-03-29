@@ -359,7 +359,12 @@ public:
     Itr->updateKernelNames(Name, StableName);
   }
 
-  void addDeviceGlobalMap() { NeedToEmitDeviceGlobalMap = true; }
+  /// Signals that emission of __sycl_device_global_registration type and
+  /// declaration of variable __sycl_device_global_registrar of this type in
+  /// integration header is required.
+  void addDeviceGlobalRegistration() {
+    NeedToEmitDeviceGlobalRegistration = true;
+  }
 
 private:
   // Kernel actual parameter descriptor.
@@ -436,7 +441,9 @@ private:
 
   Sema &S;
 
-  bool NeedToEmitDeviceGlobalMap = false;
+  /// Keeps track of whether declaration of __sycl_device_global_registration
+  /// type and __sycl_device_global_registrar variable are required to emit.
+  bool NeedToEmitDeviceGlobalRegistration = false;
 };
 
 class SYCLIntegrationFooter {

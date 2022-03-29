@@ -4656,7 +4656,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // whose sole purpose is to run its constructor before the application's
   // main() function.
 
-  if (NeedToEmitDeviceGlobalMap) {
+  if (NeedToEmitDeviceGlobalRegistration) {
     O << "namespace {\n";
 
     O << "class __sycl_device_global_registration {\n";
@@ -5105,7 +5105,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "} // namespace (unnamed)\n";
     OS << "} // namespace sycl::detail\n";
 
-    S.getSyclIntegrationHeader().addDeviceGlobalMap();
+    S.getSyclIntegrationHeader().addDeviceGlobalRegistration();
   }
   return true;
 }
