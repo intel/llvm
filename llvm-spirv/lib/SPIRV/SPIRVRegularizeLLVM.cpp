@@ -635,9 +635,8 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           Type *SrcTy = ASCast->getSrcTy();
           if (DestTy->getPointerElementType() !=
               SrcTy->getPointerElementType()) {
-            PointerType *InterTy =
-                PointerType::get(DestTy->getPointerElementType(),
-                                 SrcTy->getPointerAddressSpace());
+            PointerType *InterTy = PointerType::getWithSamePointeeType(
+                cast<PointerType>(DestTy), SrcTy->getPointerAddressSpace());
             BitCastInst *NewBCast = new BitCastInst(
                 ASCast->getPointerOperand(), InterTy, /*NameStr=*/"", ASCast);
             AddrSpaceCastInst *NewASCast =

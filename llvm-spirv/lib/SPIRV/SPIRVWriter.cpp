@@ -341,8 +341,8 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     if (!BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_usm_storage_classes) &&
         ((AddrSpc == SPIRAS_GlobalDevice) || (AddrSpc == SPIRAS_GlobalHost))) {
-      auto NewType =
-          PointerType::get(T->getPointerElementType(), SPIRAS_Global);
+      auto *NewType = PointerType::getWithSamePointeeType(cast<PointerType>(T),
+                                                          SPIRAS_Global);
       return mapType(T, transType(NewType));
     }
     if (ST && !ST->isSized()) {

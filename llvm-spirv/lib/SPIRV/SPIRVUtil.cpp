@@ -1791,7 +1791,7 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
   Module *M = GV->getParent();
   LLVMContext &C = M->getContext();
   std::string FuncName = GV->getName().str();
-  Type *GVTy = GV->getType()->getPointerElementType();
+  Type *GVTy = GV->getValueType();
   Type *ReturnTy = GVTy;
   // Some SPIR-V builtin variables are translated to a function with an index
   // argument.
