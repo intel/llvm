@@ -11,6 +11,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/TargetOptions.h"
+#include "clang/Basic/Targets/SPIR.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Lex/HeaderSearchOptions.h"
@@ -1072,7 +1073,7 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
     if (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) {
       // This function pass should run after inlining, so it is added to MPM
       PerModulePasses.add(
-          createInferAddressSpacesPass((4))); // TODO make/use the constant
+          createInferAddressSpacesPass(targets::SPIR_GENERIC_AS));
     }
   }
 
