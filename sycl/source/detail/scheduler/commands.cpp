@@ -2052,8 +2052,9 @@ cl_int enqueueImpKernel(
   if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
     kernel_id KernelID =
         detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
+    kernel SyclKernel = KernelBundleImplPtr->get_kernel(
+        KernelID, createSyclObjFromImpl<device>(DeviceImpl),
+        KernelBundleImplPtr);
 
     SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
 
