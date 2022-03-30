@@ -132,11 +132,16 @@ install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
         DESTINATION ${SYCL_INCLUDE_DIR}/sycl
         COMPONENT OpenCL-Headers)
 
-option(SYCL_BUILD_PI_CUDA
-  "Enables the CUDA backend for the Plugin Interface" OFF)
-
-option(SYCL_BUILD_PI_HIP
-  "Enables the HIP backend for the Plugin Interface" OFF)
+# Needed for feature_test.hpp
+if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(SYCL_BUILD_PI_CUDA ON)
+endif()
+if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(SYCL_BUILD_PI_HIP ON)
+endif()
+if ("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(SYCL_BUILD_PI_HIP ON)
+endif()
 
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -370,7 +375,7 @@ if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET OpenCL-ICD)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS OpenCL-ICD)
 endif()
 
-if(SYCL_BUILD_PI_CUDA)
+if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
@@ -382,7 +387,7 @@ if(SYCL_BUILD_PI_CUDA)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_cuda)
 endif()
 
-if(SYCL_BUILD_PI_HIP)
+if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
@@ -394,7 +399,7 @@ if(SYCL_BUILD_PI_HIP)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
 endif()
 
-if(SYCL_BUILD_PI_ESIMD_EMULATOR)
+if("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
   if (MSVC)
     list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
