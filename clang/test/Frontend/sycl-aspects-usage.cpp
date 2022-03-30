@@ -48,6 +48,9 @@ double funcWithSeveralAspects() {
   return static_cast<double>(s.a);
 }
 
+// Check that a warning diagnostic works in a case
+// when there are several aspects present and a part
+// of them conflicts with declared in device_has().
 [[sycl::device_has(aspect::fp16)]] int checkSeveralAspects() {
   return funcWithSeveralAspects();
 }
@@ -57,8 +60,9 @@ int main() {
   Q.submit([&](handler &h) {
     h.single_task<KernelName>([=]() {
       checkStructUsesAspect(1);
-      int c = checkEmptyDeviceHas();
-      int d = checkDouble();
+      checkEmptyDeviceHas();
+      checkDouble();
+      checkSeveralAspects();
     });
   });
 }
