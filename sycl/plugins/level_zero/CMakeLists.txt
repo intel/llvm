@@ -109,7 +109,6 @@ add_sycl_plugin(level_zero
     "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.hpp"
   LIBRARIES
     "${LEVEL_ZERO_LOADER}"
-    OpenCL-Headers
     Threads::Threads
 )
 

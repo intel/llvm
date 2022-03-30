@@ -30,7 +30,6 @@ add_sycl_plugin(cuda
     "pi_cuda.hpp"
     "pi_cuda.cpp"
   LIBRARIES
-    OpenCL-Headers
     cudadrv
 )
 

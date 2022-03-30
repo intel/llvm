@@ -109,7 +109,6 @@ add_sycl_plugin(esimd_emulator
     "pi_esimd_emulator.cpp"
   LIBRARIES
     "${LEVEL_ZERO_LOADER}"
-    OpenCL-Headers
     ${LIBCM}
     ${LIBIGFXCMRT_EMU}
     #TODO remove cyclic dependency

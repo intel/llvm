@@ -33,19 +33,21 @@ endfunction()
 function(add_sycl_plugin PLUGIN_NAME)
   cmake_parse_arguments("ARG"
     ""
-    "LINKER_SCRIPT"
+    ""
     "SOURCES;INCLUDE_DIRS;LIBRARIES"
     ${ARGN}
   )
 
   add_sycl_library("pi_${PLUGIN_NAME}" SHARED
     TOOLCHAIN
-    LINKER_SCRIPT "${sycl_src_dir}/ld-version-script.txt"
+    LINKER_SCRIPT "${PROJECT_SOURCE_DIR}/source/ld-version-script.txt"
     SOURCES ${ARG_SOURCES}
     INCLUDE_DIRS
       ${ARG_INCLUDE_DIRS}
       ${sycl_inc_dir}
-    LIBRARIES ${ARG_LIBRARIES}
+    LIBRARIES
+      ${ARG_LIBRARIES}
+      OpenCL-Headers
   )
 
   install(TARGETS pi_${PLUGIN_NAME}
