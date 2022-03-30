@@ -755,6 +755,9 @@ struct _pi_queue : _pi_object {
   // link copy engines, if available.
   pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
 
+  // Wait on all immediate commandlists associated with this queue
+  pi_result waitOnAllImmCmdLists();
+
   pi_queue_group_t &getQueueGroup(bool UseCopyEngine) {
     return UseCopyEngine ? CopyQueueGroup : ComputeQueueGroup;
   }

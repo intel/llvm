@@ -1069,8 +1069,8 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
     ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
     // Create space to hold immediate commandlists corresponding to the ZeQueues
     if (UseImmediateCommandLists) {
-      ComputeQueueGroup.ImmCmdLists =
-          std::vector<pi_command_list_ptr_t>(ComputeQueueGroup.ZeQueues.size());
+      ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+          ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
     }
   } else {
     die("No compute queue available.");
@@ -1094,8 +1094,8 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
       // Create space to hold immediate commandlists corresponding to the
       // ZeQueues
       if (UseImmediateCommandLists) {
-        CopyQueueGroup.ImmCmdLists =
-            std::vector<pi_command_list_ptr_t>(CopyQueueGroup.ZeQueues.size());
+        CopyQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+            CopyQueueGroup.ZeQueues.size(), CommandListMap.end());
       }
     }
   }
@@ -1459,8 +1459,12 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
   // Check global control to make every command blocking for debugging.
   if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
-    // Wait until command lists attached to the command queue are executed.
-    ZE_CALL(zeHostSynchronize, (ZeCommandQueue));
+    if (UseImmediateCommandLists) {
+      waitOnAllImmCmdLists();
+    } else {
+      // Wait until command lists attached to the command queue are executed.
+      ZE_CALL(zeHostSynchronize, (ZeCommandQueue));
+    }
   }
   return PI_SUCCESS;
 }
@@ -1520,17 +1524,12 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
           UpperIndex);
 
-  auto ZeResult = ZE_CALL_NOCHECK(
-      zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
-                             &ZeCommandQueueDesc, &ZeQueue));
-  if (ZeResult) {
-    die("[L0] getZeQueue: failed to create queue");
-  }
-
   // When using immediate commandlists, we create a commandlist corresponding
-  // to the L0 queue created above. Created once, the commandlists are reused
-  // without needing a close or reset.
-  if (UseImmediateCommandLists) {
+  // to the ordinal/index assigned above. Created once, the commandlists are
+  // reused without needing a close or reset. Each commandlist has an implicit
+  // L0 queue.
+  if (UseImmediateCommandLists &&
+      ImmCmdLists[CurrentIndex] == Queue->CommandListMap.end()) {
     ze_command_list_handle_t ZeCommandList;
     ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
                     (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -1549,6 +1548,14 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
             : Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice];
     std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
     ZeCommandListCache.push_back(ZeCommandList);
+  } else {
+    auto ZeResult =
+        ZE_CALL_NOCHECK(zeCommandQueueCreate,
+                        (Queue->Context->ZeContext, Queue->Device->ZeDevice,
+                         &ZeCommandQueueDesc, &ZeQueue));
+    if (ZeResult) {
+      die("[L0] getZeQueue: failed to create queue");
+    }
   }
 
   return ZeQueue;
@@ -3253,13 +3260,17 @@ pi_result piQueueRelease(pi_queue Queue) {
       // Make sure all commands get executed.
       // Only do so for a healthy queue as otherwise sync may not be valid.
       if (Queue->Healthy) {
-        for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
-          if (ZeQueue)
-            ZE_CALL(zeHostSynchronize, (ZeQueue));
-        }
-        for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
-          if (ZeQueue)
-            ZE_CALL(zeHostSynchronize, (ZeQueue));
+        if (UseImmediateCommandLists) {
+          Queue->waitOnAllImmCmdLists();
+        } else {
+          for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
+            if (ZeQueue)
+              ZE_CALL(zeHostSynchronize, (ZeQueue));
+          }
+          for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
+            if (ZeQueue)
+              ZE_CALL(zeHostSynchronize, (ZeQueue));
+          }
         }
       }
       // Destroy all the fences created associated with this queue.
@@ -3331,6 +3342,14 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
 pi_result piQueueFinish(pi_queue Queue) {
   // Wait until command lists attached to the command queue are executed.
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
+
+  if (UseImmediateCommandLists) {
+    // Lock automatically releases when this goes out of scope.
+    std::scoped_lock lock(Queue->Mutex);
+
+    Queue->waitOnAllImmCmdLists();
+    return PI_SUCCESS;
+  }
 
   std::vector<ze_command_queue_handle_t> ZeQueues;
   {
@@ -5777,13 +5796,17 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   if (Res != PI_SUCCESS)
     return Res;
 
-  for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
-    if (ZeQueue)
-      ZE_CALL(zeHostSynchronize, (ZeQueue));
-  }
-  for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
-    if (ZeQueue)
-      ZE_CALL(zeHostSynchronize, (ZeQueue));
+  if (UseImmediateCommandLists) {
+    Queue->waitOnAllImmCmdLists();
+  } else {
+    for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
+      if (ZeQueue)
+        ZE_CALL(zeHostSynchronize, (ZeQueue));
+    }
+    for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
+      if (ZeQueue)
+        ZE_CALL(zeHostSynchronize, (ZeQueue));
+    }
   }
 
   Queue->LastCommandEvent = *Event;
@@ -5874,6 +5897,33 @@ pi_result piEnqueueMemBufferReadRect(
 bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
   return PreferCopyEngine && CopyQueueGroup.ZeQueues.size() > 0 &&
          (!isInOrderQueue() || UseCopyEngineForInOrderQueue);
+}
+
+pi_result _pi_queue::waitOnAllImmCmdLists() {
+  if (!Healthy)
+    return PI_SUCCESS;
+
+  auto syncImmCmdList = [](_pi_queue *Queue, pi_command_list_ptr_t ImmCmdList) {
+    pi_event Event;
+    EventCreate(Queue->Context, Queue, true, &Event);
+    auto zeEvent = Event->ZeEvent;
+    ZE_CALL(zeCommandListAppendBarrier,
+            (ImmCmdList->first, zeEvent, 0, nullptr));
+    ZE_CALL(zeHostSynchronize, (zeEvent));
+    ZE_CALL(zeEventDestroy, (zeEvent));
+    delete Event;
+    return PI_SUCCESS;
+  };
+
+  for (auto ImmCmdList : ComputeQueueGroup.ImmCmdLists) {
+    if (ImmCmdList != CommandListMap.end())
+      syncImmCmdList(this, ImmCmdList);
+  }
+  for (auto ImmCmdList : CopyQueueGroup.ImmCmdLists) {
+    if (ImmCmdList != CommandListMap.end())
+      syncImmCmdList(this, ImmCmdList);
+  }
+  return PI_SUCCESS;
 }
 
 // Shared by all memory read/write/copy PI interfaces.
