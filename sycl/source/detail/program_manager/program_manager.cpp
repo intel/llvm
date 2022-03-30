@@ -1746,20 +1746,32 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
   const detail::plugin &Plugin = ContextImpl->getPlugin();
 
-  RT::PiProgram LinkedProg = nullptr;
-  RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
-      ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
-      /*options=*/LinkOptionsStr.c_str(), PIPrograms.size(), PIPrograms.data(),
-      /*pfn_notify=*/nullptr,
-      /*user_data=*/nullptr, &LinkedProg);
-
-  if (Error != PI_SUCCESS) {
-    if (LinkedProg) {
-      const std::string ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
-      throw sycl::exception(make_error_code(errc::build), ErrorMsg);
+  std::vector<RT::PiProgram> LinkedPrograms;
+  auto CallPiProgramLink = [&](size_t DevCount, const pi_device *Devices) {
+    RT::PiProgram LinkedProg = nullptr;
+    RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
+        ContextImpl->getHandleRef(), DevCount, Devices,
+        /*options=*/LinkOptionsStr.c_str(), PIPrograms.size(),
+        PIPrograms.data(),
+        /*pfn_notify=*/nullptr,
+        /*user_data=*/nullptr, &LinkedProg);
+    if (Error != PI_SUCCESS) {
+      if (LinkedProg) {
+        const std::string ErrorMsg =
+            getProgramBuildLog(LinkedProg, ContextImpl);
+        throw sycl::exception(make_error_code(errc::build), ErrorMsg);
+      }
+      Plugin.reportPiError(Error, "link()");
     }
-    Plugin.reportPiError(Error, "link()");
-  }
+    LinkedPrograms.push_back(LinkedProg);
+  };
+
+  if (Plugin.getBackend() == sycl::backend::level_zero) {
+    LinkedPrograms.reserve(PIDevices.size());
+    for (auto &Dev : PIDevices)
+      CallPiProgramLink(1, &Dev);
+  } else
+    CallPiProgramLink(PIDevices.size(), PIDevices.data());
 
   std::shared_ptr<std::vector<kernel_id>> KernelIDs{new std::vector<kernel_id>};
   for (const device_image_plain &DeviceImage : DeviceImages) {
@@ -1772,14 +1784,20 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   // device_image_impl expects kernel ids to be sorted for fast search
   std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
 
-  DeviceImageImplPtr ExecutableImpl =
-      std::make_shared<detail::device_image_impl>(
-          /*BinImage=*/nullptr, Context, Devs, bundle_state::executable,
-          std::move(KernelIDs), LinkedProg);
+  std::vector<device_image_plain> LinkedDevImages;
+  for (auto &LinkedProg : LinkedPrograms) {
+    DeviceImageImplPtr ExecutableImpl =
+        std::make_shared<detail::device_image_impl>(
+            /*BinImage=*/nullptr, Context, Devs, bundle_state::executable,
+            KernelIDs, LinkedProg);
 
-  // TODO: Make multiple sets of device images organized by devices they are
-  // compiled for.
-  return {createSyclObjFromImpl<device_image_plain>(ExecutableImpl)};
+    // TODO: Make multiple sets of device images organized by devices they are
+    // compiled for.
+    LinkedDevImages.push_back(
+        createSyclObjFromImpl<device_image_plain>(ExecutableImpl));
+  }
+
+  return LinkedDevImages;
 }
 
 // The function duplicates most of the code from existing getBuiltPIProgram.

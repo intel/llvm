@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -353,19 +354,19 @@ public:
     return Result;
   }
 
-  kernel
-  get_kernel(const kernel_id &KernelID,
-             const std::shared_ptr<detail::kernel_bundle_impl> &Self) const {
-
+  inline kernel
+  GetKernel(const kernel_id &KernelID,
+            const std::shared_ptr<detail::kernel_bundle_impl> &Self,
+            const std::function<bool(const device_image_plain &)>
+                &SearchCondition) const {
     auto It = std::find_if(MDeviceImages.begin(), MDeviceImages.end(),
-                           [&KernelID](const device_image_plain &DeviceImage) {
-                             return DeviceImage.has_kernel(KernelID);
-                           });
+                           SearchCondition);
 
     if (MDeviceImages.end() == It)
       throw sycl::exception(make_error_code(errc::invalid),
                             "The kernel bundle does not contain the kernel "
-                            "identified by kernelId.");
+                            "identified by kernelId and compatible with device "
+                            "Dev (if specified).");
 
     const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
         detail::getSyclObjImpl(*It);
@@ -380,6 +381,27 @@ public:
         Kernel, detail::getSyclObjImpl(MContext), DeviceImageImpl, Self);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
+  }
+  // Returns kernel compatible with device Dev
+  kernel
+  get_kernel(const kernel_id &KernelID, const device &Dev,
+             const std::shared_ptr<detail::kernel_bundle_impl> &Self) const {
+    const auto SearchCondition = [&KernelID,
+                                  &Dev](const device_image_plain &DeviceImage) {
+      return DeviceImage.has_kernel(KernelID, Dev);
+    };
+    return GetKernel(KernelID, Self, SearchCondition);
+  }
+
+  kernel
+  get_kernel(const kernel_id &KernelID,
+             const std::shared_ptr<detail::kernel_bundle_impl> &Self) const {
+
+    const auto SearchCondition =
+        [&KernelID](const device_image_plain &DeviceImage) {
+          return DeviceImage.has_kernel(KernelID);
+        };
+    return GetKernel(KernelID, Self, SearchCondition);
   }
 
   bool has_kernel(const kernel_id &KernelID) const noexcept {
