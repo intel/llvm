@@ -110,13 +110,13 @@ struct cm_surface_ptr_t {
   // Buffer/Image created with PI_MEM_FLAGS_HOST_PTR_USE option in
   // SYCL
   enum SurfaceType {
-    type_none,
-    type_regular_buffer,
-    type_user_provided_buffer,
-    type_regular_image,
-    type_user_provided_image
+    TypeNone,
+    TypeRegularBuffer,
+    TypeUserProvidedBuffer,
+    TypeRegularImage,
+    TypeUserProvidedImage
   };
-  SurfaceType tag = type_none;
+  SurfaceType tag = TypeNone;
 
   union {
     cm_support::CmBuffer *RegularBufPtr = nullptr;
