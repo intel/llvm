@@ -12,13 +12,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
-#include "mlir/Analysis/Presburger/PresburgerSet.h"
+#include "mlir/Analysis/Presburger/PresburgerRelation.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/IntegerSet.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
@@ -27,6 +26,7 @@
 #define DEBUG_TYPE "analysis-utils"
 
 using namespace mlir;
+using namespace presburger;
 
 using llvm::SmallDenseMap;
 

@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
@@ -29,8 +29,8 @@ static LogicalResult createBackwardSliceFunction(Operation *op,
   OpBuilder builder(parentFuncOp);
   Location loc = op->getLoc();
   std::string clonedFuncOpName = parentFuncOp.getName().str() + suffix.str();
-  FuncOp clonedFuncOp =
-      builder.create<FuncOp>(loc, clonedFuncOpName, parentFuncOp.getType());
+  FuncOp clonedFuncOp = builder.create<FuncOp>(loc, clonedFuncOpName,
+                                               parentFuncOp.getFunctionType());
   BlockAndValueMapping mapper;
   builder.setInsertionPointToEnd(clonedFuncOp.addEntryBlock());
   for (const auto &arg : enumerate(parentFuncOp.getArguments()))
@@ -39,7 +39,7 @@ static LogicalResult createBackwardSliceFunction(Operation *op,
   getBackwardSlice(op, &slice);
   for (Operation *slicedOp : slice)
     builder.clone(*slicedOp, mapper);
-  builder.create<ReturnOp>(loc);
+  builder.create<func::ReturnOp>(loc);
   return success();
 }
 

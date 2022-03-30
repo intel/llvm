@@ -619,10 +619,7 @@ gentbl(
     tbl_outs = [("-gen-attrs", "include/llvm/IR/Attributes.inc")],
     tblgen = ":llvm-tblgen",
     td_file = "include/llvm/IR/Attributes.td",
-    td_srcs = [
-        "include/llvm/IR/Attributes.td",
-        "include/llvm/IR/AttributesAMDGPU.td",
-    ],
+    td_srcs = ["include/llvm/IR/Attributes.td"],
 )
 
 cc_library(
@@ -3608,6 +3605,24 @@ cc_binary(
         ":AllTargetsCodeGens",
         ":BitReader",
         ":Core",
+    ],
+)
+
+cc_binary(
+    name = "llvm-remark-size-diff",
+    srcs = glob([
+        "tools/llvm-remark-size-diff/**/*.cpp",
+        "tools/llvm-remark-size-diff/**/*.h",
+    ]),
+    copts = llvm_copts,
+    includes = ["tools/llvm-reark-size-diff"],
+    stamp = 0,
+    deps = [
+        ":Core",
+        ":Demangle",
+        ":Object",
+        ":Remarks",
+        ":Support",
     ],
 )
 

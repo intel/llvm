@@ -17,13 +17,13 @@
 #include "CodegenUtils.h"
 
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/SparseTensor/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/ExecutionEngine/SparseTensorUtils.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -71,21 +71,24 @@ static FlatSymbolRefAttr getFunc(Operation *op, StringRef name,
 }
 
 /// Creates a `CallOp` to the function reference returned by `getFunc()`.
-static CallOp createFuncCall(OpBuilder &builder, Operation *op, StringRef name,
-                             TypeRange resultType, ValueRange operands,
-                             EmitCInterface emitCInterface) {
+static func::CallOp createFuncCall(OpBuilder &builder, Operation *op,
+                                   StringRef name, TypeRange resultType,
+                                   ValueRange operands,
+                                   EmitCInterface emitCInterface) {
   auto fn = getFunc(op, name, resultType, operands, emitCInterface);
-  return builder.create<CallOp>(op->getLoc(), resultType, fn, operands);
+  return builder.create<func::CallOp>(op->getLoc(), resultType, fn, operands);
 }
 
 /// Replaces the `op` with  a `CallOp` to the function reference returned
 /// by `getFunc()`.
-static CallOp replaceOpWithFuncCall(PatternRewriter &rewriter, Operation *op,
-                                    StringRef name, TypeRange resultType,
-                                    ValueRange operands,
-                                    EmitCInterface emitCInterface) {
+static func::CallOp replaceOpWithFuncCall(PatternRewriter &rewriter,
+                                          Operation *op, StringRef name,
+                                          TypeRange resultType,
+                                          ValueRange operands,
+                                          EmitCInterface emitCInterface) {
   auto fn = getFunc(op, name, resultType, operands, emitCInterface);
-  return rewriter.replaceOpWithNewOp<CallOp>(op, resultType, fn, operands);
+  return rewriter.replaceOpWithNewOp<func::CallOp>(op, resultType, fn,
+                                                   operands);
 }
 
 /// Generates dimension size call.
@@ -331,7 +334,7 @@ static Value allocDenseTensor(ConversionPatternRewriter &rewriter, Location loc,
   }
   Value mem = rewriter.create<memref::AllocOp>(loc, memTp, dynamicSizes);
   Value zero = constantZero(rewriter, loc, elemTp);
-  rewriter.create<linalg::FillOp>(loc, zero, mem);
+  rewriter.create<linalg::FillOp>(loc, ValueRange{zero}, ValueRange{mem});
   return mem;
 }
 
@@ -357,13 +360,13 @@ static void insertScalarIntoDenseTensor(ConversionPatternRewriter &rewriter,
 //===----------------------------------------------------------------------===//
 
 /// Sparse conversion rule for returns.
-class SparseReturnConverter : public OpConversionPattern<ReturnOp> {
+class SparseReturnConverter : public OpConversionPattern<func::ReturnOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(ReturnOp op, OpAdaptor adaptor,
+  matchAndRewrite(func::ReturnOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<ReturnOp>(op, adaptor.getOperands());
+    rewriter.replaceOpWithNewOp<func::ReturnOp>(op, adaptor.getOperands());
     return success();
   }
 };
@@ -746,10 +749,12 @@ public:
     // introduces an O(N) operation into the computation, but this reset
     // operation is amortized over the innermost loops for the access
     // pattern expansion.
-    rewriter.create<linalg::FillOp>(loc, constantZero(rewriter, loc, eltType),
-                                    values);
-    rewriter.create<linalg::FillOp>(loc, constantZero(rewriter, loc, boolType),
-                                    filled);
+    rewriter.create<linalg::FillOp>(
+        loc, ValueRange{constantZero(rewriter, loc, eltType)},
+        ValueRange{values});
+    rewriter.create<linalg::FillOp>(
+        loc, ValueRange{constantZero(rewriter, loc, boolType)},
+        ValueRange{filled});
     // Replace expansion op with these buffers and initial index.
     assert(op.getNumResults() == 4);
     rewriter.replaceOp(op, {values, filled, indices, zero});

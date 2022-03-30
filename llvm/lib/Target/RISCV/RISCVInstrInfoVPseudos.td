@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 ///
 /// This file contains the required infrastructure to support code generation
-/// for the standard 'V' (Vector) extension, version 0.10.  This version is still
-/// experimental as the 'V' extension hasn't been ratified yet.
+/// for the standard 'V' (Vector) extension, version 1.0.
 ///
 /// This file is included from RISCVInstrInfoV.td
 ///
@@ -419,7 +418,7 @@ def RISCVVPseudosTable : GenericTable {
 def RISCVVIntrinsicsTable : GenericTable {
   let FilterClass = "RISCVVIntrinsic";
   let CppTypeName = "RISCVVIntrinsicInfo";
-  let Fields = ["IntrinsicID", "SplatOperand", "VLOperand"];
+  let Fields = ["IntrinsicID", "ScalarOperand", "VLOperand"];
   let PrimaryKey = ["IntrinsicID"];
   let PrimaryKeyName = "getRISCVVIntrinsicInfo";
 }
@@ -3358,7 +3357,7 @@ multiclass VPatNullaryV<string intrinsic, string instruction>
 multiclass VPatNullaryM<string intrinsic, string inst> {
   foreach mti = AllMasks in
     def : Pat<(mti.Mask (!cast<Intrinsic>(intrinsic)
-                        (XLenVT (VLOp (XLenVT (XLenVT GPR:$vl)))))),
+                        VLOpFrag)),
                         (!cast<Instruction>(inst#"_M_"#mti.BX)
                         GPR:$vl, mti.Log2SEW)>;
 }
@@ -5414,6 +5413,11 @@ foreach fvti = AllFloatVectors in {
              (fvti.Vector $rs1),
              (fvti.Scalar fvti.ScalarRegClass:$rs2),
              GPR:$vl, fvti.Log2SEW)>;
+
+  def : Pat<(fvti.Vector (int_riscv_vfmv_s_f (fvti.Vector fvti.RegClass:$rs1),
+                         (fvti.Scalar (fpimm0)), VLOpFrag)),
+            (!cast<Instruction>("PseudoVMV_S_X_" # fvti.LMul.MX)
+             (fvti.Vector $rs1), X0, GPR:$vl, fvti.Log2SEW)>;
 }
 } // Predicates = [HasVInstructionsAnyF]
 

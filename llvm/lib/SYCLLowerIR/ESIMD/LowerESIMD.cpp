@@ -1589,10 +1589,7 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
   for (auto &G : M.getGlobalList()) {
     if (!G.hasAttribute("genx_volatile"))
       continue;
-    auto PTy = dyn_cast<PointerType>(G.getType());
-    if (!PTy)
-      continue;
-    auto GTy = dyn_cast<StructType>(PTy->getPointerElementType());
+    auto GTy = dyn_cast<StructType>(G.getValueType());
     // TODO FIXME relying on type name in LLVM IR is fragile, needs rework
     if (!GTy || !GTy->getName()
                      .rtrim(".0123456789")

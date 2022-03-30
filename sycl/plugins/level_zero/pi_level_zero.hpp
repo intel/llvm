@@ -352,6 +352,18 @@ public:
       : USMMemoryAllocBase(Ctx, Dev) {}
 };
 
+// Allocation routines for shared memory type that is only modified from host.
+class USMSharedReadOnlyMemoryAlloc : public USMMemoryAllocBase {
+protected:
+  pi_result allocateImpl(void **ResultPtr, size_t Size,
+                         pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override { return SystemMemory::SharedReadOnly; }
+
+public:
+  USMSharedReadOnlyMemoryAlloc(pi_context Ctx, pi_device Dev)
+      : USMMemoryAllocBase(Ctx, Dev) {}
+};
+
 // Allocation routines for device memory type
 class USMDeviceMemoryAlloc : public USMMemoryAllocBase {
 protected:
@@ -513,6 +525,10 @@ struct _pi_context : _pi_object {
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(
               new USMSharedMemoryAlloc(this, Device))));
+      SharedReadOnlyMemAllocContexts.emplace(
+          std::piecewise_construct, std::make_tuple(Device),
+          std::make_tuple(std::unique_ptr<SystemMemory>(
+              new USMSharedReadOnlyMemoryAlloc(this, Device))));
       DeviceMemAllocContexts.emplace(
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(
@@ -644,8 +660,15 @@ struct _pi_context : _pi_object {
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
   // per each pair of (context, device) per each memory type.
-  std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
   std::unordered_map<pi_device, USMAllocContext> DeviceMemAllocContexts;
+  std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
+  std::unordered_map<pi_device, USMAllocContext> SharedReadOnlyMemAllocContexts;
+
+  // Since L0 native runtime does not distinguisg "shared device_read_only"
+  // vs regular "shared" allocations, we have keep track of it to use
+  // proper USMAllocContext when freeing allocations.
+  std::unordered_set<void *> SharedReadOnlyAllocs;
+
   // Store the host allocator context. It does not depend on any device.
   std::unique_ptr<USMAllocContext> HostMemAllocContext;
 
@@ -1100,6 +1123,12 @@ struct _pi_event : _pi_object {
   // actions are performed only once.
   //
   bool CleanedUp = {false};
+
+  // Indicates that this PI event had already completed in the sense
+  // that no other synchromization is needed. Note that the underlying
+  // L0 event (if any) is not guranteed to have been signalled, or
+  // being visible to the host at all.
+  bool Completed = {false};
 };
 
 struct _pi_program : _pi_object {

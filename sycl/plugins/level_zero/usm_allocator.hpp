@@ -14,7 +14,7 @@
 // USM system memory allocation/deallocation interface.
 class SystemMemory {
 public:
-  enum MemType { Host, Device, Shared, All };
+  enum MemType { Host, Device, Shared, SharedReadOnly, All };
   virtual void *allocate(size_t size) = 0;
   virtual void *allocate(size_t size, size_t aligned) = 0;
   virtual void deallocate(void *ptr) = 0;

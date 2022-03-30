@@ -172,15 +172,14 @@ class Remangler {
   SmallVector<std::string, 16> Subs;
   bool Failed = false;
 
-  OutputBuffer printNode(const Node *node) {
-    OutputBuffer nodeOutBuffer;
+  void printNode(const Node *node, OutputBuffer &nodeOutBuffer) {
     initializeOutputBuffer(nullptr, nullptr, nodeOutBuffer, 1024);
     node->print(nodeOutBuffer);
-    return nodeOutBuffer;
   }
 
   void addSub(const Node *node) {
-    OutputBuffer nodeOut = printNode(node);
+    OutputBuffer nodeOut;
+    printNode(node, nodeOut);
     char *nodeOutBuf = nodeOut.getBuffer();
     auto nodeOutStr =
         std::string(nodeOutBuf, nodeOutBuf + nodeOut.getCurrentPosition());
@@ -189,7 +188,8 @@ class Remangler {
   }
 
   bool findSub(const Node *node, size_t *index) {
-    OutputBuffer nodeOut = printNode(node);
+    OutputBuffer nodeOut;
+    printNode(node, nodeOut);
     char *nodeOutBuf = nodeOut.getBuffer();
     auto nodeOutStr =
         std::string(nodeOutBuf, nodeOutBuf + nodeOut.getCurrentPosition());

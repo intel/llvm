@@ -12,7 +12,9 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/BinaryFormat/COFF.h"
+#include "llvm/ObjCopy/CommonConfig.h"
 #include "llvm/ObjCopy/ConfigManager.h"
+#include "llvm/ObjCopy/MachO/MachOConfig.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CRC.h"
@@ -365,41 +367,6 @@ static Error addSymbolsFromFile(NameMatcher &Symbols, BumpPtrAllocator &Alloc,
   return Error::success();
 }
 
-Expected<NameOrPattern>
-NameOrPattern::create(StringRef Pattern, MatchStyle MS,
-                      function_ref<Error(Error)> ErrorCallback) {
-  switch (MS) {
-  case MatchStyle::Literal:
-    return NameOrPattern(Pattern);
-  case MatchStyle::Wildcard: {
-    SmallVector<char, 32> Data;
-    bool IsPositiveMatch = true;
-    if (Pattern[0] == '!') {
-      IsPositiveMatch = false;
-      Pattern = Pattern.drop_front();
-    }
-    Expected<GlobPattern> GlobOrErr = GlobPattern::create(Pattern);
-
-    // If we couldn't create it as a glob, report the error, but try again with
-    // a literal if the error reporting is non-fatal.
-    if (!GlobOrErr) {
-      if (Error E = ErrorCallback(GlobOrErr.takeError()))
-        return std::move(E);
-      return create(Pattern, MatchStyle::Literal, ErrorCallback);
-    }
-
-    return NameOrPattern(std::make_shared<GlobPattern>(*GlobOrErr),
-                         IsPositiveMatch);
-  }
-  case MatchStyle::Regex: {
-    SmallVector<char, 32> Data;
-    return NameOrPattern(std::make_shared<Regex>(
-        ("^" + Pattern.ltrim('^').rtrim('$') + "$").toStringRef(Data)));
-  }
-  }
-  llvm_unreachable("Unhandled llvm.objcopy.MatchStyle enum");
-}
-
 static Error addSymbolsToRenameFromFile(StringMap<StringRef> &SymbolsToRename,
                                         BumpPtrAllocator &Alloc,
                                         StringRef Filename) {
@@ -556,6 +523,32 @@ static Expected<NewSymbolInfo> parseNewSymbolInfo(StringRef FlagValue) {
                              join(UnsupportedFlags, "', '").c_str());
 
   return SI;
+}
+
+// Parse input option \p ArgValue and load section data. This function
+// extracts section name and name of the file keeping section data from
+// ArgValue, loads data from the file, and stores section name and data
+// into the vector of new sections \p NewSections.
+static Error loadNewSectionData(StringRef ArgValue, StringRef OptionName,
+                                std::vector<NewSectionInfo> &NewSections) {
+  if (!ArgValue.contains('='))
+    return createStringError(errc::invalid_argument,
+                             "bad format for " + OptionName + ": missing '='");
+
+  std::pair<StringRef, StringRef> SecPair = ArgValue.split("=");
+  if (SecPair.second.empty())
+    return createStringError(errc::invalid_argument, "bad format for " +
+                                                         OptionName +
+                                                         ": missing file name");
+
+  ErrorOr<std::unique_ptr<MemoryBuffer>> BufOrErr =
+      MemoryBuffer::getFile(SecPair.second);
+  if (!BufOrErr)
+    return createFileError(SecPair.second,
+                           errorCodeToError(BufOrErr.getError()));
+
+  NewSections.push_back({SecPair.first, std::move(*BufOrErr)});
+  return Error::success();
 }
 
 // ParseObjcopyOptions returns the config and sets the input arguments. If a
@@ -848,26 +841,14 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
             Arg->getValue(), SectionMatchStyle, ErrorCallback)))
       return std::move(E);
   for (auto Arg : InputArgs.filtered(OBJCOPY_add_section)) {
-    StringRef ArgValue(Arg->getValue());
-    if (!ArgValue.contains('='))
-      return createStringError(errc::invalid_argument,
-                               "bad format for --add-section: missing '='");
-    if (ArgValue.split("=").second.empty())
-      return createStringError(
-          errc::invalid_argument,
-          "bad format for --add-section: missing file name");
-    Config.AddSection.push_back(ArgValue);
+    if (Error Err = loadNewSectionData(Arg->getValue(), "--add-section",
+                                       Config.AddSection))
+      return std::move(Err);
   }
   for (auto Arg : InputArgs.filtered(OBJCOPY_update_section)) {
-    StringRef ArgValue(Arg->getValue());
-    if (!ArgValue.contains('='))
-      return createStringError(errc::invalid_argument,
-                               "bad format for --update-section: missing '='");
-    if (ArgValue.split("=").second.empty())
-      return createStringError(
-          errc::invalid_argument,
-          "bad format for --update-section: missing file name");
-    Config.UpdateSection.push_back(ArgValue);
+    if (Error Err = loadNewSectionData(Arg->getValue(), "--update-section",
+                                       Config.UpdateSection))
+      return std::move(Err);
   }
   for (auto *Arg : InputArgs.filtered(OBJCOPY_dump_section)) {
     StringRef Value(Arg->getValue());
@@ -1169,10 +1150,12 @@ objcopy::parseInstallNameToolOptions(ArrayRef<const char *> ArgsArr) {
 }
 
 Expected<DriverConfig>
-objcopy::parseBitcodeStripOptions(ArrayRef<const char *> ArgsArr) {
+objcopy::parseBitcodeStripOptions(ArrayRef<const char *> ArgsArr,
+                                  function_ref<Error(Error)> ErrorCallback) {
   DriverConfig DC;
   ConfigManager ConfigMgr;
   CommonConfig &Config = ConfigMgr.Common;
+  MachOConfig &MachOConfig = ConfigMgr.MachO;
   BitcodeStripOptTable T;
   unsigned MissingArgumentIndex, MissingArgumentCount;
   opt::InputArgList InputArgs =
@@ -1207,7 +1190,21 @@ objcopy::parseBitcodeStripOptions(ArrayRef<const char *> ArgsArr) {
                              "llvm-bitcode-strip expects a single input file");
   assert(!Positional.empty());
   Config.InputFilename = Positional[0];
-  Config.OutputFilename = Positional[0];
+
+  if (!InputArgs.hasArg(BITCODE_STRIP_output)) {
+    return createStringError(errc::invalid_argument,
+                             "-o is a required argument");
+  }
+  Config.OutputFilename = InputArgs.getLastArgValue(BITCODE_STRIP_output);
+
+  if (!InputArgs.hasArg(BITCODE_STRIP_remove))
+    return createStringError(errc::invalid_argument, "no action specified");
+
+  // We only support -r for now, which removes all bitcode sections and
+  // the __LLVM segment if it's now empty.
+  cantFail(Config.ToRemove.addMatcher(NameOrPattern::create(
+      "__LLVM,__bundle", MatchStyle::Literal, ErrorCallback)));
+  MachOConfig.EmptySegmentsToRemove.insert("__LLVM");
 
   DC.CopyConfigs.push_back(std::move(ConfigMgr));
   return std::move(DC);

@@ -13,6 +13,7 @@
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/MemRefToLLVM/AllocLikeConversion.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/FunctionCallUtils.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -1753,7 +1754,7 @@ struct ViewOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
 // AtomicRMWOpLowering
 //===----------------------------------------------------------------------===//
 
-/// Try to match the kind of a std.atomic_rmw to determine whether to use a
+/// Try to match the kind of a memref.atomic_rmw to determine whether to use a
 /// lowering to llvm.atomicrmw or fallback to llvm.cmpxchg.
 static Optional<LLVM::AtomicBinOp>
 matchSimpleAtomicOp(memref::AtomicRMWOp atomicOp) {

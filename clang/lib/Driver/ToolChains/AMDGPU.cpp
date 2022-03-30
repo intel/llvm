@@ -91,7 +91,7 @@ void RocmInstallationDetector::scanLibDevicePath(llvm::StringRef Path) {
     else if (FileName.endswith(Suffix))
       BaseName = FileName.drop_back(Suffix.size());
 
-    const StringRef ABIVersionPrefix = "abi_version_";
+    const StringRef ABIVersionPrefix = "oclc_abi_version_";
     if (BaseName == "ocml") {
       OCML = FilePath;
     } else if (BaseName == "ockl") {
@@ -517,7 +517,7 @@ void RocmInstallationDetector::AddHIPIncludeArgs(const ArgList &DriverArgs,
     return;
   }
 
-  CC1Args.push_back("-internal-isystem");
+  CC1Args.push_back("-idirafter");
   CC1Args.push_back(DriverArgs.MakeArgString(getIncludePath()));
   if (UsesRuntimeWrapper)
     CC1Args.append({"-include", "__clang_hip_runtime_wrapper.h"});

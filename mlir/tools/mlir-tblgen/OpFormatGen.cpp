@@ -153,18 +153,6 @@ private:
   FormatElement *inputs, *results;
 };
 
-/// This class represents the `ref` directive.
-class RefDirective : public DirectiveElementBase<DirectiveElement::Ref> {
-public:
-  RefDirective(FormatElement *arg) : arg(arg) {}
-
-  FormatElement *getArg() const { return arg; }
-
-private:
-  /// The argument that is used to format the directive.
-  FormatElement *arg;
-};
-
 /// This class represents the `type` directive.
 class TypeDirective : public DirectiveElementBase<DirectiveElement::Type> {
 public:
@@ -301,8 +289,8 @@ struct OperationFormat {
   };
 
   OperationFormat(const Operator &op)
-      : allOperands(false), allOperandTypes(false), allResultTypes(false),
-        infersResultTypes(false) {
+
+  {
     operandTypes.resize(op.getNumOperands(), TypeResolution());
     resultTypes.resize(op.getNumResults(), TypeResolution());
 
@@ -346,10 +334,10 @@ struct OperationFormat {
 
   /// A flag indicating if all operand/result types were seen. If the format
   /// contains these, it can not contain individual type resolvers.
-  bool allOperands, allOperandTypes, allResultTypes;
+  bool allOperands = false, allOperandTypes = false, allResultTypes = false;
 
   /// A flag indicating if this operation infers its result types
-  bool infersResultTypes;
+  bool infersResultTypes = false;
 
   /// A flag indicating if this operation has the SingleBlockImplicitTerminator
   /// trait.
@@ -2851,7 +2839,7 @@ OpFormatParser::parseOIListDirective(SMLoc loc, Context context) {
     if (failed(lelement))
       return failure();
     literalElements.push_back(*lelement);
-    parsingElements.push_back(std::vector<FormatElement *>());
+    parsingElements.emplace_back();
     std::vector<FormatElement *> &currParsingElements = parsingElements.back();
     while (peekToken().getKind() != FormatToken::pipe &&
            peekToken().getKind() != FormatToken::r_paren) {

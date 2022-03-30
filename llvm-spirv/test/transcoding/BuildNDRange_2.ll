@@ -16,7 +16,7 @@
 ;;   const size_t lsize3[3] = {1, 1, 1};
 ;;   ndrange_3D(lsize3);
 ;; }
-;; bash$ $PATH_TO_GEN/bin/clang -cc1 -x cl -cl-std=CL2.0 -triple spir64-unknonw-unknown -emit-llvm  -include opencl-20.h  BuildNDRange_2.cl -o BuildNDRange_2.ll
+;; bash$ $PATH_TO_GEN/bin/clang -cc1 -x cl -cl-std=CL2.0 -triple spir64-unknown-unknown -emit-llvm  -include opencl-20.h  BuildNDRange_2.cl -o BuildNDRange_2.ll
 
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
@@ -69,7 +69,7 @@
 
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
-target triple = "spir64-unknonw-unknown"
+target triple = "spir64-unknown-unknown"
 
 %struct.ndrange_t = type { i32, [3 x i64], [3 x i64], [3 x i64] }
 

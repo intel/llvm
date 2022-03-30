@@ -79,12 +79,8 @@ f9() {}
 
 [[sycl::reqd_work_group_size(2, 2, 2)]] [[intel::max_work_group_size(4, 4, 4)]] void f11() {} // OK
 
-// FIXME: We do not have support yet for checking
-// reqd_work_group_size and max_work_group_size
-// attributes when merging, so the test compiles without
-// any diagnostic when it shouldn't.
-[[sycl::reqd_work_group_size(64, 64, 64)]] void f12();
-[[intel::max_work_group_size(16, 16, 16)]] void f12(); // expected error but now OK.
+[[sycl::reqd_work_group_size(64, 64, 64)]] void f12(); // expected-note {{conflicting attribute is here}}
+[[intel::max_work_group_size(16, 16, 16)]] void f12(); // expected-error {{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
 
 [[intel::max_work_group_size(16, 16, 16)]]      // expected-note {{conflicting attribute is here}}
 [[sycl::reqd_work_group_size(16, 64, 16)]] void // expected-error {{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}

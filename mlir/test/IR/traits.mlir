@@ -332,12 +332,12 @@ func @failedSingleBlockImplicitTerminator_missing_terminator() {
 
 // Test the invariants of operations with the Symbol Trait.
 
-// expected-error@+1 {{requires string attribute 'sym_name'}}
+// expected-error@+1 {{op requires attribute 'sym_name'}}
 "test.symbol"() {} : () -> ()
 
 // -----
 
-// expected-error@+1 {{requires visibility attribute 'sym_visibility' to be a string attribute}}
+// expected-error@+1 {{op attribute 'sym_visibility' failed to satisfy constraint: string attribute}}
 "test.symbol"() {sym_name = "foo_2", sym_visibility} : () -> ()
 
 // -----
@@ -364,7 +364,7 @@ func private @foo()
 // -----
 
 // Test that operation with the SymbolTable Trait fails with  too many blocks.
-// expected-error@+1 {{Operations with a 'SymbolTable' must have exactly one block}}
+// expected-error@+1 {{op expects region #0 to have 0 or 1 blocks}}
 "test.symbol_scope"() ({
   ^entry:
     "test.finish" () : () -> ()
@@ -575,7 +575,7 @@ func @failedHasDominanceScopeOutsideDominanceFreeScope() -> () {
 // checked for dominance
 func @illegalInsideDominanceFreeScope() -> () {
   test.graph_region {
-    builtin.func @test() -> i1 {
+    func.func @test() -> i1 {
     ^bb1:
       // expected-error @+1 {{operand #0 does not dominate this use}}
       %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
@@ -594,7 +594,7 @@ func @illegalInsideDominanceFreeScope() -> () {
 // checked for dominance
 func @illegalCDFGInsideDominanceFreeScope() -> () {
   test.graph_region {
-    builtin.func @test() -> i1 {
+    func.func @test() -> i1 {
     ^bb1:
       // expected-error @+1 {{operand #0 does not dominate this use}}
       %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
