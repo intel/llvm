@@ -16,7 +16,7 @@
 template <typename Ty> Ty atomic_add_fetch(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 #else
   return __atomic_add_fetch(ptr, val, __ATOMIC_RELAXED);
 #endif

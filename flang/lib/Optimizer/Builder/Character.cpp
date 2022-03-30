@@ -365,7 +365,7 @@ void fir::factory::CharacterExprHelper::createCopy(
     auto totalBytes = builder.create<arith::MulIOp>(loc, kindBytes, castCount);
     auto notVolatile = builder.createBool(loc, false);
     auto memmv = getLlvmMemmove(builder);
-    auto argTys = memmv.getType().getInputs();
+    auto argTys = memmv.getFunctionType().getInputs();
     auto toPtr = builder.createConvert(loc, argTys[0], toBuff);
     auto fromPtr = builder.createConvert(loc, argTys[1], fromBuff);
     builder.create<fir::CallOp>(
@@ -430,9 +430,11 @@ fir::CharBoxValue fir::factory::CharacterExprHelper::createTempFrom(
 void fir::factory::CharacterExprHelper::createLengthOneAssign(
     const fir::CharBoxValue &lhs, const fir::CharBoxValue &rhs) {
   auto addr = lhs.getBuffer();
-  mlir::Value val = builder.create<fir::LoadOp>(loc, rhs.getBuffer());
-  auto addrTy = builder.getRefType(val.getType());
-  addr = builder.createConvert(loc, addrTy, addr);
+  auto toTy = fir::unwrapRefType(addr.getType());
+  mlir::Value val = rhs.getBuffer();
+  if (fir::isa_ref_type(val.getType()))
+    val = builder.create<fir::LoadOp>(loc, val);
+  val = builder.createConvert(loc, toTy, val);
   builder.create<fir::StoreOp>(loc, val, addr);
 }
 
