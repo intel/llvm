@@ -43,6 +43,15 @@ struct [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] Struct {
   return d;
 }
 
+double funcWithSeveralAspects() {
+  Struct s;
+  return static_cast<double>(s.a);
+}
+
+[[sycl::device_has(aspect::fp16)]] int checkSeveralAspects() {
+  return funcWithSeveralAspects();
+}
+
 int main() {
   queue Q;
   Q.submit([&](handler &h) {
