@@ -53,7 +53,7 @@ int main() {
       sycl::ext::oneapi::experimental::foz(3.14, false)};
 
   // Runtime value property without constexpr ctors
-  // expected-error@+3 {{constexpr variable cannot have non-literal type}}
+  // expected-error@+2 {{constexpr variable cannot have non-literal type}}
   constexpr decltype(sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::fir(3.14, false)}) NCRTProps1{
       sycl::ext::oneapi::experimental::fir(3.14, false)};
@@ -61,7 +61,7 @@ int main() {
   constexpr auto NCRTProps2 = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::fir(3.14, false)};
   int RTIntValue = 1;
-  // expected-error@+3 {{constexpr variable 'NCRTProps3' must be initialized by a constant expression}}
+  // expected-error@+2 {{constexpr variable 'NCRTProps3' must be initialized by a constant expression}}
   constexpr decltype(sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::foo(RTIntValue)}) NCRTProps3{
       sycl::ext::oneapi::experimental::foo(RTIntValue)};
