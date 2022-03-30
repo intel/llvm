@@ -26,14 +26,8 @@ template <int> class nd_item;
 template <int> class h_item;
 template <int> class group;
 template <int> class nd_range;
-
-namespace ext {
-namespace oneapi {
-
 struct sub_group;
 
-} // namespace oneapi
-} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
@@ -73,7 +67,7 @@ template <class T> class uniform {
            !detail::is_instance_of_tmpl_int_v<U, sycl::h_item> &&
            !detail::is_instance_of_tmpl_int_v<U, sycl::group> &&
            !detail::is_instance_of_tmpl_int_v<U, sycl::nd_range> &&
-           !std::is_same_v<U, sycl::ext::oneapi::sub_group>;
+           !std::is_same_v<U, sycl::sub_group>;
   }
   static_assert(can_be_uniform<T>() && "type not allowed to be `uniform`");
 

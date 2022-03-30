@@ -248,7 +248,7 @@ simd_call_helper(const void *obj_ptr,
 ///   the specification.
 // TODO works only for functions now, enable for other callables.
 template <class Callable, class... T>
-__attribute__((always_inline)) auto invoke_simd(sycl::ext::oneapi::sub_group sg,
+__attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
                                                 Callable &&f, T... args) {
   // If the invoke_simd call site is fully uniform, then it does not matter
   // what the subgroup size is and arguments don't need widening and return
