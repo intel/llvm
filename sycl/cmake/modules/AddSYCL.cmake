@@ -40,9 +40,11 @@ function(add_sycl_plugin PLUGIN_NAME)
 
   add_sycl_library("pi_${PLUGIN_NAME}" SHARED
     TOOLCHAIN
-    LINKER_SCRIPT ${ARG_LINKER_SCRIPT}
+    LINKER_SCRIPT "${sycl_src_dir}/ld-version-script.txt"
     SOURCES ${ARG_SOURCES}
-    INCLUDE_DIRS ${ARG_INCLUDE_DIRS}
+    INCLUDE_DIRS
+      ${ARG_INCLUDE_DIRS}
+      ${sycl_inc_dir}
     LIBRARIES ${ARG_LIBRARIES}
   )
 

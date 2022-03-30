@@ -107,13 +107,10 @@ add_sycl_plugin(level_zero
     "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.hpp"
-  INCLUDE_DIRS
-    ${sycl_inc_dir}
   LIBRARIES
     "${LEVEL_ZERO_LOADER}"
     OpenCL-Headers
     Threads::Threads
-  LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt"
 )
 
 if (TARGET level-zero-loader)

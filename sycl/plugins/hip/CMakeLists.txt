@@ -17,11 +17,9 @@ add_sycl_plugin(hip
     "pi_hip.hpp"
     "pi_hip.cpp"
   INCLUDE_DIRS
-    ${sycl_inc_dir}
     ${sycl_plugin_dir}
   LIBRARIES
     OpenCL-Headers
-  LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt"
 )
 set_target_properties(pi_hip PROPERTIES LINKER_LANGUAGE CXX)
 

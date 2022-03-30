@@ -29,12 +29,9 @@ add_sycl_plugin(cuda
     "${sycl_inc_dir}/CL/sycl/detail/pi.hpp"
     "pi_cuda.hpp"
     "pi_cuda.cpp"
-  INCLUDE_DIRS
-    "${sycl_inc_dir}"
   LIBRARIES
     OpenCL-Headers
     cudadrv
-  LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt"
 )
 
 set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)

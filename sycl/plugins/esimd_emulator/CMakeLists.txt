@@ -107,8 +107,6 @@ add_sycl_plugin(esimd_emulator
   SOURCES
     "${sycl_inc_dir}/CL/sycl/detail/pi.h"
     "pi_esimd_emulator.cpp"
-  INCLUDE_DIRS
-    ${sycl_inc_dir}
   LIBRARIES
     "${LEVEL_ZERO_LOADER}"
     OpenCL-Headers
@@ -116,7 +114,6 @@ add_sycl_plugin(esimd_emulator
     ${LIBIGFXCMRT_EMU}
     #TODO remove cyclic dependency
     sycl
-  LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt"
 )
 
 add_dependencies(pi_esimd_emulator cm-emu)

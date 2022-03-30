@@ -14,12 +14,9 @@ add_sycl_plugin(opencl
   SOURCES
     "${sycl_inc_dir}/CL/sycl/detail/pi.h"
     "pi_opencl.cpp"
-  INCLUDE_DIRS
-    "${sycl_inc_dir}"
   LIBRARIES
     OpenCL-Headers
     OpenCL-ICD
-  LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt"
 )
 
 set_target_properties(pi_opencl PROPERTIES LINKER_LANGUAGE CXX)
