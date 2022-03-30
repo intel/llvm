@@ -12,7 +12,7 @@
 #include <detail/plugin.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
-
+#include <detail/backend_impl.hpp>
 #include "detail/config.hpp"
 
 #include <chrono>
@@ -350,18 +350,28 @@ pi_native_handle event_impl::getNative() const {
   return Handle;
 }
 
-pi_native_handle event_impl::lazyInit(context_impl SyclContext) const {
+pi_native_handle event_impl::lazyInit(backend Backend) const {
   if (!MContext) {
+    auto SyclContext = std::shared_ptr<cl::sycl::detail::context_impl>();
+    for (auto el : detail::GlobalHandler::instance().getPlatformCache()) {
+      SyclContext = (*GlobalHandler::instance()
+                   .getPlatformToDefaultContextCache()
+                   .find(el))
+                   .second;
+      if (SyclContext->getPlugin().getBackend() == Backend) break;
+    }
     MContext = SyclContext;
     MHostEvent = MContext->is_host();
     MOpenCLInterop = !MHostEvent;
   }
+
   auto Plugin = getPlugin();
   if (!MIsInitialized) {
     MIsInitialized = true;
     auto TempContext = MContext.get()->getHandleRef();
     Plugin.call<PiApiKind::piEventCreate>(TempContext, &MEvent);
   }
+
   if (Plugin.getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
   pi_native_handle Handle;

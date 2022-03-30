@@ -14,6 +14,8 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/plugin.hpp>
+#include <detail/global_handler.hpp>
+#include <detail/backend_impl.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -170,7 +172,7 @@ public:
   pi_native_handle getNative() const;
 
   /// \return a native handle or initializes if it is defaultly constructed examplar.
-  pi_native_handle lazyInit(context_impl SyclContext) const;
+  pi_native_handle lazyInit(backend Backend) const;
 
   /// Returns vector of event dependencies.
   ///

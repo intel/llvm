@@ -141,7 +141,7 @@ private:
 
   pi_native_handle getNative() const;
 
-  pi_native_handle lazyInit(context_impl SyclContext) const;
+  pi_native_handle lazyInit(backend Backend) const;
 
   std::vector<pi_native_handle> getNativeVector() const;
 

@@ -18,6 +18,7 @@
 #include <detail/kernel_program_cache.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/backend_impl.hpp>
 
 #include <map>
 #include <memory>
