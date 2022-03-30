@@ -352,6 +352,7 @@ public:
   const PropertyRange getSpecConstantsDefaultValues() const {
     // We can't have this variable as a class member, since it would break
     // the ABI backwards compatibility.
+    // TODO: Refractor as class member after ABI constraint relaxed.
     DeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
     SpecConstDefaultValuesMap.init(
         Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
@@ -364,6 +365,7 @@ public:
   const PropertyRange getAssertUsed() const {
     // We can't have this variable as a class member, since it would break
     // the ABI backwards compatibility.
+    // TODO: Refractor as class member after ABI constraint relaxed.
     PropertyRange AssertUsed;
     AssertUsed.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED);
     return AssertUsed;
@@ -372,6 +374,7 @@ public:
   const PropertyRange getExportedSymbols() const {
     // We can't have this variable as a class member, since it would break
     // the ABI backwards compatibility.
+    // TODO: Refractor as class member after ABI constraint relaxed.
     DeviceBinaryImage::PropertyRange ExportedSymbols;
     ExportedSymbols.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
     return ExportedSymbols;
@@ -379,6 +382,7 @@ public:
   const PropertyRange getDeviceGlobals() const {
     // We can't have this variable as a class member, since it would break
     // the ABI backwards compatibility.
+    // TODO: Refractor as class member after ABI constraint relaxed.
     DeviceBinaryImage::PropertyRange DeviceGlobals;
     DeviceGlobals.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
     return DeviceGlobals;
