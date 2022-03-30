@@ -1000,17 +1000,17 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   }
 
   char *MapBasePtr = nullptr;
-  cm_buffer_ptr_slot CmBuf;
+  cm_surface_ptr_t CmBuf;
   cm_support::SurfaceIndex *CmIndex;
   int Status = cm_support::CM_FAILURE;
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
-    CmBuf.tag = cm_buffer_ptr_slot::type_user_provided;
+    CmBuf.tag = cm_surface_ptr_t::type_user_provided_buffer;
     Status = Context->Device->CmDevicePtr->CreateBufferUP(
         static_cast<unsigned int>(Size), HostPtr, CmBuf.UPBufPtr);
     CmBuf.UPBufPtr->GetIndex(CmIndex);
   } else {
-    CmBuf.tag = cm_buffer_ptr_slot::type_regular;
+    CmBuf.tag = cm_surface_ptr_t::type_regular_buffer;
     Status = Context->Device->CmDevicePtr->CreateBuffer(
         static_cast<unsigned int>(Size), CmBuf.RegularBufPtr);
     CmBuf.RegularBufPtr->GetIndex(CmIndex);
@@ -1068,24 +1068,23 @@ pi_result piMemRelease(pi_mem Mem) {
   if (--(Mem->RefCount) == 0) {
     int Status = cm_support::CM_FAILURE;
 
-    if (Mem->getMemType() == PI_MEM_TYPE_BUFFER) {
+    if (Mem->SurfacePtr.tag == cm_surface_ptr_t::type_user_provided_buffer) {
       _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      if (PiBuf->BufferPtr.tag == cm_buffer_ptr_slot::type_user_provided) {
-        Status = Mem->Context->Device->CmDevicePtr->DestroyBufferUP(
-            PiBuf->BufferPtr.UPBufPtr);
-      } else {
-        Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-            PiBuf->BufferPtr.RegularBufPtr);
-      }
-    } else if (Mem->getMemType() == PI_MEM_TYPE_IMAGE2D) {
+      Status = Mem->Context->Device->CmDevicePtr->DestroyBufferUP(
+          PiBuf->SurfacePtr.UPBufPtr);
+    } else if (Mem->SurfacePtr.tag == cm_surface_ptr_t::type_regular_buffer) {
+      _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
+      Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
+          PiBuf->SurfacePtr.RegularBufPtr);
+    } else if (Mem->SurfacePtr.tag ==
+               cm_surface_ptr_t::type_user_provided_image) {
       _pi_image *PiImg = static_cast<_pi_image *>(Mem);
-      if (PiImg->ImagePtr.tag == cm_image_ptr_slot::type_user_provided) {
-        Status = Mem->Context->Device->CmDevicePtr->DestroySurface2DUP(
-            PiImg->ImagePtr.UPImgPtr);
-      } else {
-        Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-            PiImg->ImagePtr.RegularImgPtr);
-      }
+      Status = Mem->Context->Device->CmDevicePtr->DestroySurface2DUP(
+          PiImg->SurfacePtr.UPImgPtr);
+    } else if (Mem->SurfacePtr.tag == cm_surface_ptr_t::type_regular_image) {
+      _pi_image *PiImg = static_cast<_pi_image *>(Mem);
+      Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
+          PiImg->SurfacePtr.RegularImgPtr);
     }
 
     if (Status != cm_support::CM_SUCCESS) {
@@ -1208,18 +1207,19 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   }
 
   char *MapBasePtr = nullptr;
-  cm_image_ptr_slot CmImg;
+  cm_surface_ptr_t CmImg;
   cm_support::SurfaceIndex *CmIndex;
   int Status = cm_support::CM_SUCCESS;
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
-    CmImg.tag = cm_image_ptr_slot::type_user_provided;
+    CmImg.tag = cm_surface_ptr_t::type_user_provided_image;
     Status = Context->Device->CmDevicePtr->CreateSurface2DUP(
         static_cast<unsigned int>(ImageDesc->image_width),
         static_cast<unsigned int>(ImageDesc->image_height), CmSurfFormat,
         HostPtr, CmImg.UPImgPtr);
     CmImg.UPImgPtr->GetIndex(CmIndex);
   } else {
+    CmImg.tag = cm_surface_ptr_t::type_regular_image;
     Status = Context->Device->CmDevicePtr->CreateSurface2D(
         static_cast<unsigned int>(ImageDesc->image_width),
         static_cast<unsigned int>(ImageDesc->image_height), CmSurfFormat,
@@ -1495,12 +1495,13 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
     RetEv->IsDummyEvent = true;
   }
 
-  if (buf->BufferPtr.tag == cm_buffer_ptr_slot::type_user_provided) {
+  if (buf->SurfacePtr.tag == cm_surface_ptr_t::type_user_provided_buffer) {
     // CM does not provide 'ReadSurface' call for 'User-Provided'
     // Surface. memcpy is used for BufferRead PI_API call.
     memcpy(Dst, buf->MapHostPtr, Size);
   } else {
-    int Status = buf->BufferPtr.RegularBufPtr->ReadSurface(
+    assert(buf->SurfacePtr.tag == cm_surface_ptr_t::type_regular_buffer);
+    int Status = buf->SurfacePtr.RegularBufPtr->ReadSurface(
         reinterpret_cast<unsigned char *>(Dst),
         nullptr, // event
         static_cast<uint64_t>(Size));
@@ -1668,12 +1669,13 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
   }
 
   size_t Size = RowPitch * (Region->height);
-  if (PiImg->ImagePtr.tag == cm_image_ptr_slot::type_user_provided) {
+  if (PiImg->SurfacePtr.tag == cm_surface_ptr_t::type_user_provided_image) {
     // CM does not provide 'ReadSurface' call for 'User-Provided'
     // Surface. memcpy is used for ImageRead PI_API call.
     memcpy(Ptr, PiImg->MapHostPtr, Size);
   } else {
-    int Status = PiImg->ImagePtr.RegularImgPtr->ReadSurface(
+    assert(PiImg->SurfacePtr.tag == cm_surface_ptr_t::type_regular_image);
+    int Status = PiImg->SurfacePtr.RegularImgPtr->ReadSurface(
         reinterpret_cast<unsigned char *>(Ptr),
         nullptr, // event
         static_cast<uint64_t>(Size));
@@ -1937,24 +1939,23 @@ pi_result piTearDown(void *) {
     }
     int Status = cm_support::CM_FAILURE;
 
-    if (Mem->getMemType() == PI_MEM_TYPE_BUFFER) {
+    if (Mem->SurfacePtr.tag == cm_surface_ptr_t::type_user_provided_buffer) {
       _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      if (PiBuf->BufferPtr.tag == cm_buffer_ptr_slot::type_user_provided) {
-        Status = Mem->Context->Device->CmDevicePtr->DestroyBufferUP(
-            PiBuf->BufferPtr.UPBufPtr);
-      } else {
-        Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-            PiBuf->BufferPtr.RegularBufPtr);
-      }
-    } else if (Mem->getMemType() == PI_MEM_TYPE_IMAGE2D) {
+      Status = Mem->Context->Device->CmDevicePtr->DestroyBufferUP(
+          PiBuf->SurfacePtr.UPBufPtr);
+    } else if (Mem->SurfacePtr.tag == cm_surface_ptr_t::type_regular_buffer) {
+      _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
+      Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
+          PiBuf->SurfacePtr.RegularBufPtr);
+    } else if (Mem->SurfacePtr.tag ==
+               cm_surface_ptr_t::type_user_provided_image) {
       _pi_image *PiImg = static_cast<_pi_image *>(Mem);
-      if (PiImg->ImagePtr.tag == cm_image_ptr_slot::type_user_provided) {
-        Status = Mem->Context->Device->CmDevicePtr->DestroySurface2DUP(
-            PiImg->ImagePtr.UPImgPtr);
-      } else {
-        Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-            PiImg->ImagePtr.RegularImgPtr);
-      }
+      Status = Mem->Context->Device->CmDevicePtr->DestroySurface2DUP(
+          PiImg->SurfacePtr.UPImgPtr);
+    } else if (Mem->SurfacePtr.tag == cm_surface_ptr_t::type_regular_image) {
+      _pi_image *PiImg = static_cast<_pi_image *>(Mem);
+      Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
+          PiImg->SurfacePtr.RegularImgPtr);
     }
 
     if (Status != cm_support::CM_SUCCESS) {
