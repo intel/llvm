@@ -2384,6 +2384,18 @@ def SYCLIntelFPGANofusion : StmtAttr {
   let Documentation = [SYCLIntelFPGANofusionAttrDocs];
 }
 
+def SYCLIntelFPGAMaxReinvocationDelay : StmtAttr {
+  let Spellings = [CXX11<"intel", "max_reinvocation_delay">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
+  let Args = [ExprArgument<"NExpr">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let IsStmtDependent = 1;
+  let Documentation = [SYCLIntelFPGAMaxReinvocationDelayAttrDocs];
+}
+def : MutualExclusions<[SYCLIntelFPGADisableLoopPipelining,
+                        SYCLIntelFPGAMaxReinvocationDelay]>;
+
 def IntelFPGALocalNonConstVar : SubsetSubject<Var,
                               [{S->hasLocalStorage() &&
                                 S->getKind() != Decl::ImplicitParam &&
