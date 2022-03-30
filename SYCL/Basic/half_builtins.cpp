@@ -4,8 +4,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// OpenCL CPU driver does not support cl_khr_fp16 extension
-// UNSUPPORTED: cpu && opencl
+// Intel OpenCL CPU and FPGA emulator drivers do not support cl_khr_fp16
+// extension
+// UNSUPPORTED: (cpu || acc) && opencl
 
 #include <sycl/sycl.hpp>
 
