@@ -168,25 +168,31 @@ There is experimental support for DPC++ for CUDA devices.
 
 To enable support for CUDA devices, follow the instructions for the Linux or
 Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, 
-the CUDA backend has experimental Windows support, windows subsystem for 
+the CUDA backend has Windows support; windows subsystem for
 linux (WSL) is not needed to build and run the CUDA backend.
 
-Enabling this flag requires an installation of
+Enabling this flag requires an installation of at least
 [CUDA 10.2](https://developer.nvidia.com/cuda-10.2-download-archive) on
 the system, refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
 or
 [NVIDIA CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html)
+
+**_NOTE:_** An installation of at least
+[CUDA 11.6](https://developer.nvidia.com/cuda-downloads) is recommended because
+there is a known issue with some math builtins when using -O1/O2/O3
+Optimization options for CUDA toolkits prior to 11.6 (This is due to a bug in
+earlier versions of the CUDA toolkit: see
+[this issue](https://forums.developer.nvidia.com/t/libdevice-functions-causing-ptxas-segfault/193352)).
+
 An installation of at least
 [CUDA 11.0](https://developer.nvidia.com/cuda-11.0-download-archive)
-is required for fully utilize Turing (SM 75) devices.
+is required to fully utilize Turing (SM 75) devices and to enable Ampere (SM 80)
+core features.
 
-Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
-a Titan RTX GPU (SM 71). The CUDA backend should work on Windows or Linux 
-operating systems with any GPU compatible with SM 50 or above. The default 
-SM for the NVIDIA CUDA backend is 5.0. Users can specify lower values, 
-but some features may not be supported. Windows CUDA support is experimental
-as it is not currently tested on the CI.
+The CUDA backend should work on Windows or Linux operating systems with any
+GPU compatible with SM 50 or above. The default SM for the NVIDIA CUDA backend
+is 5.0. Users can specify lower values, but some features may not be supported.
 
 **Non-standard CUDA location**
 
