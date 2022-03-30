@@ -4,15 +4,11 @@
 
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown %s -debug-info-kind=constructor -dwarf-version=5 -emit-llvm -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS-DBG -DPATH=%s
 
-// CHECK-WARNINGS: warning: function 'func1(int)' uses aspect 'fp16' not listed in 'sycl::device_has()'
-// CHECK-WARNINGS-NEXT: note: the actual use is in func3(int, int, int), compile with '-g' to get source location
-// CHECK-WARNINGS-NEXT: note: which is called by func2(int, int), compile with '-g' to get source location
-// CHECK-WARNINGS-NEXT: note: which is called by func1(int), compile with '-g' to get source location
+// CHECK-WARNINGS: warning: function 'checkStructUsesAspect(int)' uses aspect 'fp16' not listed in 'sycl::device_has()'
+// CHECK-WARNINGS-NEXT: note: the actual use is in checkStructUsesAspect(int), compile with '-g' to get source location
 //
-// CHECK-WARNINGS-DBG: warning: function 'func1(int)' uses aspect 'fp16' not listed in 'sycl::device_has()'
-// CHECK-WARNINGS-DBG-NEXT: note: the actual use is in func3(int, int, int) at [[PATH]]:29:5
-// CHECK-WARNINGS-DBG-NEXT: note: which is called by func2(int, int) at [[PATH]]:33:34
-// CHECK-WARNINGS-DBG-NEXT: note: which is called by func1(int) at [[PATH]]:35:62
+// CHECK-WARNINGS-DBG: warning: function 'checkStructUsesAspect(int)' uses aspect 'fp16' not listed in 'sycl::device_has()'
+// CHECK-WARNINGS-DBG-NEXT: note: the actual use is in checkStructUsesAspect(int) at [[PATH]]:25:5
 
 #include "Inputs/sycl.hpp"
 
@@ -24,19 +20,36 @@ struct [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] Struct {
   int a = 0;
 };
 
-int func3(int a, int b, int c) {
+[[sycl::device_has(aspect::fp64)]] int checkStructUsesAspect(int) {
   Struct s;
   s.a = 1;
   return s.a;
 }
 
-int func2(int a, int b) { return func3(a, b, 1); }
+[[sycl::device_has()]] int checkEmptyDeviceHas() {
+  return 0;
+}
 
-[[sycl::device_has(aspect::fp64)]] int func1(int a) { return func2(a, 1); }
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -emit-llvm %s -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-DOUBLE
+// CHECK-DOUBLE: warning: function 'checkDouble()' uses aspect 'fp64' not listed in 'sycl::device_has()'
+// CHECK-DOUBLE-NEXT: note: the actual use is in checkDouble(), compile with '-g' to get source location
+
+[[sycl::device_has(aspect::fp16)]] int checkDouble() {
+  double d = 123;
+  // Strange calculations just to prevent AST optimizations
+  for (int i = 0; i < 10; ++i)
+    d += d * d;
+
+  return d;
+}
 
 int main() {
   queue Q;
   Q.submit([&](handler &h) {
-    h.single_task<KernelName>([=]() { int a = func1(1); });
+    h.single_task<KernelName>([=]() {
+      checkStructUsesAspect(1);
+      int c = checkEmptyDeviceHas();
+      int d = checkDouble();
+    });
   });
 }
