@@ -73,14 +73,18 @@ value to determine which of the extension's APIs the implementation supports.
 
 [%header,cols="1,5"]
 |===
-|Value |Description
-|1     |Initial extension version.  Base features are supported.
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
 |===
 
 === Overview
 
 This extension introduces asynchronous barrier for CUDA devices. This extends 
-`group_barrier` by splitting it into into two calls - arrive and wait. The 
+`group_barrier` by splitting it into two calls - arrive and wait. The 
 wait call blocks until the predetermined number of work items in the same work 
 group call arrive. This is also very similar to 
 https://en.cppreference.com/w/cpp/thread/barrier[`std::barrier`] introduced 
