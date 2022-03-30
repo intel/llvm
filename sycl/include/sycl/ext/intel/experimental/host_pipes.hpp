@@ -49,9 +49,22 @@ class
     host_pipe<_name, _dataT, _propertiesT,
               std::enable_if_t<sycl::ext::oneapi::experimental::
                                    is_property_list_v<_propertiesT>>> {
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_list_v<_propertiesT>,
-      "Host pipe is available only through new property list");
+
+  struct
+#ifdef __SYCL_DEVICE_ONLY__
+      [[__sycl_detail__::add_ir_global_variable_attributes(
+          "sycl-host-pipe",
+          nullptr)]] [[__sycl_detail__::
+                           host_pipe]] [[__sycl_detail__::
+                                             global_variable_allowed]] // may
+                                                                       // not be
+                                                                       // needed
+#endif
+                                                                       __pipeType {
+    const char __p;
+  };
+
+  static constexpr __pipeType __pipe = {0};
 
 public:
   using value_type = _dataT;

@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/ext/intel/experimental/host_pipes.hpp>
+#include <detail/host_pipe_map_entry.hpp>
+#include <detail/program_manager/program_manager.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -27,7 +29,10 @@ host_pipe<_name, _dataT, _propertiesT,
   }
   // TODO: get pipe name from the pipe registration
   _dataT data;
-  const std::string pipe_name = "pipename";
+  const void *HostPipePtr = &__pipe;
+  detail::HostPipeMapEntry hostPipeEntry =
+      detail::ProgramManager::getInstance().getHostPipeEntry(HostPipePtr);
+  const std::string pipe_name = hostPipeEntry.MUniqueId;
   size_t size = 4;
   event e = q.submit([=](handler &CGH) {
     CGH.read_write_host_pipe(pipe_name, (void *)(&data), (size_t)size, false,
@@ -50,7 +55,10 @@ void host_pipe<
     return;
   }
   // TODO: get pipe name from the pipe registration
-  const std::string pipe_name = "pipename";
+  const void *HostPipePtr = &__pipe;
+  detail::HostPipeMapEntry hostPipeEntry =
+      detail::ProgramManager::getInstance().getHostPipeEntry(HostPipePtr);
+  const std::string pipe_name = hostPipeEntry.MUniqueId;
   const void *data_ptr = &data;
   size_t size = 4;
   event e = q.submit([=](handler &CGH) {
