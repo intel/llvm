@@ -92,6 +92,51 @@ get_native<backend::opencl, event>(const event &Obj) {
   }
   return ReturnValue;
 }
+
+template <>
+inline backend_return_t<backend::ext_oneapi_level_zero, event>
+get_native<backend::ext_oneapi_level_zero, event>(const event &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  backend_return_t<backend::ext_oneapi_level_zero, event> ReturnValue;
+  std::vector<pi_native_handle> NativeVector = {Obj.lazyInit(backend::ext_oneapi_level_zero)};
+  for (auto const &element : NativeVector) {
+    ReturnValue.push_back(
+        reinterpret_cast<
+            typename detail::interop<backend::ext_oneapi_level_zero, event>::value_type>(
+            element));
+  }
+  return ReturnValue;
+}
+
+template <>
+inline backend_return_t<backend::ext_oneapi_cuda, event>
+get_native<backend::ext_oneapi_cuda, event>(const event &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  backend_return_t<backend::ext_oneapi_cuda, event> ReturnValue;
+  std::vector<pi_native_handle> NativeVector = {Obj.lazyInit(backend::ext_oneapi_cuda)};
+  for (auto const &element : NativeVector) {
+    ReturnValue.push_back(
+        reinterpret_cast<
+            typename detail::interop<backend::ext_oneapi_cuda, event>::value_type>(
+            element));
+  }
+  return ReturnValue;
+}
+
+template <>
+inline backend_return_t<backend::ext_oneapi_hip, event>
+get_native<backend::ext_oneapi_hip, event>(const event &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  backend_return_t<backend::ext_oneapi_hip, event> ReturnValue;
+  std::vector<pi_native_handle> NativeVector = {Obj.lazyInit(backend::ext_oneapi_hip)};
+  for (auto const &element : NativeVector) {
+    ReturnValue.push_back(
+        reinterpret_cast<
+            typename detail::interop<backend::ext_oneapi_hip, event>::value_type>(
+            element));
+  }
+  return ReturnValue;
+}
 #else
 // Specialization for cl_event with deprecation message
 template <>
@@ -104,6 +149,42 @@ inline backend_return_t<backend::opencl, event> get_native<
   // TODO use SYCL 2020 exception when implemented
   return reinterpret_cast<
       typename detail::interop<backend::opencl, event>::type>(Obj.lazyInit(backend::opencl));
+}
+
+template <>
+__SYCL_DEPRECATED(
+    "get_native<backend::ext_oneapi_level_zero, event>, which return type is "
+    "cl_event is deprecated. According to SYCL 2020 spec, please define "
+    "SYCL2020_CONFORMANT_APIS and use vector<cl_event> instead.")
+inline backend_return_t<backend::ext_oneapi_level_zero, event> get_native<
+    backend::ext_oneapi_level_zero, event>(const event &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  return reinterpret_cast<
+      typename detail::interop<backend::ext_oneapi_level_zero, event>::type>(Obj.lazyInit(backend::ext_oneapi_level_zero));
+}
+
+template <>
+__SYCL_DEPRECATED(
+    "get_native<backend::ext_oneapi_cuda, event>, which return type is "
+    "cl_event is deprecated. According to SYCL 2020 spec, please define "
+    "SYCL2020_CONFORMANT_APIS and use vector<cl_event> instead.")
+inline backend_return_t<backend::ext_oneapi_cuda, event> get_native<
+    backend::ext_oneapi_cuda, event>(const event &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  return reinterpret_cast<
+      typename detail::interop<backend::ext_oneapi_cuda, event>::type>(Obj.lazyInit(backend::ext_oneapi_cuda));
+}
+
+template <>
+__SYCL_DEPRECATED(
+    "get_native<backend::ext_oneapi_hip, event>, which return type is "
+    "cl_event is deprecated. According to SYCL 2020 spec, please define "
+    "SYCL2020_CONFORMANT_APIS and use vector<cl_event> instead.")
+inline backend_return_t<backend::ext_oneapi_hip, event> get_native<
+    backend::ext_oneapi_hip, event>(const event &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  return reinterpret_cast<
+      typename detail::interop<backend::ext_oneapi_hip, event>::type>(Obj.lazyInit(backend::ext_oneapi_hip));
 }
 #endif
 
