@@ -114,6 +114,8 @@ add_sycl_plugin(esimd_emulator
     OpenCL-Headers
     ${LIBCM}
     ${LIBIGFXCMRT_EMU}
+    #TODO remove cyclic dependency
+    sycl
   LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt"
 )
 
