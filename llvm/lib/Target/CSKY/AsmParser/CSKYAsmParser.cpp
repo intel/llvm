@@ -9,14 +9,17 @@
 #include "MCTargetDesc/CSKYInstPrinter.h"
 #include "MCTargetDesc/CSKYMCExpr.h"
 #include "MCTargetDesc/CSKYMCTargetDesc.h"
+#include "MCTargetDesc/CSKYTargetStreamer.h"
 #include "TargetInfo/CSKYTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/CodeGen/Register.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
@@ -25,6 +28,8 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/CSKYAttributes.h"
+#include "llvm/Support/CSKYTargetParser.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -51,6 +56,9 @@ struct CSKYOperand;
 class CSKYAsmParser : public MCTargetAsmParser {
 
   const MCRegisterInfo *MRI;
+
+  unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
+                                      unsigned Kind) override;
 
   bool generateImmOutOfRangeError(OperandVector &Operands, uint64_t ErrorInfo,
                                   int64_t Lower, int64_t Upper, Twine Msg);
@@ -79,6 +87,13 @@ class CSKYAsmParser : public MCTargetAsmParser {
   bool processInstruction(MCInst &Inst, SMLoc IDLoc, OperandVector &Operands,
                           MCStreamer &Out);
 
+  CSKYTargetStreamer &getTargetStreamer() {
+    assert(getParser().getStreamer().getTargetStreamer() &&
+           "do not have a target streamer");
+    MCTargetStreamer &TS = *getParser().getStreamer().getTargetStreamer();
+    return static_cast<CSKYTargetStreamer &>(TS);
+  }
+
 // Auto-generated instruction matching functions
 #define GET_ASSEMBLER_HEADER
 #include "CSKYGenAsmMatcher.inc"
@@ -95,6 +110,8 @@ class CSKYAsmParser : public MCTargetAsmParser {
 
   bool parseOperand(OperandVector &Operands, StringRef Mnemonic);
 
+  bool parseDirectiveAttribute();
+
 public:
   enum CSKYMatchResultTy {
     Match_Dummy = FIRST_TARGET_MATCH_RESULT_TY,
@@ -108,6 +125,9 @@ public:
   CSKYAsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
                 const MCInstrInfo &MII, const MCTargetOptions &Options)
       : MCTargetAsmParser(Options, STI, MII) {
+
+    MCAsmParserExtension::Initialize(Parser);
+
     setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
   }
 };
@@ -302,6 +322,14 @@ public:
   }
 
   bool isRegSeq() const { return isRegSeqTemplate<CSKY::R0, CSKY::R31>(); }
+
+  bool isRegSeqV1() const {
+    return isRegSeqTemplate<CSKY::F0_32, CSKY::F15_32>();
+  }
+
+  bool isRegSeqV2() const {
+    return isRegSeqTemplate<CSKY::F0_32, CSKY::F31_32>();
+  }
 
   static bool isLegalRegList(unsigned from, unsigned to) {
     if (from == 0 && to == 0)
@@ -603,6 +631,11 @@ public:
 #define GET_MATCHER_IMPLEMENTATION
 #define GET_MNEMONIC_SPELL_CHECKER
 #include "CSKYGenAsmMatcher.inc"
+
+static MCRegister convertFPR32ToFPR64(MCRegister Reg) {
+  assert(Reg >= CSKY::F0_32 && Reg <= CSKY::F31_32 && "Invalid register");
+  return Reg - CSKY::F0_32 + CSKY::F0_64;
+}
 
 static std::string CSKYMnemonicSpellCheck(StringRef S, const FeatureBitset &FBS,
                                           unsigned VariantID = 0);
@@ -1463,7 +1496,133 @@ OperandMatchResultTy CSKYAsmParser::tryParseRegister(unsigned &RegNo,
   return MatchOperand_Success;
 }
 
-bool CSKYAsmParser::ParseDirective(AsmToken DirectiveID) { return true; }
+bool CSKYAsmParser::ParseDirective(AsmToken DirectiveID) {
+  // This returns false if this function recognizes the directive
+  // regardless of whether it is successfully handles or reports an
+  // error. Otherwise it returns true to give the generic parser a
+  // chance at recognizing it.
+  StringRef IDVal = DirectiveID.getString();
+
+  if (IDVal == ".csky_attribute")
+    return parseDirectiveAttribute();
+
+  return true;
+}
+
+/// parseDirectiveAttribute
+///  ::= .attribute expression ',' ( expression | "string" )
+bool CSKYAsmParser::parseDirectiveAttribute() {
+  MCAsmParser &Parser = getParser();
+  int64_t Tag;
+  SMLoc TagLoc;
+  TagLoc = Parser.getTok().getLoc();
+  if (Parser.getTok().is(AsmToken::Identifier)) {
+    StringRef Name = Parser.getTok().getIdentifier();
+    Optional<unsigned> Ret =
+        ELFAttrs::attrTypeFromString(Name, CSKYAttrs::getCSKYAttributeTags());
+    if (!Ret.hasValue()) {
+      Error(TagLoc, "attribute name not recognised: " + Name);
+      return false;
+    }
+    Tag = Ret.getValue();
+    Parser.Lex();
+  } else {
+    const MCExpr *AttrExpr;
+
+    TagLoc = Parser.getTok().getLoc();
+    if (Parser.parseExpression(AttrExpr))
+      return true;
+
+    const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(AttrExpr);
+    if (check(!CE, TagLoc, "expected numeric constant"))
+      return true;
+
+    Tag = CE->getValue();
+  }
+
+  if (Parser.parseToken(AsmToken::Comma, "comma expected"))
+    return true;
+
+  StringRef StringValue;
+  int64_t IntegerValue = 0;
+  bool IsIntegerValue = ((Tag != CSKYAttrs::CSKY_ARCH_NAME) &&
+                         (Tag != CSKYAttrs::CSKY_CPU_NAME) &&
+                         (Tag != CSKYAttrs::CSKY_FPU_NUMBER_MODULE));
+
+  SMLoc ValueExprLoc = Parser.getTok().getLoc();
+  if (IsIntegerValue) {
+    const MCExpr *ValueExpr;
+    if (Parser.parseExpression(ValueExpr))
+      return true;
+
+    const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(ValueExpr);
+    if (!CE)
+      return Error(ValueExprLoc, "expected numeric constant");
+    IntegerValue = CE->getValue();
+  } else {
+    if (Parser.getTok().isNot(AsmToken::String))
+      return Error(Parser.getTok().getLoc(), "expected string constant");
+
+    StringValue = Parser.getTok().getStringContents();
+    Parser.Lex();
+  }
+
+  if (Parser.parseToken(AsmToken::EndOfStatement,
+                        "unexpected token in '.csky_attribute' directive"))
+    return true;
+
+  if (IsIntegerValue)
+    getTargetStreamer().emitAttribute(Tag, IntegerValue);
+  else if (Tag != CSKYAttrs::CSKY_ARCH_NAME && Tag != CSKYAttrs::CSKY_CPU_NAME)
+    getTargetStreamer().emitTextAttribute(Tag, StringValue);
+  else {
+    CSKY::ArchKind ID = (Tag == CSKYAttrs::CSKY_ARCH_NAME)
+                            ? CSKY::parseArch(StringValue)
+                            : CSKY::parseCPUArch(StringValue);
+    if (ID == CSKY::ArchKind::INVALID)
+      return Error(ValueExprLoc, (Tag == CSKYAttrs::CSKY_ARCH_NAME)
+                                     ? "unknown arch name"
+                                     : "unknown cpu name");
+
+    getTargetStreamer().emitTextAttribute(Tag, StringValue);
+  }
+
+  return false;
+}
+
+unsigned CSKYAsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
+                                                   unsigned Kind) {
+  CSKYOperand &Op = static_cast<CSKYOperand &>(AsmOp);
+
+  if (!Op.isReg())
+    return Match_InvalidOperand;
+
+  MCRegister Reg = Op.getReg();
+
+  if (CSKYMCRegisterClasses[CSKY::FPR32RegClassID].contains(Reg)) {
+    // As the parser couldn't differentiate an FPR64 from an FPR32, coerce the
+    // register from FPR32 to FPR64 if necessary.
+    if (Kind == MCK_FPR64 || Kind == MCK_sFPR64_V) {
+      Op.Reg.RegNum = convertFPR32ToFPR64(Reg);
+      if (Kind == MCK_sFPR64_V &&
+          (Op.Reg.RegNum < CSKY::F0_64 || Op.Reg.RegNum > CSKY::F15_64))
+        return Match_InvalidRegOutOfRange;
+      if (Kind == MCK_FPR64 &&
+          (Op.Reg.RegNum < CSKY::F0_64 || Op.Reg.RegNum > CSKY::F31_64))
+        return Match_InvalidRegOutOfRange;
+      return Match_Success;
+    }
+  }
+
+  if (CSKYMCRegisterClasses[CSKY::GPRRegClassID].contains(Reg)) {
+    if (Kind == MCK_GPRPair) {
+      Op.Reg.RegNum = MRI->getEncodingValue(Reg) + CSKY::R0_R1;
+      return Match_Success;
+    }
+  }
+
+  return Match_InvalidOperand;
+}
 
 void CSKYAsmParser::emitToStreamer(MCStreamer &S, const MCInst &Inst) {
   MCInst CInst;

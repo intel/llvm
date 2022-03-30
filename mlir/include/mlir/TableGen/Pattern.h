@@ -245,7 +245,7 @@ private:
 // values in a suitable way.
 class SymbolInfoMap {
 public:
-  explicit SymbolInfoMap(ArrayRef<llvm::SMLoc> loc) : loc(loc) {}
+  explicit SymbolInfoMap(ArrayRef<SMLoc> loc) : loc(loc) {}
 
   // Class for information regarding a symbol.
   class SymbolInfo {
@@ -398,7 +398,8 @@ public:
   // with index `argIndex` for operator `op`.
   const_iterator findBoundSymbol(StringRef key, DagNode node,
                                  const Operator &op, int argIndex) const;
-  const_iterator findBoundSymbol(StringRef key, SymbolInfo symbolInfo) const;
+  const_iterator findBoundSymbol(StringRef key,
+                                 const SymbolInfo &symbolInfo) const;
 
   // Returns the bounds of a range that includes all the elements which
   // bind to the `key`.
@@ -444,7 +445,7 @@ private:
 
   // Pattern instantiation location. This is intended to be used as parameter
   // to PrintFatalError() to report errors.
-  ArrayRef<llvm::SMLoc> loc;
+  ArrayRef<SMLoc> loc;
 };
 
 // Wrapper class providing helper methods for accessing MLIR Pattern defined

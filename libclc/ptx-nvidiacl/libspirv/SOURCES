@@ -27,6 +27,7 @@ math/fabs.cl
 math/fdim.cl
 math/floor.cl
 math/fma.cl
+math/fma_relu.cl
 math/fmax.cl
 math/fmin.cl
 math/fmod.cl
@@ -53,9 +54,10 @@ math/native_rsqrt.cl
 math/native_sin.cl
 math/native_sqrt.cl
 math/native_tan.cl
+math/native_tanh.cl
 math/nextafter.cl
 math/pow.cl
-math/remainer.cl
+math/remainder.cl
 math/round.cl
 math/rsqrt.cl
 math/sin.cl
@@ -71,6 +73,8 @@ relational/isfinite.cl
 relational/isinf.cl
 relational/isnan.cl
 synchronization/barrier.cl
+async/async_work_group_strided_copy.cl
+async/wait_group_events.cl
 workitem/get_global_id.cl
 workitem/get_global_offset.cl
 workitem/get_global_size.cl
@@ -95,6 +99,9 @@ atomic/atomic_dec.cl
 atomic/atomic_inc.cl
 atomic/atomic_max.cl
 atomic/atomic_min.cl
+atomic/atomic_sub.cl
 atomic/atomic_xchg.cl
 atomic/atomic_or.cl
 atomic/atomic_xor.cl
+atomic/atomic_load.cl
+atomic/atomic_store.cl

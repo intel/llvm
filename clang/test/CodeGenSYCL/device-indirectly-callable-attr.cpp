@@ -18,7 +18,7 @@ int bar20(int a) { return a + 20; }
 class A {
 public:
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1A3fooEv{{.*}}#[[ATTRS_INDIR_CALL]]
-  // CHECK-DAG: define {{.*}}spir_func i32 @_Z5bar20{{.*}}#[[ATTRS_NOT_INDIR_CALL]]
+  // CHECK-DAG: define {{.*}}spir_func noundef i32 @_Z5bar20{{.*}}#[[ATTRS_NOT_INDIR_CALL]]
   [[intel::device_indirectly_callable]] void foo() { bar20(10); }
 
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AC1Ev{{.*}}#[[ATTRS_INDIR_CALL_1:[0-9]+]]

@@ -100,6 +100,8 @@ if config.clang_staticanalyzer:
 
     if config.clang_staticanalyzer_z3:
         config.available_features.add('z3')
+    else:
+        config.available_features.add('no-z3')
 
     check_analyzer_fixit_path = os.path.join(
         config.test_source_root, "Analysis", "check-analyzer-fixit.py")
@@ -243,3 +245,24 @@ if config.enable_shared:
 # Add a vendor-specific feature.
 if config.clang_vendor_uti:
     config.available_features.add('clang-vendor=' + config.clang_vendor_uti)
+
+def exclude_unsupported_files_for_aix(dirname):
+    for filename in os.listdir(dirname):
+        source_path = os.path.join( dirname, filename)
+        if os.path.isdir(source_path):
+            continue
+        f = open(source_path, 'r', encoding='ISO-8859-1')
+        try:
+           data = f.read()
+           # 64-bit object files are not supported on AIX, so exclude the tests.
+           if (any(option in data for option in ('-emit-obj', '-fmodule-format=obj', '-fintegrated-as')) and
+              '64' in config.target_triple):
+               config.excludes += [ filename ]
+        finally:
+           f.close()
+
+if 'aix' in config.target_triple:
+    for directory in ('/CodeGenCXX', '/Misc', '/Modules', '/PCH', '/Driver',
+                      '/ASTMerge/anonymous-fields', '/ASTMerge/injected-class-name-decl'):
+        exclude_unsupported_files_for_aix(config.test_source_root + directory)
+

@@ -3099,6 +3099,24 @@ void Sema::CheckOverrideControl(NamedDecl *D) {
       << MD->getDeclName();
 }
 
+// Check and diagnose if a SYCLAddIRAttributesFunctionAttr is attached to a
+// virtual member function.
+void Sema::CheckVirtualSYCLAddIRAttributesFunctionAttr(const NamedDecl *D) {
+  const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(D);
+  if (!MD)
+    return;
+
+  // sycl_add_ir_attributes_function is not currently allowed on virtual member
+  // functions.
+  if (const auto *AddIRAttr = MD->getAttr<SYCLAddIRAttributesFunctionAttr>()) {
+    if (MD->isVirtual()) {
+      Diag(AddIRAttr->getLoc(), diag::err_disallow_attribute_on_func)
+          << AddIRAttr << 0;
+      return;
+    }
+  }
+}
+
 void Sema::DiagnoseAbsenceOfOverrideControl(NamedDecl *D, bool Inconsistent) {
   if (D->isInvalidDecl() || D->hasAttr<OverrideAttr>())
     return;
@@ -3395,6 +3413,14 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
       return nullptr;
     }
 
+    if (D.getName().getKind() == UnqualifiedIdKind::IK_TemplateId) {
+      Diag(D.getIdentifierLoc(), diag::err_member_with_template_arguments)
+          << II
+          << SourceRange(D.getName().TemplateId->LAngleLoc,
+                         D.getName().TemplateId->RAngleLoc)
+          << D.getName().TemplateId->LAngleLoc;
+    }
+
     if (SS.isSet() && !SS.isInvalid()) {
       // The user provided a superfluous scope specifier inside a class
       // definition:
@@ -3510,6 +3536,7 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
   }
 
   CheckOverrideControl(Member);
+  CheckVirtualSYCLAddIRAttributesFunctionAttr(Member);
 
   assert((Name || isInstField) && "No identifier for non-field ?");
 
@@ -3526,6 +3553,19 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
           !FD->getParent()->isDependentContext() &&
           !InitializationHasSideEffects(*FD))
         UnusedPrivateFields.insert(FD);
+    }
+  }
+
+  // Emit diagnostic if a private member of type decorated with device_global
+  // attribute is accessed.
+  if (getLangOpts().SYCLIsDevice) {
+    if (auto Value = dyn_cast<ValueDecl>(Member)) {
+      if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+              Value->getType()) &&
+          Value->getAccess() != AS_public) {
+        Diag(Loc, diag::err_sycl_device_global_not_publicly_accessible)
+            << Value;
+      }
     }
   }
 
@@ -13012,7 +13052,7 @@ Decl *Sema::ActOnAliasDeclaration(Scope *S, AccessSpecifier AS,
       NewDecl->setInvalidDecl();
     else if (OldDecl) {
       NewDecl->setPreviousDecl(OldDecl);
-      CheckRedeclarationModuleOwnership(NewDecl, OldDecl);
+      CheckRedeclarationInModule(NewDecl, OldDecl);
     }
 
     NewND = NewDecl;
@@ -15865,14 +15905,29 @@ bool Sema::CheckOverloadedOperatorDeclaration(FunctionDecl *FnDecl) {
   //   An operator function cannot have default arguments (8.3.6),
   //   except where explicitly stated below.
   //
-  // Only the function-call operator allows default arguments
-  // (C++ [over.call]p1).
+  // Only the function-call operator (C++ [over.call]p1) and the subscript
+  // operator (CWG2507) allow default arguments.
   if (Op != OO_Call) {
+    ParmVarDecl *FirstDefaultedParam = nullptr;
     for (auto Param : FnDecl->parameters()) {
-      if (Param->hasDefaultArg())
-        return Diag(Param->getLocation(),
+      if (Param->hasDefaultArg()) {
+        FirstDefaultedParam = Param;
+        break;
+      }
+    }
+    if (FirstDefaultedParam) {
+      if (Op == OO_Subscript) {
+        Diag(FnDecl->getLocation(), LangOpts.CPlusPlus2b
+                                        ? diag::ext_subscript_overload
+                                        : diag::error_subscript_overload)
+            << FnDecl->getDeclName() << 1
+            << FirstDefaultedParam->getDefaultArgRange();
+      } else {
+        return Diag(FirstDefaultedParam->getLocation(),
                     diag::err_operator_overload_default_arg)
-          << FnDecl->getDeclName() << Param->getDefaultArgRange();
+               << FnDecl->getDeclName()
+               << FirstDefaultedParam->getDefaultArgRange();
+      }
     }
   }
 
@@ -15893,10 +15948,10 @@ bool Sema::CheckOverloadedOperatorDeclaration(FunctionDecl *FnDecl) {
   //   described in the rest of this subclause.
   unsigned NumParams = FnDecl->getNumParams()
                      + (isa<CXXMethodDecl>(FnDecl)? 1 : 0);
-  if (Op != OO_Call &&
+  if (Op != OO_Call && Op != OO_Subscript &&
       ((NumParams == 1 && !CanBeUnaryOperator) ||
-       (NumParams == 2 && !CanBeBinaryOperator) ||
-       (NumParams < 1) || (NumParams > 2))) {
+       (NumParams == 2 && !CanBeBinaryOperator) || (NumParams < 1) ||
+       (NumParams > 2))) {
     // We have the wrong number of parameters.
     unsigned ErrorKind;
     if (CanBeUnaryOperator && CanBeBinaryOperator) {
@@ -15908,16 +15963,23 @@ bool Sema::CheckOverloadedOperatorDeclaration(FunctionDecl *FnDecl) {
              "All non-call overloaded operators are unary or binary!");
       ErrorKind = 1;  // 1 -> binary
     }
-
     return Diag(FnDecl->getLocation(), diag::err_operator_overload_must_be)
       << FnDecl->getDeclName() << NumParams << ErrorKind;
   }
 
-  // Overloaded operators other than operator() cannot be variadic.
+  if (Op == OO_Subscript && NumParams != 2) {
+    Diag(FnDecl->getLocation(), LangOpts.CPlusPlus2b
+                                    ? diag::ext_subscript_overload
+                                    : diag::error_subscript_overload)
+        << FnDecl->getDeclName() << (NumParams == 1 ? 0 : 2);
+  }
+
+  // Overloaded operators other than operator() and operator[] cannot be
+  // variadic.
   if (Op != OO_Call &&
       FnDecl->getType()->castAs<FunctionProtoType>()->isVariadic()) {
     return Diag(FnDecl->getLocation(), diag::err_operator_overload_variadic)
-      << FnDecl->getDeclName();
+           << FnDecl->getDeclName();
   }
 
   // Some operators must be non-static member functions.

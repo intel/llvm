@@ -1,6 +1,6 @@
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
-if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" )
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang|IntelLLVM" )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-covered-switch-default")
 endif()
 
@@ -15,10 +15,10 @@ endif()
 add_subdirectory(opencl)
 add_subdirectory(level_zero)
 
-# TODO : Remove 'if (NOT MSVC)' when CM_EMU supports Windows
-# environment
-if (NOT MSVC)
-  if (SYCL_BUILD_PI_ESIMD_EMULATOR)
+if(SYCL_BUILD_PI_ESIMD_EMULATOR)
+  # TODO : Remove 'if (NOT MSVC)' when CM_EMU supports Windows
+  # environment
+  if (NOT MSVC)
     add_subdirectory(esimd_emulator)
   endif()
 endif()

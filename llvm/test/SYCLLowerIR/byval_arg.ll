@@ -1,4 +1,5 @@
-; RUN: opt < %s -LowerWGScope -S | FileCheck %s
+; RUN: opt < %s -LowerWGScope -S -enable-new-pm=0 | FileCheck %s
+; RUN: opt < %s -passes=LowerWGScope -S | FileCheck %s
 
 ; Check that argument of the function marked with !work_group_scope
 ; attribute passed as byval is shared by leader work item via local

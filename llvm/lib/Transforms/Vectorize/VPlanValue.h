@@ -96,14 +96,15 @@ public:
     VPVReplicateSC,
     VPVWidenSC,
     VPVWidenCallSC,
+    VPVWidenCanonicalIVSC,
     VPVWidenGEPSC,
     VPVWidenSelectSC,
 
     // Phi-like VPValues. Need to be kept together.
     VPVBlendSC,
+    VPVCanonicalIVPHISC,
     VPVFirstOrderRecurrencePHISC,
     VPVWidenPHISC,
-    VPVWidenCanonicalIVSC,
     VPVWidenIntOrFpInductionSC,
     VPVPredInstPHI,
     VPVReductionPHISC,
@@ -177,11 +178,17 @@ public:
   void replaceAllUsesWith(VPValue *New);
 
   VPDef *getDef() { return Def; }
+  const VPDef *getDef() const { return Def; }
 
   /// Returns the underlying IR value, if this VPValue is defined outside the
   /// scope of VPlan. Returns nullptr if the VPValue is defined by a VPDef
   /// inside a VPlan.
   Value *getLiveInIRValue() {
+    assert(!getDef() &&
+           "VPValue is not a live-in; it is defined by a VPDef inside a VPlan");
+    return getUnderlyingValue();
+  }
+  const Value *getLiveInIRValue() const {
     assert(!getDef() &&
            "VPValue is not a live-in; it is defined by a VPDef inside a VPlan");
     return getUnderlyingValue();
@@ -320,11 +327,14 @@ public:
   /// type identification.
   using VPRecipeTy = enum {
     VPBranchOnMaskSC,
+    VPExpandSCEVSC,
     VPInstructionSC,
     VPInterleaveSC,
     VPReductionSC,
     VPReplicateSC,
+    VPScalarIVStepsSC,
     VPWidenCallSC,
+    VPWidenCanonicalIVSC,
     VPWidenGEPSC,
     VPWidenMemoryInstructionSC,
     VPWidenSC,
@@ -332,9 +342,9 @@ public:
 
     // Phi-like recipes. Need to be kept together.
     VPBlendSC,
+    VPCanonicalIVPHISC,
     VPFirstOrderRecurrencePHISC,
     VPWidenPHISC,
-    VPWidenCanonicalIVSC,
     VPWidenIntOrFpInductionSC,
     VPPredInstPHISC,
     VPReductionPHISC,
@@ -403,7 +413,6 @@ public:
 
 class VPlan;
 class VPBasicBlock;
-class VPRegionBlock;
 
 /// This class can be used to assign consecutive numbers to all VPValues in a
 /// VPlan and allows querying the numbering for printing, similar to the

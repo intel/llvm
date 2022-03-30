@@ -6,4 +6,4 @@ SYCL_EXTERNAL void test_islessgreater(float a, float b) {
   sycl::islessgreater(a, b);
 }
 // CHECK-NOT: __spirv_LessOrGreater
-// CHECK: {{.*}} = call spir_func zeroext i1 @_Z20__spirv_FOrdNotEqualff(float {{.*}}, float {{.*}})
+// CHECK: {{.*}} = call spir_func noundef zeroext i1 @_Z20__spirv_FOrdNotEqualff(float {{.*}}, float {{.*}})

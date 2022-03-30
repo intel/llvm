@@ -78,6 +78,12 @@ struct is_output_iterator<T, output_iterator_requirements<T>> {
   static constexpr bool value = true;
 };
 
+template <typename T, typename U>
+inline constexpr bool is_same_v = std::is_same<T, U>::value;
+
+template <typename T, typename U>
+inline constexpr bool is_convertible_v = std::is_convertible<T, U>::value;
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

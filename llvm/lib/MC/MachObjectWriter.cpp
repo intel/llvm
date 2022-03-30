@@ -759,6 +759,23 @@ uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,
   computeSymbolTable(Asm, LocalSymbolData, ExternalSymbolData,
                      UndefinedSymbolData);
 
+  if (!Asm.CGProfile.empty()) {
+    MCSection *CGProfileSection = Asm.getContext().getMachOSection(
+        "__LLVM", "__cg_profile", 0, SectionKind::getMetadata());
+    MCDataFragment *Frag = dyn_cast_or_null<MCDataFragment>(
+        &*CGProfileSection->getFragmentList().begin());
+    assert(Frag && "call graph profile section not reserved");
+    Frag->getContents().clear();
+    raw_svector_ostream OS(Frag->getContents());
+    for (const MCAssembler::CGProfileEntry &CGPE : Asm.CGProfile) {
+      uint32_t FromIndex = CGPE.From->getSymbol().getIndex();
+      uint32_t ToIndex = CGPE.To->getSymbol().getIndex();
+      support::endian::write(OS, FromIndex, W.Endian);
+      support::endian::write(OS, ToIndex, W.Endian);
+      support::endian::write(OS, CGPE.Count, W.Endian);
+    }
+  }
+
   unsigned NumSections = Asm.size();
   const MCAssembler::VersionInfoType &VersionInfo =
     Layout.getAssembler().getVersionInfo();
@@ -877,8 +894,8 @@ uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,
       [&](const MCAssembler::VersionInfoType &VersionInfo) {
         auto EncodeVersion = [](VersionTuple V) -> uint32_t {
           assert(!V.empty() && "empty version");
-          unsigned Update = V.getSubminor() ? *V.getSubminor() : 0;
-          unsigned Minor = V.getMinor() ? *V.getMinor() : 0;
+          unsigned Update = V.getSubminor().getValueOr(0);
+          unsigned Minor = V.getMinor().getValueOr(0);
           assert(Update < 256 && "unencodable update target version");
           assert(Minor < 256 && "unencodable minor target version");
           assert(V.getMajor() < 65536 && "unencodable major target version");

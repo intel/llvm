@@ -32,11 +32,6 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64)|(ppc64le)|(aarch64)$" AND CMAKE_
   return()
 endif()
 
-if (NOT LIBOMPTARGET_LLVM_INCLUDE_DIRS)
-  libomptarget_say("Not building AMDGPU plugin: Missing definition for LIBOMPTARGET_LLVM_INCLUDE_DIRS")
-  return()
-endif()
-
 ################################################################################
 # Define the suffix for the runtime messaging dumps.
 add_definitions(-DTARGET_NAME=AMDGPU)
@@ -50,7 +45,6 @@ endif()
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/impl
-  ${LIBOMPTARGET_LLVM_INCLUDE_DIRS}
 )
 
 set(LIBOMPTARGET_DLOPEN_LIBHSA OFF)
@@ -118,6 +112,6 @@ if (${amdgpu_arch_result})
   libomptarget_say("Not generating amdgcn test targets as amdgpu-arch exited with ${amdgpu_arch_result}")
 else()
   # Report to the parent scope that we are building a plugin for amdgpu
-  set(LIBOMPTARGET_SYSTEM_TARGETS "${LIBOMPTARGET_SYSTEM_TARGETS} amdgcn-amd-amdhsa amdgcn-amd-amdhsa-newRTL" PARENT_SCOPE)
+  set(LIBOMPTARGET_SYSTEM_TARGETS "${LIBOMPTARGET_SYSTEM_TARGETS} amdgcn-amd-amdhsa amdgcn-amd-amdhsa-newDriver" PARENT_SCOPE)
 endif()
 

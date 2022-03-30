@@ -5039,7 +5039,7 @@ defm VPMULHUW : avx512_binop_rm_vl_w<0xE4, "vpmulhuw", mulhu, SchedWriteVecIMul,
                                      HasBWI, 1>;
 defm VPMULHRSW : avx512_binop_rm_vl_w<0x0B, "vpmulhrsw", X86mulhrs,
                                       SchedWriteVecIMul, HasBWI, 1>, T8PD;
-defm VPAVG : avx512_binop_rm_vl_bw<0xE0, 0xE3, "vpavg", X86avg,
+defm VPAVG : avx512_binop_rm_vl_bw<0xE0, 0xE3, "vpavg", avgceilu,
                                    SchedWriteVecALU, HasBWI, 1>;
 defm VPMULDQ : avx512_binop_rm_vl_q<0x28, "vpmuldq", X86pmuldq,
                                     SchedWriteVecIMul, HasAVX512, 1>, T8PD;
@@ -10537,13 +10537,12 @@ def rr : AVX512XS8I<opc, MRMSrcReg, (outs Vec.RC:$dst), (ins Vec.KRC:$src),
 
 multiclass cvt_mask_by_elt_width<bits<8> opc, AVX512VLVectorVTInfo VTInfo,
                                  string OpcodeStr, Predicate prd> {
-// TODO - Replace WriteMove with WriteVecTrunc?
 let Predicates = [prd] in
-  defm Z : cvt_by_vec_width<opc, VTInfo.info512, OpcodeStr, WriteMove>, EVEX_V512;
+  defm Z : cvt_by_vec_width<opc, VTInfo.info512, OpcodeStr, WriteVecMoveZ>, EVEX_V512;
 
   let Predicates = [prd, HasVLX] in {
-    defm Z256 : cvt_by_vec_width<opc, VTInfo.info256, OpcodeStr, WriteMove>, EVEX_V256;
-    defm Z128 : cvt_by_vec_width<opc, VTInfo.info128, OpcodeStr, WriteMove>, EVEX_V128;
+    defm Z256 : cvt_by_vec_width<opc, VTInfo.info256, OpcodeStr, WriteVecMoveY>, EVEX_V256;
+    defm Z128 : cvt_by_vec_width<opc, VTInfo.info128, OpcodeStr, WriteVecMoveX>, EVEX_V128;
   }
 }
 

@@ -193,7 +193,8 @@ inline auto get_native<backend::ext_oneapi_level_zero>(
                         kernel_bundle<bundle_state::executable>> {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != backend::ext_oneapi_level_zero)
-    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
+    throw runtime_error(errc::backend_mismatch, "Backends mismatch",
+                        PI_INVALID_OPERATION);
 
   return Obj.template getNative<backend::ext_oneapi_level_zero>();
 }

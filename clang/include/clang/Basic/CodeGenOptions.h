@@ -276,6 +276,11 @@ public:
   /// CUDA runtime back-end for incorporating them into host-side object file.
   std::string CudaGpuBinaryFileName;
 
+  /// List of filenames and section name pairs passed in using the
+  /// -fembed-offload-object option to embed device-side offloading objects into
+  /// the host as a named section. Input passed in as '<filename>,<section>'
+  std::vector<std::string> OffloadObjects;
+
   /// The name of the file to which the backend should save YAML optimization
   /// records.
   std::string OptRecordFile;
@@ -307,7 +312,7 @@ public:
     std::shared_ptr<llvm::Regex> Regex;
 
     /// By default, optimization remark is missing.
-    OptRemark() : Kind(RK_Missing), Pattern(""), Regex(nullptr) {}
+    OptRemark() : Kind(RK_Missing), Regex(nullptr) {}
 
     /// Returns true iff the optimization remark holds a valid regular
     /// expression.

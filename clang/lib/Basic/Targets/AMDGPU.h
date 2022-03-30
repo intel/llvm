@@ -328,6 +328,8 @@ public:
     case OCLTK_Queue:
     case OCLTK_ReserveID:
       return LangAS::opencl_global;
+    case OCLTK_Event:
+      return LangAS::opencl_private;
 
     default:
       return TargetInfo::getOpenCLTypeAddrSpace(TK);

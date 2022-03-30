@@ -27,6 +27,7 @@
 #include "SIMachineScheduler.h"
 #include "TargetInfo/AMDGPUTargetInfo.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
+#include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
 #include "llvm/CodeGen/GlobalISel/Legalizer.h"
@@ -43,6 +44,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
@@ -56,6 +58,7 @@
 #include "llvm/Transforms/Vectorize.h"
 
 using namespace llvm;
+using namespace llvm::PatternMatch;
 
 namespace {
 class SGPRRegisterRegAlloc : public RegisterRegAllocBase<SGPRRegisterRegAlloc> {
@@ -378,6 +381,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUResourceUsageAnalysisPass(*PR);
   initializeGCNNSAReassignPass(*PR);
   initializeGCNPreRAOptimizationsPass(*PR);
+
+  // SYCL-specific passes, needed here to be available to `opt`.
+  initializeLocalAccessorToSharedMemoryPass(*PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -836,7 +842,7 @@ GCNTargetMachine::getSubtargetImpl(const Function &F) const {
 }
 
 TargetTransformInfo
-GCNTargetMachine::getTargetTransformInfo(const Function &F) {
+GCNTargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(GCNTTIImpl(this, F));
 }
 
@@ -1034,6 +1040,10 @@ void AMDGPUPassConfig::addIRPasses() {
   // but EarlyCSE can do neither of them.
   if (isPassEnabled(EnableScalarIRPasses))
     addEarlyCSEOrGVNPass();
+
+  if (TM.getTargetTriple().getArch() == Triple::amdgcn &&
+      TM.getTargetTriple().getOS() == Triple::OSType::AMDHSA)
+    addPass(createLocalAccessorToSharedMemoryPass());
 }
 
 void AMDGPUPassConfig::addCodeGenPrepare() {

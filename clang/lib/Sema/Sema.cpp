@@ -60,6 +60,16 @@ ModuleLoader &Sema::getModuleLoader() const { return PP.getModuleLoader(); }
 DarwinSDKInfo *
 Sema::getDarwinSDKInfoForAvailabilityChecking(SourceLocation Loc,
                                               StringRef Platform) {
+  auto *SDKInfo = getDarwinSDKInfoForAvailabilityChecking();
+  if (!SDKInfo && !WarnedDarwinSDKInfoMissing) {
+    Diag(Loc, diag::warn_missing_sdksettings_for_availability_checking)
+        << Platform;
+    WarnedDarwinSDKInfoMissing = true;
+  }
+  return SDKInfo;
+}
+
+DarwinSDKInfo *Sema::getDarwinSDKInfoForAvailabilityChecking() {
   if (CachedDarwinSDKInfo)
     return CachedDarwinSDKInfo->get();
   auto SDKInfo = parseDarwinSDKInfo(
@@ -71,8 +81,6 @@ Sema::getDarwinSDKInfoForAvailabilityChecking(SourceLocation Loc,
   }
   if (!SDKInfo)
     llvm::consumeError(SDKInfo.takeError());
-  Diag(Loc, diag::warn_missing_sdksettings_for_availability_checking)
-      << Platform;
   CachedDarwinSDKInfo = std::unique_ptr<DarwinSDKInfo>();
   return nullptr;
 }
@@ -105,6 +113,9 @@ PrintingPolicy Sema::getPrintingPolicy(const ASTContext &Context,
                     BoolMacro->getReplacementToken(0).is(tok::kw__Bool);
     }
   }
+
+  // Shorten the data output if needed
+  Policy.EntireContentsOfLargeArray = false;
 
   return Policy;
 }
@@ -187,7 +198,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       CodeSegStack(nullptr), FpPragmaStack(FPOptionsOverride()),
       CurInitSeg(nullptr), VisContext(nullptr),
       PragmaAttributeCurrentTargetDecl(nullptr),
-      IsBuildingRecoveryCallExpr(false), Cleanup{}, LateTemplateParser(nullptr),
+      IsBuildingRecoveryCallExpr(false), LateTemplateParser(nullptr),
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
       StdExperimentalNamespaceCache(nullptr), StdInitializerList(nullptr),
       StdCoroutineTraitsCache(nullptr), CXXTypeInfoDecl(nullptr),
@@ -223,6 +234,9 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
   // Tell diagnostics how to render things from the AST library.
   Diags.SetArgToStringFn(&FormatASTNodeDiagnosticArgument, &Context);
 
+  // This evaluation context exists to ensure that there's always at least one
+  // valid evaluation context available. It is never removed from the
+  // evaluation stack.
   ExprEvalContexts.emplace_back(
       ExpressionEvaluationContext::PotentiallyEvaluated, 0, CleanupInfo{},
       nullptr, ExpressionEvaluationContextRecord::EK_Other);
@@ -235,6 +249,21 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
   SemaPPCallbackHandler = Callbacks.get();
   PP.addPPCallbacks(std::move(Callbacks));
   SemaPPCallbackHandler->set(*this);
+  if (getLangOpts().getFPEvalMethod() == LangOptions::FEM_UnsetOnCommandLine)
+    // Use setting from TargetInfo.
+    PP.setCurrentFPEvalMethod(SourceLocation(),
+                              ctxt.getTargetInfo().getFPEvalMethod());
+  else
+    // Set initial value of __FLT_EVAL_METHOD__ from the command line.
+    PP.setCurrentFPEvalMethod(SourceLocation(),
+                              getLangOpts().getFPEvalMethod());
+  CurFPFeatures.setFPEvalMethod(PP.getCurrentFPEvalMethod());
+  // When `-ffast-math` option is enabled, it triggers several driver math
+  // options to be enabled. Among those, only one the following two modes
+  // affect the eval-method:  reciprocal or reassociate.
+  if (getLangOpts().AllowFPReassoc || getLangOpts().AllowRecip)
+    PP.setCurrentFPEvalMethod(SourceLocation(),
+                              LangOptions::FEM_Indeterminable);
 }
 
 // Anchor Sema's type info to this TU.
@@ -352,9 +381,12 @@ void Sema::Initialize() {
         Context.getTargetInfo().getSupportedOpenCLOpts(), getLangOpts());
     addImplicitTypedef("sampler_t", Context.OCLSamplerTy);
     addImplicitTypedef("event_t", Context.OCLEventTy);
-    if (getLangOpts().getOpenCLCompatibleVersion() >= 200) {
-      addImplicitTypedef("clk_event_t", Context.OCLClkEventTy);
-      addImplicitTypedef("queue_t", Context.OCLQueueTy);
+    auto OCLCompatibleVersion = getLangOpts().getOpenCLCompatibleVersion();
+    if (OCLCompatibleVersion >= 200) {
+      if (getLangOpts().OpenCLCPlusPlus || getLangOpts().Blocks) {
+        addImplicitTypedef("clk_event_t", Context.OCLClkEventTy);
+        addImplicitTypedef("queue_t", Context.OCLQueueTy);
+      }
       if (getLangOpts().OpenCLPipes)
         addImplicitTypedef("reserve_id_t", Context.OCLReserveIDTy);
       addImplicitTypedef("atomic_int", Context.getAtomicType(Context.IntTy));
@@ -421,7 +453,6 @@ void Sema::Initialize() {
         }
       }
     }
-
 
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext)                                      \
   if (getOpenCLOptions().isSupported(#Ext, getLangOpts())) {                   \
@@ -1091,11 +1122,14 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
     // Set the names of the kernels, now that the names have settled down. This
     // needs to happen before we generate the integration headers.
     SetSYCLKernelNames();
+    // Make sure that the footer is emitted before header, since only after the
+    // footer is emitted is it known that translation unit contains device
+    // global variables.
+    if (SyclIntFooter != nullptr)
+      SyclIntFooter->emit(getLangOpts().SYCLIntFooter);
     // Emit SYCL integration header for current translation unit if needed
     if (SyclIntHeader != nullptr)
       SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
-    if (SyclIntFooter != nullptr)
-      SyclIntFooter->emit(getLangOpts().SYCLIntFooter);
     MarkDevices();
   }
 
@@ -1681,7 +1715,9 @@ public:
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
     if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
       if (auto *VD = dyn_cast<VarDecl>(D)) {
-        if (!S.checkAllowedSYCLInitializer(VD)) {
+        if (!S.checkAllowedSYCLInitializer(VD) &&
+            !S.isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
+                VD->getType())) {
           S.Diag(Loc, diag::err_sycl_restrict)
               << Sema::KernelConstStaticVariable;
           return;
@@ -1770,8 +1806,15 @@ public:
   // Emit any deferred diagnostics for FD
   void emitDeferredDiags(FunctionDecl *FD, bool ShowCallStack) {
     auto It = S.DeviceDeferredDiags.find(FD);
-    if (It == S.DeviceDeferredDiags.end())
+    if (It == S.DeviceDeferredDiags.end()) {
+      // If this is a template instantiation, check if its declaration
+      // is on the deferred diagnostics stack.
+      if (FD->isTemplateInstantiation()) {
+        FD = FD->getTemplateInstantiationPattern();
+        emitDeferredDiags(FD, ShowCallStack);
+      }
       return;
+    }
     bool HasWarningOrError = false;
     bool FirstDiag = true;
     for (Sema::DeviceDeferredDiagnostic &D : It->second) {
@@ -1937,6 +1980,15 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   if (isUnevaluatedContext() || Ty.isNull())
     return;
 
+  // The original idea behind checkTypeSupport function is that unused
+  // declarations can be replaced with an array of bytes of the same size during
+  // codegen, such replacement doesn't seem to be possible for types without
+  // constant byte size like zero length arrays. So, do a deep check for SYCL.
+  if (D && LangOpts.SYCLIsDevice) {
+    llvm::DenseSet<QualType> Visited;
+    deepTypeCheckForSYCLDevice(Loc, Visited, D);
+  }
+
   Decl *C = cast<Decl>(getCurLexicalContext());
 
   // Memcpy operations for structs containing a member with unsupported type
@@ -2013,7 +2065,8 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   };
 
   auto CheckType = [&](QualType Ty, bool IsRetTy = false) {
-    if (LangOpts.SYCLIsDevice || (LangOpts.OpenMP && LangOpts.OpenMPIsDevice))
+    if (LangOpts.SYCLIsDevice || (LangOpts.OpenMP && LangOpts.OpenMPIsDevice) ||
+        LangOpts.CUDAIsDevice)
       CheckDeviceType(Ty);
 
     QualType UnqualTy = Ty.getCanonicalType().getUnqualifiedType();
@@ -2617,32 +2670,36 @@ bool Sema::tryToRecoverWithCall(ExprResult &E, const PartialDiagnostic &PD,
                                 bool (*IsPlausibleResult)(QualType)) {
   SourceLocation Loc = E.get()->getExprLoc();
   SourceRange Range = E.get()->getSourceRange();
-
-  QualType ZeroArgCallTy;
   UnresolvedSet<4> Overloads;
-  if (tryExprAsCall(*E.get(), ZeroArgCallTy, Overloads) &&
-      !ZeroArgCallTy.isNull() &&
-      (!IsPlausibleResult || IsPlausibleResult(ZeroArgCallTy))) {
-    // At this point, we know E is potentially callable with 0
-    // arguments and that it returns something of a reasonable type,
-    // so we can emit a fixit and carry on pretending that E was
-    // actually a CallExpr.
-    SourceLocation ParenInsertionLoc = getLocForEndOfToken(Range.getEnd());
-    bool IsMV = IsCPUDispatchCPUSpecificMultiVersion(E.get());
-    Diag(Loc, PD) << /*zero-arg*/ 1 << IsMV << Range
-                  << (IsCallableWithAppend(E.get())
-                          ? FixItHint::CreateInsertion(ParenInsertionLoc, "()")
-                          : FixItHint());
-    if (!IsMV)
-      notePlausibleOverloads(*this, Loc, Overloads, IsPlausibleResult);
 
-    // FIXME: Try this before emitting the fixit, and suppress diagnostics
-    // while doing so.
-    E = BuildCallExpr(nullptr, E.get(), Range.getEnd(), None,
-                      Range.getEnd().getLocWithOffset(1));
-    return true;
+  // If this is a SFINAE context, don't try anything that might trigger ADL
+  // prematurely.
+  if (!isSFINAEContext()) {
+    QualType ZeroArgCallTy;
+    if (tryExprAsCall(*E.get(), ZeroArgCallTy, Overloads) &&
+        !ZeroArgCallTy.isNull() &&
+        (!IsPlausibleResult || IsPlausibleResult(ZeroArgCallTy))) {
+      // At this point, we know E is potentially callable with 0
+      // arguments and that it returns something of a reasonable type,
+      // so we can emit a fixit and carry on pretending that E was
+      // actually a CallExpr.
+      SourceLocation ParenInsertionLoc = getLocForEndOfToken(Range.getEnd());
+      bool IsMV = IsCPUDispatchCPUSpecificMultiVersion(E.get());
+      Diag(Loc, PD) << /*zero-arg*/ 1 << IsMV << Range
+                    << (IsCallableWithAppend(E.get())
+                            ? FixItHint::CreateInsertion(ParenInsertionLoc,
+                                                         "()")
+                            : FixItHint());
+      if (!IsMV)
+        notePlausibleOverloads(*this, Loc, Overloads, IsPlausibleResult);
+
+      // FIXME: Try this before emitting the fixit, and suppress diagnostics
+      // while doing so.
+      E = BuildCallExpr(nullptr, E.get(), Range.getEnd(), None,
+                        Range.getEnd().getLocWithOffset(1));
+      return true;
+    }
   }
-
   if (!ForceComplain) return false;
 
   bool IsMV = IsCPUDispatchCPUSpecificMultiVersion(E.get());
@@ -2686,4 +2743,16 @@ CapturedRegionScopeInfo *Sema::getCurCapturedRegion() {
 const llvm::MapVector<FieldDecl *, Sema::DeleteLocs> &
 Sema::getMismatchingDeleteExpressions() const {
   return DeleteExprs;
+}
+
+Sema::FPFeaturesStateRAII::FPFeaturesStateRAII(Sema &S)
+    : S(S), OldFPFeaturesState(S.CurFPFeatures),
+      OldOverrides(S.FpPragmaStack.CurrentValue),
+      OldEvalMethod(S.PP.getCurrentFPEvalMethod()),
+      OldFPPragmaLocation(S.PP.getLastFPEvalPragmaLocation()) {}
+
+Sema::FPFeaturesStateRAII::~FPFeaturesStateRAII() {
+  S.CurFPFeatures = OldFPFeaturesState;
+  S.FpPragmaStack.CurrentValue = OldOverrides;
+  S.PP.setCurrentFPEvalMethod(OldFPPragmaLocation, OldEvalMethod);
 }

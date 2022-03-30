@@ -347,13 +347,14 @@
 // CHK-UBACTIONS: 1: input, "[[INPUT]]", object, (host-sycl)
 // CHK-UBACTIONS: 2: clang-offload-unbundler, {1}, object, (host-sycl)
 // CHK-UBACTIONS: 3: linker, {0, 2}, image, (host-sycl)
-// CHK-UBACTIONS: 4: linker, {2}, ir, (device-sycl)
-// CHK-UBACTIONS: 5: sycl-post-link, {4}, tempfiletable, (device-sycl)
-// CHK-UBACTIONS: 6: file-table-tform, {5}, tempfilelist, (device-sycl)
-// CHK-UBACTIONS: 7: llvm-spirv, {6}, tempfilelist, (device-sycl)
-// CHK-UBACTIONS: 8: file-table-tform, {5, 7}, tempfiletable, (device-sycl)
-// CHK-UBACTIONS: 9: clang-offload-wrapper, {8}, object, (device-sycl)
-// CHK-UBACTIONS: 10: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64-unknown-unknown)" {9}, image
+// CHK-UBACTIONS: 4: spirv-to-ir-wrapper, {2}, ir, (device-sycl)
+// CHK-UBACTIONS: 5: linker, {4}, ir, (device-sycl)
+// CHK-UBACTIONS: 6: sycl-post-link, {5}, tempfiletable, (device-sycl)
+// CHK-UBACTIONS: 7: file-table-tform, {6}, tempfilelist, (device-sycl)
+// CHK-UBACTIONS: 8: llvm-spirv, {7}, tempfilelist, (device-sycl)
+// CHK-UBACTIONS: 9: file-table-tform, {6, 8}, tempfiletable, (device-sycl)
+// CHK-UBACTIONS: 10: clang-offload-wrapper, {9}, object, (device-sycl)
+// CHK-UBACTIONS: 11: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64-unknown-unknown)" {10}, image
 
 /// ###########################################################################
 
@@ -375,13 +376,14 @@
 // CHK-UBUACTIONS: 11: backend, {10}, assembler, (host-sycl)
 // CHK-UBUACTIONS: 12: assembler, {11}, object, (host-sycl)
 // CHK-UBUACTIONS: 13: linker, {0, 2, 12}, image, (host-sycl)
-// CHK-UBUACTIONS: 14: linker, {2, 8}, ir, (device-sycl)
-// CHK-UBUACTIONS: 15: sycl-post-link, {14}, tempfiletable, (device-sycl)
-// CHK-UBUACTIONS: 16: file-table-tform, {15}, tempfilelist, (device-sycl)
-// CHK-UBUACTIONS: 17: llvm-spirv, {16}, tempfilelist, (device-sycl)
-// CHK-UBUACTIONS: 18: file-table-tform, {15, 17}, tempfiletable, (device-sycl)
-// CHK-UBUACTIONS: 19: clang-offload-wrapper, {18}, object, (device-sycl)
-// CHK-UBUACTIONS: 20: offload, "host-sycl (x86_64-unknown-linux-gnu)" {13}, "device-sycl (spir64-unknown-unknown)" {19}, image
+// CHK-UBUACTIONS: 14: spirv-to-ir-wrapper, {2}, ir, (device-sycl)
+// CHK-UBUACTIONS: 15: linker, {14, 8}, ir, (device-sycl)
+// CHK-UBUACTIONS: 16: sycl-post-link, {15}, tempfiletable, (device-sycl)
+// CHK-UBUACTIONS: 17: file-table-tform, {16}, tempfilelist, (device-sycl)
+// CHK-UBUACTIONS: 18: llvm-spirv, {17}, tempfilelist, (device-sycl)
+// CHK-UBUACTIONS: 19: file-table-tform, {16, 18}, tempfiletable, (device-sycl)
+// CHK-UBUACTIONS: 20: clang-offload-wrapper, {19}, object, (device-sycl)
+// CHK-UBUACTIONS: 21: offload, "host-sycl (x86_64-unknown-linux-gnu)" {13}, "device-sycl (spir64-unknown-unknown)" {20}, image
 
 /// ###########################################################################
 
@@ -1135,10 +1137,12 @@
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl" "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-host"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl" "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"{{.*}}
 
-/// Check for an incompatibility error when -fsycl and -ffreestanding used
+/// Check for option incompatibility with -fsycl
 // RUN:   %clang -### -fsycl -ffreestanding %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s
-// CHK-INCOMPATIBILITY: error: The option -fsycl conflicts with -ffreestanding
+// RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-ffreestanding
+// RUN:   %clang -### -fsycl -static-libstdc++ %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-static-libstdc++
+// CHK-INCOMPATIBILITY: error: '[[INCOMPATOPT]]' is not supported with '-fsycl'
 
 /// Using -fsyntax-only with -fsycl should not emit IR
 // RUN:   %clang -### -fsycl -fsyntax-only %s 2>&1 \
@@ -1156,3 +1160,8 @@
 /// Verify that -save-temps=obj respects the -o dir
 // RUN: %clang -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps=obj -o %S %s -### 2>&1 | FileCheck %s -check-prefixes=CHECK-SAVE-TEMPS-OBJ-DIR
 // CHECK-SAVE-TEMPS-OBJ-DIR: clang{{.*}}-fsycl-int-header={{.*[/\\]+clang[/\\]+test[/\\]+sycl-offload-header-[a-z0-9]*}}.h{{.*}}-fsycl-int-footer={{.*[/\\]+clang[/\\]+test[/\\]+sycl-offload-footer-[a-z0-9]*}}.h
+
+// Emit warning for treating 'c' input as 'c++' when -fsycl is used
+// RUN: %clang -### -fsycl  %s 2>&1 | FileCheck -check-prefix FSYCL-CHECK %s
+// RUN: %clang_cl -### -fsycl  %s 2>&1 | FileCheck -check-prefix FSYCL-CHECK %s
+// FSYCL-CHECK: warning: treating 'c' input as 'c++' when -fsycl is used [-Wexpected-file-type]

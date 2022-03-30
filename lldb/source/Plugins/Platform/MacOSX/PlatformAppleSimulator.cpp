@@ -18,6 +18,7 @@
 #include "lldb/Host/PseudoTerminal.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StreamString.h"
@@ -265,7 +266,8 @@ CoreSimulatorSupport::Device PlatformAppleSimulator::GetSimulatorDevice() {
 }
 #endif
 
-std::vector<ArchSpec> PlatformAppleSimulator::GetSupportedArchitectures() {
+std::vector<ArchSpec> PlatformAppleSimulator::GetSupportedArchitectures(
+    const ArchSpec &process_host_arch) {
   std::vector<ArchSpec> result(m_supported_triples.size());
   llvm::transform(m_supported_triples, result.begin(),
                   [](llvm::StringRef triple) { return ArchSpec(triple); });
@@ -281,7 +283,7 @@ PlatformSP PlatformAppleSimulator::CreateInstance(
     llvm::StringRef sdk, lldb_private::XcodeSDK::Type sdk_type,
     CoreSimulatorSupport::DeviceType::ProductFamilyID kind, bool force,
     const ArchSpec *arch) {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
+  Log *log = GetLog(LLDBLog::Platform);
   if (log) {
     const char *arch_name;
     if (arch && arch->GetArchitectureName())
@@ -381,7 +383,7 @@ Status PlatformAppleSimulator::ResolveExecutable(
     StreamString arch_names;
     llvm::ListSeparator LS;
     ArchSpec platform_arch;
-    for (const ArchSpec &arch : GetSupportedArchitectures()) {
+    for (const ArchSpec &arch : GetSupportedArchitectures({})) {
       resolved_module_spec.GetArchitecture() = arch;
 
       // Only match x86 with x86 and x86_64 with x86_64...

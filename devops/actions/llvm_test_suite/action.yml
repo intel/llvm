@@ -41,6 +41,7 @@ runs:
       path: llvm_test_suite
       repository: 'intel/llvm-test-suite'
       ref: ${{ inputs.test_ref }}
+      default_branch: 'intel'
       cache_path: "/__w/repo_cache/"
   - name: Download compiler toolchain
     uses: actions/download-artifact@v2
@@ -82,6 +83,11 @@ runs:
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
       fi
+      # TODO remove workaround of FPGA emu bug
+      mkdir -p icd
+      echo /usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so > icd/gpu.icd
+      echo /runtimes/oclcpu/x64/libintelocl.so > icd/cpu.icd
+      export OCL_ICD_VENDORS=$PWD/icd
       echo "::group::sycl-ls --verbose"
       sycl-ls --verbose
       echo "::endgroup::"

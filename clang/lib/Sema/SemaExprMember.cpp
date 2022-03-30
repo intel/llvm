@@ -504,9 +504,12 @@ Sema::ActOnDependentMemberExpr(Expr *BaseExpr, QualType BaseType,
     }
   }
 
-  assert(BaseType->isDependentType() ||
-         NameInfo.getName().isDependentName() ||
-         isDependentScopeSpecifier(SS));
+  assert(BaseType->isDependentType() || NameInfo.getName().isDependentName() ||
+         isDependentScopeSpecifier(SS) ||
+         (TemplateArgs && llvm::any_of(TemplateArgs->arguments(),
+                                       [](const TemplateArgumentLoc &Arg) {
+                                         return Arg.getArgument().isDependent();
+                                       })));
 
   // Get the type being accessed in BaseType.  If this is an arrow, the BaseExpr
   // must have pointer type, and the accessed type is the pointee.
@@ -1589,6 +1592,16 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
                                        false);
   }
 
+  if (BaseType->isExtVectorBoolType()) {
+    // We disallow element access for ext_vector_type bool.  There is no way to
+    // materialize a reference to a vector element as a pointer (each element is
+    // one bit in the vector).
+    S.Diag(R.getNameLoc(), diag::err_ext_vector_component_name_illegal)
+        << MemberName
+        << (BaseExpr.get() ? BaseExpr.get()->getSourceRange() : SourceRange());
+    return ExprError();
+  }
+
   // Handle 'field access' to vectors, such as 'V.xx'.
   if (BaseType->isExtVectorType()) {
     // FIXME: this expr should store IsArrow.
@@ -1641,6 +1654,9 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
       S.Diag(OpLoc, diag::err_typecheck_member_reference_suggestion)
           << BaseType << int(IsArrow) << BaseExpr.get()->getSourceRange()
           << FixItHint::CreateReplacement(OpLoc, "->");
+
+      if (S.isSFINAEContext())
+        return ExprError();
 
       // Recurse as an -> access.
       IsArrow = true;

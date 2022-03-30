@@ -67,8 +67,8 @@
 
 // Helper macro to identify if fallback assert is needed
 // FIXME remove __NVPTX__ condition once devicelib supports CUDA
-#if !defined(SYCL_DISABLE_FALLBACK_ASSERT)
-#define __SYCL_USE_FALLBACK_ASSERT 1
+#if defined(SYCL_FALLBACK_ASSERT)
+#define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
 #else
 #define __SYCL_USE_FALLBACK_ASSERT 0
 #endif
@@ -237,6 +237,7 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
+private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker
   // than the long version
   bool device_has(aspect Aspect) const;

@@ -570,6 +570,7 @@ public:
     case llvm::Triple::x86_64:
       this->MCountName = ".mcount";
       this->NewAlign = 256;
+      this->SuitableAlign = 256;
       break;
     }
   }
@@ -749,7 +750,9 @@ public:
   }
 
   // AIX sets FLT_EVAL_METHOD to be 1.
-  unsigned getFloatEvalMethod() const override { return 1; }
+  LangOptions::FPEvalMethodKind getFPEvalMethod() const override {
+    return LangOptions::FPEvalMethodKind::FEM_Double;
+  }
 
   bool defaultsToAIXPowerAlignment() const override { return true; }
 };

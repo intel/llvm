@@ -41,7 +41,7 @@ namespace serialization {
 /// Version 4 of AST files also requires that the version control branch and
 /// revision match exactly, since there is no backward compatibility of
 /// AST files at this time.
-const unsigned VERSION_MAJOR = 15;
+const unsigned VERSION_MAJOR = 16;
 
 /// AST file minor version number supported by this version of
 /// Clang.
@@ -695,6 +695,9 @@ enum ASTRecordTypes {
 
   /// Record code for \#pragma float_control options.
   FLOAT_CONTROL_PRAGMA_OPTIONS = 65,
+
+  /// Record code for included files.
+  PP_INCLUDED_FILES = 66,
 };
 
 /// Record types used within a source manager block.
@@ -1963,6 +1966,7 @@ enum StmtCode {
   STMT_OMP_DISPATCH_DIRECTIVE,
   STMT_OMP_MASKED_DIRECTIVE,
   STMT_OMP_GENERIC_LOOP_DIRECTIVE,
+  STMT_OMP_TEAMS_GENERIC_LOOP_DIRECTIVE,
   EXPR_OMP_ARRAY_SECTION,
   EXPR_OMP_ARRAY_SHAPING,
   EXPR_OMP_ITERATOR,

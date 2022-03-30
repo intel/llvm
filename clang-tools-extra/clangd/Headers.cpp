@@ -7,15 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "Headers.h"
-#include "Compiler.h"
 #include "Preamble.h"
 #include "SourceCode.h"
-#include "support/Logger.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/CompilerInvocation.h"
-#include "clang/Frontend/FrontendActions.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
@@ -61,10 +57,19 @@ public:
           SM.getLineNumber(SM.getFileID(HashLoc), Inc.HashOffset) - 1;
       Inc.FileKind = FileKind;
       Inc.Directive = IncludeTok.getIdentifierInfo()->getPPKeywordID();
-      if (File)
-        Inc.HeaderID = static_cast<unsigned>(Out->getOrCreateID(File));
       if (LastPragmaKeepInMainFileLine == Inc.HashLine)
         Inc.BehindPragmaKeep = true;
+      if (File) {
+        IncludeStructure::HeaderID HID = Out->getOrCreateID(File);
+        Inc.HeaderID = static_cast<unsigned>(HID);
+        if (IsAngled)
+          if (auto StdlibHeader = tooling::stdlib::Header::named(Inc.Written)) {
+            auto &IDs = Out->StdlibHeaders[*StdlibHeader];
+            // Few physical files for one stdlib header name, linear scan is ok.
+            if (!llvm::is_contained(IDs, HID))
+              IDs.push_back(HID);
+          }
+      }
     }
 
     // Record include graph (not just for main-file includes)
@@ -340,5 +345,6 @@ bool operator==(const Inclusion &LHS, const Inclusion &RHS) {
          std::tie(RHS.Directive, RHS.FileKind, RHS.HashOffset, RHS.HashLine,
                   RHS.Resolved, RHS.Written);
 }
+
 } // namespace clangd
 } // namespace clang

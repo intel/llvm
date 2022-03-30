@@ -216,7 +216,7 @@ private:
       // The operator on the top of the stack has higher precedence than the
       // new operator.
       unsigned ParenCount = 0;
-      while (1) {
+      while (true) {
         // Nothing to process.
         if (InfixOperatorStack.empty())
           break;
@@ -2722,7 +2722,7 @@ bool X86AsmParser::ParseZ(std::unique_ptr<X86Operand> &Z,
   if (!getLexer().is(AsmToken::RCurly))
     return Error(getLexer().getLoc(), "Expected } at this point");
   Parser.Lex(); // Eat '}'
-  // Assign Z with the {z} mark opernad
+  // Assign Z with the {z} mark operand
   Z = X86Operand::CreateToken("{z}", StartLoc);
   return false;
 }
@@ -3030,7 +3030,7 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
   ForcedDispEncoding = DispEncoding_Default;
 
   // Parse pseudo prefixes.
-  while (1) {
+  while (true) {
     if (Name == "{") {
       if (getLexer().isNot(AsmToken::Identifier))
         return Error(Parser.getTok().getLoc(), "Unexpected token after '{'");
@@ -3370,7 +3370,7 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
       Operands.push_back(X86Operand::CreateToken("*", consumeToken()));
 
     // Read the operands.
-    while(1) {
+    while (true) {
       if (ParseOperand(Operands))
         return true;
       if (HandleAVX512Operand(Operands))
@@ -4871,7 +4871,7 @@ bool X86AsmParser::parseDirectiveEven(SMLoc L) {
     getStreamer().initSections(false, getSTI());
     Section = getStreamer().getCurrentSectionOnly();
   }
-  if (Section->UseCodeAlign())
+  if (Section->useCodeAlign())
     getStreamer().emitCodeAlignment(2, &getSTI(), 0);
   else
     getStreamer().emitValueToAlignment(2, 0, 1, 0);

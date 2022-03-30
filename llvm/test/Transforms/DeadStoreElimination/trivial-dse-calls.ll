@@ -193,6 +193,20 @@ define i32 @test_neg_captured_before() {
   ret i32 %res
 }
 
+; Callee might be dead, but op bundle has unknown semantics and thus isn't.
+define void @test_new_op_bundle() {
+; CHECK-LABEL: @test_new_op_bundle(
+; CHECK-NEXT:    [[A:%.*]] = alloca i32, align 4
+; CHECK-NEXT:    [[BITCAST:%.*]] = bitcast i32* [[A]] to i8*
+; CHECK-NEXT:    call void @f(i8* nocapture writeonly [[BITCAST]]) #[[ATTR1]] [ "unknown"(i8* [[BITCAST]]) ]
+; CHECK-NEXT:    ret void
+;
+  %a = alloca i32, align 4
+  %bitcast = bitcast i32* %a to i8*
+  call void @f(i8* writeonly nocapture %bitcast) argmemonly nounwind willreturn ["unknown" (i8* %bitcast)]
+  ret void
+}
+
 ; Show that reading from unrelated memory is okay
 define void @test_unreleated_read() {
 ; CHECK-LABEL: @test_unreleated_read(
@@ -252,14 +266,12 @@ define void @test_self_read() {
   ret void
 }
 
-; TODO: We should be able to remove the call because while we don't know
-; the size of the write done by the call, we do know the following store
-; writes to the entire contents of the alloca.
+; We can remove the call because while we don't know the size of the write done
+; by the call, we do know the following store writes to the entire contents of
+; the alloca.
 define i32 @test_dse_overwrite() {
 ; CHECK-LABEL: @test_dse_overwrite(
 ; CHECK-NEXT:    [[A:%.*]] = alloca i32, align 4
-; CHECK-NEXT:    [[BITCAST:%.*]] = bitcast i32* [[A]] to i8*
-; CHECK-NEXT:    call void @f(i8* nocapture writeonly [[BITCAST]]) #[[ATTR1]]
 ; CHECK-NEXT:    store i32 0, i32* [[A]], align 4
 ; CHECK-NEXT:    [[V:%.*]] = load i32, i32* [[A]], align 4
 ; CHECK-NEXT:    ret i32 [[V]]
@@ -307,14 +319,11 @@ define i32 @test_neg_dse_unsized(i32* %a) {
   ret i32 %v
 }
 
+@G = global i8 0
 
-@G = external global i8
-
-; TODO: Should be able to kill call in analogous manner to test_dse_overwrite.
-; Difference is non-alloca object.
+; Same as test_dse_overwrite, but with a non-alloca object.
 define void @test_dse_non_alloca() {
 ; CHECK-LABEL: @test_dse_non_alloca(
-; CHECK-NEXT:    call void @f(i8* nocapture writeonly @G) #[[ATTR1]]
 ; CHECK-NEXT:    store i8 0, i8* @G, align 1
 ; CHECK-NEXT:    ret void
 ;

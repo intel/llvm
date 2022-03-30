@@ -489,11 +489,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("--fix-cortex-a53-843419");
   }
 
-  // Android does not allow shared text relocations. Emit a warning if the
-  // user's code contains any.
-  if (isAndroid)
-      CmdArgs.push_back("--warn-shared-textrel");
-
   ToolChain.addExtraOpts(CmdArgs);
 
   CmdArgs.push_back("--eh-frame-hdr");
@@ -525,7 +520,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
 
-  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles)) {
+  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
+                   options::OPT_r)) {
     if (!isAndroid && !IsIAMCU) {
       const char *crt1 = nullptr;
       if (!Args.hasArg(options::OPT_shared)) {
@@ -622,7 +618,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   getToolChain().addProfileRTLibs(Args, CmdArgs);
 
   if (D.CCCIsCXX() &&
-      !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+      !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs,
+                   options::OPT_r)) {
     if (ToolChain.ShouldLinkCXXStdlib(Args)) {
       bool OnlyLibstdcxxStatic = Args.hasArg(options::OPT_static_libstdcxx) &&
                                  !Args.hasArg(options::OPT_static);
@@ -634,10 +631,18 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back("-lm");
   }
+
+  // If we are linking for the device all symbols should be bound locally. The
+  // symbols are already protected which makes this redundant. This is only
+  // necessary to work around a problem in bfd.
+  // TODO: Remove this once 'lld' becomes the only linker for offloading.
+  if (JA.isDeviceOffloading(Action::OFK_OpenMP))
+    CmdArgs.push_back("-Bsymbolic");
+
   // Silence warnings when linking C code with a C++ '-stdlib' argument.
   Args.ClaimAllArgs(options::OPT_stdlib_EQ);
 
-  if (!Args.hasArg(options::OPT_nostdlib)) {
+  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_r)) {
     if (!Args.hasArg(options::OPT_nodefaultlibs)) {
       if (IsStatic || IsStaticPIE)
         CmdArgs.push_back("--start-group");
@@ -760,7 +765,7 @@ void tools::gnutools::Assembler::ConstructJob(Compilation &C,
       CmdArgs.push_back("--compress-debug-sections");
     } else {
       StringRef Value = A->getValue();
-      if (Value == "none" || Value == "zlib" || Value == "zlib-gnu") {
+      if (Value == "none" || Value == "zlib") {
         CmdArgs.push_back(
             Args.MakeArgString("--compress-debug-sections=" + Twine(Value)));
       } else {
@@ -2866,6 +2871,11 @@ void Generic_GCC::AddMultilibPaths(const Driver &D,
         D, GCCInstallation.getInstallPath() + SelectedMultilib.gccSuffix(),
         Paths);
 
+    // Add lib/gcc/$triple/$libdir
+    // For GCC built with --enable-version-specific-runtime-libs.
+    addPathIfExists(D, GCCInstallation.getInstallPath() + "/../" + OSLibDir,
+                    Paths);
+
     // GCC cross compiling toolchains will install target libraries which ship
     // as part of the toolchain under <prefix>/<triple>/<libdir> rather than as
     // any part of the GCC installation in
@@ -3042,6 +3052,15 @@ bool Generic_GCC::addGCCLibStdCxxIncludePaths(
   if (addLibStdCXXIncludePaths(
           LibDir.str() + "/../" + TripleStr + "/include/c++/" + Version.Text,
           TripleStr, Multilib.includeSuffix(), DriverArgs, CC1Args))
+    return true;
+
+  // Try /gcc/$triple/$version/include/c++/ (gcc --print-multiarch is not
+  // empty). Like above but for GCC built with
+  // --enable-version-specific-runtime-libs.
+  if (addLibStdCXXIncludePaths(LibDir.str() + "/gcc/" + TripleStr + "/" +
+                                   Version.Text + "/include/c++/",
+                               TripleStr, Multilib.includeSuffix(), DriverArgs,
+                               CC1Args))
     return true;
 
   // Detect Debian g++-multiarch-incdir.diff.

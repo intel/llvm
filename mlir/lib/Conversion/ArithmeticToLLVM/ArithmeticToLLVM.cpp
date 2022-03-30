@@ -66,6 +66,8 @@ using FPToSIOpLowering =
     VectorConvertToLLVMPattern<arith::FPToSIOp, LLVM::FPToSIOp>;
 using BitcastOpLowering =
     VectorConvertToLLVMPattern<arith::BitcastOp, LLVM::BitcastOp>;
+using SelectOpLowering =
+    VectorConvertToLLVMPattern<arith::SelectOp, LLVM::SelectOp>;
 
 //===----------------------------------------------------------------------===//
 // Op Lowering Patterns
@@ -187,8 +189,6 @@ CmpIOpLowering::matchAndRewrite(arith::CmpIOp op, OpAdaptor adaptor,
             adaptor.getLhs(), adaptor.getRhs());
       },
       rewriter);
-
-  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -235,7 +235,7 @@ struct ConvertArithmeticToLLVMPass
     : public ConvertArithmeticToLLVMBase<ConvertArithmeticToLLVMPass> {
   ConvertArithmeticToLLVMPass() = default;
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     LLVMConversionTarget target(getContext());
     RewritePatternSet patterns(&getContext());
 
@@ -247,8 +247,8 @@ struct ConvertArithmeticToLLVMPass
     mlir::arith::populateArithmeticToLLVMConversionPatterns(converter,
                                                             patterns);
 
-    if (failed(
-            applyPartialConversion(getFunction(), target, std::move(patterns))))
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
       signalPassFailure();
   }
 };
@@ -294,7 +294,8 @@ void mlir::arith::populateArithmeticToLLVMConversionPatterns(
     IndexCastOpLowering,
     BitcastOpLowering,
     CmpIOpLowering,
-    CmpFOpLowering
+    CmpFOpLowering,
+    SelectOpLowering
   >(converter);
   // clang-format on
 }

@@ -82,6 +82,8 @@ public:
     BackendCompileJobClass,
     FileTableTformJobClass,
     AppendFooterJobClass,
+    SpirvToIrWrapperJobClass,
+    LinkerWrapperJobClass,
     StaticLibJobClass,
 
     JobClassFirst = PreprocessJobClass,
@@ -197,6 +199,11 @@ public:
   /// Append the host offload info of this action and propagate it to its
   /// dependences.
   void propagateHostOffloadInfo(unsigned OKinds, const char *OArch);
+
+  void setHostOffloadInfo(unsigned OKinds, const char *OArch) {
+    ActiveOffloadKindMask |= OKinds;
+    OffloadingArch = OArch;
+  }
 
   /// Set the offload info of this action to be the same as the provided action,
   /// and propagate it to its dependences.
@@ -624,6 +631,7 @@ private:
 public:
   // Offloading unbundling doesn't change the type of output.
   OffloadUnbundlingJobAction(Action *Input);
+  OffloadUnbundlingJobAction(Action *Input, types::ID Type);
   OffloadUnbundlingJobAction(ActionList &Inputs, types::ID Type);
 
   /// Register information about a dependent action.
@@ -855,6 +863,28 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == AppendFooterJobClass;
+  }
+};
+
+class SpirvToIrWrapperJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  SpirvToIrWrapperJobAction(Action *Input, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == SpirvToIrWrapperJobClass;
+  }
+};
+
+class LinkerWrapperJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  LinkerWrapperJobAction(ActionList &Inputs, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == LinkerWrapperJobClass;
   }
 };
 

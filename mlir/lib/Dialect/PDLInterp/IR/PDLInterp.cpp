@@ -10,6 +10,7 @@
 #include "mlir/Dialect/PDL/IR/PDLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/FunctionImplementation.h"
 
 using namespace mlir;
 using namespace mlir::pdl_interp;
@@ -25,6 +26,21 @@ void PDLInterpDialect::initialize() {
 #define GET_OP_LIST
 #include "mlir/Dialect/PDLInterp/IR/PDLInterpOps.cpp.inc"
       >();
+}
+
+template <typename OpT>
+static LogicalResult verifySwitchOp(OpT op) {
+  // Verify that the number of case destinations matches the number of case
+  // values.
+  size_t numDests = op.getCases().size();
+  size_t numValues = op.getCaseValues().size();
+  if (numDests != numValues) {
+    return op.emitOpError(
+               "expected number of cases to match the number of case "
+               "values, got ")
+           << numDests << " but expected " << numValues;
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -74,13 +90,15 @@ void ForEachOp::build(::mlir::OpBuilder &builder, ::mlir::OperationState &state,
   build(builder, state, range, successor);
   if (initLoop) {
     // Create the block and the loop variable.
+    // FIXME: Allow passing in a proper location for the loop variable.
     auto rangeType = range.getType().cast<pdl::RangeType>();
     state.regions.front()->emplaceBlock();
-    state.regions.front()->addArgument(rangeType.getElementType());
+    state.regions.front()->addArgument(rangeType.getElementType(),
+                                       state.location);
   }
 }
 
-static ParseResult parseForEachOp(OpAsmParser &parser, OperationState &result) {
+ParseResult ForEachOp::parse(OpAsmParser &parser, OperationState &result) {
   // Parse the loop variable followed by type.
   OpAsmParser::OperandType loopVariable;
   Type loopVariableType;
@@ -120,28 +138,51 @@ static ParseResult parseForEachOp(OpAsmParser &parser, OperationState &result) {
   return success();
 }
 
-static void print(OpAsmPrinter &p, ForEachOp op) {
-  BlockArgument arg = op.getLoopVariable();
-  p << ' ' << arg << " : " << arg.getType() << " in " << op.values();
-  p.printRegion(op.region(), /*printEntryBlockArgs=*/false);
-  p.printOptionalAttrDict(op->getAttrs());
+void ForEachOp::print(OpAsmPrinter &p) {
+  BlockArgument arg = getLoopVariable();
+  p << ' ' << arg << " : " << arg.getType() << " in " << getValues() << ' ';
+  p.printRegion(getRegion(), /*printEntryBlockArgs=*/false);
+  p.printOptionalAttrDict((*this)->getAttrs());
   p << " -> ";
-  p.printSuccessor(op.successor());
+  p.printSuccessor(getSuccessor());
 }
 
-static LogicalResult verify(ForEachOp op) {
+LogicalResult ForEachOp::verify() {
   // Verify that the operation has exactly one argument.
-  if (op.region().getNumArguments() != 1)
-    return op.emitOpError("requires exactly one argument");
+  if (getRegion().getNumArguments() != 1)
+    return emitOpError("requires exactly one argument");
 
   // Verify that the loop variable and the operand (value range)
   // have compatible types.
-  BlockArgument arg = op.getLoopVariable();
+  BlockArgument arg = getLoopVariable();
   Type rangeType = pdl::RangeType::get(arg.getType());
-  if (rangeType != op.values().getType())
-    return op.emitOpError("operand must be a range of loop variable type");
+  if (rangeType != getValues().getType())
+    return emitOpError("operand must be a range of loop variable type");
 
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// pdl_interp::FuncOp
+//===----------------------------------------------------------------------===//
+
+void FuncOp::build(OpBuilder &builder, OperationState &state, StringRef name,
+                   FunctionType type, ArrayRef<NamedAttribute> attrs) {
+  buildWithEntryBlock(builder, state, name, type, attrs, type.getInputs());
+}
+
+ParseResult FuncOp::parse(OpAsmParser &parser, OperationState &result) {
+  auto buildFuncType =
+      [](Builder &builder, ArrayRef<Type> argTypes, ArrayRef<Type> results,
+         function_interface_impl::VariadicFlag,
+         std::string &) { return builder.getFunctionType(argTypes, results); };
+
+  return function_interface_impl::parseFunctionOp(
+      parser, result, /*allowVariadic=*/false, buildFuncType);
+}
+
+void FuncOp::print(OpAsmPrinter &p) {
+  function_interface_impl::printFunctionOp(p, *this, /*isVariadic=*/false);
 }
 
 //===----------------------------------------------------------------------===//
@@ -153,6 +194,42 @@ static Type getGetValueTypeOpValueType(Type type) {
   Type valueTy = pdl::ValueType::get(type.getContext());
   return type.isa<pdl::RangeType>() ? pdl::RangeType::get(valueTy) : valueTy;
 }
+
+//===----------------------------------------------------------------------===//
+// pdl_interp::SwitchAttributeOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult SwitchAttributeOp::verify() { return verifySwitchOp(*this); }
+
+//===----------------------------------------------------------------------===//
+// pdl_interp::SwitchOperandCountOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult SwitchOperandCountOp::verify() { return verifySwitchOp(*this); }
+
+//===----------------------------------------------------------------------===//
+// pdl_interp::SwitchOperationNameOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult SwitchOperationNameOp::verify() { return verifySwitchOp(*this); }
+
+//===----------------------------------------------------------------------===//
+// pdl_interp::SwitchResultCountOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult SwitchResultCountOp::verify() { return verifySwitchOp(*this); }
+
+//===----------------------------------------------------------------------===//
+// pdl_interp::SwitchTypeOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult SwitchTypeOp::verify() { return verifySwitchOp(*this); }
+
+//===----------------------------------------------------------------------===//
+// pdl_interp::SwitchTypesOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult SwitchTypesOp::verify() { return verifySwitchOp(*this); }
 
 //===----------------------------------------------------------------------===//
 // TableGen Auto-Generated Op and Interface Definitions

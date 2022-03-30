@@ -653,7 +653,7 @@ static void checkNoThrow(Sema &S, const Stmt *E,
       }
       if (ThrowingDecls.empty()) {
         // [dcl.fct.def.coroutine]p15
-        //   The expression co_­await promise.final_­suspend() shall not be
+        //   The expression co_await promise.final_suspend() shall not be
         //   potentially-throwing ([except.spec]).
         //
         // First time seeing an error, emit the error message.
@@ -663,32 +663,32 @@ static void checkNoThrow(Sema &S, const Stmt *E,
       ThrowingDecls.insert(D);
     }
   };
-  auto SC = E->getStmtClass();
-  if (SC == Expr::CXXConstructExprClass) {
-    auto const *Ctor = cast<CXXConstructExpr>(E)->getConstructor();
+
+  if (auto *CE = dyn_cast<CXXConstructExpr>(E)) {
+    CXXConstructorDecl *Ctor = CE->getConstructor();
     checkDeclNoexcept(Ctor);
     // Check the corresponding destructor of the constructor.
-    checkDeclNoexcept(Ctor->getParent()->getDestructor(), true);
-  } else if (SC == Expr::CallExprClass || SC == Expr::CXXMemberCallExprClass ||
-             SC == Expr::CXXOperatorCallExprClass) {
-    if (!cast<CallExpr>(E)->isTypeDependent()) {
-      checkDeclNoexcept(cast<CallExpr>(E)->getCalleeDecl());
-      auto ReturnType = cast<CallExpr>(E)->getCallReturnType(S.getASTContext());
-      // Check the destructor of the call return type, if any.
-      if (ReturnType.isDestructedType() ==
-          QualType::DestructionKind::DK_cxx_destructor) {
-        const auto *T =
-            cast<RecordType>(ReturnType.getCanonicalType().getTypePtr());
-        checkDeclNoexcept(
-            dyn_cast<CXXRecordDecl>(T->getDecl())->getDestructor(), true);
-      }
+    checkDeclNoexcept(Ctor->getParent()->getDestructor(), /*IsDtor=*/true);
+  } else if (auto *CE = dyn_cast<CallExpr>(E)) {
+    if (CE->isTypeDependent())
+      return;
+
+    checkDeclNoexcept(CE->getCalleeDecl());
+    QualType ReturnType = CE->getCallReturnType(S.getASTContext());
+    // Check the destructor of the call return type, if any.
+    if (ReturnType.isDestructedType() ==
+        QualType::DestructionKind::DK_cxx_destructor) {
+      const auto *T =
+          cast<RecordType>(ReturnType.getCanonicalType().getTypePtr());
+      checkDeclNoexcept(cast<CXXRecordDecl>(T->getDecl())->getDestructor(),
+                        /*IsDtor=*/true);
     }
-  }
-  for (const auto *Child : E->children()) {
-    if (!Child)
-      continue;
-    checkNoThrow(S, Child, ThrowingDecls);
-  }
+  } else
+    for (const auto *Child : E->children()) {
+      if (!Child)
+        continue;
+      checkNoThrow(S, Child, ThrowingDecls);
+    }
 }
 
 bool Sema::checkFinalSuspendNoThrow(const Stmt *FinalSuspend) {
@@ -810,7 +810,7 @@ ExprResult Sema::ActOnCoawaitExpr(Scope *S, SourceLocation Loc, Expr *E) {
 
   checkSuspensionContext(*this, Loc, "co_await");
 
-  if (E->getType()->isPlaceholderType()) {
+  if (E->hasPlaceholderType()) {
     ExprResult R = CheckPlaceholderExpr(E);
     if (R.isInvalid()) return ExprError();
     E = R.get();
@@ -828,7 +828,7 @@ ExprResult Sema::BuildUnresolvedCoawaitExpr(SourceLocation Loc, Expr *E,
   if (!FSI)
     return ExprError();
 
-  if (E->getType()->isPlaceholderType()) {
+  if (E->hasPlaceholderType()) {
     ExprResult R = CheckPlaceholderExpr(E);
     if (R.isInvalid())
       return ExprError();
@@ -866,7 +866,7 @@ ExprResult Sema::BuildResolvedCoawaitExpr(SourceLocation Loc, Expr *E,
   if (!Coroutine)
     return ExprError();
 
-  if (E->getType()->isPlaceholderType()) {
+  if (E->hasPlaceholderType()) {
     ExprResult R = CheckPlaceholderExpr(E);
     if (R.isInvalid()) return ExprError();
     E = R.get();
@@ -927,7 +927,7 @@ ExprResult Sema::BuildCoyieldExpr(SourceLocation Loc, Expr *E) {
   if (!Coroutine)
     return ExprError();
 
-  if (E->getType()->isPlaceholderType()) {
+  if (E->hasPlaceholderType()) {
     ExprResult R = CheckPlaceholderExpr(E);
     if (R.isInvalid()) return ExprError();
     E = R.get();
@@ -970,8 +970,8 @@ StmtResult Sema::BuildCoreturnStmt(SourceLocation Loc, Expr *E,
   if (!FSI)
     return StmtError();
 
-  if (E && E->getType()->isPlaceholderType() &&
-      !E->getType()->isSpecificPlaceholderType(BuiltinType::Overload)) {
+  if (E && E->hasPlaceholderType() &&
+      !E->hasPlaceholderType(BuiltinType::Overload)) {
     ExprResult R = CheckPlaceholderExpr(E);
     if (R.isInvalid()) return StmtError();
     E = R.get();
@@ -1081,6 +1081,14 @@ void Sema::CheckCompletedCoroutineBody(FunctionDecl *FD, Stmt *&Body) {
     return;
   }
 
+  // The always_inline attribute doesn't reliably apply to a coroutine,
+  // because the coroutine will be split into pieces and some pieces
+  // might be called indirectly, as in a virtual call. Even the ramp
+  // function cannot be inlined at -O0, due to pipeline ordering
+  // problems (see https://llvm.org/PR53413). Tell the user about it.
+  if (FD->hasAttr<AlwaysInlineAttr>())
+    Diag(FD->getLocation(), diag::warn_always_inline_coroutine);
+
   // [stmt.return.coroutine]p1:
   //   A coroutine shall not enclose a return statement ([stmt.return]).
   if (Fn->FirstReturnLoc.isValid()) {
@@ -1184,13 +1192,13 @@ bool CoroutineStmtBuilder::makeReturnOnAllocFailure() {
          "cannot make statement while the promise type is dependent");
 
   // [dcl.fct.def.coroutine]p10
-  //   If a search for the name get_­return_­object_­on_­allocation_­failure in
+  //   If a search for the name get_return_object_on_allocation_failure in
   // the scope of the promise type ([class.member.lookup]) finds any
   // declarations, then the result of a call to an allocation function used to
   // obtain storage for the coroutine state is assumed to return nullptr if it
   // fails to obtain storage, ... If the allocation function returns nullptr,
   // ... and the return value is obtained by a call to
-  // T::get_­return_­object_­on_­allocation_­failure(), where T is the
+  // T::get_return_object_on_allocation_failure(), where T is the
   // promise type.
   DeclarationName DN =
       S.PP.getIdentifierInfo("get_return_object_on_allocation_failure");
@@ -1433,10 +1441,10 @@ bool CoroutineStmtBuilder::makeOnFallthrough() {
          "cannot make statement while the promise type is dependent");
 
   // [dcl.fct.def.coroutine]/p6
-  // If searches for the names return_­void and return_­value in the scope of
+  // If searches for the names return_void and return_value in the scope of
   // the promise type each find any declarations, the program is ill-formed.
-  // [Note 1: If return_­void is found, flowing off the end of a coroutine is
-  // equivalent to a co_­return with no operand. Otherwise, flowing off the end
+  // [Note 1: If return_void is found, flowing off the end of a coroutine is
+  // equivalent to a co_return with no operand. Otherwise, flowing off the end
   // of a coroutine results in undefined behavior ([stmt.return.coroutine]). —
   // end note]
   bool HasRVoid, HasRValue;
@@ -1529,7 +1537,7 @@ bool CoroutineStmtBuilder::makeOnException() {
 
 bool CoroutineStmtBuilder::makeReturnObject() {
   // [dcl.fct.def.coroutine]p7
-  // The expression promise.get_­return_­object() is used to initialize the
+  // The expression promise.get_return_object() is used to initialize the
   // returned reference or prvalue result object of a call to a coroutine.
   ExprResult ReturnObject =
       buildPromiseCall(S, Fn.CoroutinePromise, Loc, "get_return_object", None);
@@ -1569,7 +1577,6 @@ bool CoroutineStmtBuilder::makeGroDeclAndReturnStmt() {
     if (Res.isInvalid())
       return false;
 
-    this->ResultDecl = Res.get();
     return true;
   }
 
@@ -1582,51 +1589,11 @@ bool CoroutineStmtBuilder::makeGroDeclAndReturnStmt() {
     return false;
   }
 
-  auto *GroDecl = VarDecl::Create(
-      S.Context, &FD, FD.getLocation(), FD.getLocation(),
-      &S.PP.getIdentifierTable().get("__coro_gro"), GroType,
-      S.Context.getTrivialTypeSourceInfo(GroType, Loc), SC_None);
-  GroDecl->setImplicit();
-
-  S.CheckVariableDeclarationType(GroDecl);
-  if (GroDecl->isInvalidDecl())
-    return false;
-
-  InitializedEntity Entity = InitializedEntity::InitializeVariable(GroDecl);
-  ExprResult Res =
-      S.PerformCopyInitialization(Entity, SourceLocation(), ReturnValue);
-  if (Res.isInvalid())
-    return false;
-
-  Res = S.ActOnFinishFullExpr(Res.get(), /*DiscardedValue*/ false);
-  if (Res.isInvalid())
-    return false;
-
-  S.AddInitializerToDecl(GroDecl, Res.get(),
-                         /*DirectInit=*/false);
-
-  S.FinalizeDeclaration(GroDecl);
-
-  // Form a declaration statement for the return declaration, so that AST
-  // visitors can more easily find it.
-  StmtResult GroDeclStmt =
-      S.ActOnDeclStmt(S.ConvertDeclToDeclGroup(GroDecl), Loc, Loc);
-  if (GroDeclStmt.isInvalid())
-    return false;
-
-  this->ResultDecl = GroDeclStmt.get();
-
-  ExprResult declRef = S.BuildDeclRefExpr(GroDecl, GroType, VK_LValue, Loc);
-  if (declRef.isInvalid())
-    return false;
-
-  StmtResult ReturnStmt = S.BuildReturnStmt(Loc, declRef.get());
+  StmtResult ReturnStmt = S.BuildReturnStmt(Loc, ReturnValue);
   if (ReturnStmt.isInvalid()) {
     noteMemberDeclaredHere(S, ReturnValue, Fn);
     return false;
   }
-  if (cast<clang::ReturnStmt>(ReturnStmt.get())->getNRVOCandidate() == GroDecl)
-    GroDecl->setNRVOVariable(true);
 
   this->ReturnStmt = ReturnStmt.get();
   return true;
@@ -1740,29 +1707,38 @@ ClassTemplateDecl *Sema::lookupCoroutineTraits(SourceLocation KwLoc,
       return nullptr;
     }
 
-    if (!InStd) {
-      // Found only in std::experimental.
-      Diag(KwLoc, diag::warn_deprecated_coroutine_namespace)
-          << "coroutine_traits";
-    } else if (InExp) {
-      // Found in std and std::experimental.
-      Diag(KwLoc,
-           diag::err_mixed_use_std_and_experimental_namespace_for_coroutine);
-      Diag(KwLoc, diag::warn_deprecated_coroutine_namespace)
-          << "coroutine_traits";
-      return nullptr;
-    }
-
     // Prefer ::std to std::experimental.
     auto &Result = InStd ? ResStd : ResExp;
     CoroTraitsNamespaceCache = InStd ? StdSpace : ExpSpace;
 
     // coroutine_traits is required to be a class template.
-    if (!(StdCoroutineTraitsCache = Result.getAsSingle<ClassTemplateDecl>())) {
+    StdCoroutineTraitsCache = Result.getAsSingle<ClassTemplateDecl>();
+    if (!StdCoroutineTraitsCache) {
       Result.suppressDiagnostics();
       NamedDecl *Found = *Result.begin();
       Diag(Found->getLocation(), diag::err_malformed_std_coroutine_traits);
       return nullptr;
+    }
+
+    if (InExp) {
+      // Found in std::experimental
+      Diag(KwLoc, diag::warn_deprecated_coroutine_namespace)
+          << "coroutine_traits";
+      ResExp.suppressDiagnostics();
+      auto *Found = *ResExp.begin();
+      Diag(Found->getLocation(), diag::note_entity_declared_at) << Found;
+
+      if (InStd &&
+          StdCoroutineTraitsCache != ResExp.getAsSingle<ClassTemplateDecl>()) {
+        // Also found something different in std
+        Diag(KwLoc,
+             diag::err_mixed_use_std_and_experimental_namespace_for_coroutine);
+        Diag(StdCoroutineTraitsCache->getLocation(),
+             diag::note_entity_declared_at)
+            << StdCoroutineTraitsCache;
+
+        return nullptr;
+      }
     }
   }
   Namespace = CoroTraitsNamespaceCache;

@@ -57,10 +57,14 @@ const char *Action::getClassName(ActionClass AC) {
     return "file-table-tform";
   case AppendFooterJobClass:
     return "append-footer";
+  case LinkerWrapperJobClass:
+    return "clang-linker-wrapper";
   case StaticLibJobClass:
     return "static-lib-linker";
   case ForEachWrappingClass:
     return "foreach";
+  case SpirvToIrWrapperJobClass:
+    return "spirv-to-ir-wrapper";
   }
 
   llvm_unreachable("invalid class");
@@ -437,8 +441,12 @@ void OffloadUnbundlingJobAction::anchor() {}
 OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(Action *Input)
     : JobAction(OffloadUnbundlingJobClass, Input, Input->getType()) {}
 
+OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(Action *Input,
+                                                       types::ID Type)
+    : JobAction(OffloadUnbundlingJobClass, Input, Type) {}
+
 OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(ActionList &Inputs,
-                                                       types:: ID Type)
+                                                       types::ID Type)
     : JobAction(OffloadUnbundlingJobClass, Inputs, Type) {}
 
 void OffloadWrapperJobAction::anchor() {}
@@ -539,10 +547,22 @@ void AppendFooterJobAction::anchor() {}
 AppendFooterJobAction::AppendFooterJobAction(Action *Input, types::ID Type)
     : JobAction(AppendFooterJobClass, Input, Type) {}
 
+void LinkerWrapperJobAction::anchor() {}
+
+LinkerWrapperJobAction::LinkerWrapperJobAction(ActionList &Inputs,
+                                               types::ID Type)
+    : JobAction(LinkerWrapperJobClass, Inputs, Type) {}
+
 void StaticLibJobAction::anchor() {}
 
 StaticLibJobAction::StaticLibJobAction(ActionList &Inputs, types::ID Type)
     : JobAction(StaticLibJobClass, Inputs, Type) {}
+
+void SpirvToIrWrapperJobAction::anchor() {}
+
+SpirvToIrWrapperJobAction::SpirvToIrWrapperJobAction(Action *Input,
+                                                     types::ID Type)
+    : JobAction(SpirvToIrWrapperJobClass, Input, Type) {}
 
 ForEachWrappingAction::ForEachWrappingAction(JobAction *TFormInput,
                                              JobAction *Job)

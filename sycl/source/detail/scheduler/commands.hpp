@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <set>
 #include <unordered_set>
 #include <vector>
@@ -19,6 +20,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/cg.hpp>
+#include <detail/event_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -160,9 +162,9 @@ public:
   /// instrumentation to report these dependencies as edges.
   void resolveReleaseDependencies(std::set<Command *> &list);
   /// Creates an edge event when the dependency is a command.
-  void emitEdgeEventForCommandDependence(Command *Cmd, void *ObjAddr,
-                                         const std::string &Prefix,
-                                         bool IsCommand);
+  void emitEdgeEventForCommandDependence(
+      Command *Cmd, void *ObjAddr, bool IsCommand,
+      std::optional<access::mode> AccMode = std::nullopt);
   /// Creates an edge event when the dependency is an event.
   void emitEdgeEventForEventDependence(Command *Cmd, RT::PiEvent &EventAddr);
   /// Creates a signal event with the enqueued kernel event handle.
@@ -187,7 +189,7 @@ public:
     return nullptr;
   }
 
-  virtual ~Command() = default;
+  virtual ~Command() { MEvent->cleanDepEventsThroughOneLevel(); }
 
   const char *getBlockReason() const;
 
@@ -539,8 +541,10 @@ public:
   ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
 
   std::vector<StreamImplPtr> getStreams() const;
+  std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const;
 
   void clearStreams();
+  void clearAuxiliaryResources();
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
@@ -552,13 +556,6 @@ public:
   // host-task-representing command is unreliable. This unreliability roots in
   // the cleanup process.
   EmptyCommand *MEmptyCmd = nullptr;
-
-  // This function is only usable for native kernel to prevent access to free'd
-  // memory in DispatchNativeKernel.
-  // TODO remove when native kernel support is terminated.
-  void releaseCG() {
-    MCommandGroup.release();
-  }
 
   bool producesPiEvent() const final;
 

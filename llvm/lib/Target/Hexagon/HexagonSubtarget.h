@@ -13,7 +13,7 @@
 #ifndef LLVM_LIB_TARGET_HEXAGON_HEXAGONSUBTARGET_H
 #define LLVM_LIB_TARGET_HEXAGON_HEXAGONSUBTARGET_H
 
-#include "HexagonArch.h"
+#include "HexagonDepArch.h"
 #include "HexagonFrameLowering.h"
 #include "HexagonISelLowering.h"
 #include "HexagonInstrInfo.h"
@@ -325,8 +325,8 @@ public:
 
 private:
   // Helper function responsible for increasing the latency only.
-  void updateLatency(MachineInstr &SrcInst, MachineInstr &DstInst, SDep &Dep)
-      const;
+  int updateLatency(MachineInstr &SrcInst, MachineInstr &DstInst,
+                    bool IsArtificial, int Latency) const;
   void restoreLatency(SUnit *Src, SUnit *Dst) const;
   void changeLatency(SUnit *Src, SUnit *Dst, unsigned Lat) const;
   bool isBestZeroLatency(SUnit *Src, SUnit *Dst, const HexagonInstrInfo *TII,

@@ -53,7 +53,7 @@ template <template <int, bool = true> class Item, int Dims> void test() {
       "Wrong return type of free function query for Item");
 }
 
-int main() {
+SYCL_EXTERNAL void test_all() {
   test<sycl::id>(this_id_caller<1>{});
   test<sycl::id>(this_id_caller<2>{});
   test<sycl::id>(this_id_caller<3>{});

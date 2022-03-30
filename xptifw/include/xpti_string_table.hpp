@@ -326,6 +326,22 @@ public:
 #endif
   }
 
+  int getInsertions() const noexcept {
+#ifdef XPTI_STATISTICS
+    return MInsertions;
+#else
+    return 0;
+#endif
+  }
+
+  int getRetrievals() const noexcept {
+#ifdef XPTI_STATISTICS
+    return MRetrievals;
+#else
+    return 0;
+#endif
+  }
+
 private:
   safe_int32_t MIds;         ///< Thread-safe ID generator
   st_forward_t MStringToID;  ///< Forward lookup hash map

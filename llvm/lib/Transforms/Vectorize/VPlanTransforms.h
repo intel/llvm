@@ -23,6 +23,7 @@ class InductionDescriptor;
 class Instruction;
 class PHINode;
 class ScalarEvolution;
+class Loop;
 
 struct VPlanTransforms {
   /// Replaces the VPInstructions in \p Plan with corresponding
@@ -45,6 +46,20 @@ struct VPlanTransforms {
   /// in the vectorized loop. There is no need to vectorize the cast - the same
   /// value can be used for both the phi and casts in the vector loop.
   static void removeRedundantInductionCasts(VPlan &Plan);
+
+  /// Try to replace VPWidenCanonicalIVRecipes with a widened canonical IV
+  /// recipe, if it exists.
+  static void removeRedundantCanonicalIVs(VPlan &Plan);
+
+  /// Try to remove dead recipes. At the moment, only dead header recipes are
+  /// removed.
+  static void removeDeadRecipes(VPlan &Plan, Loop &OrigLoop);
+
+  /// If any user of a VPWidenIntOrFpInductionRecipe needs scalar values,
+  /// provide them by building scalar steps off of the canonical scalar IV and
+  /// update the original IV's users. This is an optional optimization to reduce
+  /// the needs of vector extracts.
+  static void optimizeInductions(VPlan &Plan, ScalarEvolution &SE);
 };
 
 } // namespace llvm

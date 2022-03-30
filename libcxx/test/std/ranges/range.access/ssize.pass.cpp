@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // std::ranges::ssize
@@ -24,8 +23,6 @@ static_assert(!std::is_invocable_v<RangeSSizeT, int[]>);
 static_assert( std::is_invocable_v<RangeSSizeT, int[1]>);
 static_assert( std::is_invocable_v<RangeSSizeT, int (&&)[1]>);
 static_assert( std::is_invocable_v<RangeSSizeT, int (&)[1]>);
-
-static_assert(std::semiregular<std::remove_cv_t<RangeSSizeT>>);
 
 struct SizeMember {
   constexpr size_t size() { return 42; }
@@ -79,6 +76,12 @@ constexpr bool test() {
 
   return true;
 }
+
+// Test ADL-proofing.
+struct Incomplete;
+template<class T> struct Holder { T t; };
+static_assert(!std::is_invocable_v<RangeSSizeT, Holder<Incomplete>*>);
+static_assert(!std::is_invocable_v<RangeSSizeT, Holder<Incomplete>*&>);
 
 int main(int, char**) {
   test();

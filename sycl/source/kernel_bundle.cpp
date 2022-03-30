@@ -146,7 +146,14 @@ get_empty_interop_kernel_bundle_impl(const context &Ctx,
 
 std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
-  return std::make_shared<detail::kernel_bundle_impl>(Bundles);
+  return std::make_shared<detail::kernel_bundle_impl>(Bundles,
+                                                      bundle_state::input);
+}
+
+std::shared_ptr<detail::kernel_bundle_impl>
+join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
+          bundle_state State) {
+  return std::make_shared<detail::kernel_bundle_impl>(Bundles, State);
 }
 
 bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
@@ -211,8 +218,8 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl =
         getSyclObjImpl(DeviceImage);
 
-    CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ref().begin(),
-                             DeviceImageImpl->get_kernel_ids_ref().end());
+    CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ptr()->begin(),
+                             DeviceImageImpl->get_kernel_ids_ptr()->end());
   }
 
   const bool AllKernelIDsRepresented =

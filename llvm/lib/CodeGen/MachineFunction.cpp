@@ -44,7 +44,6 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
@@ -61,7 +60,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/DOTGraphTraits.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_ostream.h"
@@ -75,6 +73,8 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include "LiveDebugValues/LiveDebugValues.h"
 
 using namespace llvm;
 
@@ -1139,26 +1139,13 @@ auto MachineFunction::salvageCopySSA(MachineInstr &MI)
   MachineBasicBlock &InsertBB = *CurInst->getParent();
 
   // We reached the start of the block before finding a defining instruction.
-  // It could be from a constant register, otherwise it must be an argument.
-  if (TRI.isConstantPhysReg(State.first)) {
-    // We can produce a DBG_PHI that identifies the constant physreg. Doesn't
-    // matter where we put it, as it's constant valued.
-    assert(CurInst->isCopy());
-  } else if (State.first == TRI.getFrameRegister(*this)) {
-    // LLVM IR is allowed to read the framepointer by calling a
-    // llvm.frameaddress.* intrinsic. We can support this by emitting a
-    // DBG_PHI $fp. This isn't ideal, because it extends the behaviours /
-    // position that DBG_PHIs appear at, limiting what can be done later.
-    // TODO: see if there's a better way of expressing these variable
-    // locations.
-    ;
-  } else {
-    // Assert that this is the entry block, or an EH pad. If it isn't, then
-    // there is some code construct we don't recognise that deals with physregs
-    // across blocks.
-    assert(!State.first.isVirtual());
-    assert(&*InsertBB.getParent()->begin() == &InsertBB || InsertBB.isEHPad());
-  }
+  // There are numerous scenarios where this can happen:
+  // * Constant physical registers,
+  // * Several intrinsics that allow LLVM-IR to read arbitary registers,
+  // * Arguments in the entry block,
+  // * Exception handling landing pads.
+  // Validating all of them is too difficult, so just insert a DBG_PHI reading
+  // the variable value at this position, rather than checking it makes sense.
 
   // Create DBG_PHI for specified physreg.
   auto Builder = BuildMI(InsertBB, InsertBB.getFirstNonPHI(), DebugLoc(),
@@ -1238,7 +1225,7 @@ bool MachineFunction::useDebugInstrRef() const {
   if (F.hasFnAttribute(Attribute::OptimizeNone))
     return false;
 
-  if (getTarget().Options.ValueTrackingVariableLocations)
+  if (llvm::debuginfoShouldUseDebugInstrRef(getTarget().getTargetTriple()))
     return true;
 
   return false;

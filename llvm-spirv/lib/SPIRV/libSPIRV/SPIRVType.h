@@ -95,6 +95,7 @@ public:
   bool isTypeSampler() const;
   bool isTypeStruct() const;
   bool isTypeVector() const;
+  bool isTypeJointMatrixINTEL() const;
   bool isTypeVectorInt() const;
   bool isTypeVectorFloat() const;
   bool isTypeVectorBool() const;
@@ -273,17 +274,17 @@ private:
 
 class SPIRVTypeForwardPointer : public SPIRVEntryNoId<OpTypeForwardPointer> {
 public:
-  SPIRVTypeForwardPointer(SPIRVModule *M, SPIRVTypePointer *Pointer,
+  SPIRVTypeForwardPointer(SPIRVModule *M, SPIRVId PointerId,
                           SPIRVStorageClassKind SC)
-      : SPIRVEntryNoId(M, 3), Pointer(Pointer), SC(SC) {}
+      : SPIRVEntryNoId(M, 3), PointerId(PointerId), SC(SC) {}
 
   SPIRVTypeForwardPointer()
-      : Pointer(nullptr), SC(StorageClassUniformConstant) {}
+      : PointerId(SPIRVID_INVALID), SC(StorageClassUniformConstant) {}
 
-  SPIRVTypePointer *getPointer() const { return Pointer; }
+  SPIRVId getPointerId() const { return PointerId; }
   _SPIRV_DCL_ENCDEC
 private:
-  SPIRVTypePointer *Pointer;
+  SPIRVId PointerId;
   SPIRVStorageClassKind SC;
 };
 
@@ -1080,11 +1081,11 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return {internal::CapabilityJointMatrixINTEL};
   }
-  SPIRVType *getCompType() { return CompType; }
-  SPIRVValue *getLayout() { return Layout; }
-  SPIRVValue *getRows() { return Rows; }
-  SPIRVValue *getColumns() { return Columns; }
-  SPIRVValue *getScope() { return Scope; }
+  SPIRVType *getCompType() const { return CompType; }
+  SPIRVValue *getLayout() const { return Layout; }
+  SPIRVValue *getRows() const { return Rows; }
+  SPIRVValue *getColumns() const { return Columns; }
+  SPIRVValue *getScope() const { return Scope; }
 };
 
 } // namespace SPIRV

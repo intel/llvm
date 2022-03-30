@@ -421,6 +421,10 @@ private:
   // Pointer to where the ABI inserts special kernel arguments separate from the
   // user arguments. This is an offset from the KernargSegmentPtr.
   bool ImplicitArgPtr : 1;
+  bool HostcallPtr : 1;
+  bool HeapPtr : 1;
+
+  bool MayNeedAGPRs : 1;
 
   // The hard-wired high half of the address of the global information table
   // for AMDPAL OS type. 0xffffffff represents no hard-wired high half, since
@@ -502,7 +506,6 @@ public: // FIXME
   Register SGPRForBPSaveRestoreCopy;
   Optional<int> BasePointerSaveIndex;
 
-  Register VGPRReservedForSGPRSpill;
   bool isCalleeSavedReg(const MCPhysReg *CSRegs, MCPhysReg Reg);
 
 public:
@@ -528,7 +531,6 @@ public:
   void setSGPRSpillVGPRs(Register NewVGPR, Optional<int> newFI, int Index) {
     SpillVGPRs[Index].VGPR = NewVGPR;
     SpillVGPRs[Index].FI = newFI;
-    VGPRReservedForSGPRSpill = NewVGPR;
   }
 
   bool removeVGPRForSGPRSpill(Register ReservedVGPR, MachineFunction &MF);
@@ -556,9 +558,12 @@ public:
   bool haveFreeLanesForSGPRSpill(const MachineFunction &MF,
                                  unsigned NumLane) const;
   bool allocateSGPRSpillToVGPR(MachineFunction &MF, int FI);
-  bool reserveVGPRforSGPRSpills(MachineFunction &MF);
   bool allocateVGPRSpillToAGPR(MachineFunction &MF, int FI, bool isAGPRtoVGPR);
-  void removeDeadFrameIndices(MachineFrameInfo &MFI);
+
+  /// If \p ResetSGPRSpillStackIDs is true, reset the stack ID from sgpr-spill
+  /// to the default stack.
+  bool removeDeadFrameIndices(MachineFrameInfo &MFI,
+                              bool ResetSGPRSpillStackIDs);
 
   int getScavengeFI(MachineFrameInfo &MFI, const SIRegisterInfo &TRI);
   Optional<int> getOptionalScavengeFI() const { return ScavengeFI; }
@@ -691,6 +696,14 @@ public:
 
   bool hasImplicitArgPtr() const {
     return ImplicitArgPtr;
+  }
+
+  bool hasHostcallPtr() const {
+    return HostcallPtr;
+  }
+
+  bool hasHeapPtr () const {
+    return HeapPtr;
   }
 
   bool hasImplicitBufferPtr() const {
@@ -955,6 +968,14 @@ public:
       Occupancy = Limit;
     limitOccupancy(MF);
   }
+
+  bool mayNeedAGPRs() const {
+    return MayNeedAGPRs;
+  }
+
+  // \returns true if a function has a use of AGPRs via inline asm or
+  // has a call which may use it.
+  bool mayUseAGPRs(const MachineFunction &MF) const;
 
   // \returns true if a function needs or may need AGPRs.
   bool usesAGPRs(const MachineFunction &MF) const;

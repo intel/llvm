@@ -16,7 +16,8 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Target/TargetMachine.h"
+#include "llvm/Pass.h"
+#include "llvm/PassRegistry.h"
 #include <utility>
 using namespace llvm;
 
@@ -144,6 +145,10 @@ void llvm::finalizeBundle(MachineBasicBlock &MBB,
   SmallSet<Register, 8> UndefUseSet;
   SmallVector<MachineOperand*, 4> Defs;
   for (auto MII = FirstMI; MII != LastMI; ++MII) {
+    // Debug instructions have no effects to track.
+    if (MII->isDebugInstr())
+      continue;
+
     for (unsigned i = 0, e = MII->getNumOperands(); i != e; ++i) {
       MachineOperand &MO = MII->getOperand(i);
       if (!MO.isReg())

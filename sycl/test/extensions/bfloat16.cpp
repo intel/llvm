@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -fsycl-targets=%sycl_triple -S %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -fsycl-targets=%sycl_triple -S -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s
 
 // UNSUPPORTED: cuda || hip_amd
 

@@ -160,12 +160,22 @@ template <class T, class Allocator, class Predicate>
 
 */
 
+#include <__algorithm/copy.h>
+#include <__algorithm/copy_backward.h>
+#include <__algorithm/equal.h>
+#include <__algorithm/fill_n.h>
+#include <__algorithm/lexicographical_compare.h>
+#include <__algorithm/min.h>
+#include <__algorithm/remove.h>
+#include <__algorithm/remove_if.h>
+#include <__algorithm/unwrap_iter.h>
+#include <__assert>
 #include <__config>
-#include <__debug>
 #include <__iterator/iterator_traits.h>
 #include <__split_buffer>
 #include <__utility/forward.h>
-#include <algorithm>
+#include <__utility/move.h>
+#include <__utility/swap.h>
 #include <compare>
 #include <initializer_list>
 #include <iterator>
@@ -175,7 +185,7 @@ template <class T, class Allocator, class Predicate>
 #include <version>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_PUSH_MACROS
@@ -442,7 +452,7 @@ public:
         {return !(__x < __y);}
 
 private:
-    _LIBCPP_INLINE_VISIBILITY __deque_iterator(__map_iterator __m, pointer __p) _NOEXCEPT
+    _LIBCPP_INLINE_VISIBILITY explicit __deque_iterator(__map_iterator __m, pointer __p) _NOEXCEPT
         : __m_iter_(__m), __ptr_(__p) {}
 
     template <class _Tp, class _Ap> friend class __deque_base;

@@ -148,7 +148,7 @@ public:
   ///  cl_intel_devicelib_complex -> #<pi_program with complex functions>
   ///  etc.
   ///
-  /// See `doc/extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst' for
+  /// See `doc/design/DeviceLibExtensions.rst' for
   /// more details.
   ///
   /// \returns a map with device library programs.
@@ -167,6 +167,11 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
+  // Returns true if buffer_location property is supported by devices
+  bool isBufferLocationSupported() const;
+
+  enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
+
 private:
   async_handler MAsyncHandler;
   std::vector<device> MDevices;
@@ -177,6 +182,7 @@ private:
   std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
       MCachedLibPrograms;
   mutable KernelProgramCache MKernelProgramCache;
+  mutable PropertySupport MSupportBufferLocationByDevices;
 };
 
 } // namespace detail

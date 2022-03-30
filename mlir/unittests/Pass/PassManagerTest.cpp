@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
@@ -31,7 +32,6 @@ struct OpSpecificAnalysis {
 };
 
 /// Simple pass to annotate a FuncOp with the results of analysis.
-/// Note: not using FunctionPass as it skip external functions.
 struct AnnotateFunctionPass
     : public PassWrapper<AnnotateFunctionPass, OperationPass<FuncOp>> {
   void runOnOperation() override {
@@ -48,10 +48,11 @@ struct AnnotateFunctionPass
 
 TEST(PassManagerTest, OpSpecificAnalysis) {
   MLIRContext context;
+  context.loadDialect<func::FuncDialect>();
   Builder builder(&context);
 
   // Create a module with 2 functions.
-  OwningModuleRef module(ModuleOp::create(UnknownLoc::get(&context)));
+  OwningOpRef<ModuleOp> module(ModuleOp::create(UnknownLoc::get(&context)));
   for (StringRef name : {"secret", "not_secret"}) {
     FuncOp func =
         FuncOp::create(builder.getUnknownLoc(), name,
@@ -82,6 +83,9 @@ struct InvalidPass : Pass {
   InvalidPass() : Pass(TypeID::get<InvalidPass>(), StringRef("invalid_op")) {}
   StringRef getName() const override { return "Invalid Pass"; }
   void runOnOperation() override {}
+  bool canScheduleOn(RegisteredOperationName opName) const override {
+    return true;
+  }
 
   /// A clone method to create a copy of this pass.
   std::unique_ptr<Pass> clonePass() const override {
@@ -96,7 +100,7 @@ TEST(PassManagerTest, InvalidPass) {
   context.allowUnregisteredDialects();
 
   // Create a module
-  OwningModuleRef module(ModuleOp::create(UnknownLoc::get(&context)));
+  OwningOpRef<ModuleOp> module(ModuleOp::create(UnknownLoc::get(&context)));
 
   // Add a single "invalid_op" operation
   OpBuilder builder(&module->getBodyRegion());

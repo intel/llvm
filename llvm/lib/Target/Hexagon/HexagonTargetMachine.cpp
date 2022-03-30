@@ -139,6 +139,7 @@ namespace llvm {
   void initializeHexagonBitSimplifyPass(PassRegistry&);
   void initializeHexagonConstExtendersPass(PassRegistry&);
   void initializeHexagonConstPropagationPass(PassRegistry&);
+  void initializeHexagonCopyToCombinePass(PassRegistry&);
   void initializeHexagonEarlyIfConversionPass(PassRegistry&);
   void initializeHexagonExpandCondsetsPass(PassRegistry&);
   void initializeHexagonGenMuxPass(PassRegistry&);
@@ -199,6 +200,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeHexagonTarget() {
   initializeHexagonBitSimplifyPass(PR);
   initializeHexagonConstExtendersPass(PR);
   initializeHexagonConstPropagationPass(PR);
+  initializeHexagonCopyToCombinePass(PR);
   initializeHexagonEarlyIfConversionPass(PR);
   initializeHexagonGenMuxPass(PR);
   initializeHexagonHardwareLoopsPass(PR);
@@ -291,12 +293,11 @@ void HexagonTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 }
 
 TargetTransformInfo
-HexagonTargetMachine::getTargetTransformInfo(const Function &F) {
+HexagonTargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(HexagonTTIImpl(this, F));
 }
 
-
-HexagonTargetMachine::~HexagonTargetMachine() {}
+HexagonTargetMachine::~HexagonTargetMachine() = default;
 
 namespace {
 /// Hexagon Code Generator Pass Configuration Options.
@@ -343,6 +344,7 @@ void HexagonPassConfig::addIRPasses() {
     if (EnableInitialCFGCleanup)
       addPass(createCFGSimplificationPass(SimplifyCFGOptions()
                                               .forwardSwitchCondToPhi(true)
+                                              .convertSwitchRangeToICmp(true)
                                               .convertSwitchToLookupTable(true)
                                               .needCanonicalLoops(false)
                                               .hoistCommonInsts(true)

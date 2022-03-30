@@ -13,6 +13,16 @@ set(LLVM_OPTIONAL_SOURCES
   JitRunner.cpp
   )
 
+if(LLVM_USE_INTEL_JITEVENTS)
+  set(LLVM_JIT_LISTENER_LIB
+      IntelJITEvents)
+endif(LLVM_USE_INTEL_JITEVENTS)
+
+if(LLVM_USE_PERF)
+  set(LLVM_JIT_LISTENER_LIB
+      PerfJITEvents)
+endif(LLVM_USE_PERF)
+
 add_mlir_library(MLIRExecutionEngine
   ExecutionEngine.cpp
   OptUtils.cpp
@@ -42,6 +52,7 @@ add_mlir_library(MLIRExecutionEngine
   TransformUtils
   nativecodegen
   IPO
+  ${LLVM_JIT_LISTENER_LIB}
 
   LINK_LIBS PUBLIC
   MLIRLLVMIR
@@ -66,13 +77,13 @@ add_mlir_library(MLIRJitRunner
   LINK_LIBS PUBLIC
   ${dialect_libs}
   MLIRExecutionEngine
+  MLIRFunc
+  MLIRFuncToLLVM
   MLIRIR
   MLIRParser
-  MLIRStandard
   MLIRLLVMToLLVMIRTranslation
   MLIRTargetLLVMIRExport
   MLIRTransforms
-  MLIRStandardToLLVM
   MLIRSupport
 )
 

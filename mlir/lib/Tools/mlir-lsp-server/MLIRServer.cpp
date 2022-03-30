@@ -7,17 +7,18 @@
 //===----------------------------------------------------------------------===//
 
 #include "MLIRServer.h"
-#include "lsp/Logging.h"
-#include "lsp/Protocol.h"
+#include "../lsp-server-support/Logging.h"
+#include "../lsp-server-support/Protocol.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/Operation.h"
-#include "mlir/Parser.h"
 #include "mlir/Parser/AsmParserState.h"
+#include "mlir/Parser/Parser.h"
 #include "llvm/Support/SourceMgr.h"
 
 using namespace mlir;
 
 /// Returns a language server position for the given source location.
-static lsp::Position getPosFromLoc(llvm::SourceMgr &mgr, llvm::SMLoc loc) {
+static lsp::Position getPosFromLoc(llvm::SourceMgr &mgr, SMLoc loc) {
   std::pair<unsigned, unsigned> lineAndCol = mgr.getLineAndColumn(loc);
   lsp::Position pos;
   pos.line = lineAndCol.first - 1;
@@ -26,19 +27,18 @@ static lsp::Position getPosFromLoc(llvm::SourceMgr &mgr, llvm::SMLoc loc) {
 }
 
 /// Returns a source location from the given language server position.
-static llvm::SMLoc getPosFromLoc(llvm::SourceMgr &mgr, lsp::Position pos) {
+static SMLoc getPosFromLoc(llvm::SourceMgr &mgr, lsp::Position pos) {
   return mgr.FindLocForLineAndColumn(mgr.getMainFileID(), pos.line + 1,
                                      pos.character);
 }
 
 /// Returns a language server range for the given source range.
-static lsp::Range getRangeFromLoc(llvm::SourceMgr &mgr, llvm::SMRange range) {
+static lsp::Range getRangeFromLoc(llvm::SourceMgr &mgr, SMRange range) {
   return {getPosFromLoc(mgr, range.Start), getPosFromLoc(mgr, range.End)};
 }
 
 /// Returns a language server location from the given source range.
-static lsp::Location getLocationFromLoc(llvm::SourceMgr &mgr,
-                                        llvm::SMRange range,
+static lsp::Location getLocationFromLoc(llvm::SourceMgr &mgr, SMRange range,
                                         const lsp::URIForFile &uri) {
   return lsp::Location{uri, getRangeFromLoc(mgr, range)};
 }
@@ -75,14 +75,13 @@ getLocationFromLoc(llvm::SourceMgr &sourceMgr, Location loc,
     Optional<lsp::Location> sourceLoc = getLocationFromLoc(fileLoc);
     if (sourceLoc && (!uri || sourceLoc->uri == *uri)) {
       location = *sourceLoc;
-      llvm::SMLoc loc = sourceMgr.FindLocForLineAndColumn(
+      SMLoc loc = sourceMgr.FindLocForLineAndColumn(
           sourceMgr.getMainFileID(), fileLoc.getLine(), fileLoc.getColumn());
 
       // Use range of potential identifier starting at location, else length 1
       // range.
       location->range.end.character += 1;
-      if (Optional<llvm::SMRange> range =
-              AsmParserState::convertIdLocToRange(loc)) {
+      if (Optional<SMRange> range = AsmParserState::convertIdLocToRange(loc)) {
         auto lineCol = sourceMgr.getLineAndColumn(range->End);
         location->range.end.character =
             std::max(fileLoc.getColumn() + 1, lineCol.second - 1);
@@ -115,7 +114,7 @@ static void collectLocationsFromLoc(Location loc,
 /// Returns true if the given range contains the given source location. Note
 /// that this has slightly different behavior than SMRange because it is
 /// inclusive of the end location.
-static bool contains(llvm::SMRange range, llvm::SMLoc loc) {
+static bool contains(SMRange range, SMLoc loc) {
   return range.Start.getPointer() <= loc.getPointer() &&
          loc.getPointer() <= range.End.getPointer();
 }
@@ -123,8 +122,8 @@ static bool contains(llvm::SMRange range, llvm::SMLoc loc) {
 /// Returns true if the given location is contained by the definition or one of
 /// the uses of the given SMDefinition. If provided, `overlappedRange` is set to
 /// the range within `def` that the provided `loc` overlapped with.
-static bool isDefOrUse(const AsmParserState::SMDefinition &def, llvm::SMLoc loc,
-                       llvm::SMRange *overlappedRange = nullptr) {
+static bool isDefOrUse(const AsmParserState::SMDefinition &def, SMLoc loc,
+                       SMRange *overlappedRange = nullptr) {
   // Check the main definition.
   if (contains(def.loc, loc)) {
     if (overlappedRange)
@@ -133,9 +132,8 @@ static bool isDefOrUse(const AsmParserState::SMDefinition &def, llvm::SMLoc loc,
   }
 
   // Check the uses.
-  const auto *useIt = llvm::find_if(def.uses, [&](const llvm::SMRange &range) {
-    return contains(range, loc);
-  });
+  const auto *useIt = llvm::find_if(
+      def.uses, [&](const SMRange &range) { return contains(range, loc); });
   if (useIt != def.uses.end()) {
     if (overlappedRange)
       *overlappedRange = *useIt;
@@ -146,7 +144,7 @@ static bool isDefOrUse(const AsmParserState::SMDefinition &def, llvm::SMLoc loc,
 
 /// Given a location pointing to a result, return the result number it refers
 /// to or None if it refers to all of the results.
-static Optional<unsigned> getResultNumberFromLoc(llvm::SMLoc loc) {
+static Optional<unsigned> getResultNumberFromLoc(SMLoc loc) {
   // Skip all of the identifier characters.
   auto isIdentifierChar = [](char c) {
     return isalnum(c) || c == '%' || c == '$' || c == '.' || c == '_' ||
@@ -173,7 +171,7 @@ static Optional<unsigned> getResultNumberFromLoc(llvm::SMLoc loc) {
 
 /// Given a source location range, return the text covered by the given range.
 /// If the range is invalid, returns None.
-static Optional<StringRef> getTextFromRange(llvm::SMRange range) {
+static Optional<StringRef> getTextFromRange(SMRange range) {
   if (!range.isValid())
     return None;
   const char *startPtr = range.Start.getPointer();
@@ -187,8 +185,7 @@ static unsigned getBlockNumber(Block *block) {
 
 /// Given a block and source location, print the source name of the block to the
 /// given output stream.
-static void printDefBlockName(raw_ostream &os, Block *block,
-                              llvm::SMRange loc = {}) {
+static void printDefBlockName(raw_ostream &os, Block *block, SMRange loc = {}) {
   // Try to extract a name from the source location.
   Optional<StringRef> text = getTextFromRange(loc);
   if (text && text->startswith("^")) {
@@ -285,16 +282,15 @@ struct MLIRDocument {
   Optional<lsp::Hover> findHover(const lsp::URIForFile &uri,
                                  const lsp::Position &hoverPos);
   Optional<lsp::Hover>
-  buildHoverForOperation(llvm::SMRange hoverRange,
+  buildHoverForOperation(SMRange hoverRange,
                          const AsmParserState::OperationDefinition &op);
-  lsp::Hover buildHoverForOperationResult(llvm::SMRange hoverRange,
-                                          Operation *op, unsigned resultStart,
-                                          unsigned resultEnd,
-                                          llvm::SMLoc posLoc);
-  lsp::Hover buildHoverForBlock(llvm::SMRange hoverRange,
+  lsp::Hover buildHoverForOperationResult(SMRange hoverRange, Operation *op,
+                                          unsigned resultStart,
+                                          unsigned resultEnd, SMLoc posLoc);
+  lsp::Hover buildHoverForBlock(SMRange hoverRange,
                                 const AsmParserState::BlockDefinition &block);
   lsp::Hover
-  buildHoverForBlockArgument(llvm::SMRange hoverRange, BlockArgument arg,
+  buildHoverForBlockArgument(SMRange hoverRange, BlockArgument arg,
                              const AsmParserState::BlockDefinition &block);
 
   //===--------------------------------------------------------------------===//
@@ -335,7 +331,7 @@ MLIRDocument::MLIRDocument(MLIRContext &context, const lsp::URIForFile &uri,
     return;
   }
 
-  sourceMgr.AddNewSourceBuffer(std::move(memBuffer), llvm::SMLoc());
+  sourceMgr.AddNewSourceBuffer(std::move(memBuffer), SMLoc());
   if (failed(parseSourceFile(sourceMgr, &parsedIR, &context, nullptr,
                              &asmState))) {
     // If parsing failed, clear out any of the current state.
@@ -352,7 +348,7 @@ MLIRDocument::MLIRDocument(MLIRContext &context, const lsp::URIForFile &uri,
 void MLIRDocument::getLocationsOf(const lsp::URIForFile &uri,
                                   const lsp::Position &defPos,
                                   std::vector<lsp::Location> &locations) {
-  llvm::SMLoc posLoc = getPosFromLoc(sourceMgr, defPos);
+  SMLoc posLoc = getPosFromLoc(sourceMgr, defPos);
 
   // Functor used to check if an SM definition contains the position.
   auto containsPosition = [&](const AsmParserState::SMDefinition &def) {
@@ -394,11 +390,11 @@ void MLIRDocument::findReferencesOf(const lsp::URIForFile &uri,
   // definition to the reference list.
   auto appendSMDef = [&](const AsmParserState::SMDefinition &def) {
     references.push_back(getLocationFromLoc(sourceMgr, def.loc, uri));
-    for (const llvm::SMRange &use : def.uses)
+    for (const SMRange &use : def.uses)
       references.push_back(getLocationFromLoc(sourceMgr, use, uri));
   };
 
-  llvm::SMLoc posLoc = getPosFromLoc(sourceMgr, pos);
+  SMLoc posLoc = getPosFromLoc(sourceMgr, pos);
 
   // Check all definitions related to operations.
   for (const AsmParserState::OperationDefinition &op : asmState.getOpDefs()) {
@@ -439,8 +435,8 @@ void MLIRDocument::findReferencesOf(const lsp::URIForFile &uri,
 
 Optional<lsp::Hover> MLIRDocument::findHover(const lsp::URIForFile &uri,
                                              const lsp::Position &hoverPos) {
-  llvm::SMLoc posLoc = getPosFromLoc(sourceMgr, hoverPos);
-  llvm::SMRange hoverRange;
+  SMLoc posLoc = getPosFromLoc(sourceMgr, hoverPos);
+  SMRange hoverRange;
 
   // Check for Hovers on operations and results.
   for (const AsmParserState::OperationDefinition &op : asmState.getOpDefs()) {
@@ -485,7 +481,7 @@ Optional<lsp::Hover> MLIRDocument::findHover(const lsp::URIForFile &uri,
 }
 
 Optional<lsp::Hover> MLIRDocument::buildHoverForOperation(
-    llvm::SMRange hoverRange, const AsmParserState::OperationDefinition &op) {
+    SMRange hoverRange, const AsmParserState::OperationDefinition &op) {
   lsp::Hover hover(getRangeFromLoc(sourceMgr, hoverRange));
   llvm::raw_string_ostream os(hover.contents.value);
 
@@ -517,11 +513,11 @@ Optional<lsp::Hover> MLIRDocument::buildHoverForOperation(
   return hover;
 }
 
-lsp::Hover MLIRDocument::buildHoverForOperationResult(llvm::SMRange hoverRange,
+lsp::Hover MLIRDocument::buildHoverForOperationResult(SMRange hoverRange,
                                                       Operation *op,
                                                       unsigned resultStart,
                                                       unsigned resultEnd,
-                                                      llvm::SMLoc posLoc) {
+                                                      SMLoc posLoc) {
   lsp::Hover hover(getRangeFromLoc(sourceMgr, hoverRange));
   llvm::raw_string_ostream os(hover.contents.value);
 
@@ -553,7 +549,7 @@ lsp::Hover MLIRDocument::buildHoverForOperationResult(llvm::SMRange hoverRange,
 }
 
 lsp::Hover
-MLIRDocument::buildHoverForBlock(llvm::SMRange hoverRange,
+MLIRDocument::buildHoverForBlock(SMRange hoverRange,
                                  const AsmParserState::BlockDefinition &block) {
   lsp::Hover hover(getRangeFromLoc(sourceMgr, hoverRange));
   llvm::raw_string_ostream os(hover.contents.value);
@@ -585,7 +581,7 @@ MLIRDocument::buildHoverForBlock(llvm::SMRange hoverRange,
 }
 
 lsp::Hover MLIRDocument::buildHoverForBlockArgument(
-    llvm::SMRange hoverRange, BlockArgument arg,
+    SMRange hoverRange, BlockArgument arg,
     const AsmParserState::BlockDefinition &block) {
   lsp::Hover hover(getRangeFromLoc(sourceMgr, hoverRange));
   llvm::raw_string_ostream os(hover.contents.value);
@@ -619,7 +615,7 @@ void MLIRDocument::findDocumentSymbols(
     // If this operation defines a symbol, record it.
     if (SymbolOpInterface symbol = dyn_cast<SymbolOpInterface>(op)) {
       symbols.emplace_back(symbol.getName(),
-                           op->hasTrait<OpTrait::FunctionLike>()
+                           isa<FunctionOpInterface>(op)
                                ? lsp::SymbolKind::Function
                                : lsp::SymbolKind::Class,
                            getRangeFromLoc(sourceMgr, def->scopeLoc),
@@ -716,7 +712,7 @@ private:
   int64_t version;
 
   /// The number of lines in the file.
-  int64_t totalNumLines;
+  int64_t totalNumLines = 0;
 
   /// The chunks of this file. The order of these chunks is the order in which
   /// they appear in the text file.
@@ -728,7 +724,7 @@ MLIRTextFile::MLIRTextFile(const lsp::URIForFile &uri, StringRef fileContents,
                            int64_t version, DialectRegistry &registry,
                            std::vector<lsp::Diagnostic> &diagnostics)
     : context(registry, MLIRContext::Threading::DISABLED),
-      contents(fileContents.str()), version(version), totalNumLines(0) {
+      contents(fileContents.str()), version(version) {
   context.allowUnregisteredDialects();
 
   // Split the file into separate MLIR documents.

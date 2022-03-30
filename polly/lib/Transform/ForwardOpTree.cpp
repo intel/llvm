@@ -1143,17 +1143,47 @@ public:
 }; // class ForwardOpTree
 
 char ForwardOpTreeWrapperPass::ID;
+
+/// Print result from ForwardOpTreeWrapperPass.
+class ForwardOpTreePrinterLegacyPass : public ScopPass {
+public:
+  static char ID;
+
+  ForwardOpTreePrinterLegacyPass() : ForwardOpTreePrinterLegacyPass(outs()){};
+  explicit ForwardOpTreePrinterLegacyPass(llvm::raw_ostream &OS)
+      : ScopPass(ID), OS(OS) {}
+
+  bool runOnScop(Scop &S) override {
+    ForwardOpTreeWrapperPass &P = getAnalysis<ForwardOpTreeWrapperPass>();
+
+    OS << "Printing analysis '" << P.getPassName() << "' for region: '"
+       << S.getRegion().getNameStr() << "' in function '"
+       << S.getFunction().getName() << "':\n";
+    P.printScop(OS, S);
+
+    return false;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    ScopPass::getAnalysisUsage(AU);
+    AU.addRequired<ForwardOpTreeWrapperPass>();
+    AU.setPreservesAll();
+  }
+
+private:
+  llvm::raw_ostream &OS;
+};
+
+char ForwardOpTreePrinterLegacyPass::ID = 0;
 } // namespace
 
 Pass *polly::createForwardOpTreeWrapperPass() {
   return new ForwardOpTreeWrapperPass();
 }
 
-INITIALIZE_PASS_BEGIN(ForwardOpTreeWrapperPass, "polly-optree",
-                      "Polly - Forward operand tree", false, false)
-INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
-INITIALIZE_PASS_END(ForwardOpTreeWrapperPass, "polly-optree",
-                    "Polly - Forward operand tree", false, false)
+Pass *polly::createForwardOpTreePrinterLegacyPass(llvm::raw_ostream &OS) {
+  return new ForwardOpTreePrinterLegacyPass(OS);
+}
 
 llvm::PreservedAnalyses ForwardOpTreePass::run(Scop &S,
                                                ScopAnalysisManager &SAM,
@@ -1167,3 +1197,15 @@ ForwardOpTreePrinterPass::run(Scop &S, ScopAnalysisManager &SAM,
                               ScopStandardAnalysisResults &SAR, SPMUpdater &U) {
   return runForwardOpTreeUsingNPM(S, SAM, SAR, U, &OS);
 }
+
+INITIALIZE_PASS_BEGIN(ForwardOpTreeWrapperPass, "polly-optree",
+                      "Polly - Forward operand tree", false, false)
+INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
+INITIALIZE_PASS_END(ForwardOpTreeWrapperPass, "polly-optree",
+                    "Polly - Forward operand tree", false, false)
+
+INITIALIZE_PASS_BEGIN(ForwardOpTreePrinterLegacyPass, "polly-print-optree",
+                      "Polly - Print forward operand tree result", false, false)
+INITIALIZE_PASS_DEPENDENCY(ForwardOpTreeWrapperPass)
+INITIALIZE_PASS_END(ForwardOpTreePrinterLegacyPass, "polly-print-optree",
+                    "Polly - Print forward operand tree result", false, false)

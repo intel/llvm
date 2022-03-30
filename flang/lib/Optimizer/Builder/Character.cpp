@@ -18,6 +18,8 @@
 
 #define DEBUG_TYPE "flang-lower-character"
 
+using namespace mlir;
+
 //===----------------------------------------------------------------------===//
 // CharacterExprHelper implementation
 //===----------------------------------------------------------------------===//
@@ -40,6 +42,11 @@ static fir::CharacterType recoverCharacterType(mlir::Type type) {
 fir::CharacterType
 fir::factory::CharacterExprHelper::getCharacterType(mlir::Type type) {
   assert(isCharacterScalar(type) && "expected scalar character");
+  return recoverCharacterType(type);
+}
+
+fir::CharacterType
+fir::factory::CharacterExprHelper::getCharType(mlir::Type type) {
   return recoverCharacterType(type);
 }
 
@@ -72,7 +79,7 @@ LLVM_ATTRIBUTE_UNUSED static bool needToMaterialize(mlir::Value str) {
 /// Unwrap integer constant from mlir::Value.
 static llvm::Optional<std::int64_t> getIntIfConstant(mlir::Value value) {
   if (auto *definingOp = value.getDefiningOp())
-    if (auto cst = mlir::dyn_cast<mlir::ConstantOp>(definingOp))
+    if (auto cst = mlir::dyn_cast<mlir::arith::ConstantOp>(definingOp))
       if (auto intAttr = cst.getValue().dyn_cast<mlir::IntegerAttr>())
         return intAttr.getInt();
   return {};
@@ -138,8 +145,8 @@ fir::factory::CharacterExprHelper::toExtendedValue(mlir::Value character,
     mlir::Value boxCharLen;
     if (auto *definingOp = character.getDefiningOp()) {
       if (auto box = dyn_cast<fir::EmboxCharOp>(definingOp)) {
-        base = box.memref();
-        boxCharLen = box.len();
+        base = box.getMemref();
+        boxCharLen = box.getLen();
       }
     }
     if (!boxCharLen) {
@@ -358,7 +365,7 @@ void fir::factory::CharacterExprHelper::createCopy(
     auto totalBytes = builder.create<arith::MulIOp>(loc, kindBytes, castCount);
     auto notVolatile = builder.createBool(loc, false);
     auto memmv = getLlvmMemmove(builder);
-    auto argTys = memmv.getType().getInputs();
+    auto argTys = memmv.getFunctionType().getInputs();
     auto toPtr = builder.createConvert(loc, argTys[0], toBuff);
     auto fromPtr = builder.createConvert(loc, argTys[1], fromBuff);
     builder.create<fir::CallOp>(
@@ -423,9 +430,11 @@ fir::CharBoxValue fir::factory::CharacterExprHelper::createTempFrom(
 void fir::factory::CharacterExprHelper::createLengthOneAssign(
     const fir::CharBoxValue &lhs, const fir::CharBoxValue &rhs) {
   auto addr = lhs.getBuffer();
-  mlir::Value val = builder.create<fir::LoadOp>(loc, rhs.getBuffer());
-  auto addrTy = builder.getRefType(val.getType());
-  addr = builder.createConvert(loc, addrTy, addr);
+  auto toTy = fir::unwrapRefType(addr.getType());
+  mlir::Value val = rhs.getBuffer();
+  if (fir::isa_ref_type(val.getType()))
+    val = builder.create<fir::LoadOp>(loc, val);
+  val = builder.createConvert(loc, toTy, val);
   builder.create<fir::StoreOp>(loc, val, addr);
 }
 
@@ -434,7 +443,7 @@ mlir::Value genMin(fir::FirOpBuilder &builder, mlir::Location loc,
                    mlir::Value a, mlir::Value b) {
   auto cmp =
       builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, a, b);
-  return builder.create<mlir::SelectOp>(loc, cmp, a, b);
+  return builder.create<mlir::arith::SelectOp>(loc, cmp, a, b);
 }
 
 void fir::factory::CharacterExprHelper::createAssign(
@@ -532,7 +541,8 @@ fir::CharBoxValue fir::factory::CharacterExprHelper::createSubstring(
   auto zero = builder.createIntegerConstant(loc, substringLen.getType(), 0);
   auto cdt = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
                                            substringLen, zero);
-  substringLen = builder.create<mlir::SelectOp>(loc, cdt, zero, substringLen);
+  substringLen =
+      builder.create<mlir::arith::SelectOp>(loc, cdt, zero, substringLen);
 
   return {substringRef, substringLen};
 }
@@ -570,8 +580,8 @@ fir::factory::CharacterExprHelper::createLenTrim(const fir::CharBoxValue &str) {
   // Compute length after iteration (zero if all blanks)
   mlir::Value newLen =
       builder.create<arith::AddIOp>(loc, iterWhile.getResult(1), one);
-  auto result =
-      builder.create<mlir::SelectOp>(loc, iterWhile.getResult(0), zero, newLen);
+  auto result = builder.create<mlir::arith::SelectOp>(
+      loc, iterWhile.getResult(0), zero, newLen);
   return builder.createConvert(loc, builder.getCharacterLengthType(), result);
 }
 
@@ -724,4 +734,52 @@ mlir::Value fir::factory::CharacterExprHelper::getLength(mlir::Value memref) {
 
   // Length cannot be deduced from memref.
   return {};
+}
+
+std::pair<mlir::Value, mlir::Value>
+fir::factory::extractCharacterProcedureTuple(fir::FirOpBuilder &builder,
+                                             mlir::Location loc,
+                                             mlir::Value tuple) {
+  mlir::TupleType tupleType = tuple.getType().cast<mlir::TupleType>();
+  mlir::Value addr = builder.create<fir::ExtractValueOp>(
+      loc, tupleType.getType(0), tuple,
+      builder.getArrayAttr(
+          {builder.getIntegerAttr(builder.getIndexType(), 0)}));
+  mlir::Value len = builder.create<fir::ExtractValueOp>(
+      loc, tupleType.getType(1), tuple,
+      builder.getArrayAttr(
+          {builder.getIntegerAttr(builder.getIndexType(), 1)}));
+  return {addr, len};
+}
+
+mlir::Value fir::factory::createCharacterProcedureTuple(
+    fir::FirOpBuilder &builder, mlir::Location loc, mlir::Type argTy,
+    mlir::Value addr, mlir::Value len) {
+  mlir::TupleType tupleType = argTy.cast<mlir::TupleType>();
+  addr = builder.createConvert(loc, tupleType.getType(0), addr);
+  len = builder.createConvert(loc, tupleType.getType(1), len);
+  mlir::Value tuple = builder.create<fir::UndefOp>(loc, tupleType);
+  tuple = builder.create<fir::InsertValueOp>(
+      loc, tupleType, tuple, addr,
+      builder.getArrayAttr(
+          {builder.getIntegerAttr(builder.getIndexType(), 0)}));
+  tuple = builder.create<fir::InsertValueOp>(
+      loc, tupleType, tuple, len,
+      builder.getArrayAttr(
+          {builder.getIntegerAttr(builder.getIndexType(), 1)}));
+  return tuple;
+}
+
+bool fir::factory::isCharacterProcedureTuple(mlir::Type ty) {
+  mlir::TupleType tuple = ty.dyn_cast<mlir::TupleType>();
+  return tuple && tuple.size() == 2 &&
+         tuple.getType(0).isa<mlir::FunctionType>() &&
+         fir::isa_integer(tuple.getType(1));
+}
+
+mlir::Type
+fir::factory::getCharacterProcedureTupleType(mlir::Type funcPointerType) {
+  mlir::MLIRContext *context = funcPointerType.getContext();
+  mlir::Type lenType = mlir::IntegerType::get(context, 64);
+  return mlir::TupleType::get(context, {funcPointerType, lenType});
 }

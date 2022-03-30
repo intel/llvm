@@ -376,80 +376,85 @@
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV64-TARGET %s
 // RV64-TARGET: "-triple" "riscv64-unknown-unknown-elf"
 
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izbb1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZBB %s
 // RUN: %clang -target riscv32-unknown-elf -march=rv32izbb -### %s \
-// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-EXPERIMENTAL-ZBB-NOFLAG %s
-// RV32-EXPERIMENTAL-ZBB-NOFLAG: error: invalid arch name 'rv32izbb'
-// RV32-EXPERIMENTAL-ZBB-NOFLAG: requires '-menable-experimental-extensions'
-
-// RUN: %clang -target riscv32-unknown-elf -march=rv32izbb1p0 -menable-experimental-extensions -### %s \
-// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-EXPERIMENTAL-ZBB %s
-// RV32-EXPERIMENTAL-ZBB: "-target-feature" "+experimental-zbb"
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZBB %s
+// RV32-ZBB: "-target-feature" "+zbb"
 
 // RUN: %clang -target riscv32-unknown-elf -march=rv32izbb1p0_zbp0p93 -menable-experimental-extensions -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-EXPERIMENTAL-ZBB-ZBP %s
-// RV32-EXPERIMENTAL-ZBB-ZBP: "-target-feature" "+experimental-zbb"
+// RV32-EXPERIMENTAL-ZBB-ZBP: "-target-feature" "+zbb"
 // RV32-EXPERIMENTAL-ZBB-ZBP: "-target-feature" "+experimental-zbp"
 
 // RUN: %clang -target riscv32-unknown-elf -march=rv32izbb1p0zbp0p93 -menable-experimental-extensions -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-EXPERIMENTAL-ZBB-ZBP-UNDERSCORE %s
 // RV32-EXPERIMENTAL-ZBB-ZBP-UNDERSCORE: error: invalid arch name 'rv32izbb1p0zbp0p93', unsupported version number 0.93 for extension 'zbb1p0zbp'
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32izba1p0 -menable-experimental-extensions -### %s \
-// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-EXPERIMENTAL-ZBA %s
-// RV32-EXPERIMENTAL-ZBA: "-target-feature" "+experimental-zba"
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izba1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZBA %s
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izba -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZBA %s
+// RV32-ZBA: "-target-feature" "+zba"
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32iv -### %s -c 2>&1 | \
-// RUN:   FileCheck -check-prefix=RV32-EXPERIMENTAL-V-NOFLAG %s
-// RV32-EXPERIMENTAL-V-NOFLAG: error: invalid arch name 'rv32iv'
-// RV32-EXPERIMENTAL-V-NOFLAG: requires '-menable-experimental-extensions'
+// RUN: %clang -target riscv32-unknown-elf -march=rv32iv0p1 -### %s -c 2>&1 | \
+// RUN:   FileCheck -check-prefix=RV32-V-BADVERS %s
+// RV32-V-BADVERS: error: invalid arch name 'rv32iv0p1'
+// RV32-V-BADVERS: unsupported version number 0.1 for extension 'v'
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32iv -menable-experimental-extensions -### %s -c 2>&1 | \
-// RUN:   FileCheck -check-prefix=RV32-EXPERIMENTAL-V-NOVERS %s
-// RV32-EXPERIMENTAL-V-NOVERS: error: invalid arch name 'rv32iv'
-// RV32-EXPERIMENTAL-V-NOVERS: experimental extension requires explicit version number
+// RUN: %clang -target riscv32-unknown-elf -march=rv32iv1p0 -### %s -c 2>&1 | \
+// RUN:   FileCheck -check-prefix=RV32-V-GOODVERS %s
+// RV32-V-GOODVERS: "-target-feature" "+v"
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32iv0p1 -menable-experimental-extensions -### %s -c 2>&1 | \
-// RUN:   FileCheck -check-prefix=RV32-EXPERIMENTAL-V-BADVERS %s
-// RV32-EXPERIMENTAL-V-BADVERS: error: invalid arch name 'rv32iv0p1'
-// RV32-EXPERIMENTAL-V-BADVERS: unsupported version number 0.1 for experimental extension 'v'
+// RUN: %clang -target riscv32-unknown-elf -march=rv32iv1p0_zvl32b0p1 -### %s -c 2>&1 | \
+// RUN:   FileCheck -check-prefix=RV32-ZVL-BADVERS %s
+// RV32-ZVL-BADVERS: error: invalid arch name 'rv32iv1p0_zvl32b0p1'
+// RV32-ZVL-BADVERS: unsupported version number 0.1 for extension 'zvl32b'
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32iv0p10 -menable-experimental-extensions -### %s -c 2>&1 | \
-// RUN:   FileCheck -check-prefix=RV32-EXPERIMENTAL-V-GOODVERS %s
-// RV32-EXPERIMENTAL-V-GOODVERS: "-target-feature" "+experimental-v"
+// RUN: %clang -target riscv32-unknown-elf -march=rv32iv1p0_zvl32b1p0 -### %s -c 2>&1 | \
+// RUN:   FileCheck -check-prefix=RV32-ZVL-GOODVERS %s
+// RV32-ZVL-GOODVERS: "-target-feature" "+zvl32b"
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32izfh -### %s \
-// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-EXPERIMENTAL-ZFH-NOFLAG %s
-// RV32-EXPERIMENTAL-ZFH-NOFLAG: error: invalid arch name 'rv32izfh'
-// RV32-EXPERIMENTAL-ZFH-NOFLAG: requires '-menable-experimental-extensions'
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izbkc1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZBKC %s
+// RV32-ZBKC: "-target-feature" "+zbkc"
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32izfh0p1 -menable-experimental-extensions -### %s \
-// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-EXPERIMENTAL-ZFH %s
-// RV32-EXPERIMENTAL-ZFH: "-target-feature" "+experimental-zfh"
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izbkx1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZBKX %s
+// RV32-ZBKX: "-target-feature" "+zbkx"
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32izfhmin -### %s \
-// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-EXPERIMENTAL-ZFHMIN-NOFLAG %s
-// RV32-EXPERIMENTAL-ZFHMIN-NOFLAG: error: invalid arch name 'rv32izfhmin'
-// RV32-EXPERIMENTAL-ZFHMIN-NOFLAG: requires '-menable-experimental-extensions'
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izbkb1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZBKB %s
+// RV32-ZBKB: "-target-feature" "+zbkb"
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32izfhmin0p1 -menable-experimental-extensions -### %s \
-// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-EXPERIMENTAL-ZFHMIN %s
-// RV32-EXPERIMENTAL-ZFHMIN: "-target-feature" "+experimental-zfhmin"
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izknd1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZKND %s
+// RV32-ZKND: "-target-feature" "+zknd"
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32izvlsseg -### %s -c 2>&1 | \
-// RUN:   FileCheck -check-prefix=RV32-EXPERIMENTAL-ZVLSSEG-NOFLAG %s
-// RV32-EXPERIMENTAL-ZVLSSEG-NOFLAG: error: invalid arch name 'rv32izvlsseg'
-// RV32-EXPERIMENTAL-ZVLSSEG-NOFLAG: requires '-menable-experimental-extensions'
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izkne1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZKNE %s
+// RV32-ZKNE: "-target-feature" "+zkne"
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32izvlsseg -menable-experimental-extensions -### %s -c 2>&1 | \
-// RUN:   FileCheck -check-prefix=RV32-EXPERIMENTAL-ZVLSSEG-NOVERS %s
-// RV32-EXPERIMENTAL-ZVLSSEG-NOVERS: error: invalid arch name 'rv32izvlsseg'
-// RV32-EXPERIMENTAL-ZVLSSEG-NOVERS: experimental extension requires explicit version number
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izknh1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZKNH %s
+// RV32-ZKNH: "-target-feature" "+zknh"
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32izvlsseg0p1 -menable-experimental-extensions -### %s -c 2>&1 | \
-// RUN:   FileCheck -check-prefix=RV32-EXPERIMENTAL-ZVLSSEG-BADVERS %s
-// RV32-EXPERIMENTAL-ZVLSSEG-BADVERS: error: invalid arch name 'rv32izvlsseg0p1'
-// RV32-EXPERIMENTAL-ZVLSSEG-BADVERS: unsupported version number 0.1 for experimental extension 'zvlsseg'
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izksed1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZKSED %s
+// RV32-ZKSED: "-target-feature" "+zksed"
 
-// RUN: %clang -target riscv32-unknown-elf -march=rv32izvlsseg0p10 -menable-experimental-extensions -### %s -c 2>&1 | \
-// RUN:   FileCheck -check-prefix=RV32-EXPERIMENTAL-ZVLSSEG-GOODVERS %s
-// RV32-EXPERIMENTAL-ZVLSSEG-GOODVERS: "-target-feature" "+experimental-zvlsseg"
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izksh1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZKSH %s
+// RV32-ZKSH: "-target-feature" "+zksh"
+
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izkr1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZKR %s
+// RV32-ZKR: "-target-feature" "+zkr"
+
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izkt1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZKT %s
+// RV32-ZKT: "-target-feature" "+zkt"
+
+// RUN: %clang -target riscv32-unknown-elf -march=rv32izk1p0 -### %s \
+// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZK %s
+// RV32-ZK: "-target-feature" "+zk"

@@ -22,6 +22,7 @@
 #include "clang/AST/TypeLoc.h"
 #include "clang/AST/TypeLocVisitor.h"
 #include "clang/Basic/PartialDiagnostic.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/DeclSpec.h"
@@ -268,6 +269,12 @@ namespace {
       AttrsForTypes.push_back({cast<AttributedType>(T.getTypePtr()), A});
       AttrsForTypesSorted = false;
       return T;
+    }
+
+    /// Get a BTFTagAttributed type for the btf_type_tag attribute.
+    QualType getBTFTagAttributedType(const BTFTypeTagAttr *BTFAttr,
+                                     QualType WrappedType) {
+      return sema.Context.getBTFTagAttributedType(BTFAttr, WrappedType);
     }
 
     /// Completely replace the \c auto in \p TypeWithAuto by
@@ -1501,8 +1508,8 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   }
   case DeclSpec::TST_int128:
     if (!S.Context.getTargetInfo().hasInt128Type() &&
-        !S.getLangOpts().SYCLIsDevice &&
-        !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice))
+        !(S.getLangOpts().SYCLIsDevice || S.getLangOpts().CUDAIsDevice ||
+          (S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice)))
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
         << "__int128";
     if (DS.getTypeSpecSign() == TypeSpecifierSign::Unsigned)
@@ -2265,7 +2272,7 @@ QualType Sema::BuildBitIntType(bool IsUnsigned, Expr *BitWidth,
   if (ICE.isInvalid())
     return QualType();
 
-  int64_t NumBits = Bits.getSExtValue();
+  size_t NumBits = Bits.getZExtValue();
   if (!IsUnsigned && NumBits < 2) {
     Diag(Loc, diag::err_bit_int_bad_size) << 0;
     return QualType();
@@ -2276,9 +2283,10 @@ QualType Sema::BuildBitIntType(bool IsUnsigned, Expr *BitWidth,
     return QualType();
   }
 
-  if (NumBits > llvm::IntegerType::MAX_INT_BITS) {
+  const TargetInfo &TI = getASTContext().getTargetInfo();
+  if (NumBits > TI.getMaxBitIntWidth()) {
     Diag(Loc, diag::err_bit_int_max_size)
-        << IsUnsigned << llvm::IntegerType::MAX_INT_BITS;
+        << IsUnsigned << static_cast<uint64_t>(TI.getMaxBitIntWidth());
     return QualType();
   }
 
@@ -2465,6 +2473,9 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
   } else if (isSFINAEContext()) {
     VLADiag = diag::err_vla_in_sfinae;
     VLAIsError = true;
+  } else if (getLangOpts().OpenMP && isInOpenMPTaskUntiedContext()) {
+    VLADiag = diag::err_openmp_vla_in_task_untied;
+    VLAIsError = true;
   } else {
     VLADiag = diag::ext_vla;
     VLAIsError = false;
@@ -2524,7 +2535,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
         Diag(ArraySize->getBeginLoc(),
              isSFINAEContext() ? diag::err_typecheck_zero_array_size
                                : diag::ext_typecheck_zero_array_size)
-            << ArraySize->getSourceRange();
+            << 0 << ArraySize->getSourceRange();
       }
 
       // Is the array too large?
@@ -2650,9 +2661,12 @@ QualType Sema::BuildExtVectorType(QualType T, Expr *ArraySize,
   // reserved data type under OpenCL v2.0 s6.1.4), we don't support selects
   // on bitvectors, and we have no well-defined ABI for bitvectors, so vectors
   // of bool aren't allowed.
+  //
+  // We explictly allow bool elements in ext_vector_type for C/C++.
+  bool IsNoBoolVecLang = getLangOpts().OpenCL || getLangOpts().OpenCLCPlusPlus;
   if ((!T->isDependentType() && !T->isIntegerType() &&
        !T->isRealFloatingType()) ||
-      T->isBooleanType()) {
+      (IsNoBoolVecLang && T->isBooleanType())) {
     Diag(AttrLoc, diag::err_attribute_invalid_vector_type) << T;
     return QualType();
   }
@@ -3515,6 +3529,9 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
     case DeclaratorContext::FunctionalCast:
       if (isa<DeducedTemplateSpecializationType>(Deduced))
         break;
+      if (SemaRef.getLangOpts().CPlusPlus2b && IsCXXAutoType &&
+          !Auto->isDecltypeAuto())
+        break; // auto(x)
       LLVM_FALLTHROUGH;
     case DeclaratorContext::TypeName:
       Error = 15; // Generic
@@ -5257,7 +5274,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         // function is marked with the "overloadable" attribute. Scan
         // for this attribute now.
         if (!FTI.NumParams && FTI.isVariadic && !LangOpts.CPlusPlus)
-          if (!D.getAttributes().hasAttribute(ParsedAttr::AT_Overloadable))
+          if (!D.getAttributes().hasAttribute(ParsedAttr::AT_Overloadable) &&
+              !D.getDeclSpec().getAttributes().hasAttribute(
+                  ParsedAttr::AT_Overloadable))
             S.Diag(FTI.getEllipsisLoc(), diag::err_ellipsis_first_param);
 
         if (FTI.NumParams && FTI.Params[0].Param == nullptr) {
@@ -5927,6 +5946,9 @@ namespace {
       Visit(TL.getModifiedLoc());
       fillAttributedTypeLoc(TL, State);
     }
+    void VisitBTFTagAttributedTypeLoc(BTFTagAttributedTypeLoc TL) {
+      Visit(TL.getWrappedLoc());
+    }
     void VisitMacroQualifiedTypeLoc(MacroQualifiedTypeLoc TL) {
       Visit(TL.getInnerLoc());
       TL.setExpansionLoc(
@@ -5995,6 +6017,11 @@ namespace {
       Sema::GetTypeFromParser(DS.getRepAsType(), &TInfo);
       TL.setUnderlyingTInfo(TInfo);
     }
+    void VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
+      assert(DS.getTypeSpecType() == DeclSpec::TST_decltype);
+      TL.setDecltypeLoc(DS.getTypeSpecTypeLoc());
+      TL.setRParenLoc(DS.getTypeofParensRange().getEnd());
+    }
     void VisitUnaryTransformTypeLoc(UnaryTransformTypeLoc TL) {
       // FIXME: This holds only because we only have one unary transform.
       assert(DS.getTypeSpecType() == DeclSpec::TST_underlyingType);
@@ -6058,6 +6085,8 @@ namespace {
              DS.getTypeSpecType() == TST_auto_type ||
              DS.getTypeSpecType() == TST_unspecified);
       TL.setNameLoc(DS.getTypeSpecTypeLoc());
+      if (DS.getTypeSpecType() == TST_decltype_auto)
+        TL.setRParenLoc(DS.getTypeofParensRange().getEnd());
       if (!DS.isConstrainedAuto())
         return;
       TemplateIdAnnotation *TemplateId = DS.getRepAsTemplateId();
@@ -6145,6 +6174,9 @@ namespace {
 
     void VisitAttributedTypeLoc(AttributedTypeLoc TL) {
       fillAttributedTypeLoc(TL, State);
+    }
+    void VisitBTFTagAttributedTypeLoc(BTFTagAttributedTypeLoc TL) {
+      // nothing
     }
     void VisitAdjustedTypeLoc(AdjustedTypeLoc TL) {
       // nothing
@@ -6561,9 +6593,8 @@ static void HandleBTFTypeTagAttribute(QualType &Type, const ParsedAttr &Attr,
 
   ASTContext &Ctx = S.Context;
   StringRef BTFTypeTag = StrLiteral->getString();
-  Type = State.getAttributedType(
-      ::new (Ctx) BTFTypeTagAttr(Ctx, Attr, BTFTypeTag), Type, Type);
-  return;
+  Type = State.getBTFTagAttributedType(
+      ::new (Ctx) BTFTypeTagAttr(Ctx, Attr, BTFTypeTag), Type);
 }
 
 /// HandleAddressSpaceTypeAttribute - Process an address_space attribute on the

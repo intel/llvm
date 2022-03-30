@@ -206,13 +206,15 @@ void AMDGPUInstPrinter::printCPol(const MCInst *MI, unsigned OpNo,
                                   const MCSubtargetInfo &STI, raw_ostream &O) {
   auto Imm = MI->getOperand(OpNo).getImm();
   if (Imm & CPol::GLC)
-    O << " glc";
+    O << ((AMDGPU::isGFX940(STI) &&
+           !(MII.get(MI->getOpcode()).TSFlags & SIInstrFlags::SMRD)) ? " sc0"
+                                                                     : " glc");
   if (Imm & CPol::SLC)
-    O << " slc";
+    O << (AMDGPU::isGFX940(STI) ? " nt" : " slc");
   if ((Imm & CPol::DLC) && AMDGPU::isGFX10Plus(STI))
     O << " dlc";
   if ((Imm & CPol::SCC) && AMDGPU::isGFX90A(STI))
-    O << " scc";
+    O << (AMDGPU::isGFX940(STI) ? " sc1" : " scc");
   if (Imm & ~CPol::ALL)
     O << " /* unexpected cache policy bit */";
 }
@@ -1397,21 +1399,26 @@ void AMDGPUInstPrinter::printWaitFlag(const MCInst *MI, unsigned OpNo,
   unsigned Vmcnt, Expcnt, Lgkmcnt;
   decodeWaitcnt(ISA, SImm16, Vmcnt, Expcnt, Lgkmcnt);
 
+  bool IsDefaultVmcnt = Vmcnt == getVmcntBitMask(ISA);
+  bool IsDefaultExpcnt = Expcnt == getExpcntBitMask(ISA);
+  bool IsDefaultLgkmcnt = Lgkmcnt == getLgkmcntBitMask(ISA);
+  bool PrintAll = IsDefaultVmcnt && IsDefaultExpcnt && IsDefaultLgkmcnt;
+
   bool NeedSpace = false;
 
-  if (Vmcnt != getVmcntBitMask(ISA)) {
+  if (!IsDefaultVmcnt || PrintAll) {
     O << "vmcnt(" << Vmcnt << ')';
     NeedSpace = true;
   }
 
-  if (Expcnt != getExpcntBitMask(ISA)) {
+  if (!IsDefaultExpcnt || PrintAll) {
     if (NeedSpace)
       O << ' ';
     O << "expcnt(" << Expcnt << ')';
     NeedSpace = true;
   }
 
-  if (Lgkmcnt != getLgkmcntBitMask(ISA)) {
+  if (!IsDefaultLgkmcnt || PrintAll) {
     if (NeedSpace)
       O << ' ';
     O << "lgkmcnt(" << Lgkmcnt << ')';

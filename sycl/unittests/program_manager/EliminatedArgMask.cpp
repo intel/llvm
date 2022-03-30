@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
+#include <detail/handler_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
@@ -126,6 +127,7 @@ public:
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);
+    std::shared_ptr<sycl::detail::handler_impl> Impl = evictHandlerImpl();
     std::unique_ptr<sycl::detail::CG> CommandGroup;
     switch (getType()) {
     case sycl::detail::CG::Kernel: {
@@ -136,7 +138,7 @@ public:
           std::move(CGH->MRequirements), std::move(CGH->MEvents),
           std::move(CGH->MArgs), std::move(CGH->MKernelName),
           std::move(CGH->MOSModuleHandle), std::move(CGH->MStreamStorage),
-          CGH->MCGType, CGH->MCodeLoc));
+          std::move(Impl->MAuxiliaryResources), CGH->MCGType, CGH->MCodeLoc));
       break;
     }
     default:
@@ -167,11 +169,10 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
   EXPECT_TRUE(KernelBundleImplPtr)
       << "Expect command group to contain kernel bundle";
 
-  auto KernelIDImpl =
-      std::make_shared<sycl::detail::kernel_id_impl>(ExecKernel->MKernelName);
-  sycl::kernel SyclKernel = KernelBundleImplPtr->get_kernel(
-      sycl::detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl),
-      KernelBundleImplPtr);
+  auto KernelID = sycl::detail::ProgramManager::getInstance().getSYCLKernelID(
+      ExecKernel->MKernelName);
+  sycl::kernel SyclKernel =
+      KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
   auto SyclKernelImpl = sycl::detail::getSyclObjImpl(SyclKernel);
   std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();

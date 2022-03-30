@@ -42,7 +42,6 @@
 #include <utility>
 
 #define DEBUG_TYPE "instcombine"
-#include "llvm/Transforms/Utils/InstructionWorklist.h"
 
 using namespace llvm;
 using namespace PatternMatch;
@@ -495,8 +494,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
           }
 
           GetElementPtrInst *NewGEP = GetElementPtrInst::Create(
-              cast<PointerType>(NewPtr->getType())->getElementType(), NewPtr,
-              NewOps);
+              GEP->getSourceElementType(), NewPtr, NewOps);
           NewGEP->setIsInBounds(GEP->isInBounds());
           return NewGEP;
         }

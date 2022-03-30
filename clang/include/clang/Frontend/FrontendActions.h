@@ -10,13 +10,11 @@
 #define LLVM_CLANG_FRONTEND_FRONTENDACTIONS_H
 
 #include "clang/Frontend/FrontendAction.h"
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace clang {
-
-class Module;
-class FileEntry;
 
 //===----------------------------------------------------------------------===//
 // Custom Consumer Actions

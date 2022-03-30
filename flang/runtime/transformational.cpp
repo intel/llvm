@@ -377,7 +377,9 @@ void RTNAME(Reshape)(Descriptor &result, const Descriptor &source,
   for (SubscriptValue j{0}; j < resultRank; ++j, ++shapeSubscript) {
     resultExtent[j] = GetInt64(
         shape.Element<char>(&shapeSubscript), shapeElementBytes, terminator);
-    RUNTIME_CHECK(terminator, resultExtent[j] >= 0);
+    if (resultExtent[j] < 0)
+      terminator.Crash(
+          "RESHAPE: bad value for SHAPE(%d)=%d", j + 1, resultExtent[j]);
     resultElements *= resultExtent[j];
   }
 
@@ -387,7 +389,9 @@ void RTNAME(Reshape)(Descriptor &result, const Descriptor &source,
   std::size_t sourceElements{source.Elements()};
   std::size_t padElements{pad ? pad->Elements() : 0};
   if (resultElements > sourceElements) {
-    RUNTIME_CHECK(terminator, padElements > 0);
+    if (padElements <= 0)
+      terminator.Crash("RESHAPE: not eough elements, need %d but only have %d",
+          resultElements, sourceElements);
     RUNTIME_CHECK(terminator, pad->ElementBytes() == elementBytes);
   }
 
@@ -397,15 +401,18 @@ void RTNAME(Reshape)(Descriptor &result, const Descriptor &source,
   if (order) {
     RUNTIME_CHECK(terminator, order->rank() == 1);
     RUNTIME_CHECK(terminator, order->type().IsInteger());
-    RUNTIME_CHECK(terminator, order->GetDimension(0).Extent() == resultRank);
+    if (order->GetDimension(0).Extent() != resultRank)
+      terminator.Crash("RESHAPE: the extent of ORDER (%d) must match the rank"
+                       " of the SHAPE (%d)",
+          order->GetDimension(0).Extent(), resultRank);
     std::uint64_t values{0};
     SubscriptValue orderSubscript{order->GetDimension(0).LowerBound()};
     std::size_t orderElementBytes{order->ElementBytes()};
     for (SubscriptValue j{0}; j < resultRank; ++j, ++orderSubscript) {
       auto k{GetInt64(order->Element<char>(&orderSubscript), orderElementBytes,
           terminator)};
-      RUNTIME_CHECK(
-          terminator, k >= 1 && k <= resultRank && !((values >> k) & 1));
+      if (k < 1 || k > resultRank || ((values >> k) & 1))
+        terminator.Crash("RESHAPE: bad value for ORDER element (%d)", k);
       values |= std::uint64_t{1} << k;
       dimOrder[j] = k - 1;
     }
@@ -449,6 +456,11 @@ void RTNAME(Spread)(Descriptor &result, const Descriptor &source, int dim,
   Terminator terminator{sourceFile, line};
   int rank{source.rank() + 1};
   RUNTIME_CHECK(terminator, rank <= maxRank);
+  if (dim < 1 || dim > rank) {
+    terminator.Crash("SPREAD: DIM=%d argument for rank-%d source array "
+                     "must be greater than 1 and less than or equal to %d",
+        dim, rank - 1, rank);
+  }
   ncopies = std::max<std::int64_t>(ncopies, 0);
   SubscriptValue extent[maxRank];
   int k{0};
@@ -513,12 +525,15 @@ void RTNAME(Unpack)(Descriptor &result, const Descriptor &vector,
   }
   mask.GetLowerBounds(maskAt);
   field.GetLowerBounds(fieldAt);
-  SubscriptValue vectorLeft{vector.GetDimension(0).Extent()};
+  SubscriptValue vectorElements{vector.GetDimension(0).Extent()};
+  SubscriptValue vectorLeft{vectorElements};
   for (std::size_t n{result.Elements()}; n-- > 0;) {
     if (IsLogicalElementTrue(mask, maskAt)) {
       if (vectorLeft-- == 0) {
-        terminator.Crash("UNPACK: VECTOR= argument has fewer elements than "
-                         "MASK= has .TRUE. entries");
+        terminator.Crash(
+            "UNPACK: VECTOR= argument has fewer elements (%d) than "
+            "MASK= has .TRUE. entries",
+            vectorElements);
       }
       CopyElement(result, resultAt, vector, &vectorAt, terminator);
       ++vectorAt;

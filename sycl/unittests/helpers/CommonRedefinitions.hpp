@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -54,19 +53,31 @@ inline pi_result redefinedProgramGetInfoCommon(pi_program program,
                                                size_t param_value_size,
                                                void *param_value,
                                                size_t *param_value_size_ret) {
+  if (param_value_size_ret) {
+    *param_value_size_ret = sizeof(size_t);
+  }
   if (param_name == PI_PROGRAM_INFO_NUM_DEVICES) {
-    auto value = reinterpret_cast<unsigned int *>(param_value);
-    *value = 1;
+    if (param_value) {
+      auto value = reinterpret_cast<unsigned int *>(param_value);
+      *value = 1;
+    }
   }
 
   if (param_name == PI_PROGRAM_INFO_BINARY_SIZES) {
-    auto value = reinterpret_cast<size_t *>(param_value);
-    value[0] = 1;
+    if (param_value) {
+      auto value = reinterpret_cast<size_t *>(param_value);
+      value[0] = 1;
+    }
   }
 
   if (param_name == PI_PROGRAM_INFO_BINARIES) {
-    auto value = reinterpret_cast<unsigned char *>(param_value);
-    value[0] = 1;
+    if (param_value_size_ret) {
+      *param_value_size_ret = sizeof(unsigned char);
+    }
+    if (param_value) {
+      auto value = reinterpret_cast<unsigned char *>(param_value);
+      value[0] = 1;
+    }
   }
 
   return PI_SUCCESS;

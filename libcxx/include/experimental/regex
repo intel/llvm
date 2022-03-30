@@ -36,12 +36,12 @@ namespace pmr {
  */
 
 #include <experimental/__config>
-#include <regex>
-#include <experimental/string>
 #include <experimental/memory_resource>
+#include <experimental/string>
+#include <regex>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_LFTS_PMR

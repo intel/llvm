@@ -26,12 +26,12 @@ public:
 int main() {
   q.submit([&](handler &h) {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel1() {{.*}} !stall_enable ![[NUM4:[0-9]+]]
-    // CHECK: define {{.*}}spir_func void @{{.*}}FuncObjclEv(%struct.{{.*}}FuncObj addrspace(4)* align 1 dereferenceable_or_null(1) %this) #3 comdat align 2 !stall_enable ![[NUM4]]
+    // CHECK: define {{.*}}spir_func void @{{.*}}FuncObjclEv(%struct.{{.*}}FuncObj addrspace(4)* noundef align 1 dereferenceable_or_null(1) %this) #3 comdat align 2 !stall_enable ![[NUM4]]
     h.single_task<class test_kernel1>(
         FuncObj());
 
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel2() {{.*}} !stall_enable ![[NUM4]]
-    // CHECK define {{.*}}spir_func void @{{.*}}FooclEv(%class._ZTS3Foo.Foo addrspace(4)* align 1 dereferenceable_or_null(1) %this) #3 comdat align 2 !stall_enable ![[NUM4]]
+    // CHECK define {{.*}}spir_func void @{{.*}}FooclEv(%class._ZTS3Foo.Foo addrspace(4)* noundef align 1 dereferenceable_or_null(1) %this) #3 comdat align 2 !stall_enable ![[NUM4]]
     Foo f;
     h.single_task<class test_kernel2>(f);
 
@@ -47,7 +47,7 @@ int main() {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel4()
     // CHECK-NOT: !stall_enable
     // CHECK-SAME: {
-    // CHECK: define {{.*}}spir_func void @{{.*}}func1{{.*}}(%class.anon{{.*}} addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 !stall_enable ![[NUM4]]
+    // CHECK: define {{.*}}spir_func void @{{.*}}func1{{.*}}(%class.anon{{.*}} addrspace(4)* noundef align 1 dereferenceable_or_null(1) %this) #4 align 2 !stall_enable ![[NUM4]]
     h.single_task<class test_kernel4>(
         []() { func1(); });
 

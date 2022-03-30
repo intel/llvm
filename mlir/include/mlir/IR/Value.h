@@ -24,6 +24,7 @@ class Block;
 class BlockArgument;
 class Operation;
 class OpOperand;
+class OpPrintingFlags;
 class OpResult;
 class Region;
 class Value;
@@ -83,9 +84,7 @@ protected:
 /// an Operation(in the case of an OpResult).
 class Value {
 public:
-  Value(detail::ValueImpl *impl = nullptr) : impl(impl) {}
-  Value(const Value &) = default;
-  Value &operator=(const Value &) = default;
+  constexpr Value(detail::ValueImpl *impl = nullptr) : impl(impl) {}
 
   template <typename U>
   bool isa() const {
@@ -217,6 +216,7 @@ public:
   // Utilities
 
   void print(raw_ostream &os);
+  void print(raw_ostream &os, const OpPrintingFlags &flags);
   void print(raw_ostream &os, AsmState &state);
   void dump();
 

@@ -94,6 +94,18 @@ int main(int, char**)
         assert(p.get() == raw_ptr);
         assert(ptr.get() == 0);
     }
+
+    {
+        std::unique_ptr<A const> ptr(new A);
+        A const* raw_ptr = ptr.get();
+        std::shared_ptr<B const> p(std::move(ptr));
+        assert(A::count == 1);
+        assert(B::count == 1);
+        assert(p.use_count() == 1);
+        assert(p.get() == raw_ptr);
+        assert(ptr.get() == 0);
+    }
+
 #ifndef TEST_HAS_NO_EXCEPTIONS
     assert(A::count == 0);
     {
@@ -149,6 +161,7 @@ int main(int, char**)
     }
 
     assert(A::count == 0);
+#ifdef _LIBCPP_VERSION // https://llvm.org/PR53368
     {
       std::unique_ptr<A[]> ptr(new A[8]);
       A* raw_ptr = ptr.get();
@@ -177,6 +190,7 @@ int main(int, char**)
       std::unique_ptr<int[]> ptr(new int[8]);
       std::shared_ptr<int> p(std::move(ptr));
     }
+#endif // _LIBCPP_VERSION
 
 #if TEST_STD_VER > 14
     {
@@ -189,6 +203,7 @@ int main(int, char**)
     assert(A::count == 0);
     assert(B::count == 0);
 
+#ifdef _LIBCPP_VERSION // https://llvm.org/PR53368
     {
       std::unique_ptr<A[]> ptr(new A[8]);
       A* raw_ptr = ptr.get();
@@ -201,6 +216,7 @@ int main(int, char**)
     }
     assert(A::count == 0);
     assert(B::count == 0);
+#endif // _LIBCPP_VERSION
 
     {
       std::unique_ptr<A[]> ptr(new A[8]);

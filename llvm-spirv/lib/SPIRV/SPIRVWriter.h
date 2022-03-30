@@ -81,6 +81,9 @@ public:
 
   SPIRVType *transType(Type *T);
   SPIRVType *transSPIRVOpaqueType(Type *T);
+  SPIRVType *
+  transSPIRVJointMatrixINTELType(Type *T,
+                                 SmallVector<std::string, 8> Postfixes);
 
   SPIRVValue *getTranslatedValue(const Value *) const;
 
@@ -98,6 +101,7 @@ public:
   bool transWorkItemBuiltinCallsToVariables();
   bool isKnownIntrinsic(Intrinsic::ID Id);
   SPIRVValue *transIntrinsicInst(IntrinsicInst *Intrinsic, SPIRVBasicBlock *BB);
+  SPIRVValue *transFenceInst(FenceInst *FI, SPIRVBasicBlock *BB);
   SPIRVValue *transCallInst(CallInst *Call, SPIRVBasicBlock *BB);
   SPIRVValue *transDirectCallInst(CallInst *Call, SPIRVBasicBlock *BB);
   SPIRVValue *transIndirectCallInst(CallInst *Call, SPIRVBasicBlock *BB);

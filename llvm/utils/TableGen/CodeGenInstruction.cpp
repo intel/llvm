@@ -12,7 +12,6 @@
 
 #include "CodeGenInstruction.h"
 #include "CodeGenTarget.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/TableGen/Error.h"
@@ -342,7 +341,7 @@ static void ParseConstraints(StringRef CStr, CGIOperandList &Ops, Record *Rec) {
 }
 
 void CGIOperandList::ProcessDisableEncoding(StringRef DisableEncoding) {
-  while (1) {
+  while (true) {
     StringRef OpName;
     std::tie(OpName, DisableEncoding) = getToken(DisableEncoding, " ,\t");
     if (OpName.empty()) break;

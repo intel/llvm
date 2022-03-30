@@ -34,7 +34,7 @@ arrayctor.loop:                                              ; preds = %arraycto
 ; CHECK:    [[GEP_VAL:%.*]] = getelementptr inbounds %struct.snork, %struct.snork addrspace(4)* [[ARRAYCTOR_CUR]], i64 1
 ; CHECK:    call void @llvm.dbg.value(metadata %struct.snork addrspace(4)* [[GEP_VAL]], [[META13:metadata !.*]], metadata !DIExpression())
   %arrayctor.done = icmp eq %struct.snork addrspace(4)* %arrayctor.next, getelementptr inbounds (%struct.snork, %struct.snork addrspace(4)* getelementptr inbounds ([12 x %struct.snork], [12 x %struct.snork] addrspace(4)* addrspacecast ([12 x %struct.snork] addrspace(3)* @global to [12 x %struct.snork] addrspace(4)*), i32 0, i32 0), i64 12)
-; CHECK:    [[ARRAYCTOR_DONE:%.*]] = icmp eq %struct.snork addrspace(4)* [[WG_VAL_ARRAYCTOR_NEXT:%.*]], getelementptr inbounds (%struct.snork, %struct.snork addrspace(4)* getelementptr inbounds ([12 x %struct.snork], [12 x %struct.snork] addrspace(4)* addrspacecast ([12 x %struct.snork] addrspace(3)* @global to [12 x %struct.snork] addrspace(4)*), i32 0, i32 0), i64 12)
+; CHECK:    [[ARRAYCTOR_DONE:%.*]] = icmp eq %struct.snork addrspace(4)* [[WG_VAL_ARRAYCTOR_NEXT:%.*]], getelementptr inbounds ([12 x %struct.snork], [12 x %struct.snork] addrspace(4)* addrspacecast ([12 x %struct.snork] addrspace(3)* @global to [12 x %struct.snork] addrspace(4)*), i64 1, i64 0)
 ; CHECK:    call void @llvm.dbg.value(metadata i1 [[ARRAYCTOR_DONE]], [[META14:metadata !.*]], metadata !DIExpression())
   br i1 %arrayctor.done, label %arrayctor.cont, label %arrayctor.loop
 

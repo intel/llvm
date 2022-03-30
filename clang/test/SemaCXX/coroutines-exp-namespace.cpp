@@ -45,6 +45,7 @@ struct traits_sfinae_base<T, void_t<typename T::promise_type>> {
 
 template <class Ret, class... Args>
 struct coroutine_traits : public traits_sfinae_base<Ret> {};
+// expected-note@-1{{declared here}}
 } // namespace experimental
 } // namespace std
 
@@ -938,7 +939,7 @@ struct std::experimental::coroutine_traits<int, mismatch_gro_type_tag2> {
 
 extern "C" int f(mismatch_gro_type_tag2) {
   // cxx2b-error@-1 {{cannot initialize return object of type 'int' with an rvalue of type 'void *'}}
-  // cxx14_20-error@-2 {{cannot initialize return object of type 'int' with an lvalue of type 'void *'}}
+  // cxx14_20-error@-2 {{cannot initialize return object of type 'int' with an rvalue of type 'void *'}}
   co_return; //expected-note {{function is a coroutine due to use of 'co_return' here}}
 }
 
