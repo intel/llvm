@@ -46,7 +46,7 @@ __builtin_invoke_simd(SimdCallee target, const void *obj, SpmdArgs... args)
 #else
 {
   // __builtin_invoke_simd is not supported on the host device yet
-  throw feature_not_supported();
+  throw sycl::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -59,7 +59,7 @@ SYCL_EXTERNAL __regcall SpmdRet __builtin_invoke_simd(SimdCallee target,
 #else
 {
   // __builtin_invoke_simd is not supported on the host device yet
-  throw feature_not_supported();
+  throw sycl::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
 
