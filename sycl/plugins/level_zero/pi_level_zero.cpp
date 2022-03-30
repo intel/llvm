@@ -589,6 +589,25 @@ inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   } // switch
 }
 
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] static void setErrorMessage(const char *message,
+                                             pi_result error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+}
+
+// Returns plugin specific error and warning messages
+pi_result piPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
+}
+
 ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
                            const char *ZeArgs, bool TraceError) {
   zePrint("ZE ---> %s%s\n", ZeName, ZeArgs);
@@ -7956,11 +7975,6 @@ pi_result piextPluginGetOpaqueData(void *opaque_data_param,
   (void)opaque_data_param;
   (void)opaque_data_return;
   return PI_ERROR_UNKNOWN;
-}
-
-pi_result piPluginGetLastError(char **message) {
-  (void)message;
-  return PI_SUCCESS;
 }
 
 // SYCL RT calls this api to notify the end of plugin lifetime.
