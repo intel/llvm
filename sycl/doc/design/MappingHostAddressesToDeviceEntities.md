@@ -29,7 +29,7 @@ So, overall the picture looks like:
 - device or host compiler generates mapping
   "address of a host variable" -> "unique symbolic ID" (as described below by
   this document)
-- DPC++ RT uses these to mappings to obtain required information and somehow
+- DPC++ RT uses these two mappings to obtain required information and somehow
   uses it
 
 This design document describes two approaches of how the 
@@ -42,7 +42,7 @@ and exist in the implementation at the same time, but only one of them will be
 used at a time depending on whether 3rd-party host compiler is used or not.
 
 Integration footer can be used with 3rd-party host compilers, but it requires
-appending to a translation unit provided by user, which could affect debug
+appending to a translation unit provided by a user, which could affect debug
 information: since there are no compilers that support appending a file at the
 end (similar to `-include`), appending is done by generating a temporary input
 file using concatenation of the original input and integration footer.
@@ -55,7 +55,7 @@ Such replacement of the main translation unit causes the following issues:
   Studio, for example)
 
 Customizing host compiler allows to avoid issues with debuggers and code
-coverage tools, but that is not an option if user wants to compile host part
+coverage tools, but that is not an option if a user wants to compile host part
 of an app with a 3rd-party host compiler.
 
 Further sections describe the implementation design of both approaches in more
@@ -114,7 +114,7 @@ when the compiler is invoked in SYCL host mode (`-fsycl-is-host` `-cc1` flag).
 ## Common headers part
 
 Header files should be modified by adding the new attributes to types
-declarations, objects of which we will need in our mapping.Again,
+declarations, objects of which we will need in our mapping. Again,
 `device_global` and `specialization_id` are examples here:
 
 ```
@@ -155,11 +155,11 @@ constructor defined in the same translation unit: this is needed to allow usages
 of `specialization_id` and `device_global` variables from user-defined global
 constructors.
 
-That poses some restrictions on those uniquely identifiable object, i.e. that
+That poses some restrictions on those uniquely identifiable objects, i.e. that
 they can't be used from another global object due to risk of accessing a
 non-initialized object, but that is an UB anyway because the order of global
 objects initialization is not defined in C++ when those objects are defined in
-different translation unit.
+a different translation unit.
 
 ## Compiler driver part
 
@@ -170,7 +170,7 @@ approach we are taking and the decision is made based on whether or not
 If `-fsycl-host-compiler` option is present, the compiler driver chooses the
 integration footer approach:
 - it supplies device compilation step with `-fsycl-int-footer` option to
-  instruct device compiler to emit integration footer
+  instruct device compiler to emit an integration footer
 - it appends the integration footer to user-provided translation unit before
   passing it to a host compiler
 
@@ -184,7 +184,7 @@ chooses another approach by simply doing nothing related to integration footer:
 When this approach is used, not only extra file (integration footer) is
 generated, but integration header is also modified: FE compiler generates a
 definition of a namespace scope variable of type
-`__sycl_device_global_registration` whose sole purpose it to run its constructor
+`__sycl_device_global_registration` whose sole purpose is to run its constructor
 before the application's `main()` function:
 
 ```
