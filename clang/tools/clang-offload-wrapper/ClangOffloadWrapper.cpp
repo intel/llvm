@@ -751,7 +751,7 @@ private:
     return addStructArrayToModule(PropInits, getSyclPropTy());
   }
 
-  // Given in-memory representaion of a set of property sets, inserts it into
+  // Given in-memory representation of a set of property sets, inserts it into
   // the wrapper object file. In-object representation is given below.
   //
   // column is a contiguous area of the wrapper object file;
