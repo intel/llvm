@@ -1538,7 +1538,7 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
         Queue->CommandListMap
             .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
                 ZeCommandList,
-                {nullptr, true, ZeQueues[CurrentIndex], *QueueGroupOrdinal}})
+                {nullptr, false, ZeQueues[CurrentIndex], *QueueGroupOrdinal}})
             .first;
     // Add this commandlist to the cache so it can be destroyed as part of
     // QueueRelease
@@ -3278,7 +3278,9 @@ pi_result piQueueRelease(pi_queue Queue) {
            it != Queue->CommandListMap.end(); ++it) {
         // This fence wasn't yet signalled when we polled it for recycling
         // the command-list, so need to release the command-list too.
-        if (it->second.InUse) {
+        // For immediate commandlists we don't need to resset the commandlist
+        // but rely on event cleanup done as part of reset.
+        if (UseImmediateCommandLists || it->second.InUse) {
           Queue->resetCommandList(it, true);
         }
         // TODO: remove "if" when the problem is fixed in the level zero
@@ -5899,11 +5901,17 @@ bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
          (!isInOrderQueue() || UseCopyEngineForInOrderQueue);
 }
 
+// To ensure we complete all operations in flight in a Queue we add a barrier to
+// all immediate commandlists associated with the Queue. An alternative approach
+// would be to wait on all Events associated with the in-flight operations.
 pi_result _pi_queue::waitOnAllImmCmdLists() {
   if (!Healthy)
     return PI_SUCCESS;
 
   auto syncImmCmdList = [](_pi_queue *Queue, pi_command_list_ptr_t ImmCmdList) {
+    if (ImmCmdList == Queue->CommandListMap.end())
+      return PI_SUCCESS;
+
     pi_event Event;
     EventCreate(Queue->Context, Queue, true, &Event);
     auto zeEvent = Event->ZeEvent;
@@ -5915,14 +5923,10 @@ pi_result _pi_queue::waitOnAllImmCmdLists() {
     return PI_SUCCESS;
   };
 
-  for (auto ImmCmdList : ComputeQueueGroup.ImmCmdLists) {
-    if (ImmCmdList != CommandListMap.end())
-      syncImmCmdList(this, ImmCmdList);
-  }
-  for (auto ImmCmdList : CopyQueueGroup.ImmCmdLists) {
-    if (ImmCmdList != CommandListMap.end())
-      syncImmCmdList(this, ImmCmdList);
-  }
+  for (auto ImmCmdList : ComputeQueueGroup.ImmCmdLists)
+    syncImmCmdList(this, ImmCmdList);
+  for (auto ImmCmdList : CopyQueueGroup.ImmCmdLists)
+    syncImmCmdList(this, ImmCmdList);
   return PI_SUCCESS;
 }
 
