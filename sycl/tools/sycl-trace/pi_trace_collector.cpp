@@ -122,7 +122,7 @@ static void setupClassicPrinter() {
   ArgHandler = new sycl::xpti_helpers::PiArgumentsHandler();
 #define _PI_API(api)                                                           \
   ArgHandler->set##_##api(                                                     \
-      [](const pi_plugin &, std::optional<pi_result>, auto &&... Args) {       \
+      [](const pi_plugin &, std::optional<pi_result>, auto &&...Args) {        \
         std::cout << "---> " << #api << "("                                    \
                   << "\n";                                                     \
         sycl::detail::pi::printArgs(Args...);                                  \
