@@ -15,7 +15,6 @@ add_sycl_plugin(opencl
     "${sycl_inc_dir}/CL/sycl/detail/pi.h"
     "pi_opencl.cpp"
   LIBRARIES
-    OpenCL-Headers
     OpenCL-ICD
 )
 
