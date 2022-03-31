@@ -20,49 +20,49 @@
 #include <unordered_set>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+  namespace sycl {
 
-event::event() : impl(std::make_shared<detail::event_impl>()) {}
+  event::event() : impl(std::make_shared<detail::event_impl>()) {}
 
-event::event(cl_event ClEvent, const context &SyclContext)
-    : impl(std::make_shared<detail::event_impl>(
-          detail::pi::cast<RT::PiEvent>(ClEvent), SyclContext)) {}
+  event::event(cl_event ClEvent, const context &SyclContext)
+      : impl(std::make_shared<detail::event_impl>(
+            detail::pi::cast<RT::PiEvent>(ClEvent), SyclContext)) {}
 
-bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
+  bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
-bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
+  bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
-cl_event event::get() const { return impl->get(); }
+  cl_event event::get() const { return impl->get(); }
 
-bool event::is_host() const { return impl->is_host(); }
+  bool event::is_host() const { return impl->is_host(); }
 
-void event::wait() { impl->wait(impl); }
+  void event::wait() { impl->wait(impl); }
 
-void event::wait(const std::vector<event> &EventList) {
-  for (auto E : EventList) {
-    E.wait();
+  void event::wait(const std::vector<event> &EventList) {
+    for (auto E : EventList) {
+      E.wait();
+    }
   }
-}
 
-void event::wait_and_throw() { impl->wait_and_throw(impl); }
+  void event::wait_and_throw() { impl->wait_and_throw(impl); }
 
-void event::wait_and_throw(const std::vector<event> &EventList) {
-  for (auto E : EventList) {
-    E.wait_and_throw();
+  void event::wait_and_throw(const std::vector<event> &EventList) {
+    for (auto E : EventList) {
+      E.wait_and_throw();
+    }
   }
-}
 
-std::vector<event> event::get_wait_list() {
-  std::vector<event> Result;
+  std::vector<event> event::get_wait_list() {
+    std::vector<event> Result;
 
-  for (auto &EventImpl : impl->getWaitList())
-    Result.push_back(detail::createSyclObjFromImpl<event>(EventImpl));
+    for (auto &EventImpl : impl->getWaitList())
+      Result.push_back(detail::createSyclObjFromImpl<event>(EventImpl));
 
-  return Result;
-}
+    return Result;
+  }
 
-event::event(std::shared_ptr<detail::event_impl> event_impl)
-    : impl(event_impl) {}
+  event::event(std::shared_ptr<detail::event_impl> event_impl)
+      : impl(event_impl) {}
 
 #define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template <>                                                                  \
@@ -86,16 +86,18 @@ event::event(std::shared_ptr<detail::event_impl> event_impl)
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-backend event::get_backend() const noexcept { return getImplBackend(impl); }
+  backend event::get_backend() const noexcept { return getImplBackend(impl); }
 
-pi_native_handle event::lazyInit(backend Backend) const { return impl->lazyInit(Backend); }
+  pi_native_handle event::lazyInit(backend Backend) const {
+    return impl->lazyInit(Backend);
+  }
 
-pi_native_handle event::getNative() const { return impl->getNative(); }
+  pi_native_handle event::getNative() const { return impl->getNative(); }
 
-std::vector<pi_native_handle> event::getNativeVector() const {
-  std::vector<pi_native_handle> ReturnVector = {impl->getNative()};
-  return ReturnVector;
-}
+  std::vector<pi_native_handle> event::getNativeVector() const {
+    std::vector<pi_native_handle> ReturnVector = {impl->getNative()};
+    return ReturnVector;
+  }
 
-} // namespace sycl
+  } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

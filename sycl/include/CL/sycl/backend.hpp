@@ -103,7 +103,8 @@ inline backend_return_t<backend::opencl, event> get_native<
     backend::opencl, event>(const event &Obj) {
   // TODO use SYCL 2020 exception when implemented
   return reinterpret_cast<
-      typename detail::interop<backend::opencl, event>::type>(Obj.lazyInit(backend::opencl));
+      typename detail::interop<backend::opencl, event>::type>(
+      Obj.lazyInit(backend::opencl));
 }
 #endif
 
@@ -253,7 +254,7 @@ make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
   return detail::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
                              TargetContext, Backend);
 }
-
+ 
 template <backend Backend, bundle_state State>
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeKernelBundle == true,
