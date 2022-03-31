@@ -217,6 +217,7 @@ public:
   /// @return a reference to MWorkerQueue.
   QueueImplPtr &getWorkerQueue() { return MWorkerQueue; };
 
+
   /// Checks if an event is in a fully intialized state. Default-constructed
   /// events will return true only after having initialized its native event,
   /// while other events will assume that they are fully initialized at
