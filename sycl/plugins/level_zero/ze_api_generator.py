@@ -30,7 +30,6 @@ def extract_ze_apis(header):
 
             cb = 'pfn' + api_name_tail.replace(api_domain, '') + 'Cb'
 
-            print((api_name, api_domain, cb, param_type))
             api.write("_ZE_API({}, {}, {}, {})\n".format(api_name, api_domain, cb, param_type))
 
     api.close()
