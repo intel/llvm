@@ -17,16 +17,23 @@
 
 #include <type_traits>
 
+// Forward declarations of types not allowed to be wrapped in uniform:
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-// Forward declarations of types not allowed to be wrapped in uniform:
+namespace ext {
+namespace oneapi {
+
+struct sub_group;
+
+} // namespace oneapi
+} // namespace ext
 
 template <int, bool> class item;
 template <int> class nd_item;
 template <int> class h_item;
 template <int> class group;
 template <int> class nd_range;
-struct sub_group;
+using ext::oneapi::sub_group;
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
