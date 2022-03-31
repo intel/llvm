@@ -1066,54 +1066,38 @@ pi_result piMemRelease(pi_mem Mem) {
   }
 
   if (--(Mem->RefCount) == 0) {
-    int Status = cm_support::CM_FAILURE;
-
-    if (Mem->SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedBuffer) {
-      _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      Status = Mem->Context->Device->CmDevicePtr->DestroyBufferUP(
-          PiBuf->SurfacePtr.UPBufPtr);
-    } else if (Mem->SurfacePtr.tag == cm_surface_ptr_t::TypeRegularBuffer) {
-      _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-          PiBuf->SurfacePtr.RegularBufPtr);
-    } else if (Mem->SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedImage) {
-      _pi_image *PiImg = static_cast<_pi_image *>(Mem);
-      Status = Mem->Context->Device->CmDevicePtr->DestroySurface2DUP(
-          PiImg->SurfacePtr.UPImgPtr);
-    } else if (Mem->SurfacePtr.tag == cm_surface_ptr_t::TypeRegularImage) {
-      _pi_image *PiImg = static_cast<_pi_image *>(Mem);
-      Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-          PiImg->SurfacePtr.RegularImgPtr);
-    }
-
-    if (Status != cm_support::CM_SUCCESS) {
-      return PI_INVALID_MEM_OBJECT;
-    }
-
     // Removing Surface-map entry
     std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
     auto MapEntryIt = PiESimdSurfaceMap->find(Mem->SurfaceIndex);
-    if (MapEntryIt != PiESimdSurfaceMap->end()) {
-      PiESimdSurfaceMap->erase(MapEntryIt);
-    } else {
-      if (PrintPiTrace) {
-        std::cerr << "Failure from CM-managed buffer/image deletion"
-                  << std::endl;
-      }
-      return PI_INVALID_MEM_OBJECT;
-    }
-
-    // TODO : Erasing should be done during 'piMemRelease'? Or Host has
-    // to call 'piEnqueueMemUnmap' for all mapped addresses before
-    // calling 'piMemRelease'?
-    std::lock_guard<std::mutex> MapLock{Mem->MappingsMutex};
-    for (auto mapit = Mem->Mappings.begin(); mapit != Mem->Mappings.end();) {
-      mapit = Mem->Mappings.erase(mapit);
-    }
-
+    assert(MapEntryIt != PiESimdSurfaceMap->end() &&
+           "Failure from Buffer/Image deletion");
+    PiESimdSurfaceMap->erase(MapEntryIt);
     delete Mem;
   }
   return PI_SUCCESS;
+}
+
+_pi_mem::~_pi_mem() {
+  int Status = cm_support::CM_FAILURE;
+
+  cm_support::CmDevice *CmDevice = Context->Device->CmDevicePtr;
+
+  if (SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedBuffer) {
+    Status = CmDevice->DestroyBufferUP(SurfacePtr.UPBufPtr);
+  } else if (SurfacePtr.tag == cm_surface_ptr_t::TypeRegularBuffer) {
+    Status = CmDevice->DestroySurface(SurfacePtr.RegularBufPtr);
+  } else if (SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedImage) {
+    Status = CmDevice->DestroySurface2DUP(SurfacePtr.UPImgPtr);
+  } else if (SurfacePtr.tag == cm_surface_ptr_t::TypeRegularImage) {
+    Status = CmDevice->DestroySurface(SurfacePtr.RegularImgPtr);
+  }
+
+  assert(Status == cm_support::CM_SUCCESS &&
+         "Surface Deletion Failure from CM_EMU");
+
+  for (auto mapit = Mappings.begin(); mapit != Mappings.end();) {
+    mapit = Mappings.erase(mapit);
+  }
 }
 
 cm_support::CM_SURFACE_FORMAT
@@ -1931,41 +1915,9 @@ pi_result piTearDown(void *) {
 
   for (auto it = PiESimdSurfaceMap->begin(); it != PiESimdSurfaceMap->end();) {
     auto Mem = it->second;
-    if (Mem == nullptr) {
-      /// Skipping map entry for SLM_BTI
-      it = PiESimdSurfaceMap->erase(it);
-      continue;
-    }
-    int Status = cm_support::CM_FAILURE;
-
-    if (Mem->SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedBuffer) {
-      _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      Status = Mem->Context->Device->CmDevicePtr->DestroyBufferUP(
-          PiBuf->SurfacePtr.UPBufPtr);
-    } else if (Mem->SurfacePtr.tag == cm_surface_ptr_t::TypeRegularBuffer) {
-      _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-          PiBuf->SurfacePtr.RegularBufPtr);
-    } else if (Mem->SurfacePtr.tag == cm_surface_ptr_t::TypeUserProvidedImage) {
-      _pi_image *PiImg = static_cast<_pi_image *>(Mem);
-      Status = Mem->Context->Device->CmDevicePtr->DestroySurface2DUP(
-          PiImg->SurfacePtr.UPImgPtr);
-    } else if (Mem->SurfacePtr.tag == cm_surface_ptr_t::TypeRegularImage) {
-      _pi_image *PiImg = static_cast<_pi_image *>(Mem);
-      Status = Mem->Context->Device->CmDevicePtr->DestroySurface(
-          PiImg->SurfacePtr.RegularImgPtr);
-    }
-
-    if (Status != cm_support::CM_SUCCESS) {
-      return PI_INVALID_MEM_OBJECT;
-    }
-
-    // No "MappingsMutex" as piTearDown is guaranteed to be called
-    // from single thread for plug-in
-    for (auto mapit = Mem->Mappings.begin(); mapit != Mem->Mappings.end();) {
-      mapit = Mem->Mappings.erase(mapit);
-    }
-
+    if (Mem != nullptr) {
+      delete Mem;
+    } // else { /* Null-entry for SLM_BTI */ }
     it = PiESimdSurfaceMap->erase(it);
   }
   return PI_SUCCESS;

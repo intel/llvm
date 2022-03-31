@@ -158,6 +158,9 @@ struct _pi_mem : _pi_object {
 
   cm_surface_ptr_t SurfacePtr;
 
+  // Destructor for invoking buffer/image destory calls in CM Runtime
+  ~_pi_mem();
+
 protected:
   _pi_mem(pi_context ctxt, char *HostPtr, cm_surface_ptr_t SurfacePtrArg,
           unsigned int SurfaceIdxArg)
