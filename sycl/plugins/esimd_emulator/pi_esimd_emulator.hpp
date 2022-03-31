@@ -52,6 +52,8 @@ struct _pi_object {
   _pi_object() : RefCount{1} {}
 
   std::atomic<pi_uint32> RefCount;
+
+  virtual ~_pi_object() = default;
 };
 struct _pi_platform {
   _pi_platform() = default;
@@ -127,8 +129,6 @@ struct cm_surface_ptr_t {
 };
 
 struct _pi_mem : _pi_object {
-  _pi_mem() = default;
-
   pi_context Context;
 
   // To be used for piEnqueueMemBufferMap
