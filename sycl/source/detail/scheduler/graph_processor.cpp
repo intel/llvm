@@ -58,13 +58,6 @@ bool Scheduler::GraphProcessor::enqueueCommand(
     return false;
   }
 
-  // Recursively enqueue all the implicit dependencies first and
-  // exit immediately if any of the commands cannot be enqueued.
-  for (DepDesc &Dep : Cmd->MDeps) {
-    if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, ToCleanUp, Blocking))
-      return false;
-  }
-
   // Recursively enqueue all the implicit + explicit dependencies first and
   // exit immediately if any of the commands cannot be enqueued.
   for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {

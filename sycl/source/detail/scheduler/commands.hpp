@@ -199,7 +199,7 @@ public:
 
   /// Get the queue this command will be submitted to. Could differ from MQueue
   /// for memory copy commands.
-  virtual const QueueImplPtr &getWorkerQueue() const;
+  const QueueImplPtr &getWorkerQueue() const;
 
   /// Returns true iff the command produces a PI event on non-host devices.
   virtual bool producesPiEvent() const;
@@ -207,10 +207,17 @@ public:
   /// Returns true iff this command can be freed by post enqueue cleanup.
   virtual bool supportsPostEnqueueCleanup() const;
 
+  /// Collect PI events from EventImpls and filter out some of them in case of
+  /// in order queue
+  std::vector<RT::PiEvent>
+  getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
+
 protected:
   QueueImplPtr MQueue;
   QueueImplPtr MSubmittedQueue;
   EventImplPtr MEvent;
+
+  QueueImplPtr &MWorkerQueue;
 
   /// Dependency events prepared for waiting by backend.
   /// See processDepEvent for details.
@@ -493,7 +500,6 @@ public:
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
   const ContextImplPtr &getWorkerContext() const final;
-  const QueueImplPtr &getWorkerQueue() const final;
   bool producesPiEvent() const final;
 
 private:
@@ -518,7 +524,6 @@ public:
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
   const ContextImplPtr &getWorkerContext() const final;
-  const QueueImplPtr &getWorkerQueue() const final;
 
 private:
   cl_int enqueueImp() final;

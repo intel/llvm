@@ -209,6 +209,11 @@ public:
   }
   bool needsCleanupAfterWait() { return MNeedsCleanupAfterWait; }
 
+  /// Returns worker queue for command.
+  ///
+  /// @return a reference to MWorkerQueue.
+  QueueImplPtr &getWorkerQueue() { return MWorkerQueue; };
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -227,6 +232,8 @@ private:
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   const bool MIsProfilingEnabled = false;
+
+  QueueImplPtr MWorkerQueue;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;
