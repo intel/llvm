@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/platform.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
 #include <detail/plugin.hpp>
@@ -352,15 +353,15 @@ pi_native_handle event_impl::getNative() const {
 
 pi_native_handle event_impl::lazyInit(backend Backend) const {
   if (!MContext) {
-    auto SyclContext = std::shared_ptr<cl::sycl::detail::context_impl>();
-    for (auto el : detail::GlobalHandler::instance().getPlatformCache()) {
-      SyclContext = (*GlobalHandler::instance()
-                   .getPlatformToDefaultContextCache()
-                   .find(el))
-                   .second;
-      if (SyclContext->getPlugin().getBackend() == Backend) break;
+    context SyclContext;
+    for (auto el : platform::get_platforms()) {
+      if (el.get_backend() == Backend) {
+        SyclContext = el.ext_oneapi_get_default_context();
+        break;
+      }
     }
-    MContext = SyclContext;
+
+    MContext = getSyclObjImpl(SyclContext);
     MHostEvent = MContext->is_host();
     MOpenCLInterop = !MHostEvent;
   }
