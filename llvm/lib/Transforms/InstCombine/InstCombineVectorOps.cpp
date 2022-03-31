@@ -1918,24 +1918,29 @@ static BinopElts getAlternateBinop(BinaryOperator *BO, const DataLayout &DL) {
   Value *BO0 = BO->getOperand(0), *BO1 = BO->getOperand(1);
   Type *Ty = BO->getType();
   switch (BO->getOpcode()) {
-    case Instruction::Shl: {
-      // shl X, C --> mul X, (1 << C)
-      Constant *C;
-      if (match(BO1, m_Constant(C))) {
-        Constant *ShlOne = ConstantExpr::getShl(ConstantInt::get(Ty, 1), C);
-        return { Instruction::Mul, BO0, ShlOne };
-      }
-      break;
+  case Instruction::Shl: {
+    // shl X, C --> mul X, (1 << C)
+    Constant *C;
+    if (match(BO1, m_Constant(C))) {
+      Constant *ShlOne = ConstantExpr::getShl(ConstantInt::get(Ty, 1), C);
+      return {Instruction::Mul, BO0, ShlOne};
     }
-    case Instruction::Or: {
-      // or X, C --> add X, C (when X and C have no common bits set)
-      const APInt *C;
-      if (match(BO1, m_APInt(C)) && MaskedValueIsZero(BO0, *C, DL))
-        return { Instruction::Add, BO0, BO1 };
-      break;
-    }
-    default:
-      break;
+    break;
+  }
+  case Instruction::Or: {
+    // or X, C --> add X, C (when X and C have no common bits set)
+    const APInt *C;
+    if (match(BO1, m_APInt(C)) && MaskedValueIsZero(BO0, *C, DL))
+      return {Instruction::Add, BO0, BO1};
+    break;
+  }
+  case Instruction::Sub:
+    // sub 0, X --> mul X, -1
+    if (match(BO0, m_ZeroInt()))
+      return {Instruction::Mul, BO1, ConstantInt::getAllOnesValue(Ty)};
+    break;
+  default:
+    break;
   }
   return {};
 }
@@ -2052,15 +2057,20 @@ Instruction *InstCombinerImpl::foldSelectShuffle(ShuffleVectorInst &Shuf) {
       !match(Shuf.getOperand(1), m_BinOp(B1)))
     return nullptr;
 
+  // If one operand is "0 - X", allow that to be viewed as "X * -1"
+  // (ConstantsAreOp1) by getAlternateBinop below. If the neg is not paired
+  // with a multiply, we will exit because C0/C1 will not be set.
   Value *X, *Y;
-  Constant *C0, *C1;
+  Constant *C0 = nullptr, *C1 = nullptr;
   bool ConstantsAreOp1;
-  if (match(B0, m_BinOp(m_Value(X), m_Constant(C0))) &&
-      match(B1, m_BinOp(m_Value(Y), m_Constant(C1))))
-    ConstantsAreOp1 = true;
-  else if (match(B0, m_BinOp(m_Constant(C0), m_Value(X))) &&
-           match(B1, m_BinOp(m_Constant(C1), m_Value(Y))))
+  if (match(B0, m_BinOp(m_Constant(C0), m_Value(X))) &&
+      match(B1, m_BinOp(m_Constant(C1), m_Value(Y))))
     ConstantsAreOp1 = false;
+  else if (match(B0, m_CombineOr(m_BinOp(m_Value(X), m_Constant(C0)),
+                                 m_Neg(m_Value(X)))) &&
+           match(B1, m_CombineOr(m_BinOp(m_Value(Y), m_Constant(C1)),
+                                 m_Neg(m_Value(Y)))))
+    ConstantsAreOp1 = true;
   else
     return nullptr;
 
@@ -2085,7 +2095,7 @@ Instruction *InstCombinerImpl::foldSelectShuffle(ShuffleVectorInst &Shuf) {
     }
   }
 
-  if (Opc0 != Opc1)
+  if (Opc0 != Opc1 || !C0 || !C1)
     return nullptr;
 
   // The opcodes must be the same. Use a new name to make that clear.

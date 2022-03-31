@@ -45,15 +45,23 @@ auto optionalClass() {
 
 auto hasOptionalType() { return hasType(optionalClass()); }
 
-auto isOptionalMemberCallWithName(llvm::StringRef MemberName) {
+auto isOptionalMemberCallWithName(
+    llvm::StringRef MemberName,
+    llvm::Optional<StatementMatcher> Ignorable = llvm::None) {
+  auto Exception = unless(Ignorable ? expr(anyOf(*Ignorable, cxxThisExpr()))
+                                    : cxxThisExpr());
   return cxxMemberCallExpr(
-      on(expr(unless(cxxThisExpr()))),
+      on(expr(Exception)),
       callee(cxxMethodDecl(hasName(MemberName), ofClass(optionalClass()))));
 }
 
-auto isOptionalOperatorCallWithName(llvm::StringRef OperatorName) {
-  return cxxOperatorCallExpr(hasOverloadedOperatorName(OperatorName),
-                             callee(cxxMethodDecl(ofClass(optionalClass()))));
+auto isOptionalOperatorCallWithName(
+    llvm::StringRef operator_name,
+    llvm::Optional<StatementMatcher> Ignorable = llvm::None) {
+  return cxxOperatorCallExpr(
+      hasOverloadedOperatorName(operator_name),
+      callee(cxxMethodDecl(ofClass(optionalClass()))),
+      Ignorable ? callExpr(unless(hasArgument(0, *Ignorable))) : callExpr());
 }
 
 auto isMakeOptionalCall() {
@@ -105,6 +113,12 @@ auto isOptionalNulloptAssignment() {
                              callee(cxxMethodDecl(ofClass(optionalClass()))),
                              argumentCountIs(2),
                              hasArgument(1, hasNulloptType()));
+}
+
+auto isStdSwapCall() {
+  return callExpr(callee(functionDecl(hasName("std::swap"))),
+                  argumentCountIs(2), hasArgument(0, hasOptionalType()),
+                  hasArgument(1, hasOptionalType()));
 }
 
 /// Creates a symbolic value for an `optional` value using `HasValueVal` as the
@@ -283,10 +297,66 @@ void transferNulloptAssignment(const CXXOperatorCallExpr *E,
   transferAssignment(E, State.Env.getBoolLiteralValue(false), State);
 }
 
-auto buildTransferMatchSwitch() {
+void transferSwap(const StorageLocation &OptionalLoc1,
+                  const StorageLocation &OptionalLoc2,
+                  LatticeTransferState &State) {
+  auto *OptionalVal1 = State.Env.getValue(OptionalLoc1);
+  assert(OptionalVal1 != nullptr);
+
+  auto *OptionalVal2 = State.Env.getValue(OptionalLoc2);
+  assert(OptionalVal2 != nullptr);
+
+  State.Env.setValue(OptionalLoc1, *OptionalVal2);
+  State.Env.setValue(OptionalLoc2, *OptionalVal1);
+}
+
+void transferSwapCall(const CXXMemberCallExpr *E,
+                      const MatchFinder::MatchResult &,
+                      LatticeTransferState &State) {
+  assert(E->getNumArgs() == 1);
+
+  auto *OptionalLoc1 = State.Env.getStorageLocation(
+      *E->getImplicitObjectArgument(), SkipPast::ReferenceThenPointer);
+  assert(OptionalLoc1 != nullptr);
+
+  auto *OptionalLoc2 =
+      State.Env.getStorageLocation(*E->getArg(0), SkipPast::Reference);
+  assert(OptionalLoc2 != nullptr);
+
+  transferSwap(*OptionalLoc1, *OptionalLoc2, State);
+}
+
+void transferStdSwapCall(const CallExpr *E, const MatchFinder::MatchResult &,
+                         LatticeTransferState &State) {
+  assert(E->getNumArgs() == 2);
+
+  auto *OptionalLoc1 =
+      State.Env.getStorageLocation(*E->getArg(0), SkipPast::Reference);
+  assert(OptionalLoc1 != nullptr);
+
+  auto *OptionalLoc2 =
+      State.Env.getStorageLocation(*E->getArg(1), SkipPast::Reference);
+  assert(OptionalLoc2 != nullptr);
+
+  transferSwap(*OptionalLoc1, *OptionalLoc2, State);
+}
+
+llvm::Optional<StatementMatcher>
+ignorableOptional(const UncheckedOptionalAccessModelOptions &Options) {
+  if (Options.IgnoreSmartPointerDereference)
+    return memberExpr(hasObjectExpression(ignoringParenImpCasts(
+        cxxOperatorCallExpr(anyOf(hasOverloadedOperatorName("->"),
+                                  hasOverloadedOperatorName("*")),
+                            unless(hasArgument(0, expr(hasOptionalType())))))));
+  return llvm::None;
+}
+
+auto buildTransferMatchSwitch(
+    const UncheckedOptionalAccessModelOptions &Options) {
   // FIXME: Evaluate the efficiency of matchers. If using matchers results in a
   // lot of duplicated work (e.g. string comparisons), consider providing APIs
   // that avoid it through memoization.
+  auto IgnorableOptional = ignorableOptional(Options);
   return MatchSwitchBuilder<LatticeTransferState>()
       // Attach a symbolic "has_value" state to optional values that we see for
       // the first time.
@@ -321,19 +391,20 @@ auto buildTransferMatchSwitch() {
 
       // optional::value
       .CaseOf<CXXMemberCallExpr>(
-          isOptionalMemberCallWithName("value"),
+          isOptionalMemberCallWithName("value", IgnorableOptional),
           [](const CXXMemberCallExpr *E, const MatchFinder::MatchResult &,
              LatticeTransferState &State) {
             transferUnwrapCall(E, E->getImplicitObjectArgument(), State);
           })
 
       // optional::operator*, optional::operator->
-      .CaseOf<CallExpr>(expr(anyOf(isOptionalOperatorCallWithName("*"),
-                                   isOptionalOperatorCallWithName("->"))),
-                        [](const CallExpr *E, const MatchFinder::MatchResult &,
-                           LatticeTransferState &State) {
-                          transferUnwrapCall(E, E->getArg(0), State);
-                        })
+      .CaseOf<CallExpr>(
+          expr(anyOf(isOptionalOperatorCallWithName("*", IgnorableOptional),
+                     isOptionalOperatorCallWithName("->", IgnorableOptional))),
+          [](const CallExpr *E, const MatchFinder::MatchResult &,
+             LatticeTransferState &State) {
+            transferUnwrapCall(E, E->getArg(0), State);
+          })
 
       // optional::has_value
       .CaseOf<CXXMemberCallExpr>(isOptionalMemberCallWithName("has_value"),
@@ -361,15 +432,23 @@ auto buildTransferMatchSwitch() {
                                 State.Env.getBoolLiteralValue(false));
           })
 
+      // optional::swap
+      .CaseOf<CXXMemberCallExpr>(isOptionalMemberCallWithName("swap"),
+                                 transferSwapCall)
+
+      // std::swap
+      .CaseOf<CallExpr>(isStdSwapCall(), transferStdSwapCall)
+
       .Build();
 }
 
 } // namespace
 
-UncheckedOptionalAccessModel::UncheckedOptionalAccessModel(ASTContext &Ctx)
+UncheckedOptionalAccessModel::UncheckedOptionalAccessModel(
+    ASTContext &Ctx, UncheckedOptionalAccessModelOptions Options)
     : DataflowAnalysis<UncheckedOptionalAccessModel, SourceLocationsLattice>(
           Ctx),
-      TransferMatchSwitch(buildTransferMatchSwitch()) {}
+      TransferMatchSwitch(buildTransferMatchSwitch(Options)) {}
 
 void UncheckedOptionalAccessModel::transfer(const Stmt *S,
                                             SourceLocationsLattice &L,
