@@ -157,21 +157,18 @@ static cl::list<BinaryImageFormat>
 /// Sets offload target.
 static cl::list<std::string> Targets("target", cl::ZeroOrMore,
                                      cl::desc("offload target triple"),
-                                     cl::cat(ClangOffloadWrapperCategory),
                                      cl::cat(ClangOffloadWrapperCategory));
 
 /// Sets compile options for device binary image.
 static cl::list<std::string>
     CompileOptions("compile-opts", cl::ZeroOrMore,
                    cl::desc("compile options passed to the offload runtime"),
-                   cl::cat(ClangOffloadWrapperCategory),
                    cl::cat(ClangOffloadWrapperCategory));
 
 /// Sets link options for device binary image.
 static cl::list<std::string>
     LinkOptions("link-opts", cl::ZeroOrMore,
                 cl::desc("link options passed to the offload runtime"),
-                cl::cat(ClangOffloadWrapperCategory),
                 cl::cat(ClangOffloadWrapperCategory));
 
 /// Sets the name of the file containing offload function entries
