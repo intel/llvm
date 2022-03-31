@@ -16,7 +16,6 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-
 #include <chrono>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
