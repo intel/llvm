@@ -145,7 +145,7 @@ if config.opencl_libs_dir:
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 
 if cl_options:
-    config.substitutions.append( ('%sycl_options',  ' sycl.lib /I' +
+    config.substitutions.append( ('%sycl_options',  ' ' + config.sycl_libs_dir + '/../lib/sycl.lib /I' +
                                 config.sycl_include + ' /I' + os.path.join(config.sycl_include, 'sycl')) )
     config.substitutions.append( ('%include_option',  '/FI' ) )
     config.substitutions.append( ('%debug_option',  '/DEBUG' ) )
@@ -154,7 +154,8 @@ if cl_options:
     config.substitutions.append( ('%shared_lib', '/LD') )
 else:
     config.substitutions.append( ('%sycl_options', ' -lsycl -I' +
-                                config.sycl_include + ' -I' + os.path.join(config.sycl_include, 'sycl')) )
+                                config.sycl_include + ' -I' + os.path.join(config.sycl_include, 'sycl') +
+                                ' -L' + config.sycl_libs_dir) )
     config.substitutions.append( ('%include_option',  '-include' ) )
     config.substitutions.append( ('%debug_option',  '-g' ) )
     config.substitutions.append( ('%cxx_std_option',  '-std=' ) )
