@@ -1875,7 +1875,6 @@ static pi_result SetKernelParamsAndLaunch(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const cl::sycl::detail::code_location &CodeLoc) {
   const detail::plugin &Plugin = Queue->getPlugin();
-  std::vector<ArgDesc> SetArgs;
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                   &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
@@ -1937,39 +1936,44 @@ static pi_result SetKernelParamsAndLaunch(
     }
   };
 
-  if (EliminatedArgMask.empty()) {
-    for (ArgDesc &Arg : Args) {
-      setFunc(Arg, Arg.MIndex);
-    }
-    SetArgs = Args;
-  } else {
-    // TODO this is not necessary as long as we can guarantee that the arguments
-    // are already sorted (e. g. handle the sorting in handler if necessary due
-    // to set_arg(...) usage).
-    std::sort(Args.begin(), Args.end(), [](const ArgDesc &A, const ArgDesc &B) {
-      return A.MIndex < B.MIndex;
-    });
-    int LastIndex = -1;
-    size_t NextTrueIndex = 0;
+  auto applyFuncOnFilteredArgs =
+      [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc, &Queue,
+       &EliminatedArgMask](
+          std::vector<ArgDesc> &Args,
+          std::function<void(detail::ArgDesc & Arg, int NextTrueIndex)> Func) {
+        if (EliminatedArgMask.empty()) {
+          for (ArgDesc &Arg : Args) {
+            Func(Arg, Arg.MIndex);
+          }
+        } else {
+          // TODO this is not necessary as long as we can guarantee that the
+          // arguments are already sorted (e. g. handle the sorting in handler
+          // if necessary due to set_arg(...) usage).
+          std::sort(Args.begin(), Args.end(),
+                    [](const ArgDesc &A, const ArgDesc &B) {
+                      return A.MIndex < B.MIndex;
+                    });
+          int LastIndex = -1;
+          size_t NextTrueIndex = 0;
 
-    for (ArgDesc &Arg : Args) {
-      // Handle potential gaps in set arguments (e. g. if some of them are set
-      // on the user side).
-      for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
-        if (!EliminatedArgMask[Idx])
-          ++NextTrueIndex;
-      LastIndex = Arg.MIndex;
+          for (ArgDesc &Arg : Args) {
+            // Handle potential gaps in set arguments (e. g. if some of them are
+            // set on the user side).
+            for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
+              if (!EliminatedArgMask[Idx])
+                ++NextTrueIndex;
+            LastIndex = Arg.MIndex;
 
-      if (EliminatedArgMask[Arg.MIndex])
-        continue;
+            if (EliminatedArgMask[Arg.MIndex])
+              continue;
 
-      ArgDesc CurArg{Arg};
-      CurArg.MIndex = NextTrueIndex;
-      SetArgs.push_back(CurArg);
-      setFunc(Arg, NextTrueIndex);
-      ++NextTrueIndex;
-    }
-  }
+            Func(Arg, NextTrueIndex);
+            ++NextTrueIndex;
+          }
+        }
+      };
+
+  applyFuncOnFilteredArgs(Args, setFunc);
 
   adjustNDRangePerKernel(NDRDesc, Kernel, *(Queue->getDeviceImplPtr()));
 
@@ -1998,6 +2002,12 @@ static pi_result SetKernelParamsAndLaunch(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     NDRDescT NDRDescT = NDRDesc;
+    std::vector<ArgDesc> SetArgs;
+    auto FilterArgs = [&SetArgs](detail::ArgDesc &Arg, int NextTrueIndex) {
+      SetArgs.push_back({Arg.MType, Arg.MPtr, Arg.MSize, NextTrueIndex});
+    };
+
+    applyFuncOnFilteredArgs(Args, FilterArgs);
     if (LocalSize != nullptr) {
       NDRDescT.LocalSize =
           cl::sycl::range<3>(LocalSize[0], LocalSize[1], LocalSize[2]);
