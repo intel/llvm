@@ -1411,10 +1411,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &Out,
   return Out;
 }
 
-// enable_if_t is available only starting with C++14
-template <bool Cond, typename T = void>
-using my_enable_if_t = typename std::enable_if<Cond, T>::type;
-
 // Helper class to order elements of multiple cl::list option lists according to
 // the sequence they occurred on the command line. Each cl::list defines a
 // separate options "class" to identify which class current options belongs to.
@@ -1507,13 +1503,13 @@ private:
   }
 
   template <int MAX, int ID, typename XTy, typename... XTys>
-      my_enable_if_t < ID<MAX> addLists(XTy &Arg, XTys &... Args) {
+      std::enable_if_t < ID<MAX> addLists(XTy &Arg, XTys &...Args) {
     addListImpl<ID>(Arg);
     addLists<MAX, ID + 1>(Args...);
   }
 
   template <int MAX, int ID, typename XTy>
-  my_enable_if_t<ID == MAX> addLists(XTy &Arg) {
+  std::enable_if_t<ID == MAX> addLists(XTy &Arg) {
     addListImpl<ID>(Arg);
   }
 
@@ -1538,12 +1534,12 @@ private:
     }
   }
 
-  template <int N> my_enable_if_t<N != 0> inc() {
+  template <int N> std::enable_if_t<N != 0> inc() {
     incImpl<N>();
     inc<N - 1>();
   }
 
-  template <int N> my_enable_if_t<N == 0> inc() { incImpl<N>(); }
+  template <int N> std::enable_if_t<N == 0> inc() { incImpl<N>(); }
 };
 
 } // anonymous namespace
