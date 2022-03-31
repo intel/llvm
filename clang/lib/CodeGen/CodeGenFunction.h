@@ -201,10 +201,11 @@ template <> struct DominatingValue<RValue> {
                 AggregateAddress, ComplexAddress };
 
     llvm::Value *Value;
+    llvm::Type *ElementType;
     unsigned K : 3;
     unsigned Align : 29;
-    saved_type(llvm::Value *v, Kind k, unsigned a = 0)
-      : Value(v), K(k), Align(a) {}
+    saved_type(llvm::Value *v, llvm::Type *e, Kind k, unsigned a = 0)
+      : Value(v), ElementType(e), K(k), Align(a) {}
 
   public:
     static bool needsSaving(RValue value);
@@ -2526,6 +2527,9 @@ public:
     return EmitLoadOfReferenceLValue(RefLVal);
   }
 
+  /// Load a pointer with type \p PtrTy stored at address \p Ptr.
+  /// Note that \p PtrTy is the type of the loaded pointer, not the addresses
+  /// it is loaded from.
   Address EmitLoadOfPointer(Address Ptr, const PointerType *PtrTy,
                             LValueBaseInfo *BaseInfo = nullptr,
                             TBAAAccessInfo *TBAAInfo = nullptr);
