@@ -610,6 +610,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
   switch (Kind) {
   case Attribute::Alignment:
     return bitc::ATTR_KIND_ALIGNMENT;
+  case Attribute::AllocAlign:
+    return bitc::ATTR_KIND_ALLOC_ALIGN;
   case Attribute::AllocSize:
     return bitc::ATTR_KIND_ALLOC_SIZE;
   case Attribute::AlwaysInline:
@@ -688,6 +690,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_NO_PROFILE;
   case Attribute::NoUnwind:
     return bitc::ATTR_KIND_NO_UNWIND;
+  case Attribute::NoSanitizeBounds:
+    return bitc::ATTR_KIND_NO_SANITIZE_BOUNDS;
   case Attribute::NoSanitizeCoverage:
     return bitc::ATTR_KIND_NO_SANITIZE_COVERAGE;
   case Attribute::NullPointerIsValid:
@@ -2649,6 +2653,10 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
         Record.push_back(VE.getValueID(C->getOperand(1)));
         Record.push_back(CE->getPredicate());
         break;
+      case Instruction::ExtractValue:
+      case Instruction::InsertValue:
+        report_fatal_error("extractvalue/insertvalue constexprs not supported");
+        break;
       }
     } else if (const BlockAddress *BA = dyn_cast<BlockAddress>(C)) {
       Code = bitc::CST_CODE_BLOCKADDRESS;
@@ -3068,6 +3076,10 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
     Bitfield::set<APV::ExplicitType>(Record, true);
     Bitfield::set<APV::SwiftError>(Record, AI.isSwiftError());
     Vals.push_back(Record);
+
+    unsigned AS = AI.getAddressSpace();
+    if (AS != M.getDataLayout().getAllocaAddrSpace())
+      Vals.push_back(AS);
     break;
   }
 

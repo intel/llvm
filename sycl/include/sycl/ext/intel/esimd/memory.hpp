@@ -61,12 +61,8 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
   if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy>) {
     return detail::SLM_BTI;
   } else {
-#ifdef __SYCL_DEVICE_ONLY__
-    const auto mem_obj = detail::AccessorPrivateProxy::getNativeImageObj(acc);
-    return __esimd_get_surface_index(mem_obj);
-#else  // __SYCL_DEVICE_ONLY__
-    return __esimd_get_surface_index(acc);
-#endif // __SYCL_DEVICE_ONLY__
+    return __esimd_get_surface_index(
+        detail::AccessorPrivateProxy::getNativeImageObj(acc));
   }
 }
 
@@ -121,7 +117,8 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 /// any element's memory location can be disabled via the input vector of
 /// predicates (mask).
 /// @tparam Tx Element type, must be of size 4 or less.
-/// @tparam N Number of elements to read; can be \c 8, \c 16 or \c 32.
+/// @tparam N Number of elements to read; can be \c 1, \c 2, \c 4, \c 8, \c 16
+///   or \c 32.
 /// @param p The base address.
 /// @param offsets the vector of 32-bit offsets in bytes. For each lane \c i,
 ///   ((byte*)p + offsets[i]) must be element size aligned.
@@ -130,7 +127,7 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 ///   undefined.
 ///
 template <typename Tx, int N, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<N == 8 || N == 16 || N == 32, simd<Tx, N>>
+__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32), simd<Tx, N>>
 gather(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
@@ -154,7 +151,8 @@ gather(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
 /// value of the corresponding element in the input offset vector. Access to
 /// any element's memory location can be disabled via the input mask.
 /// @tparam Tx Element type, must be of size 4 or less.
-/// @tparam N Number of elements to write; can be \c 8, \c 16 or \c 32.
+/// @tparam N Number of elements to write; can be \c 1, \c 2, \c 4, \c 8, \c 16
+///   or \c 32.
 /// @param p The base address.
 /// @param offsets A vector of 32-bit offsets in bytes. For each lane \c i,
 ///   ((byte*)p + offsets[i]) must be element size aligned.
@@ -162,7 +160,7 @@ gather(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
 /// @param mask The access mask, defaults to all 1s.
 ///
 template <typename Tx, int N, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<N == 8 || N == 16 || N == 32>
+__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32)>
 scatter(Tx *p, simd<uint32_t, N> offsets, simd<Tx, N> vals,
         simd_mask<N> mask = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
@@ -251,12 +249,8 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
   static_assert(Sz <= 8 * detail::OperandSize::OWORD,
                 "block size must be at most 8 owords");
 
-#if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
-#else  // __SYCL_DEVICE_ONLY__
-  auto surf_ind = __esimd_get_surface_index(acc);
-#endif // __SYCL_DEVICE_ONLY__
 
   if constexpr (Flags::template alignment<simd<T, N>> >=
                 detail::OperandSize::OWORD) {
@@ -315,12 +309,8 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
   static_assert(Sz <= 8 * detail::OperandSize::OWORD,
                 "block size must be at most 8 owords");
 
-#if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
-#else //
-  auto surf_ind = __esimd_get_surface_index(acc);
-#endif
   __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
 }
 

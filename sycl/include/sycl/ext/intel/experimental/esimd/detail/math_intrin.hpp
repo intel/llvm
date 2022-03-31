@@ -88,19 +88,6 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
     __esimd_sbfe(__ESIMD_raw_vec_t(T0, SZ) src0, __ESIMD_raw_vec_t(T0, SZ) src1,
                  __ESIMD_raw_vec_t(T0, SZ) src2);
 
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rndd(__ESIMD_DNS::vector_type_t<float, SZ> src0);
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rndu(__ESIMD_DNS::vector_type_t<float, SZ> src0);
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rnde(__ESIMD_DNS::vector_type_t<float, SZ> src0);
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rndz(__ESIMD_DNS::vector_type_t<float, SZ> src0);
-
 template <typename T, int N>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
     __esimd_dp4(__ESIMD_raw_vec_t(T, N) v1, __ESIMD_raw_vec_t(T, N) v2)
@@ -452,79 +439,6 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
   return retv;
 }
 
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rndd(__ESIMD_DNS::vector_type_t<float, SZ> src0) {
-  __ESIMD_DNS::vector_type_t<float, SZ> retv;
-
-  for (int i = 0; i < SZ; i++) {
-    SIMDCF_ELEMENT_SKIP(i);
-    retv[i] = floor(src0[i]);
-  }
-  return retv;
-}
-
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rndu(__ESIMD_DNS::vector_type_t<float, SZ> src0) {
-  __ESIMD_DNS::vector_type_t<float, SZ> retv;
-  int increment;
-
-  for (int i = 0; i < SZ; i++) {
-    SIMDCF_ELEMENT_SKIP(i);
-    if (src0[i] - floor(src0[i]) > 0.0f) {
-      increment = 1;
-    } else {
-      increment = 0;
-    }
-
-    retv[i] = floor(src0[i]) + increment;
-  }
-
-  return retv;
-}
-
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rnde(__ESIMD_DNS::vector_type_t<float, SZ> src0) {
-  __ESIMD_DNS::vector_type_t<float, SZ> retv;
-  int increment;
-
-  for (int i = 0; i < SZ; i++) {
-    SIMDCF_ELEMENT_SKIP(i);
-    if (src0[i] - floor(src0[i]) > 0.5f) {
-      increment = 1;
-    } else if (src0[i] - floor(src0[i]) < 0.5f) {
-      increment = 0;
-    } else {
-      increment = (int(floor(src0[i])) % 2 == 1);
-    }
-
-    retv[i] = floor(src0[i]) + increment;
-  }
-
-  return retv;
-}
-
-template <int SZ>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
-__esimd_rndz(__ESIMD_DNS::vector_type_t<float, SZ> src0) {
-  __ESIMD_DNS::vector_type_t<float, SZ> retv;
-  int increment;
-
-  for (int i = 0; i < SZ; i++) {
-    SIMDCF_ELEMENT_SKIP(i);
-    if (fabs(src0[i]) < fabs(floor(src0[i]))) {
-      increment = 1;
-    } else {
-      increment = 0;
-    }
-    retv[i] = floor(src0[i]) + increment;
-  }
-
-  return retv;
-}
-
 inline constexpr __ESIMD_NS::uint
 __esimd_dpas_bits_precision(__ESIMD_ENS::argument_type precisionType) {
   return precisionType == __ESIMD_ENS::argument_type::TF32 ? 32
@@ -754,7 +668,7 @@ __esimd_dpas(__ESIMD_DNS::vector_type_t<T0, N> src0,
                             repeat_count, T, T1, T2, N, N1, N2>(
       std::addressof(src0), src1, src2);
 #else  // __SYCL_EXPLICIT_SIMD_PLUGIN__
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
   return __ESIMD_DNS::vector_type_t<T, N>();
 #endif // __SYCL_EXPLICIT_SIMD_PLUGIN__
 }
@@ -771,7 +685,7 @@ __esimd_dpas2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
                             repeat_count, T, T1, T2, N, N1, N2>(nullptr, src1,
                                                                 src2);
 #else  // __SYCL_EXPLICIT_SIMD_PLUGIN__
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
   return __ESIMD_DNS::vector_type_t<T, N>();
 #endif // __SYCL_EXPLICIT_SIMD_PLUGIN__
 }
@@ -784,7 +698,7 @@ inline __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpasw(__ESIMD_DNS::vector_type_t<T, N> src0,
               __ESIMD_DNS::vector_type_t<T1, N1> src1,
               __ESIMD_DNS::vector_type_t<T2, N2> src2) {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
   return __ESIMD_DNS::vector_type_t<T, N>();
 }
 
@@ -795,7 +709,7 @@ template <__ESIMD_ENS::argument_type src1_precision,
 inline __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpasw2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
                __ESIMD_DNS::vector_type_t<T2, N2> src2) {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
   return __ESIMD_DNS::vector_type_t<T, N>();
 }
 

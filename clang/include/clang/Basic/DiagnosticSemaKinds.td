@@ -118,6 +118,10 @@ def warn_float_overflow : Warning<
 def warn_float_underflow : Warning<
   "magnitude of floating-point constant too small for type %0; minimum is %1">,
   InGroup<LiteralRange>;
+def warn_float_compare_literal : Warning<
+  "floating-point comparison is always %select{true|false}0; "
+  "constant cannot be represented exactly in type %1">,
+  InGroup<LiteralRange>;
 def warn_double_const_requires_fp64 : Warning<
   "double precision constant requires %select{cl_khr_fp64|cl_khr_fp64 and __opencl_c_fp64}0, "
   "casting to single precision">;
@@ -2353,13 +2357,23 @@ def ext_auto_new_list_init : Extension<
   "type %0 to use list-initialization">, InGroup<CXX17>;
 def err_auto_var_init_no_expression : Error<
   "initializer for variable %0 with type %1 is empty">;
+def err_auto_expr_init_no_expression : Error<
+  "initializer for functional-style cast to %0 is empty">;
 def err_auto_var_init_multiple_expressions : Error<
   "initializer for variable %0 with type %1 contains multiple expressions">;
+def err_auto_expr_init_multiple_expressions : Error<
+  "initializer for functional-style cast to %0 contains multiple expressions">;
 def err_auto_var_init_paren_braces : Error<
   "cannot deduce type for variable %1 with type %2 from "
   "%select{parenthesized|nested}0 initializer list">;
 def err_auto_new_ctor_multiple_expressions : Error<
   "new expression for type %0 contains multiple constructor arguments">;
+def err_auto_expr_init_paren_braces : Error<
+  "cannot deduce actual type for %1 from "
+  "%select{parenthesized|nested}0 initializer list">;
+def warn_cxx20_compat_auto_expr : Warning<
+  "'auto' as a functional-style cast is incompatible with C++ standards "
+  "before C++2b">, InGroup<CXXPre2bCompat>, DefaultIgnore;
 def err_auto_missing_trailing_return : Error<
   "'auto' return without trailing return type; deduced return types are a "
   "C++14 extension">;
@@ -2373,6 +2387,8 @@ def err_auto_var_deduction_failure : Error<
   "variable %0 with type %1 has incompatible initializer of type %2">;
 def err_auto_var_deduction_failure_from_init_list : Error<
   "cannot deduce actual type for variable %0 with type %1 from initializer list">;
+def err_auto_expr_deduction_failure : Error<
+  "functional-style cast to %0 has incompatible initializer of type %1">;
 def err_auto_new_deduction_failure : Error<
   "new expression for type %0 has incompatible constructor argument of type %1">;
 def err_auto_inconsistent_deduction : Error<
@@ -2924,9 +2940,14 @@ def warn_auto_var_is_id : Warning<
   InGroup<DiagGroup<"auto-var-id">>;
 
 // Attributes
-def warn_nomerge_attribute_ignored_in_stmt: Warning<
+def warn_attribute_ignored_no_calls_in_stmt: Warning<
   "%0 attribute is ignored because there exists no call expression inside the "
   "statement">,
+  InGroup<IgnoredAttributes>;
+
+def warn_function_attribute_ignored_in_stmt : Warning<
+  "attribute is ignored on this statement as it only applies to functions; "
+  "use '%0' on statements">,
   InGroup<IgnoredAttributes>;
 
 def err_musttail_needs_trivial_args : Error<
@@ -3044,8 +3065,9 @@ def err_aligned_attribute_argument_not_int : Error<
 def err_align_value_attribute_argument_not_int : Error<
   "'align_value' attribute requires integer constant">;
 def err_alignas_attribute_wrong_decl_type : Error<
-  "%0 attribute cannot be applied to a %select{function parameter|"
-  "variable with 'register' storage class|'catch' variable|bit-field}1">;
+  "%0 attribute cannot be applied to %select{a function parameter|"
+  "a variable with 'register' storage class|a 'catch' variable|a bit-field|"
+  "an enumeration}1">;
 def err_alignas_missing_on_definition : Error<
   "%0 must be specified on definition if it is specified on any declaration">;
 def note_alignas_on_declaration : Note<"declared with %0 attribute here">;
@@ -4077,6 +4099,10 @@ def warn_attribute_nonnull_no_pointers : Warning<
 def warn_attribute_nonnull_parm_no_args : Warning<
   "'nonnull' attribute when used on parameters takes no arguments">,
   InGroup<IgnoredAttributes>;
+def warn_function_stmt_attribute_precedence : Warning<
+  "statement attribute %0 has higher precedence than function attribute "
+  "'%select{always_inline|flatten|noinline}1'">,
+  InGroup<IgnoredAttributes>;
 def note_declared_nonnull : Note<
   "declared %select{'returns_nonnull'|'nonnull'}0 here">;
 def warn_attribute_sentinel_named_arguments : Warning<
@@ -4834,6 +4860,7 @@ def warn_cxx11_compat_variable_template : Warning<
 def err_template_variable_noparams : Error<
   "extraneous 'template<>' in declaration of variable %0">;
 def err_template_member : Error<"member %0 declared as a template">;
+def err_member_with_template_arguments : Error<"member %0 cannot have template arguments">;
 def err_template_member_noparams : Error<
   "extraneous 'template<>' in declaration of member %0">;
 def err_template_tag_noparams : Error<
@@ -4847,6 +4874,9 @@ def warn_cxx17_compat_adl_only_template_id : Warning<
 def ext_adl_only_template_id : ExtWarn<
   "use of function template name with no prior declaration in function call "
   "with explicit template arguments is a C++20 extension">, InGroup<CXX20>;
+
+def warn_unqualified_call_to_std_cast_function : Warning<
+  "unqualified call to %0">, InGroup<DiagGroup<"unqualified-std-cast-call">>;
 
 // C++ Template Argument Lists
 def err_template_missing_args : Error<
@@ -7094,6 +7124,11 @@ def warn_format_nonliteral : Warning<
   "format string is not a string literal">,
   InGroup<FormatNonLiteral>, DefaultIgnore;
 
+def err_sycl_device_global_incorrect_scope : Error<
+  "'device_global' variables must be static or declared at namespace scope">;
+def err_sycl_device_global_not_publicly_accessible: Error<
+  "'device_global' member variable %0 is not publicly accessible from namespace scope">;
+
 def err_unexpected_interface : Error<
   "unexpected interface name %0: expected expression">;
 def err_ref_non_value : Error<"%0 does not refer to a value">;
@@ -7730,6 +7765,8 @@ let CategoryName = "Lambda Issue" in {
     "%select{| explicitly}1 captured here">;
   def err_implicit_this_capture : Error<
     "implicit capture of 'this' is not allowed for kernel functions">;
+  def err_lambda_member_access : Error<
+    "invalid attempt to access member of lambda">;
 
   // C++14 lambda init-captures.
   def warn_cxx11_compat_init_capture : Warning<
@@ -9951,8 +9988,13 @@ def warn_duplicate_attribute_exact : Warning<
 def warn_duplicate_attribute : Warning<
   "attribute %0 is already applied with different arguments">,
   InGroup<IgnoredAttributes>;
+def err_duplicate_attribute : Error<warn_duplicate_attribute.Text>;
 def err_disallowed_duplicate_attribute : Error<
   "attribute %0 cannot appear more than once on a declaration">;
+
+def err_disallow_attribute_on_func : Error<
+  "attribute %0 cannot be applied to a "
+  "%select{virtual, overridden, or final|defaulted|deleted}1 function">;
 
 def warn_sync_fetch_and_nand_semantics_change : Warning<
   "the semantics of this intrinsic changed with GCC "
@@ -10299,6 +10341,11 @@ def err_openclcxx_placement_new : Error<
 def warn_mig_server_routine_does_not_return_kern_return_t : Warning<
   "'mig_server_routine' attribute only applies to routines that return a kern_return_t">,
   InGroup<IgnoredAttributes>;
+
+def warn_imp_cast_drops_unaligned : Warning<
+  "implicit cast from type %0 to type %1 drops __unaligned qualifier">,
+  InGroup<DiagGroup<"unaligned-qualifier-implicit-cast">>;
+
 } // end of sema category
 
 let CategoryName = "OpenMP Issue" in {
@@ -10919,7 +10966,7 @@ def note_omp_exits_structured_block
     : Note<"jump exits scope of OpenMP structured block">;
 def err_omp_lastprivate_loop_var_non_loop_iteration : Error<
   "only loop iteration variables are allowed in 'lastprivate' clause in "
-  "'omp loop' directives">;
+  "'omp %0' directives">;
 def err_omp_interop_variable_expected : Error<
   "expected%select{| non-const}0 variable of type 'omp_interop_t'">;
 def err_omp_interop_variable_wrong_type : Error<
@@ -11040,6 +11087,8 @@ def ext_module_import_not_at_top_level_noop : ExtWarn<
 def note_module_import_not_at_top_level : Note<"%0 begins here">;
 def err_module_self_import : Error<
   "import of module '%0' appears within same top-level module '%1'">;
+def err_module_self_import_cxx20 : Error<
+  "import of module '%0' appears within its own %select{interface|implementation}1">;
 def err_module_import_in_implementation : Error<
   "@import of module '%0' in implementation of '%1'; use #import">;
 
@@ -11073,6 +11122,8 @@ def err_export_using_internal : Error<
 def err_export_not_in_module_interface : Error<
   "export declaration can only be used within a module interface unit"
   "%select{ after the module declaration|}0">;
+def err_export_partition_impl : Error<
+  "module partition implementations cannot be exported">;
 def err_export_in_private_module_fragment : Error<
   "export declaration cannot be used in a private module fragment">;
 def note_private_module_fragment : Note<
@@ -11670,6 +11721,21 @@ def err_sycl_taking_address_of_wrong_function : Error<
   "taking address of a function not marked with "
   "'intel::device_indirectly_callable' attribute is not allowed in SYCL device "
   "code">;
+def err_sycl_add_ir_attr_filter_list_invalid_arg : Error<
+  "only the first argument of attribute %0 can be an initializer list">;
+def err_sycl_add_ir_attribute_must_have_pairs : Error<
+  "attribute %0 must specify a value for each specified name in the argument "
+  "list">;
+def err_sycl_add_ir_attribute_invalid_name : Error<
+  "each name argument in %0 must be a 'const char *' usable in a constant "
+  "expression">;
+def err_sycl_add_ir_attribute_invalid_value : Error<
+  "each value argument in %0 must be an integer, a floating point, a "
+  "character, a boolean, 'const char *', or an enumerator usable as a constant "
+  "expression">;
+def err_sycl_add_ir_attribute_invalid_filter : Error<
+  "initializer list in the first argument of %0 must contain only string "
+  "literals">;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<

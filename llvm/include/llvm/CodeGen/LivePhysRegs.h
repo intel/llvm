@@ -32,13 +32,16 @@
 #include "llvm/ADT/SparseSet.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/MC/MCRegister.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/MC/MCSymbol.h"
 #include <cassert>
 #include <utility>
 
 namespace llvm {
 
 class MachineInstr;
+class MachineFunction;
 class MachineOperand;
 class MachineRegisterInfo;
 class raw_ostream;

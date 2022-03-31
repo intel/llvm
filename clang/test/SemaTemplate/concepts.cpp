@@ -169,3 +169,56 @@ namespace PR50561 {
   template<C T, typename U> void f(T, U) = delete;
   void g() { f(0, 0); }
 }
+
+namespace PR49188 {
+  template<class T> concept C = false;     // expected-note 6 {{because 'false' evaluated to false}}
+
+  C auto f1() { // expected-error {{deduced type 'void' does not satisfy 'C'}}
+    return void();
+  }
+  C auto f2() { // expected-error {{deduced type 'void' does not satisfy 'C'}}
+    return;
+  }
+  C auto f3() { // expected-error {{deduced type 'void' does not satisfy 'C'}}
+  }
+  C decltype(auto) f4() { // expected-error {{deduced type 'void' does not satisfy 'C'}}
+    return void();
+  }
+  C decltype(auto) f5() { // expected-error {{deduced type 'void' does not satisfy 'C'}}
+    return;
+  }
+  C decltype(auto) f6() { // expected-error {{deduced type 'void' does not satisfy 'C'}}
+  }
+  C auto& f7() { // expected-error {{cannot form a reference to 'void'}}
+    return void();
+  }
+  C auto& f8() {
+    return; // expected-error {{cannot deduce return type 'C auto &' from omitted return expression}}
+  }
+  C auto& f9() { // expected-error {{cannot deduce return type 'C auto &' for function with no return statements}}
+  }
+}
+namespace PR53911 {
+  template<class T> concept C = false;
+
+  C auto *f1() {
+    return (void*)nullptr; // FIXME: should error
+  }
+  C auto *f2() {
+    return (int*)nullptr; // FIXME: should error
+  }
+}
+
+namespace PR54379 {
+template <int N>
+struct A {
+  static void f() requires (N == 0) { return; } // expected-note {{candidate template ignored: constraints not satisfied}} expected-note {{evaluated to false}}
+  static void f() requires (N == 1) { return; } // expected-note {{candidate template ignored: constraints not satisfied}} expected-note {{evaluated to false}}
+};
+void (*f1)() = A<2>::f; // expected-error {{address of overloaded function 'f' does not match required type}}
+
+struct B {
+  template <int N2 = 1> static void f() requires (N2 == 0) { return; }  // expected-note {{candidate template ignored: constraints not satisfied [with N2 = 1]}} expected-note {{evaluated to false}}
+};
+void (*f2)() = B::f; // expected-error {{address of overloaded function 'f' does not match required type}}
+}

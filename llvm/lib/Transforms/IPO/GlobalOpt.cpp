@@ -405,9 +405,37 @@ static void transferSRADebugInfo(GlobalVariable *GV, GlobalVariable *NGV,
   for (auto *GVE : GVs) {
     DIVariable *Var = GVE->getVariable();
     DIExpression *Expr = GVE->getExpression();
+    int64_t CurVarOffsetInBytes = 0;
+    uint64_t CurVarOffsetInBits = 0;
+
+    // Calculate the offset (Bytes), Continue if unknown.
+    if (!Expr->extractIfOffset(CurVarOffsetInBytes))
+      continue;
+
+    // Ignore negative offset.
+    if (CurVarOffsetInBytes < 0)
+      continue;
+
+    // Convert offset to bits.
+    CurVarOffsetInBits = CHAR_BIT * (uint64_t)CurVarOffsetInBytes;
+
+    // Current var starts after the fragment, ignore.
+    if (CurVarOffsetInBits >= (FragmentOffsetInBits + FragmentSizeInBits))
+      continue;
+
+    uint64_t CurVarSize = Var->getType()->getSizeInBits();
+    // Current variable ends before start of fragment, ignore.
+    if (CurVarSize != 0 &&
+        (CurVarOffsetInBits + CurVarSize) <= FragmentOffsetInBits)
+      continue;
+
+    // Current variable fits in the fragment.
+    if (CurVarOffsetInBits == FragmentOffsetInBits &&
+        CurVarSize == FragmentSizeInBits)
+      Expr = DIExpression::get(Expr->getContext(), {});
     // If the FragmentSize is smaller than the variable,
     // emit a fragment expression.
-    if (FragmentSizeInBits < VarSize) {
+    else if (FragmentSizeInBits < VarSize) {
       if (auto E = DIExpression::createFragmentExpression(
               Expr, FragmentOffsetInBits, FragmentSizeInBits))
         Expr = *E;
@@ -2225,13 +2253,6 @@ OptimizeGlobalAliases(Module &M,
   for (GlobalValue *GV : Used.used())
     Used.compilerUsedErase(GV);
 
-  // Return whether GV is explicitly or implicitly dso_local and not replaceable
-  // by another definition in the current linkage unit.
-  auto IsModuleLocal = [](GlobalValue &GV) {
-    return !GlobalValue::isInterposableLinkage(GV.getLinkage()) &&
-           (GV.isDSOLocal() || GV.isImplicitDSOLocal());
-  };
-
   for (GlobalAlias &J : llvm::make_early_inc_range(M.aliases())) {
     // Aliases without names cannot be referenced outside this module.
     if (!J.hasName() && !J.isDeclaration() && !J.hasLocalLinkage())
@@ -2243,20 +2264,18 @@ OptimizeGlobalAliases(Module &M,
     }
 
     // If the alias can change at link time, nothing can be done - bail out.
-    if (!IsModuleLocal(J))
+    if (J.isInterposable())
       continue;
 
     Constant *Aliasee = J.getAliasee();
     GlobalValue *Target = dyn_cast<GlobalValue>(Aliasee->stripPointerCasts());
     // We can't trivially replace the alias with the aliasee if the aliasee is
     // non-trivial in some way. We also can't replace the alias with the aliasee
-    // if the aliasee may be preemptible at runtime. On ELF, a non-preemptible
-    // alias can be used to access the definition as if preemption did not
-    // happen.
+    // if the aliasee is interposable because aliases point to the local
+    // definition.
     // TODO: Try to handle non-zero GEPs of local aliasees.
-    if (!Target || !IsModuleLocal(*Target))
+    if (!Target || Target->isInterposable())
       continue;
-
     Target->removeDeadConstantUsers();
 
     // Make all users of the alias use the aliasee instead.

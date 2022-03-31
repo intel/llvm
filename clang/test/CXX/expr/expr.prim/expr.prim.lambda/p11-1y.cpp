@@ -1,6 +1,12 @@
-// RUN: %clang_cc1 -std=c++1y %s -verify
+// TODO: The SYCL changes in this test can be removed if/when changes (i.e.
+// PR to save user-specified names in lambda class) is upstreamed to LLVM
+// project.
 
-const char *has_no_member = [x("hello")] {}.x; // expected-error {{no member named 'x'}}
+// RUN: %clang_cc1 -std=c++1y %s -verify=notsycl,expected
+// RUN: %clang_cc1 -fsycl-is-device -std=c++1y %s -verify=sycl,expected
+
+const char *has_no_member = [x("hello")] {}.x; // notsycl-error {{no member named 'x'}}
+// sycl-error@-1 {{invalid attempt to access member of lambda}}
 
 double f;
 auto with_float = [f(1.0f)] {

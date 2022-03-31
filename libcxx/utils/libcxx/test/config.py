@@ -245,6 +245,10 @@ class Configuration(object):
             # Build the tests in the same configuration as libcxx itself,
             # to avoid mismatches if linked statically.
             self.cxx.compile_flags += ['-D_CRT_STDIO_ISO_WIDE_SPECIFIERS']
+            # Required so that tests using min/max don't fail on Windows,
+            # and so that those tests don't have to be changed to tolerate
+            # this insanity.
+            self.cxx.compile_flags += ['-DNOMINMAX']
         additional_flags = self.get_lit_conf('test_compiler_flags')
         if additional_flags:
             self.cxx.compile_flags += shlex.split(additional_flags)
@@ -308,8 +312,8 @@ class Configuration(object):
         if triple is not None:
             cxx_target_headers = os.path.join(path, triple, cxx, version)
             if os.path.isdir(cxx_target_headers):
-                self.cxx.compile_flags += ['-isystem', cxx_target_headers]
-        self.cxx.compile_flags += ['-isystem', cxx_headers]
+                self.cxx.compile_flags += ['-I', cxx_target_headers]
+        self.cxx.compile_flags += ['-I', cxx_headers]
         if self.libcxx_obj_root is not None:
             cxxabi_headers = os.path.join(self.libcxx_obj_root, 'include',
                                           'c++build')
@@ -406,6 +410,8 @@ class Configuration(object):
                         self.cxx.link_flags += [abs_path]
                     else:
                         self.cxx.link_flags += ['-lc++abi']
+        elif cxx_abi == 'system-libcxxabi':
+            self.cxx.link_flags += ['-lc++abi']
         elif cxx_abi == 'libcxxrt':
             self.cxx.link_flags += ['-lcxxrt']
         elif cxx_abi == 'vcruntime':
@@ -449,7 +455,6 @@ class Configuration(object):
         sub.append(('%{flags}',         ' '.join(map(self.quote, flags))))
         sub.append(('%{compile_flags}', ' '.join(map(self.quote, compile_flags))))
         sub.append(('%{link_flags}',    ' '.join(map(self.quote, self.cxx.link_flags))))
-        sub.append(('%{install}',       self.quote(self.config.install_root)))
 
         codesign_ident = self.get_lit_conf('llvm_codesign_identity', '')
         env_vars = ' '.join('%s=%s' % (k, self.quote(v)) for (k, v) in self.exec_env.items())
