@@ -70,6 +70,8 @@ public:
 
   static std::chrono::seconds GetPacketTimeout();
 
+  ArchSpec GetSystemArchitecture() override;
+
   // Check if a given Process
   bool CanDebug(lldb::TargetSP target_sp,
                 bool plugin_specified_by_name) override;
@@ -281,7 +283,6 @@ protected:
   MMapMap m_addr_to_mmap_size;
   lldb::BreakpointSP m_thread_create_bp_sp;
   bool m_waiting_for_attach;
-  bool m_destroy_tried_resuming;
   lldb::CommandObjectSP m_command_sp;
   int64_t m_breakpoint_pc_offset;
   lldb::tid_t m_initial_tid; // The initial thread ID, given by stub on attach

@@ -311,15 +311,16 @@ enum NodeType : unsigned {
   STRICT_FCVT_W_RV64 = ISD::FIRST_TARGET_STRICTFP_OPCODE,
   STRICT_FCVT_WU_RV64,
 
-  // Memory opcodes start here.
-  VLE_VL = ISD::FIRST_TARGET_MEMORY_OPCODE,
-  VSE_VL,
-
   // WARNING: Do not add anything in the end unless you want the node to
   // have memop! In fact, starting from FIRST_TARGET_MEMORY_OPCODE all
   // opcodes will be thought as target memory ops!
 };
 } // namespace RISCVISD
+
+namespace RISCV {
+// We use 64 bits as the known part in the scalable vector types.
+static constexpr unsigned RVVBitsPerBlock = 64;
+} // namespace RISCV
 
 class RISCVTargetLowering : public TargetLowering {
   const RISCVSubtarget &Subtarget;
@@ -535,6 +536,15 @@ public:
                              Optional<CallingConv::ID> CC) const override;
 
   static RISCVII::VLMUL getLMUL(MVT VT);
+  inline static unsigned computeVLMAX(unsigned VectorBits, unsigned EltSize,
+                                      unsigned MinSize) {
+    // Original equation:
+    //   VLMAX = (VectorBits / EltSize) * LMUL
+    //   where LMUL = MinSize / RISCV::RVVBitsPerBlock
+    // The following equations have been reordered to prevent loss of precision
+    // when calculating fractional LMUL.
+    return ((VectorBits / EltSize) * MinSize) / RISCV::RVVBitsPerBlock;
+  };
   static unsigned getRegClassIDForLMUL(RISCVII::VLMUL LMul);
   static unsigned getSubregIndexByMVT(MVT VT, unsigned Index);
   static unsigned getRegClassIDForVecVT(MVT VT);
@@ -675,21 +685,15 @@ private:
     return false;
   };
 };
-
-namespace RISCV {
-// We use 64 bits as the known part in the scalable vector types.
-static constexpr unsigned RVVBitsPerBlock = 64;
-} // namespace RISCV
-
 namespace RISCVVIntrinsicsTable {
 
 struct RISCVVIntrinsicInfo {
   unsigned IntrinsicID;
-  uint8_t SplatOperand;
+  uint8_t ScalarOperand;
   uint8_t VLOperand;
-  bool hasSplatOperand() const {
-    // 0xF is not valid. See NoSplatOperand in IntrinsicsRISCV.td.
-    return SplatOperand != 0xF;
+  bool hasScalarOperand() const {
+    // 0xF is not valid. See NoScalarOperand in IntrinsicsRISCV.td.
+    return ScalarOperand != 0xF;
   }
   bool hasVLOperand() const {
     // 0x1F is not valid. See NoVLOperand in IntrinsicsRISCV.td.

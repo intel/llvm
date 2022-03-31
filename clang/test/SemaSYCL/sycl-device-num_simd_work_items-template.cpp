@@ -130,6 +130,41 @@ template <int N>
 template <int N>
 [[intel::num_simd_work_items(2)]] void func12(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 
+template <int N>
+[[intel::num_simd_work_items(N)]] void func13(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+template <int N>
+__attribute__((reqd_work_group_size(8, 6, 3))) void func13(); // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'reqd_work_group_size' is deprecated}} expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
+
+template <int N>
+[[intel::num_simd_work_items(N)]] void func14(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+template <int N>
+[[cl::reqd_work_group_size(8, 4, 5)]] void func14(); // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+
+template <int N>
+[[intel::num_simd_work_items(3)]] void func15(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+template <int N>
+[[sycl::reqd_work_group_size(N, N, N)]] void func15(); // expected-note{{conflicting attribute is here}}
+
+template <int X, int Y, int Z, int N>
+[[intel::num_simd_work_items(N)]] void func16(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+template <int X, int Y, int Z, int N>
+[[sycl::reqd_work_group_size(X, Y, Z)]] void func16(); // expected-note{{conflicting attribute is here}}
+
+template <int X, int Y, int Z>
+[[intel::num_simd_work_items(3)]] void func17(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+template <int X, int Y, int Z>
+[[sycl::reqd_work_group_size(X, Y, Z)]] void func17(); // expected-note{{conflicting attribute is here}}
+
+template <int X, int Y, int Z>
+[[intel::num_simd_work_items(2)]] void func18(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+template <int X, int Y, int Z>
+[[sycl::reqd_work_group_size(X, Y, Z)]] void func18(); // expected-note{{conflicting attribute is here}}
+
+template <int N>
+[[intel::num_simd_work_items(2)]] void func19(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+template <int N>
+[[sycl::reqd_work_group_size(N, N, N)]] void func19(); // expected-note{{conflicting attribute is here}}
+
 int check1() {
   func6<3>(); // OK
   func6<2>(); // expected-note {{in instantiation of function template specialization 'func6<2>' requested here}}
@@ -145,5 +180,19 @@ int check1() {
   func11<8, 6, 2>(); // OK
   func12<3>(); // expected-note {{in instantiation of function template specialization 'func12<3>' requested here}} 
   func12<2>(); // OK
+  func13<3>(); // OK
+  func13<2>(); // expected-note {{in instantiation of function template specialization 'func13<2>' requested here}}
+  func14<4>(); // expected-note {{in instantiation of function template specialization 'func14<4>' requested here}}
+  func14<5>(); // OK
+  func15<5>(); // expected-note {{in instantiation of function template specialization 'func15<5>' requested here}}
+  func15<3>(); // OK
+  func16<6, 3, 5, 3>(); // expected-note {{in instantiation of function template specialization 'func16<6, 3, 5, 3>' requested here}}
+  func16<9, 6, 3, 3>(); // OK
+  func17<6, 3, 5>();    // expected-note {{in instantiation of function template specialization 'func17<6, 3, 5>' requested here}}
+  func17<9, 6, 3>();    // OK
+  func18<6, 4, 5>();    // expected-note {{in instantiation of function template specialization 'func18<6, 4, 5>' requested here}}
+  func18<8, 6, 2>();    // OK
+  func19<3>();          // expected-note {{in instantiation of function template specialization 'func19<3>' requested here}}
+  func19<2>();          // OK
   return 0;
 }

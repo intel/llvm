@@ -204,6 +204,7 @@ def SectionsOp : OpenMP_Op<"sections", [AttrSizedOperandSegments]> {
   }];
 
   let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -307,9 +308,53 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
   let hasVerifier = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// Simd construct [2.9.3.1] 
+//===----------------------------------------------------------------------===//
+
+def SimdLoopOp : OpenMP_Op<"simdloop", [AttrSizedOperandSegments,
+                         AllTypesMatch<["lowerBound", "upperBound", "step"]>]> {
+ let summary = "simd loop construct";
+  let description = [{
+    The simd construct can be applied to a loop to indicate that the loop can be 
+    transformed into a SIMD loop (that is, multiple iterations of the loop can 
+    be executed concurrently using SIMD instructions).. The lower and upper 
+    bounds specify a half-open range: the range includes the lower bound but 
+    does not include the upper bound.
+
+    The body region can contain any number of blocks. The region is terminated
+    by "omp.yield" instruction without operands.
+    ```
+    omp.simdloop (%i1, %i2) : index = (%c0, %c0) to (%c10, %c10) 
+                                      step (%c1, %c1) {
+      // block operations
+      omp.yield
+    }
+    ``` 
+  }];
+
+  // TODO: Add other clauses
+  let arguments = (ins Variadic<IntLikeType>:$lowerBound,
+             Variadic<IntLikeType>:$upperBound,
+             Variadic<IntLikeType>:$step);
+ 
+  let regions = (region AnyRegion:$region);
+
+  let extraClassDeclaration = [{
+    /// Returns the number of loops in the simd loop nest.
+    unsigned getNumLoops() { return lowerBound().size(); }
+
+  }];
+ 
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1; 
+}
+
+
 def YieldOp : OpenMP_Op<"yield",
     [NoSideEffect, ReturnLike, Terminator,
-     ParentOneOf<["WsLoopOp", "ReductionDeclareOp", "AtomicUpdateOp"]>]> {
+     ParentOneOf<["WsLoopOp", "ReductionDeclareOp", 
+     "AtomicUpdateOp", "SimdLoopOp"]>]> {
   let summary = "loop yield and termination operation";
   let description = [{
     "omp.yield" yields SSA values from the OpenMP dialect op region and
@@ -437,7 +482,8 @@ def CriticalDeclareOp : OpenMP_Op<"critical.declare", [Symbol]> {
 }
 
 
-def CriticalOp : OpenMP_Op<"critical"> {
+def CriticalOp : OpenMP_Op<"critical",
+    [DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let summary = "critical construct";
   let description = [{
     The critical construct imposes a restriction on the associated structured
@@ -451,7 +497,6 @@ def CriticalOp : OpenMP_Op<"critical"> {
   let assemblyFormat = [{
     (`(` $name^ `)`)? $region attr-dict
   }];
-  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -650,6 +695,15 @@ def AtomicUpdateOp : OpenMP_Op<"atomic.update",
     atomic. Generally the region must have only one instruction, but can
     potentially have more than one instructions too. The update is sematically
     similar to a compare-exchange loop based atomic update.
+
+    The syntax of atomic update operation is different from atomic read and
+    atomic write operations. This is because only the host dialect knows how to
+    appropriately update a value. For example, while generating LLVM IR, if
+    there are no special `atomicrmw` instructions for the operation-type
+    combination in atomic update, a compare-exchange loop is generated, where
+    the core update operation is directly translated like regular operations by
+    the host dialect. The front-end must handle semantic checks for allowed
+    operations.
   }];
 
   let arguments = (ins OpenMP_PointerLikeType:$x,
@@ -662,6 +716,7 @@ def AtomicUpdateOp : OpenMP_Op<"atomic.update",
     $x `:` type($x) $region attr-dict
   }];
   let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 def AtomicCaptureOp : OpenMP_Op<"atomic.capture",
@@ -708,7 +763,7 @@ def AtomicCaptureOp : OpenMP_Op<"atomic.capture",
           |`hint` `(` custom<SynchronizationHint>($hint_val) `)`)
     $region attr-dict
   }];
-  let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -762,7 +817,7 @@ def ReductionDeclareOp : OpenMP_Op<"reduction.declare", [Symbol]> {
       return atomicReductionRegion().front().getArgument(0).getType();
     }
   }];
-  let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//

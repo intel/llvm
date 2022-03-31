@@ -3857,10 +3857,9 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::ReqdWorkGroupSize: {
     auto *RWGSA = cast<ReqdWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-      ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) != RWGSA->getXDimVal(Ctx) ||
-          Existing->getYDimVal(Ctx) != RWGSA->getYDimVal(Ctx) ||
-          Existing->getZDimVal(Ctx) != RWGSA->getZDimVal(Ctx)) {
+      if (*Existing->getXDimVal() != *RWGSA->getXDimVal() ||
+          *Existing->getYDimVal() != *RWGSA->getYDimVal() ||
+          *Existing->getZDimVal() != *RWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3869,10 +3868,9 @@ static void PropagateAndDiagnoseDeviceAttr(
       }
     } else if (auto *Existing =
                    SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      ASTContext &Ctx = S.getASTContext();
-      if (*Existing->getXDimVal() < RWGSA->getXDimVal(Ctx) ||
-          *Existing->getYDimVal() < RWGSA->getYDimVal(Ctx) ||
-          *Existing->getZDimVal() < RWGSA->getZDimVal(Ctx)) {
+      if (*Existing->getXDimVal() < *RWGSA->getXDimVal() ||
+          *Existing->getYDimVal() < *RWGSA->getYDimVal() ||
+          *Existing->getZDimVal() < *RWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3905,10 +3903,9 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelMaxWorkGroupSize: {
     auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-      ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) > *SIMWGSA->getXDimVal() ||
-          Existing->getYDimVal(Ctx) > *SIMWGSA->getYDimVal() ||
-          Existing->getZDimVal(Ctx) > *SIMWGSA->getZDimVal()) {
+      if (*Existing->getXDimVal() > *SIMWGSA->getXDimVal() ||
+          *Existing->getYDimVal() > *SIMWGSA->getYDimVal() ||
+          *Existing->getZDimVal() > *SIMWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -4656,7 +4653,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // whose sole purpose is to run its constructor before the application's
   // main() function.
 
-  if (S.getSyclIntegrationFooter().isDeviceGlobalsEmitted()) {
+  if (NeedToEmitDeviceGlobalRegistration) {
     O << "namespace {\n";
 
     O << "class __sycl_device_global_registration {\n";
@@ -5020,6 +5017,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
   llvm::SmallSet<const VarDecl *, 8> Visited;
   bool EmittedFirstSpecConstant = false;
+  bool DeviceGlobalsEmitted = false;
 
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
@@ -5103,6 +5101,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "}\n";
     OS << "} // namespace (unnamed)\n";
     OS << "} // namespace sycl::detail\n";
+
+    S.getSyclIntegrationHeader().addDeviceGlobalRegistration();
   }
   return true;
 }

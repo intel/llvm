@@ -8372,10 +8372,9 @@ void TCETargetCodeGenInfo::setTargetAttributes(
 
         SmallVector<llvm::Metadata *, 5> Operands;
         Operands.push_back(llvm::ConstantAsMetadata::get(F));
-        ASTContext &Ctx = M.getContext();
-        unsigned XDim = Attr->getXDimVal(Ctx)->getZExtValue();
-        unsigned YDim = Attr->getYDimVal(Ctx)->getZExtValue();
-        unsigned ZDim = Attr->getZDimVal(Ctx)->getZExtValue();
+        unsigned XDim = Attr->getXDimVal()->getZExtValue();
+        unsigned YDim = Attr->getYDimVal()->getZExtValue();
+        unsigned ZDim = Attr->getZDimVal()->getZExtValue();
 
         Operands.push_back(llvm::ConstantAsMetadata::get(
             llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, XDim))));
@@ -9215,7 +9214,7 @@ public:
   llvm::Function *
   createEnqueuedBlockKernel(CodeGenFunction &CGF,
                             llvm::Function *BlockInvokeFunc,
-                            llvm::Value *BlockLiteral) const override;
+                            llvm::Type *BlockTy) const override;
   bool shouldEmitStaticExternCAliases() const override;
   void setCUDAKernelCallingConvention(const FunctionType *&FT) const override;
 };
@@ -9255,9 +9254,9 @@ void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
       Max = FlatWGS->getMax()->EvaluateKnownConstInt(Ctx).getExtValue();
     }
     if (ReqdWGS) {
-      XDim = ReqdWGS->getXDimVal(Ctx)->getZExtValue();
-      YDim = ReqdWGS->getYDimVal(Ctx)->getZExtValue();
-      ZDim = ReqdWGS->getZDimVal(Ctx)->getZExtValue();
+      XDim = ReqdWGS->getXDimVal()->getZExtValue();
+      YDim = ReqdWGS->getYDimVal()->getZExtValue();
+      ZDim = ReqdWGS->getZDimVal()->getZExtValue();
     }
     if (ReqdWGS && Min == 0 && Max == 0)
       Min = Max = XDim * YDim * ZDim;
@@ -11605,7 +11604,7 @@ const TargetCodeGenInfo &CodeGenModule::getTargetCodeGenInfo() {
 llvm::Function *
 TargetCodeGenInfo::createEnqueuedBlockKernel(CodeGenFunction &CGF,
                                              llvm::Function *Invoke,
-                                             llvm::Value *BlockLiteral) const {
+                                             llvm::Type *BlockTy) const {
   auto *InvokeFT = Invoke->getFunctionType();
   llvm::SmallVector<llvm::Type *, 2> ArgTys;
   for (auto &P : InvokeFT->params())
@@ -11639,11 +11638,10 @@ TargetCodeGenInfo::createEnqueuedBlockKernel(CodeGenFunction &CGF,
 /// has "enqueued-block" function attribute and kernel argument metadata.
 llvm::Function *AMDGPUTargetCodeGenInfo::createEnqueuedBlockKernel(
     CodeGenFunction &CGF, llvm::Function *Invoke,
-    llvm::Value *BlockLiteral) const {
+    llvm::Type *BlockTy) const {
   auto &Builder = CGF.Builder;
   auto &C = CGF.getLLVMContext();
 
-  auto *BlockTy = BlockLiteral->getType()->getPointerElementType();
   auto *InvokeFT = Invoke->getFunctionType();
   llvm::SmallVector<llvm::Type *, 2> ArgTys;
   llvm::SmallVector<llvm::Metadata *, 8> AddressQuals;

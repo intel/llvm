@@ -9,9 +9,9 @@
 #include "mlir/Conversion/AsyncToLLVM/AsyncToLLVM.h"
 
 #include "../PassDetail.h"
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -1042,8 +1042,9 @@ void ConvertAsyncToLLVMPass::runOnOperation() {
   target.addIllegalDialect<AsyncDialect>();
 
   // Add dynamic legality constraints to apply conversions defined above.
-  target.addDynamicallyLegalOp<FuncOp>(
-      [&](FuncOp op) { return converter.isSignatureLegal(op.getType()); });
+  target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
+    return converter.isSignatureLegal(op.getFunctionType());
+  });
   target.addDynamicallyLegalOp<func::ReturnOp>([&](func::ReturnOp op) {
     return converter.isLegal(op.getOperandTypes());
   });

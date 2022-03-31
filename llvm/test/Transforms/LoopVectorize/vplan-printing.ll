@@ -7,7 +7,7 @@ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f3
 ; Tests for printing VPlans.
 
 define void @print_call_and_memory(i64 %n, float* noalias %y, float* noalias %x) nounwind uwtable {
-; CHECK-LABEL: Checking a loop in "print_call_and_memory"
+; CHECK-LABEL: Checking a loop in 'print_call_and_memory'
 ; CHECK:      VPlan 'Initial VPlan for VF={4},UF>=1' {
 ; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
 ; CHECK-EMPTY:
@@ -47,7 +47,7 @@ for.end:                                          ; preds = %for.body, %entry
 }
 
 define void @print_widen_gep_and_select(i64 %n, float* noalias %y, float* noalias %x, float* %z) nounwind uwtable {
-; CHECK-LABEL: Checking a loop in "print_widen_gep_and_select"
+; CHECK-LABEL: Checking a loop in 'print_widen_gep_and_select'
 ; CHECK:      VPlan 'Initial VPlan for VF={4},UF>=1' {
 ; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
 ; CHECK-EMPTY:
@@ -55,12 +55,13 @@ define void @print_widen_gep_and_select(i64 %n, float* noalias %y, float* noalia
 ; CHECK-NEXT: for.body:
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV:%.+]]> = CANONICAL-INDUCTION
 ; CHECK-NEXT:   WIDEN-INDUCTION %iv = phi %iv.next, 0
+; CHECK-NEXT:   vp<[[STEPS:%.+]]> = SCALAR-STEPS vp<[[CAN_IV]]>, ir<0>, ir<1>
 ; CHECK-NEXT:   WIDEN-GEP Inv[Var] ir<%arrayidx> = getelementptr ir<%y>, ir<%iv>
 ; CHECK-NEXT:   WIDEN ir<%lv> = load ir<%arrayidx>
 ; CHECK-NEXT:   WIDEN ir<%cmp> = icmp ir<%arrayidx>, ir<%z>
 ; CHECK-NEXT:   WIDEN-SELECT ir<%sel> = select ir<%cmp>, ir<1.000000e+01>, ir<2.000000e+01>
 ; CHECK-NEXT:   WIDEN ir<%add> = fadd ir<%lv>, ir<%sel>
-; CHECK-NEXT:   CLONE ir<%arrayidx2> = getelementptr ir<%x>, ir<%iv>
+; CHECK-NEXT:   CLONE ir<%arrayidx2> = getelementptr ir<%x>, vp<[[STEPS]]>
 ; CHECK-NEXT:   WIDEN store ir<%arrayidx2>, ir<%add>
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF +(nuw) vp<[[CAN_IV]]>
 ; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
@@ -91,7 +92,7 @@ for.end:                                          ; preds = %for.body, %entry
 }
 
 define float @print_reduction(i64 %n, float* noalias %y) {
-; CHECK-LABEL: Checking a loop in "print_reduction"
+; CHECK-LABEL: Checking a loop in 'print_reduction'
 ; CHECK:      VPlan 'Initial VPlan for VF={4},UF>=1' {
 ; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
 ; CHECK-EMPTY:
@@ -128,7 +129,7 @@ for.end:                                          ; preds = %for.body, %entry
 }
 
 define void @print_replicate_predicated_phi(i64 %n, i64* %x) {
-; CHECK-LABEL: Checking a loop in "print_replicate_predicated_phi"
+; CHECK-LABEL: Checking a loop in 'print_replicate_predicated_phi'
 ; CHECK:      VPlan 'Initial VPlan for VF={4},UF>=1' {
 ; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
 ; CHECK-EMPTY:
@@ -136,6 +137,7 @@ define void @print_replicate_predicated_phi(i64 %n, i64* %x) {
 ; CHECK-NEXT: for.body:
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV:%.+]]> = CANONICAL-INDUCTION
 ; CHECK-NEXT:   WIDEN-INDUCTION %i = phi 0, %i.next
+; CHECK-NEXT:   vp<[[STEPS:%.+]]> = SCALAR-STEPS vp<[[CAN_IV]]>, ir<0>, ir<1>
 ; CHECK-NEXT:   WIDEN ir<%cmp> = icmp ir<%i>, ir<5>
 ; CHECK-NEXT: Successor(s): if.then
 ; CHECK-EMPTY:
@@ -149,7 +151,7 @@ define void @print_replicate_predicated_phi(i64 %n, i64* %x) {
 ; CHECK-NEXT:   CondBit: ir<%cmp>
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.udiv.if:
-; CHECK-NEXT:     REPLICATE ir<%tmp4> = udiv ir<%n>, ir<%i> (S->V)
+; CHECK-NEXT:     REPLICATE ir<%tmp4> = udiv ir<%n>, vp<[[STEPS]]> (S->V)
 ; CHECK-NEXT:   Successor(s): pred.udiv.continue
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.udiv.continue:
@@ -164,7 +166,7 @@ define void @print_replicate_predicated_phi(i64 %n, i64* %x) {
 ; CHECK-NEXT: for.inc:
 ; CHECK-NEXT:   EMIT vp<[[NOT:%.+]]> = not ir<%cmp>
 ; CHECK-NEXT:   BLEND %d = ir<0>/vp<[[NOT]]> vp<[[PRED]]>/ir<%cmp>
-; CHECK-NEXT:   CLONE ir<%idx> = getelementptr ir<%x>, ir<%i>
+; CHECK-NEXT:   CLONE ir<%idx> = getelementptr ir<%x>, vp<[[STEPS]]>
 ; CHECK-NEXT:   WIDEN store ir<%idx>, ir<%d>
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF +(nuw) vp<[[CAN_IV]]>
 ; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
@@ -201,7 +203,7 @@ for.end:                                          ; preds = %for.inc
 @CD = common global [1024 x i32] zeroinitializer, align 4
 
 define void @print_interleave_groups(i32 %C, i32 %D) {
-; CHECK-LABEL: Checking a loop in "print_interleave_groups"
+; CHECK-LABEL: Checking a loop in 'print_interleave_groups'
 ; CHECK:       VPlan 'Initial VPlan for VF={4},UF>=1' {
 ; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
 ; CHECK-EMPTY:
@@ -261,7 +263,7 @@ for.end:
 }
 
 define float @print_fmuladd_strict(float* %a, float* %b, i64 %n) {
-; CHECK-LABEL: Checking a loop in "print_fmuladd_strict"
+; CHECK-LABEL: Checking a loop in 'print_fmuladd_strict'
 ; CHECK:      VPlan 'Initial VPlan for VF={4},UF>=1' {
 ; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
 ; CHECK-EMPTY:
@@ -301,7 +303,7 @@ for.end:
 }
 
 define void @debug_loc_vpinstruction(i32* nocapture %asd, i32* nocapture %bsd) !dbg !5 {
-; CHECK-LABEL: Checking a loop in "debug_loc_vpinstruction"
+; CHECK-LABEL: Checking a loop in 'debug_loc_vpinstruction'
 ; CHECK:    VPlan 'Initial VPlan for VF={4},UF>=1' {
 ; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
 ; CHECK-EMPTY:

@@ -205,6 +205,11 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
       visitCallSPIRVRelational(&CI, OC);
     return;
   }
+  if (OC == internal::OpConvertFToBF16INTEL ||
+      OC == internal::OpConvertBF16ToFINTEL) {
+    visitCallSPIRVBFloat16Conversions(&CI, OC);
+    return;
+  }
   if (OCLSPIRVBuiltinMap::rfind(OC))
     visitCallSPIRVBuiltin(&CI, OC);
 }
@@ -544,6 +549,12 @@ void SPIRVToOCLBase::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
 
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  SmallVector<AttributeSet, 2> ArgAttrs;
+  for (int I = (hasGroupOperation(OC) ? 2 : 1);
+       I < (int)Attrs.getNumAttrSets() - 2; I++)
+    ArgAttrs.push_back(Attrs.getParamAttrs(I));
+  Attrs = AttributeList::get(*Ctx, Attrs.getFnAttrs(), Attrs.getRetAttrs(),
+                             ArgAttrs);
   mutateCallInstOCL(M, CI, ModifyArguments, ModifyRetTy, &Attrs);
 }
 
@@ -982,6 +993,32 @@ void SPIRVToOCLBase::visitCallSPIRVGenericPtrMemSemantics(CallInst *CI) {
         auto *Shl = BinaryOperator::CreateShl(CI, getInt32(M, 8), "");
         Shl->insertAfter(CI);
         return Shl;
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVBFloat16Conversions(CallInst *CI, Op OC) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        Type *ArgTy = CI->getOperand(0)->getType();
+        std::string N =
+            ArgTy->isVectorTy()
+                ? std::to_string(cast<FixedVectorType>(ArgTy)->getNumElements())
+                : "";
+        std::string Name;
+        switch (static_cast<uint32_t>(OC)) {
+        case internal::OpConvertFToBF16INTEL:
+          Name = "intel_convert_bfloat16" + N + "_as_ushort" + N;
+          break;
+        case internal::OpConvertBF16ToFINTEL:
+          Name = "intel_convert_as_bfloat16" + N + "_float" + N;
+          break;
+        default:
+          break; // do nothing
+        }
+        return Name;
       },
       &Attrs);
 }
