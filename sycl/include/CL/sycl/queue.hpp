@@ -65,7 +65,6 @@
 #define _KERNELFUNCPARAM(a) const KernelType &a
 #endif
 
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -1270,5 +1269,3 @@ template <> struct hash<cl::sycl::queue> {
   }
 };
 } // namespace std
-
-#undef __SYCL_USE_FALLBACK_ASSERT
