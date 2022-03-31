@@ -52,9 +52,9 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-SYCL backend interop API does not define how ownership of backend objects is handled when they are passed to or returned from one of the interop API functions. This is not an issue for the OpenCL backand, as all objects it uses are reference counted. Other backends that do not use refernece counting need to either transfer or keep the ownership of the backend objects. As backend interop API as defined in SYCL specification does not support specifying what to do with ownership, only one of these options can be supported by a backend.
+SYCL backend interop API does not define how ownership of backend objects is handled when they are passed to or returned from one of the interop API functions. This is not an issue for the OpenCL backend, as all objects it uses are reference counted. Other backends that do not use reference counting need to either transfer or keep the ownership of the backend objects. The backend interop API as defined in the SYCL specification does not support specifying what to do with ownership, only one of these options can be supported by a backend.
 
-Level zero backend works around this issue for functions creating SYCL objects from Level 0 objecty by defining that these functions accept a struct containing both the backend object and a flag whether to keep or transfer ownership. Creating structs just because a fucntion is defined to take just one argument is a bit awkward. Also this workaround is not possible for functions returning backend objects from SYCL objects.
+The level zero backend works around this issue for functions creating SYCL objects from Level 0 objects by defining that these functions accept a struct containing both the backend object and a flag whether to keep or transfer ownership. Creating structs just because a function is defined to take just one argument is a bit awkward. Also this workaround is not possible for functions returning backend objects from SYCL objects.
 
 This specification defines an alternative interop API that allows specifying what to do with ownership.
 
@@ -89,11 +89,11 @@ For each SYCL type that supports backend interoperability (if functions `get_nat
 
 `ownership::keep`: means that no ownership is transfered. 
 If `make_{SYCL type}` is passed this value, the user is responsible for keeping the backend type passed to this call alive while the SYCL object is in use and any cleanup of the passed backend type after it is no longer in use.
-If `get_native` is passed this value, SYCL runtime will keep the passed backend object alive while the returned SYCL object is alive and clean it up when the SYCL object is destroyed. The backend object can be used after this call if the returned SYCL object is still alive.
+If `get_native` is passed this value, the SYCL runtime will keep the returned backend object alive while the SYCL object is alive and clean it up when the SYCL object is destroyed. The backend object can be used after this call if the SYCL object is still alive.
 
 `ownership::transfer`: means that the ownership is transferred.
-If `make_{SYCL type}` is passed this value, SYCL runtime will keep the passed backend object alive while the returned SYCL object is alive and clean it up when the SYCL object is destroyed. The backend object can be used after this call if the returned SYCL object is still alive.
-If `get_native` is passed this value, the user is responsible for keeping the backend type passed to this call alive while the SYCL object is in use and any cleanup of the passed backend type after it is no longer in use.
+If `make_{SYCL type}` is passed this value, the SYCL runtime will keep the passed backend object alive while the returned SYCL object is alive and clean it up when the SYCL object is destroyed. The backend object can be used after this call if the returned SYCL object is still alive.
+If `get_native` is passed this value, the user is responsible for keeping the backend object returned by this call alive while the SYCL object is in use and for any cleanup of the returned backend object after it is no longer in use.
 
 
 === Sample header
