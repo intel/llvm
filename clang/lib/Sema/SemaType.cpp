@@ -271,6 +271,12 @@ namespace {
       return T;
     }
 
+    /// Get a BTFTagAttributed type for the btf_type_tag attribute.
+    QualType getBTFTagAttributedType(const BTFTypeTagAttr *BTFAttr,
+                                     QualType WrappedType) {
+      return sema.Context.getBTFTagAttributedType(BTFAttr, WrappedType);
+    }
+
     /// Completely replace the \c auto in \p TypeWithAuto by
     /// \p Replacement. Also replace \p TypeWithAuto in \c TypeAttrPair if
     /// necessary.
@@ -2655,9 +2661,12 @@ QualType Sema::BuildExtVectorType(QualType T, Expr *ArraySize,
   // reserved data type under OpenCL v2.0 s6.1.4), we don't support selects
   // on bitvectors, and we have no well-defined ABI for bitvectors, so vectors
   // of bool aren't allowed.
+  //
+  // We explictly allow bool elements in ext_vector_type for C/C++.
+  bool IsNoBoolVecLang = getLangOpts().OpenCL || getLangOpts().OpenCLCPlusPlus;
   if ((!T->isDependentType() && !T->isIntegerType() &&
        !T->isRealFloatingType()) ||
-      T->isBooleanType()) {
+      (IsNoBoolVecLang && T->isBooleanType())) {
     Diag(AttrLoc, diag::err_attribute_invalid_vector_type) << T;
     return QualType();
   }
@@ -3520,6 +3529,9 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
     case DeclaratorContext::FunctionalCast:
       if (isa<DeducedTemplateSpecializationType>(Deduced))
         break;
+      if (SemaRef.getLangOpts().CPlusPlus2b && IsCXXAutoType &&
+          !Auto->isDecltypeAuto())
+        break; // auto(x)
       LLVM_FALLTHROUGH;
     case DeclaratorContext::TypeName:
       Error = 15; // Generic
@@ -5934,6 +5946,9 @@ namespace {
       Visit(TL.getModifiedLoc());
       fillAttributedTypeLoc(TL, State);
     }
+    void VisitBTFTagAttributedTypeLoc(BTFTagAttributedTypeLoc TL) {
+      Visit(TL.getWrappedLoc());
+    }
     void VisitMacroQualifiedTypeLoc(MacroQualifiedTypeLoc TL) {
       Visit(TL.getInnerLoc());
       TL.setExpansionLoc(
@@ -6159,6 +6174,9 @@ namespace {
 
     void VisitAttributedTypeLoc(AttributedTypeLoc TL) {
       fillAttributedTypeLoc(TL, State);
+    }
+    void VisitBTFTagAttributedTypeLoc(BTFTagAttributedTypeLoc TL) {
+      // nothing
     }
     void VisitAdjustedTypeLoc(AdjustedTypeLoc TL) {
       // nothing
@@ -6575,8 +6593,8 @@ static void HandleBTFTypeTagAttribute(QualType &Type, const ParsedAttr &Attr,
 
   ASTContext &Ctx = S.Context;
   StringRef BTFTypeTag = StrLiteral->getString();
-  Type = State.getAttributedType(
-      ::new (Ctx) BTFTypeTagAttr(Ctx, Attr, BTFTypeTag), Type, Type);
+  Type = State.getBTFTagAttributedType(
+      ::new (Ctx) BTFTypeTagAttr(Ctx, Attr, BTFTypeTag), Type);
 }
 
 /// HandleAddressSpaceTypeAttribute - Process an address_space attribute on the

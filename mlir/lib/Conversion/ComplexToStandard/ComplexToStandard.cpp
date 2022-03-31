@@ -15,7 +15,6 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -645,22 +644,19 @@ struct ConvertComplexToStandardPass
 };
 
 void ConvertComplexToStandardPass::runOnOperation() {
-  auto function = getOperation();
-
   // Convert to the Standard dialect using the converter defined above.
   RewritePatternSet patterns(&getContext());
   populateComplexToStandardConversionPatterns(patterns);
 
   ConversionTarget target(getContext());
-  target.addLegalDialect<arith::ArithmeticDialect, StandardOpsDialect,
-                         math::MathDialect>();
+  target.addLegalDialect<arith::ArithmeticDialect, math::MathDialect>();
   target.addLegalOp<complex::CreateOp, complex::ImOp, complex::ReOp>();
-  if (failed(applyPartialConversion(function, target, std::move(patterns))))
+  if (failed(
+          applyPartialConversion(getOperation(), target, std::move(patterns))))
     signalPassFailure();
 }
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
-mlir::createConvertComplexToStandardPass() {
+std::unique_ptr<Pass> mlir::createConvertComplexToStandardPass() {
   return std::make_unique<ConvertComplexToStandardPass>();
 }

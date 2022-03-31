@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/Presburger/IntegerPolyhedron.h"
 #include "./Utils.h"
+#include "mlir/Analysis/Presburger/IntegerRelation.h"
 #include "mlir/Analysis/Presburger/Simplex.h"
 #include "mlir/IR/MLIRContext.h"
 
@@ -16,8 +16,9 @@
 
 #include <numeric>
 
-namespace mlir {
-using namespace presburger_utils;
+using namespace mlir;
+using namespace presburger;
+
 using testing::ElementsAre;
 
 enum class TestFunction { Sample, Empty };
@@ -80,10 +81,12 @@ static void checkSample(bool hasSample, const IntegerPolyhedron &poly,
       EXPECT_TRUE(poly.containsPoint(*maybeSample));
 
       ASSERT_FALSE(maybeLexMin.isEmpty());
-      if (maybeLexMin.isUnbounded())
+      if (maybeLexMin.isUnbounded()) {
         EXPECT_TRUE(Simplex(poly).isUnbounded());
-      if (maybeLexMin.isBounded())
+      }
+      if (maybeLexMin.isBounded()) {
         EXPECT_TRUE(poly.containsPoint(*maybeLexMin));
+      }
     }
     break;
   case TestFunction::Empty:
@@ -179,17 +182,17 @@ TEST(IntegerPolyhedronTest, removeIdRange) {
   IntegerPolyhedron set(3, 2, 1);
 
   set.addInequality({10, 11, 12, 20, 21, 30, 40});
-  set.removeId(IntegerPolyhedron::IdKind::Symbol, 1);
+  set.removeId(IdKind::Symbol, 1);
   EXPECT_THAT(set.getInequality(0),
               testing::ElementsAre(10, 11, 12, 20, 30, 40));
 
-  set.removeIdRange(IntegerPolyhedron::IdKind::SetDim, 0, 2);
+  set.removeIdRange(IdKind::SetDim, 0, 2);
   EXPECT_THAT(set.getInequality(0), testing::ElementsAre(12, 20, 30, 40));
 
-  set.removeIdRange(IntegerPolyhedron::IdKind::Local, 1, 1);
+  set.removeIdRange(IdKind::Local, 1, 1);
   EXPECT_THAT(set.getInequality(0), testing::ElementsAre(12, 20, 30, 40));
 
-  set.removeIdRange(IntegerPolyhedron::IdKind::Local, 0, 1);
+  set.removeIdRange(IdKind::Local, 0, 1);
   EXPECT_THAT(set.getInequality(0), testing::ElementsAre(12, 20, 40));
 }
 
@@ -829,7 +832,7 @@ TEST(IntegerPolyhedronTest, mergeDivisionsSimple) {
     IntegerPolyhedron poly2(1);
     poly2.addLocalFloorDiv({1, 0}, 2); // y = [x / 2].
     poly2.addEquality({1, -5, 0});     // x = 5y.
-    poly2.appendLocalId();             // Add local id z.
+    poly2.appendId(IdKind::Local);     // Add local id z.
 
     poly1.mergeLocalIds(poly2);
 
@@ -877,7 +880,7 @@ TEST(IntegerPolyhedronTest, mergeDivisionsSimple) {
     IntegerPolyhedron poly2(1);
     poly2.addLocalFloorDiv({1, 0}, 2); // y = [x / 2].
     poly2.addEquality({1, -5, 0});     // x = 5y.
-    poly2.appendLocalId();             // Add local id z.
+    poly2.appendId(IdKind::Local);     // Add local id z.
 
     poly1.mergeLocalIds(poly2);
 
@@ -1185,5 +1188,3 @@ TEST(IntegerPolyhedronTest, computeVolume) {
       parsePoly("(x, y) : (2*x - y >= 0, y - 3*x >= 0)"),
       /*trueVolume=*/{}, /*resultBound=*/{});
 }
-
-} // namespace mlir

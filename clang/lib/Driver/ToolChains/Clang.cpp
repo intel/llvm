@@ -462,7 +462,7 @@ static bool addExceptionArgs(const ArgList &Args, types::ID InputType,
   if (types::isCXX(InputType)) {
     // Disable C++ EH by default on XCore and PS4.
     bool CXXExceptionsEnabled =
-        Triple.getArch() != llvm::Triple::xcore && !Triple.isPS4CPU();
+        Triple.getArch() != llvm::Triple::xcore && !Triple.isPS4();
     Arg *ExceptionArg = Args.getLastArg(
         options::OPT_fcxx_exceptions, options::OPT_fno_cxx_exceptions,
         options::OPT_fexceptions, options::OPT_fno_exceptions);
@@ -623,10 +623,10 @@ getFramePointerKind(const ArgList &Args, const llvm::Triple &Triple) {
   bool OmitFP = A && A->getOption().matches(options::OPT_fomit_frame_pointer);
   bool NoOmitFP =
       A && A->getOption().matches(options::OPT_fno_omit_frame_pointer);
-  bool OmitLeafFP = Args.hasFlag(options::OPT_momit_leaf_frame_pointer,
-                                 options::OPT_mno_omit_leaf_frame_pointer,
-                                 Triple.isAArch64() || Triple.isPS4CPU() ||
-                                 Triple.isVE());
+  bool OmitLeafFP =
+      Args.hasFlag(options::OPT_momit_leaf_frame_pointer,
+                   options::OPT_mno_omit_leaf_frame_pointer,
+                   Triple.isAArch64() || Triple.isPS4() || Triple.isVE());
   if (NoOmitFP || mustUseNonLeafFramePointerForTarget(Triple) ||
       (!OmitFP && useFramePointerForTargetByDefault(Args, Triple))) {
     if (OmitLeafFP)
@@ -2399,7 +2399,7 @@ void Clang::AddX86TargetArgs(const ArgList &Args,
   // Default to "generic" unless -march is present or targetting the PS4.
   std::string TuneCPU;
   if (!Args.hasArg(clang::driver::options::OPT_march_EQ) &&
-      !getToolChain().getTriple().isPS4CPU())
+      !getToolChain().getTriple().isPS4())
     TuneCPU = "generic";
 
   // Override based on -mtune.
@@ -3268,7 +3268,7 @@ static void RenderAnalyzerOptions(const ArgList &Args, ArgStringList &CmdArgs,
     }
 
     // Disable some unix checkers for PS4.
-    if (Triple.isPS4CPU()) {
+    if (Triple.isPS4()) {
       CmdArgs.push_back("-analyzer-disable-checker=unix.API");
       CmdArgs.push_back("-analyzer-disable-checker=unix.Vfork");
     }
@@ -3286,7 +3286,7 @@ static void RenderAnalyzerOptions(const ArgList &Args, ArgStringList &CmdArgs,
     if (types::isCXX(Input.getType()))
       CmdArgs.push_back("-analyzer-checker=cplusplus");
 
-    if (!Triple.isPS4CPU()) {
+    if (!Triple.isPS4()) {
       CmdArgs.push_back("-analyzer-checker=security.insecureAPI.UncheckedReturn");
       CmdArgs.push_back("-analyzer-checker=security.insecureAPI.getpw");
       CmdArgs.push_back("-analyzer-checker=security.insecureAPI.gets");
@@ -5866,6 +5866,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                      types::isLLVMIR(InputType), CmdArgs, DebugInfoKind,
                      DwarfFission);
 
+  // This controls whether or not we perform JustMyCode instrumentation.
+  if (Args.hasFlag(options::OPT_fjmc, options::OPT_fno_jmc, false)) {
+    if (TC.getTriple().isOSBinFormatELF()) {
+      if (DebugInfoKind >= codegenoptions::DebugInfoConstructor)
+        CmdArgs.push_back("-fjmc");
+      else
+        D.Diag(clang::diag::warn_drv_jmc_requires_debuginfo) << "-fjmc"
+                                                             << "-g";
+    } else {
+      D.Diag(clang::diag::warn_drv_fjmc_for_elf_only);
+    }
+  }
+
   // Add the split debug info name to the command lines here so we
   // can propagate it to the backend.
   bool SplitDWARF = (DwarfFission != DwarfFissionKind::None) &&
@@ -6019,7 +6032,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fclang_abi_compat_EQ);
 
   // Add runtime flag for PS4 when PGO, coverage, or sanitizers are enabled.
-  if (RawTriple.isPS4CPU() &&
+  if (RawTriple.isPS4() &&
       !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
     PS4cpu::addProfileRTArgs(TC, Args, CmdArgs);
     PS4cpu::addSanitizerArgs(TC, Args, CmdArgs);
@@ -6256,6 +6269,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_fconstexpr_steps_EQ)) {
     CmdArgs.push_back("-fconstexpr-steps");
     CmdArgs.push_back(A->getValue());
+  }
+
+  if (Args.hasArg(options::OPT_funstable)) {
+    CmdArgs.push_back("-funstable");
+    if (!Args.hasArg(options::OPT_fno_coroutines_ts))
+      CmdArgs.push_back("-fcoroutines-ts");
+    CmdArgs.push_back("-fmodules-ts");
   }
 
   if (Args.hasArg(options::OPT_fexperimental_new_constant_interpreter))
@@ -7455,7 +7475,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       StringRef InputName = Clang::getBaseInputStem(Args, Inputs);
 
       CmdArgs.push_back(Args.MakeArgString(
-          "-fembed-offload-object=" + File + "," + TC->getTripleString() + "." +
+          "-fembed-offload-object=" + File + "," +
+          Action::GetOffloadKindName(Action::OFK_OpenMP) + "." +
+          TC->getTripleString() + "." +
           TCArgs.getLastArgValue(options::OPT_march_EQ) + "." + InputName));
     }
   }
@@ -8069,7 +8091,8 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     if (*EmitCodeView && *DebugInfoKind >= codegenoptions::DebugInfoConstructor)
       CmdArgs.push_back("-fjmc");
     else
-      D.Diag(clang::diag::warn_drv_jmc_requires_debuginfo);
+      D.Diag(clang::diag::warn_drv_jmc_requires_debuginfo) << "/JMC"
+                                                           << "'/Zi', '/Z7'";
   }
 
   EHFlags EH = parseClangCLEHFlags(D, Args);
@@ -9165,7 +9188,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
       ExtArg += ",+SPV_INTEL_token_type"
                 ",+SPV_INTEL_bfloat16_conversion"
                 ",+SPV_INTEL_joint_matrix"
-                ",+SPV_INTEL_hw_thread_queries";
+                ",+SPV_INTEL_hw_thread_queries"
+                ",+SPV_KHR_uniform_group_instructions";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
@@ -9580,9 +9604,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         RocmTC.getCommonDeviceLibNames(TCArgs, Arch.str(), Action::OFK_OpenMP);
 
     for (StringRef LibName : BCLibs)
-      CmdArgs.push_back(
-          Args.MakeArgString("-target-library=" + TC->getTripleString() + "-" +
-                             Arch + "=" + LibName));
+      CmdArgs.push_back(Args.MakeArgString(
+          "-target-library=" + Action::GetOffloadKindName(Action::OFK_OpenMP) +
+          "-" + TC->getTripleString() + "-" + Arch + "=" + LibName));
   }
 
   if (D.isUsingLTO(/* IsOffload */ true)) {
@@ -9616,9 +9640,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                          TC->getTriple());
 
       if (!BitcodeLibrary.empty())
-        CmdArgs.push_back(
-            Args.MakeArgString("-target-library=" + TC->getTripleString() +
-                               "-" + Arch + "=" + BitcodeLibrary.back()));
+        CmdArgs.push_back(Args.MakeArgString(
+            "-target-library=" +
+            Action::GetOffloadKindName(Action::OFK_OpenMP) + "-" +
+            TC->getTripleString() + "-" + Arch + "=" + BitcodeLibrary.back()));
     }
 
     // Pass in the optimization level to use for LTO.

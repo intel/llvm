@@ -84,6 +84,10 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/ScopedPrinter.h"
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+
 using namespace lldb;
 using namespace lldb_private;
 
@@ -434,7 +438,7 @@ void CommandInterpreter::Initialize() {
   if (cmd_obj_sp) {
     alias_arguments_vector_sp = std::make_shared<OptionArgVector>();
 #if defined(__APPLE__)
-#if defined(TARGET_OS_IPHONE)
+#if TARGET_OS_IPHONE
     AddAlias("r", cmd_obj_sp, "--");
     AddAlias("run", cmd_obj_sp, "--");
 #else
@@ -2971,8 +2975,12 @@ bool CommandInterpreter::WasInterrupted() const {
   return was_interrupted;
 }
 
-void CommandInterpreter::PrintCommandOutput(Stream &stream,
-                                            llvm::StringRef str) {
+void CommandInterpreter::PrintCommandOutput(IOHandler &io_handler,
+                                            llvm::StringRef str,
+                                            bool is_stdout) {
+
+  lldb::StreamFileSP stream = is_stdout ? io_handler.GetOutputStreamFileSP()
+                                        : io_handler.GetErrorStreamFileSP();
   // Split the output into lines and poll for interrupt requests
   const char *data = str.data();
   size_t size = str.size();
@@ -2985,14 +2993,19 @@ void CommandInterpreter::PrintCommandOutput(Stream &stream,
         break;
       }
     }
-    chunk_size = stream.Write(data, chunk_size);
+    {
+      std::lock_guard<std::recursive_mutex> guard(io_handler.GetOutputMutex());
+      chunk_size = stream->Write(data, chunk_size);
+    }
     lldbassert(size >= chunk_size);
     data += chunk_size;
     size -= chunk_size;
   }
-  if (size > 0) {
-    stream.Printf("\n... Interrupted.\n");
-  }
+
+  std::lock_guard<std::recursive_mutex> guard(io_handler.GetOutputMutex());
+  if (size > 0)
+    stream->Printf("\n... Interrupted.\n");
+  stream->Flush();
 }
 
 bool CommandInterpreter::EchoCommandNonInteractive(
@@ -3028,9 +3041,11 @@ void CommandInterpreter::IOHandlerInputComplete(IOHandler &io_handler,
     // When using a non-interactive file handle (like when sourcing commands
     // from a file) we need to echo the command out so we don't just see the
     // command output and no command...
-    if (EchoCommandNonInteractive(line, io_handler.GetFlags()))
+    if (EchoCommandNonInteractive(line, io_handler.GetFlags())) {
+      std::lock_guard<std::recursive_mutex> guard(io_handler.GetOutputMutex());
       io_handler.GetOutputStreamFileSP()->Printf(
           "%s%s\n", io_handler.GetPrompt(), line.c_str());
+    }
   }
 
   StartHandlingCommand();
@@ -3052,13 +3067,13 @@ void CommandInterpreter::IOHandlerInputComplete(IOHandler &io_handler,
 
     if (!result.GetImmediateOutputStream()) {
       llvm::StringRef output = result.GetOutputData();
-      PrintCommandOutput(*io_handler.GetOutputStreamFileSP(), output);
+      PrintCommandOutput(io_handler, output, true);
     }
 
     // Now emit the command error text from the command we just executed
     if (!result.GetImmediateErrorStream()) {
       llvm::StringRef error = result.GetErrorData();
-      PrintCommandOutput(*io_handler.GetErrorStreamFileSP(), error);
+      PrintCommandOutput(io_handler, error, false);
     }
   }
 

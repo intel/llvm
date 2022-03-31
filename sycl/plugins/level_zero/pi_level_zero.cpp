@@ -192,7 +192,7 @@ static void zePrint(const char *Format, ...) {
 
 // Controls whether device-scope events are used, and how.
 static const enum EventsScope {
-  // All events are created host-visible (the default mode)
+  // All events are created host-visible.
   AllHostVisible,
   // All events are created with device-scope and only when
   // host waits them or queries their status that a proxy
@@ -202,19 +202,22 @@ static const enum EventsScope {
   // All events are created with device-scope and only
   // when a batch of commands is submitted for execution a
   // last command in that batch is added to signal host-visible
-  // completion of each command in this batch.
+  // completion of each command in this batch (the default mode).
   LastCommandInBatchHostVisible
 } EventsScope = [] {
   const auto DeviceEventsStr =
       std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
 
-  switch (DeviceEventsStr ? std::atoi(DeviceEventsStr) : 0) {
+  auto Default = LastCommandInBatchHostVisible;
+  switch (DeviceEventsStr ? std::atoi(DeviceEventsStr) : Default) {
+  case 0:
+    return AllHostVisible;
   case 1:
     return OnDemandHostVisibleProxy;
   case 2:
     return LastCommandInBatchHostVisible;
   }
-  return AllHostVisible;
+  return Default;
 }();
 
 // Maximum number of events that can be present in an event ZePool is captured
@@ -851,6 +854,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   // synchronized above already does that.
   auto &EventList = CommandList->second.EventList;
   for (auto &Event : EventList) {
+    Event->Completed = true;
     // All events in this loop are in the same command list which has been just
     // reset above. We don't want cleanup() to reset same command list again for
     // all events in the loop so set it to nullptr.
@@ -1368,15 +1372,17 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // Update each command's event in the command-list to "see" this
     // proxy event as a host-visible counterpart.
     for (auto &Event : CommandList->second.EventList) {
-      Event->HostVisibleEvent = HostVisibleEvent;
-      PI_CALL(piEventRetain(HostVisibleEvent));
+      if (!Event->HostVisibleEvent) {
+        Event->HostVisibleEvent = HostVisibleEvent;
+        PI_CALL(piEventRetain(HostVisibleEvent));
+      }
     }
 
     // Decrement the reference count of the event such that all the remaining
-    // references are from the other commands in this batch. This host-visible
-    // event will not be waited/release by SYCL RT, so it must be destroyed
-    // after all events in the batch are gone.
-    PI_CALL(piEventRelease(HostVisibleEvent));
+    // references are from the other commands in this batch and from the
+    // command-list itself. This host-visible event will not be waited/released
+    // by SYCL RT, so it must be destroyed after all events in the batch are
+    // gone.
     PI_CALL(piEventRelease(HostVisibleEvent));
     PI_CALL(piEventRelease(HostVisibleEvent));
 
@@ -1460,6 +1466,11 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
   ZeCommandQueueDesc.index = ZeCommandQueueIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
 
+  // Evaluate performance of explicit usage for "0" index.
+  if (ZeCommandQueueIndex != 0) {
+    ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
+  }
+
   zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
           "(round robin in [%d, %d])\n",
           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
@@ -1531,7 +1542,8 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     if (EventListLength > 0) {
       for (pi_uint32 I = 0; I < EventListLength; I++) {
         PI_ASSERT(EventList[I] != nullptr, PI_INVALID_VALUE);
-        auto ZeEvent = EventList[I]->ZeEvent;
+        if (EventList[I]->Completed)
+          continue;
 
         // Poll of the host-visible events.
         auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
@@ -1558,9 +1570,29 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
 
           if (auto Res = Queue->executeAllOpenCommandLists())
             return Res;
+        } else if (!Queue) {
+          // There is a dependency on an interop-event.
+          // Similarily to the above to avoid dead locks ensure that
+          // execution of all prior commands in the current command-
+          // batch is visible to the host. This may not be the case
+          // when we intended to have only last command in the batch
+          // produce host-visible event, e.g.
+          //
+          //  event0 = interop event
+          //  event1 = command1 (already in batch, no deps)
+          //  event2 = command2 (is being added, dep on event0)
+          //  event3 = signal host-visible event for the batch
+          //  event1.wait()
+          //  event0.signal()
+          //
+          // Make sure that event1.wait() will wait for a host-visible
+          // event that is signalled before the command2 is enqueued.
+          if (EventsScope != AllHostVisible) {
+            CurQueue->executeAllOpenCommandLists();
+          }
         }
 
-        this->ZeEventList[TmpListLength] = ZeEvent;
+        this->ZeEventList[TmpListLength] = EventList[I]->ZeEvent;
         this->PiEventList[TmpListLength] = EventList[I];
         TmpListLength += 1;
       }
@@ -2015,7 +2047,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return Res;
   }
 
-  // Filter available devices based on input DeviceType
+  // Filter available devices based on input DeviceType.
   std::vector<pi_device> MatchedDevices;
   for (auto &D : Platform->PiDevicesCache) {
     // Only ever return root-devices from piDevicesGet, but the
@@ -2241,6 +2273,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // std::array<std::byte, 16>. For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
     return ReturnValue(Device->ZeDeviceProperties->uuid.id);
+  case PI_DEVICE_INFO_ATOMIC_64:
+    return ReturnValue(pi_bool{Device->ZeDeviceModuleProperties->flags &
+                               ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS});
   case PI_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
     //     "Returns a space separated list of extension names (the extension
@@ -5044,25 +5079,26 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
       Event->Queue->executeOpenCommandListWithEvent(Event);
     }
 
+    // TODO: We don't know if the status is queued, submitted or running.
+    //       For now return "running", as others are unlikely to be of
+    //       interest.
+    pi_int32 Result = CL_RUNNING;
+
     // Make sure that we query a host-visible event only.
     // If one wasn't yet created then don't create it here as well, and
     // just conservatively return that event is not yet completed.
     auto HostVisibleEvent = Event->HostVisibleEvent;
-    if (HostVisibleEvent) {
+    if (Event->Completed) {
+      Result = CL_COMPLETE;
+    } else if (HostVisibleEvent) {
       ze_result_t ZeResult;
       ZeResult =
           ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
       if (ZeResult == ZE_RESULT_SUCCESS) {
-        return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet,
-                       pi_int32{CL_COMPLETE}); // Untie from OpenCL
+        Result = CL_COMPLETE;
       }
     }
-
-    // TODO: We don't know if the status is queued, submitted or running.
-    //       For now return "running", as others are unlikely to be of
-    //       interest.
-    return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet,
-                   pi_int32{CL_RUNNING});
+    return ReturnValue(pi_cast<pi_int32>(Result));
   }
   case PI_EVENT_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Event->RefCount});
@@ -5287,14 +5323,15 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     }
   }
   for (uint32_t I = 0; I < NumEvents; I++) {
-    auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
-    if (!HostVisibleEvent)
-      die("The host-visible proxy event missing");
+    if (!EventList[I]->Completed) {
+      auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
+      if (!HostVisibleEvent)
+        die("The host-visible proxy event missing");
 
-    ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
-    zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
-    ZE_CALL(zeHostSynchronize, (ZeEvent));
-
+      ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
+      zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
+      ZE_CALL(zeHostSynchronize, (ZeEvent));
+    }
     // NOTE: we are cleaning up after the event here to free resources
     // sooner in case run-time is not calling piEventRelease soon enough.
     EventList[I]->cleanup();
@@ -5645,6 +5682,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   Queue->LastCommandEvent = *Event;
 
   ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+  (*Event)->Completed = true;
   return PI_SUCCESS;
 }
 
@@ -5654,22 +5692,6 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                          pi_event *Event) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
-
-  // Submit dependent open command lists for execution, if any
-  // Only do it for queues other than the current, since the barrier
-  // will go into current queue submission together with the waited event.
-  for (uint32_t I = 0; I < NumEventsInWaitList; I++) {
-    auto EventQueue = EventWaitList[I]->Queue;
-    if (EventQueue && EventQueue != Queue) {
-      // Lock automatically releases when this goes out of scope.
-      std::scoped_lock lock(Queue->Mutex);
-
-      if (EventQueue->RefCount > 0) {
-        if (auto Res = EventQueue->executeAllOpenCommandLists())
-          return Res;
-      }
-    }
-  }
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock lock(Queue->Mutex);
@@ -6185,9 +6207,6 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
     }
 
-    // Signal this event
-    ZE_CALL(zeEventHostSignal, (ZeEvent));
-
     auto Res = Buffer->Mappings.insert({*RetMap, {Offset, Size}});
     // False as the second value in pair means that mapping was not inserted
     // because mapping already exists.
@@ -6195,6 +6214,10 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
       zePrint("piEnqueueMemBufferMap: duplicate mapping detected\n");
       return PI_INVALID_VALUE;
     }
+
+    // Signal this event
+    ZE_CALL(zeEventHostSignal, (ZeEvent));
+    (*Event)->Completed = true;
     return PI_SUCCESS;
   }
 
@@ -6324,7 +6347,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
-
+    (*Event)->Completed = true;
     return PI_SUCCESS;
   }
 
@@ -6814,7 +6837,8 @@ static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
   // Check that incorrect bits are not set in the properties.
-  PI_ASSERT(!Properties || (Properties && !(*Properties & ~PI_MEM_ALLOC_FLAGS)),
+  PI_ASSERT(!Properties ||
+                (*Properties == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0),
             PI_INVALID_VALUE);
 
   // TODO: translate PI properties to Level Zero flags
@@ -6843,12 +6867,9 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
                                     pi_device Device,
                                     pi_usm_mem_properties *Properties,
                                     size_t Size, pi_uint32 Alignment) {
+  (void)Properties;
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_INVALID_DEVICE);
-
-  // Check that incorrect bits are not set in the properties.
-  PI_ASSERT(!Properties || (Properties && !(*Properties & ~PI_MEM_ALLOC_FLAGS)),
-            PI_INVALID_VALUE);
 
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
@@ -6880,7 +6901,8 @@ static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
   // Check that incorrect bits are not set in the properties.
-  PI_ASSERT(!Properties || (Properties && !(*Properties & ~PI_MEM_ALLOC_FLAGS)),
+  PI_ASSERT(!Properties ||
+                (*Properties == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0),
             PI_INVALID_VALUE);
 
   // TODO: translate PI properties to Level Zero flags
@@ -6912,6 +6934,13 @@ public:
 
 pi_result USMSharedMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
                                              pi_uint32 Alignment) {
+  return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, Size,
+                            Alignment);
+}
+
+pi_result USMSharedReadOnlyMemoryAlloc::allocateImpl(void **ResultPtr,
+                                                     size_t Size,
+                                                     pi_uint32 Alignment) {
   return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, Size,
                             Alignment);
 }
@@ -7038,6 +7067,15 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
                               pi_device Device,
                               pi_usm_mem_properties *Properties, size_t Size,
                               pi_uint32 Alignment) {
+  // See if the memory is going to be read-only on the device.
+  bool DeviceReadOnly = false;
+  // Check that incorrect bits are not set in the properties.
+  if (Properties) {
+    PI_ASSERT(*(Properties) == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0,
+              PI_INVALID_VALUE);
+    DeviceReadOnly = *(Properties + 1) & PI_MEM_ALLOC_DEVICE_READ_ONLY;
+  }
+
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   if (Alignment > 65536)
@@ -7075,11 +7113,16 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   }
 
   try {
-    auto It = Context->SharedMemAllocContexts.find(Device);
-    if (It == Context->SharedMemAllocContexts.end())
+    auto &Allocator = (DeviceReadOnly ? Context->SharedReadOnlyMemAllocContexts
+                                      : Context->SharedMemAllocContexts);
+    auto It = Allocator.find(Device);
+    if (It == Allocator.end())
       return PI_INVALID_VALUE;
 
     *ResultPtr = It->second.allocate(Size, Alignment);
+    if (DeviceReadOnly) {
+      Context->SharedReadOnlyAllocs.insert(*ResultPtr);
+    }
     if (IndirectAccessTrackingEnabled) {
       // Keep track of all memory allocations in the context
       Context->MemAllocs.emplace(std::piecewise_construct,
@@ -7208,6 +7251,9 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
     return PI_SUCCESS;
   }
 
+  // Points out an allocation in SharedReadOnlyMemAllocContexts
+  auto SharedReadOnlyAllocsIterator = Context->SharedReadOnlyAllocs.end();
+
   if (!ZeDeviceHandle) {
     // The only case where it is OK not have device identified is
     // if the memory is not known to the driver. We should not ever get
@@ -7247,7 +7293,12 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
 
     switch (ZeMemoryAllocationProperties.type) {
     case ZE_MEMORY_TYPE_SHARED:
-      return DeallocationHelper(Context->SharedMemAllocContexts);
+      // Distinguish device_read_only allocations since they have own pool.
+      SharedReadOnlyAllocsIterator = Context->SharedReadOnlyAllocs.find(Ptr);
+      return DeallocationHelper(SharedReadOnlyAllocsIterator !=
+                                        Context->SharedReadOnlyAllocs.end()
+                                    ? Context->SharedReadOnlyMemAllocContexts
+                                    : Context->SharedMemAllocContexts);
     case ZE_MEMORY_TYPE_DEVICE:
       return DeallocationHelper(Context->DeviceMemAllocContexts);
     default:
@@ -7257,7 +7308,9 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
   }
 
   pi_result Res = USMFreeImpl(Context, Ptr);
-
+  if (SharedReadOnlyAllocsIterator != Context->SharedReadOnlyAllocs.end()) {
+    Context->SharedReadOnlyAllocs.erase(SharedReadOnlyAllocsIterator);
+  }
   if (IndirectAccessTrackingEnabled)
     PI_CALL(ContextReleaseHelper(Context));
   return Res;
@@ -7438,6 +7491,10 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 
   auto ZeAdvice = pi_cast<ze_memory_advice_t>(Advice);
 
+  _pi_ze_event_list_t TmpWaitList;
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(0, nullptr, Queue))
+    return Res;
+
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
   // UseCopyEngine is set to 'false' here.
@@ -7454,10 +7511,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
-
-  if (auto Res =
-          (*Event)->WaitList.createAndRetainPiZeEventList(0, nullptr, Queue))
-    return Res;
+  (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;

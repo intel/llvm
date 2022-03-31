@@ -753,7 +753,7 @@ def Rpass_analysis_EQ : Joined<["-"], "Rpass-analysis=">, Group<R_value_Group>,
            "name matches the given POSIX regular expression">;
 def R_Joined : Joined<["-"], "R">, Group<R_Group>, Flags<[CC1Option, CoreOption]>,
   MetaVarName<"<remark>">, HelpText<"Enable the specified remark">;
-def S : Flag<["-"], "S">, Flags<[NoXarchOption,CC1Option]>, Group<Action_Group>,
+def S : Flag<["-"], "S">, Flags<[NoXarchOption,CC1Option,FlangOption,FC1Option]>, Group<Action_Group>,
   HelpText<"Only run preprocess and compilation steps">;
 def Tbss : JoinedOrSeparate<["-"], "Tbss">, Group<T_Group>,
   MetaVarName<"<addr>">, HelpText<"Set starting address of BSS to <addr>">;
@@ -1104,7 +1104,7 @@ def d_Flag : Flag<["-"], "d">, Group<d_Group>;
 def d_Joined : Joined<["-"], "d">, Group<d_Group>;
 def emit_ast : Flag<["-"], "emit-ast">,
   HelpText<"Emit Clang AST files for source inputs">;
-def emit_llvm : Flag<["-"], "emit-llvm">, Flags<[CC1Option, FC1Option]>, Group<Action_Group>,
+def emit_llvm : Flag<["-"], "emit-llvm">, Flags<[CC1Option, FC1Option, FlangOption]>, Group<Action_Group>,
   HelpText<"Use the LLVM representation for assembler and object files">;
 def emit_interface_stubs : Flag<["-"], "emit-interface-stubs">, Flags<[CC1Option]>, Group<Action_Group>,
   HelpText<"Generate Interface Stub Files.">;
@@ -1184,6 +1184,11 @@ def offload_EQ : CommaJoined<["--"], "offload=">, Flags<[NoXarchOption]>,
 defm coroutines_ts : BoolFOption<"coroutines-ts",
   LangOpts<"Coroutines">, Default<cpp20.KeyPath>,
   PosFlag<SetTrue, [CC1Option], "Enable support for the C++ Coroutines TS">,
+  NegFlag<SetFalse>>;
+
+defm unstable : BoolFOption<"unstable",
+  LangOpts<"Unstable">, DefaultFalse,
+  PosFlag<SetTrue, [CC1Option, CoreOption], "Enable unstable and experimental features">,
   NegFlag<SetFalse>>;
 
 def fembed_offload_object_EQ : Joined<["-"], "fembed-offload-object=">,
@@ -1480,9 +1485,6 @@ def fno_elide_type : Flag<["-"], "fno-elide-type">, Group<f_Group>,
     HelpText<"Do not elide types when printing diagnostics">,
     MarshallingInfoNegativeFlag<DiagnosticOpts<"ElideType">>;
 def feliminate_unused_debug_symbols : Flag<["-"], "feliminate-unused-debug-symbols">, Group<f_Group>;
-def fjmc : Flag<["-"], "fjmc">, Group<f_Group>,Flags<[CC1Option]>,
-    HelpText<"Enable just-my-code debugging">,
-    MarshallingInfoFlag<CodeGenOpts<"JMCInstrument">>;
 defm eliminate_unused_debug_types : OptOutCC1FFlag<"eliminate-unused-debug-types",
   "Do not emit ", "Emit ", " debug info for defined but unused types">;
 def femit_all_decls : Flag<["-"], "femit-all-decls">, Group<f_Group>, Flags<[CC1Option]>,
@@ -1944,6 +1946,10 @@ def finline_functions : Flag<["-"], "finline-functions">, Group<f_clang_Group>, 
 def finline_hint_functions: Flag<["-"], "finline-hint-functions">, Group<f_clang_Group>, Flags<[CC1Option]>,
   HelpText<"Inline functions which are (explicitly or implicitly) marked inline">;
 def finline : Flag<["-"], "finline">, Group<clang_ignored_f_Group>;
+defm jmc : BoolFOption<"jmc",
+  CodeGenOpts<"JMCInstrument">, DefaultFalse,
+  PosFlag<SetTrue, [CC1Option], "Enable just-my-code debugging">,
+  NegFlag<SetFalse>>;
 def fglobal_isel : Flag<["-"], "fglobal-isel">, Group<f_clang_Group>,
   HelpText<"Enables the global instruction selector">;
 def fexperimental_isel : Flag<["-"], "fexperimental-isel">, Group<f_clang_Group>,
@@ -3355,7 +3361,7 @@ def miphonesimulator_version_min_EQ : Joined<["-"], "miphonesimulator-version-mi
 def mkernel : Flag<["-"], "mkernel">, Group<m_Group>;
 def mlinker_version_EQ : Joined<["-"], "mlinker-version=">,
   Flags<[NoXarchOption]>;
-def mllvm : Separate<["-"], "mllvm">, Flags<[CC1Option,CC1AsOption,CoreOption]>,
+def mllvm : Separate<["-"], "mllvm">,Flags<[CC1Option,CC1AsOption,CoreOption,FC1Option,FlangOption]>,
   HelpText<"Additional arguments to forward to LLVM's option processing">,
   MarshallingInfoStringVector<FrontendOpts<"LLVMArgs">>;
 def ffuchsia_api_level_EQ : Joined<["-"], "ffuchsia-api-level=">,
@@ -3570,6 +3576,8 @@ def mtail_call : Flag<["-"], "mtail-call">, Group<m_wasm_Features_Group>;
 def mno_tail_call : Flag<["-"], "mno-tail-call">, Group<m_wasm_Features_Group>;
 def mreference_types : Flag<["-"], "mreference-types">, Group<m_wasm_Features_Group>;
 def mno_reference_types : Flag<["-"], "mno-reference-types">, Group<m_wasm_Features_Group>;
+def mextended_const : Flag<["-"], "mextended-const">, Group<m_wasm_Features_Group>;
+def mno_extended_const : Flag<["-"], "mno-extended-const">, Group<m_wasm_Features_Group>;
 def mexec_model_EQ : Joined<["-"], "mexec-model=">, Group<m_wasm_Features_Driver_Group>,
                      Values<"command,reactor">,
                      HelpText<"Execution model (WebAssembly only)">;
@@ -4003,9 +4011,9 @@ def print_multi_lib : Flag<["-", "--"], "print-multi-lib">;
 def print_multi_os_directory : Flag<["-", "--"], "print-multi-os-directory">,
   Flags<[Unsupported]>;
 def print_target_triple : Flag<["-", "--"], "print-target-triple">,
-  HelpText<"Print the normalized target triple">;
+  HelpText<"Print the normalized target triple">, Flags<[FlangOption]>;
 def print_effective_triple : Flag<["-", "--"], "print-effective-triple">,
-  HelpText<"Print the effective target triple">;
+  HelpText<"Print the effective target triple">, Flags<[FlangOption]>;
 def print_multiarch : Flag<["-", "--"], "print-multiarch">,
   HelpText<"Print the multiarch target triple">;
 def print_prog_name_EQ : Joined<["-", "--"], "print-prog-name=">,
@@ -4123,7 +4131,7 @@ def no_system_header_prefix : Joined<["--"], "no-system-header-prefix=">,
            "system header.">;
 def : Separate<["--"], "no-system-header-prefix">, Alias<no_system_header_prefix>;
 def s : Flag<["-"], "s">, Group<Link_Group>;
-def target : Joined<["--"], "target=">, Flags<[NoXarchOption, CoreOption]>,
+def target : Joined<["--"], "target=">, Flags<[NoXarchOption, CoreOption, FlangOption]>,
   HelpText<"Generate code for the given target">;
 def darwin_target_variant : Separate<["-"], "darwin-target-variant">,
   Flags<[NoXarchOption, CoreOption]>,
@@ -4900,6 +4908,8 @@ def fdebug_dump_parse_tree : Flag<["-"], "fdebug-dump-parse-tree">, Group<Action
   HelpText<"Dump the parse tree">,
   DocBrief<[{Run the Parser and the semantic checks, and then output the
 parse tree.}]>;
+def fdebug_dump_pft : Flag<["-"], "fdebug-dump-pft">, Group<Action_Group>,
+  HelpText<"Dump the pre-fir parse tree">;
 def fdebug_dump_parse_tree_no_sema : Flag<["-"], "fdebug-dump-parse-tree-no-sema">, Group<Action_Group>,
   HelpText<"Dump the parse tree (skips the semantic checks)">,
   DocBrief<[{Run the Parser and then output the parse tree. Semantic
@@ -4938,7 +4948,7 @@ def emit_fir : Flag<["-"], "emit-fir">, Alias<emit_mlir>;
 let Flags = [CC1Option, NoDriverOption] in {
 
 //===----------------------------------------------------------------------===//
-// Target Options
+// Target Options (cc1 + cc1as)
 //===----------------------------------------------------------------------===//
 
 let Flags = [CC1Option, CC1AsOption, NoDriverOption] in {
@@ -4952,10 +4962,6 @@ def tune_cpu : Separate<["-"], "tune-cpu">,
 def target_feature : Separate<["-"], "target-feature">,
   HelpText<"Target specific attributes">,
   MarshallingInfoStringVector<TargetOpts<"FeaturesAsWritten">>;
-def triple : Separate<["-"], "triple">,
-  HelpText<"Specify target triple (e.g. i686-apple-darwin9)">,
-  MarshallingInfoString<TargetOpts<"Triple">, "llvm::Triple::normalize(llvm::sys::getDefaultTargetTriple())">,
-  AlwaysEmit, Normalizer<"normalizeTriple">;
 def target_abi : Separate<["-"], "target-abi">,
   HelpText<"Target a particular ABI type">,
   MarshallingInfoString<TargetOpts<"ABI">>;
@@ -4969,7 +4975,23 @@ def darwin_target_variant_sdk_version_EQ : Joined<["-"],
   "darwin-target-variant-sdk-version=">,
   HelpText<"The version of darwin target variant SDK used for compilation">;
 
-}
+} // let Flags = [CC1Option, CC1AsOption, NoDriverOption]
+
+//===----------------------------------------------------------------------===//
+// Target Options (cc1 + cc1as + fc1)
+//===----------------------------------------------------------------------===//
+let Flags = [CC1Option, CC1AsOption, FC1Option, NoDriverOption] in {
+
+def triple : Separate<["-"], "triple">,
+  HelpText<"Specify target triple (e.g. i686-apple-darwin9)">,
+  MarshallingInfoString<TargetOpts<"Triple">, "llvm::Triple::normalize(llvm::sys::getDefaultTargetTriple())">,
+  AlwaysEmit, Normalizer<"normalizeTriple">;
+
+} // let Flags = [CC1Option, CC1ASOption, FC1Option, NoDriverOption]
+
+//===----------------------------------------------------------------------===//
+// Target Options (other)
+//===----------------------------------------------------------------------===//
 
 def target_linker_version : Separate<["-"], "target-linker-version">,
   HelpText<"Target linker version">,

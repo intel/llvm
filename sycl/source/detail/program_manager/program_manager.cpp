@@ -417,9 +417,7 @@ static void applyOptionsFromImage(std::string &CompileOpts,
   appendLinkOptionsFromImage(LinkOpts, Img);
 }
 
-static void applyOptionsFromEnvironment(std::string &CompileOpts,
-                                        std::string &LinkOpts) {
-  // Build options are overridden if environment variables are present.
+static void applyCompileOptionsFromEnvironment(std::string &CompileOpts) {
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
   static const char *CompileOptsEnv =
@@ -427,10 +425,22 @@ static void applyOptionsFromEnvironment(std::string &CompileOpts,
   if (CompileOptsEnv) {
     CompileOpts = CompileOptsEnv;
   }
+}
+
+static void applyLinkOptionsFromEnvironment(std::string &LinkOpts) {
+  // Environment variables are not changed during program lifecycle so it
+  // is reasonable to use static here to read them only once.
   static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
   if (LinkOptsEnv) {
     LinkOpts = LinkOptsEnv;
   }
+}
+
+static void applyOptionsFromEnvironment(std::string &CompileOpts,
+                                        std::string &LinkOpts) {
+  // Build options are overridden if environment variables are present.
+  applyCompileOptionsFromEnvironment(CompileOpts);
+  applyLinkOptionsFromEnvironment(LinkOpts);
 }
 
 std::pair<RT::PiProgram, bool> ProgramManager::getOrCreatePIProgram(
@@ -992,13 +1002,6 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   bool LinkDeviceLibs = (DeviceLibReqMask != 0);
 
-  // TODO: Currently, online linking isn't implemented yet on Level Zero.
-  // To enable device libraries and unify the behaviors on all backends,
-  // online linking is disabled temporarily, all fallback device libraries
-  // will be linked offline. When Level Zero supports online linking, we need
-  // to remove the line of code below and switch back to online linking.
-  LinkDeviceLibs = false;
-
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
   // due to unrecognized SPIR-V format of those libraries.
@@ -1207,13 +1210,13 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           // The supplied device_global info property is expected to contain:
           // * 8 bytes - Size of the property.
           // * 4 bytes - Size of the underlying type in the device_global.
-          // * 1 byte  - 0 if device_global has device_image_scope and any value
+          // * 4 bytes - 0 if device_global has device_image_scope and any value
           //             otherwise.
-          // Note: Property may be padded.
-          assert(DeviceGlobalInfo.size() >= 13 && "Unexpected property size");
+          assert(DeviceGlobalInfo.size() == 16 && "Unexpected property size");
           const std::uint32_t TypeSize =
               *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[8]);
-          const std::uint32_t DeviceImageScopeDecorated = DeviceGlobalInfo[12];
+          const std::uint32_t DeviceImageScopeDecorated =
+              *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[12]);
           Entry->second.initialize(TypeSize, DeviceImageScopeDecorated);
         }
       }
@@ -1695,6 +1698,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 
   // TODO: Handle zero sized Device list.
   std::string CompileOptions;
+  applyCompileOptionsFromEnvironment(CompileOptions);
   appendCompileOptionsFromImage(CompileOptions,
                                 *(InputImpl->get_bin_image_ref()));
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
@@ -1729,11 +1733,14 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
   std::string LinkOptionsStr;
-  for (const device_image_plain &DeviceImage : DeviceImages) {
-    const std::shared_ptr<device_image_impl> &InputImpl =
-        getSyclObjImpl(DeviceImage);
-    appendLinkOptionsFromImage(LinkOptionsStr,
-                               *(InputImpl->get_bin_image_ref()));
+  applyLinkOptionsFromEnvironment(LinkOptionsStr);
+  if (LinkOptionsStr.empty()) {
+    for (const device_image_plain &DeviceImage : DeviceImages) {
+      const std::shared_ptr<device_image_impl> &InputImpl =
+          getSyclObjImpl(DeviceImage);
+      appendLinkOptionsFromImage(LinkOptionsStr,
+                                 *(InputImpl->get_bin_image_ref()));
+    }
   }
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);

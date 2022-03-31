@@ -9,8 +9,8 @@
 #include "TestDialect.h"
 #include "TestTypes.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Dialect/StandardOps/Transforms/FuncConversions.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -642,7 +642,7 @@ struct TestLegalizePatternDriver
   TestLegalizePatternDriver(ConversionMode mode) : mode(mode) {}
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<StandardOpsDialect>();
+    registry.insert<func::FuncDialect>();
   }
 
   void runOnOperation() override {
@@ -676,11 +676,11 @@ struct TestLegalizePatternDriver
                            [](Type type) { return type.isF32(); });
     });
     target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
-      return converter.isSignatureLegal(op.getType()) &&
+      return converter.isSignatureLegal(op.getFunctionType()) &&
              converter.isLegal(&op.getBody());
     });
-    target.addDynamicallyLegalOp<CallOp>(
-        [&](CallOp op) { return converter.isLegal(op); });
+    target.addDynamicallyLegalOp<func::CallOp>(
+        [&](func::CallOp op) { return converter.isLegal(op); });
 
     // TestCreateUnregisteredOp creates `arith.constant` operation,
     // which was not added to target intentionally to test
@@ -1106,7 +1106,7 @@ struct TestTypeConversionDriver
               recursiveType.getName() == "outer_converted_type");
     });
     target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
-      return converter.isSignatureLegal(op.getType()) &&
+      return converter.isSignatureLegal(op.getFunctionType()) &&
              converter.isLegal(&op.getBody());
     });
     target.addDynamicallyLegalOp<TestCastOp>([&](TestCastOp op) {

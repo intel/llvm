@@ -273,7 +273,7 @@ def MemRef_AllocaScopeOp : MemRef_Op<"alloca_scope",
   let results = (outs Variadic<AnyType>:$results);
   let regions = (region SizedRegion<1>:$bodyRegion);
   let hasCustomAssemblyFormat = 1;
-  let hasVerifier = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -825,7 +825,7 @@ def MemRef_GlobalOp : MemRef_Op<"global", [Symbol]> {
     The `memref.global` operation declares or defines a named global memref
     variable. The backing memory for the variable is allocated statically and is
     described by the type of the variable (which should be a statically shaped
-    memref type). The operation is a declaration if no `inital_value` is
+    memref type). The operation is a declaration if no `initial_value` is
     specified, else it is a definition. The `initial_value` can either be a unit
     attribute to represent a definition of an uninitialized global variable, or
     an elements attribute to represent the definition of a global variable with
@@ -878,6 +878,9 @@ def MemRef_GlobalOp : MemRef_Op<"global", [Symbol]> {
      bool isUninitialized() {
        return !isExternal() && initial_value().getValue().isa<UnitAttr>();
      }
+     /// Returns the constant initial value if the memref.global is a constant,
+     /// or null otherwise.
+     ElementsAttr getConstantInitValue();
   }];
   let hasVerifier = 1;
 }
@@ -902,7 +905,7 @@ def LoadOp : MemRef_Op<"load",
     In an `affine.if` or `affine.for` body, the indices of a load are restricted
     to SSA values bound to surrounding loop induction variables,
     [symbols](Affine.md/#dimensions-and-symbols), results of a
-    [`constant` operation](Standard.md/#stdconstant-constantop), or the result of an
+    constant operations, or the result of an
     `affine.apply` operation that can in turn take as arguments all of the
     aforementioned SSA values or the recursively result of such an
     `affine.apply` operation.
@@ -1090,6 +1093,8 @@ def MemRef_ReinterpretCastOp
     /// and `strides` operands.
     static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 1; }
   }];
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1343,7 +1348,7 @@ def MemRef_StoreOp : MemRef_Op<"store",
     In an affine context, the indices of a store are restricted to SSA values
     bound to surrounding loop induction variables,
     [symbols](Affine.md/#restrictions-on-dimensions-and-symbols), results of a
-    [`constant` operation](Standard.md/#stdconstant-constantop), or the result of an
+    `constant` operation, or the result of an
     [`affine.apply`](Affine.md/#affineapply-affineapplyop) operation that can in
     turn take as arguments all of the aforementioned SSA values or the
     recursively result of such an `affine.apply` operation.

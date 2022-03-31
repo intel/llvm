@@ -1191,6 +1191,38 @@ llvm.func @gpu_wmma_mma_op_invalid_result(%arg0: vector<2 x f16>, %arg1: vector<
 
 // -----
 
+llvm.func @wmmald_matrix(%arg0: !llvm.ptr<i32>) {
+  // expected-error@+1 {{'nvvm.ldmatrix' op expected source pointer in memory space 3}}
+  %l = nvvm.ldmatrix %arg0 {num = 1 : i32, layout = #nvvm.mma_layout<row>} : (!llvm.ptr<i32>) -> i32
+  llvm.return
+}
+
+// -----
+
+llvm.func @wmmald_matrix(%arg0: !llvm.ptr<i32, 3>) {
+  // expected-error@+1 {{'nvvm.ldmatrix' op expected num attribute to be 1, 2 or 4}}
+  %l = nvvm.ldmatrix %arg0 {num = 3 : i32, layout = #nvvm.mma_layout<row>} : (!llvm.ptr<i32, 3>) -> i32
+  llvm.return
+}
+
+// -----
+
+llvm.func @wmmald_matrix(%arg0: !llvm.ptr<i32, 3>) {
+  // expected-error@+1 {{'nvvm.ldmatrix' op expected destination type is i32}}
+  %l = nvvm.ldmatrix %arg0 {num = 1 : i32, layout = #nvvm.mma_layout<row>} : (!llvm.ptr<i32, 3>) -> !llvm.struct<(i32)>
+  llvm.return
+}
+
+// -----
+
+llvm.func @wmmald_matrix(%arg0: !llvm.ptr<i32, 3>) {
+  // expected-error@+1 {{'nvvm.ldmatrix' op expected destination type is a structure of 4 elements of type i32}}
+  %l = nvvm.ldmatrix %arg0 {num = 4 : i32, layout = #nvvm.mma_layout<row>} : (!llvm.ptr<i32, 3>) -> !llvm.struct<(i32, i32)>
+  llvm.return
+}
+
+// -----
+
 llvm.func @caller() {
   // expected-error @below {{expected function call to produce a value}}
   llvm.call @callee() : () -> ()
@@ -1249,4 +1281,85 @@ func @gep_out_of_bounds(%ptr: !llvm.ptr<struct<(i32, struct<(i32, f32)>)>>, %idx
   // expected-error @below {{index 2 indexing a struct is out of bounds}}
   llvm.getelementptr %ptr[%idx, 1, 3] : (!llvm.ptr<struct<(i32, struct<(i32, f32)>)>>, i64) -> !llvm.ptr<i32>
   return
+}
+
+// -----
+
+func @non_splat_shuffle_on_scalable_vector(%arg0: vector<[4]xf32>) {
+  // expected-error@below {{expected a splat operation for scalable vectors}}
+  %0 = llvm.shufflevector %arg0, %arg0 [0 : i32, 0 : i32, 0 : i32, 1 : i32] : vector<[4]xf32>, vector<[4]xf32>
+  return
+}
+
+// -----
+
+llvm.mlir.global internal @side_effecting_global() : !llvm.struct<(i8)> {
+  %0 = llvm.mlir.constant(1 : i64) : i64
+  // expected-error@below {{ops with side effects not allowed in global initializers}}
+  %1 = llvm.alloca %0 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
+  %2 = llvm.load %1 : !llvm.ptr<struct<(i8)>>
+  llvm.return %2 : !llvm.struct<(i8)>
+}
+
+// -----
+
+// expected-error@+1 {{'llvm.struct_attrs' is permitted only in argument or result attributes}}
+func @struct_attrs_in_op() attributes {llvm.struct_attrs = []} {
+  return
+}
+
+// -----
+
+// expected-error@+1 {{expected 'llvm.struct_attrs' to annotate '!llvm.struct' or '!llvm.ptr<struct<...>>'}}
+func @invalid_struct_attr_arg_type(%arg0 : i32 {llvm.struct_attrs = []}) {
+    return
+}
+
+// -----
+
+// expected-error@+1 {{expected 'llvm.struct_attrs' to annotate '!llvm.struct' or '!llvm.ptr<struct<...>>'}}
+func @invalid_struct_attr_pointer_arg_type(%arg0 : !llvm.ptr<i32> {llvm.struct_attrs = []}) {
+    return
+}
+
+// -----
+
+// expected-error@+1 {{expected 'llvm.struct_attrs' to be an array attribute}}
+func @invalid_arg_struct_attr_value(%arg0 : !llvm.struct<(i32)> {llvm.struct_attrs = {}}) {
+    return
+}
+
+// -----
+
+// expected-error@+1 {{size of 'llvm.struct_attrs' must match the size of the annotated '!llvm.struct'}}
+func @invalid_arg_struct_attr_size(%arg0 : !llvm.struct<(i32)> {llvm.struct_attrs = []}) {
+    return
+}
+
+// -----
+
+// expected-error@+1 {{expected 'llvm.struct_attrs' to annotate '!llvm.struct' or '!llvm.ptr<struct<...>>'}}
+func @invalid_struct_attr_res_type(%arg0 : i32) -> (i32 {llvm.struct_attrs = []}) {
+  return %arg0 : i32
+}
+
+// -----
+
+// expected-error@+1 {{expected 'llvm.struct_attrs' to annotate '!llvm.struct' or '!llvm.ptr<struct<...>>'}}
+func @invalid_struct_attr_pointer_res_type(%arg0 : !llvm.ptr<i32>) -> (!llvm.ptr<i32> {llvm.struct_attrs = []}) {
+    return %arg0 : !llvm.ptr<i32>
+}
+
+// -----
+
+// expected-error@+1 {{expected 'llvm.struct_attrs' to be an array attribute}}
+func @invalid_res_struct_attr_value(%arg0 : !llvm.struct<(i32)>) -> (!llvm.struct<(i32)> {llvm.struct_attrs = {}}) {
+    return %arg0 : !llvm.struct<(i32)>
+}
+
+// -----
+
+// expected-error@+1 {{size of 'llvm.struct_attrs' must match the size of the annotated '!llvm.struct'}}
+func @invalid_res_struct_attr_size(%arg0 : !llvm.struct<(i32)>) -> (!llvm.struct<(i32)> {llvm.struct_attrs = []}) {
+    return %arg0 : !llvm.struct<(i32)>
 }

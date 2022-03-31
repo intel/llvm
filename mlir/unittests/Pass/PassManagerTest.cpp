@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
@@ -47,6 +48,7 @@ struct AnnotateFunctionPass
 
 TEST(PassManagerTest, OpSpecificAnalysis) {
   MLIRContext context;
+  context.loadDialect<func::FuncDialect>();
   Builder builder(&context);
 
   // Create a module with 2 functions.
@@ -81,6 +83,9 @@ struct InvalidPass : Pass {
   InvalidPass() : Pass(TypeID::get<InvalidPass>(), StringRef("invalid_op")) {}
   StringRef getName() const override { return "Invalid Pass"; }
   void runOnOperation() override {}
+  bool canScheduleOn(RegisteredOperationName opName) const override {
+    return true;
+  }
 
   /// A clone method to create a copy of this pass.
   std::unique_ptr<Pass> clonePass() const override {

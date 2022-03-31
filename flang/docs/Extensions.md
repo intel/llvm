@@ -71,6 +71,10 @@ end
   In common with some other compilers, the clock is in milliseconds
   for kinds <= 4 and nanoseconds otherwise where the target system
   supports these rates.
+* If a dimension of a descriptor has zero extent in a call to
+  `CFI_section`, `CFI_setpointer` or `CFI_allocate`, the lower
+  bound on that dimension will be set to 1 for consistency with
+  the `LBOUND()` intrinsic function.
 
 ## Extensions, deletions, and legacy features supported by default
 
@@ -217,6 +221,8 @@ end
 * At runtime, `NAMELIST` input will skip over `NAMELIST` groups
   with other names, and will treat text before and between groups
   as if they were comment lines, even if not begun with `!`.
+* Commas are required in FORMAT statements and character variables
+  only when they prevent ambiguity.
 
 ### Extensions supported when enabled by options
 
