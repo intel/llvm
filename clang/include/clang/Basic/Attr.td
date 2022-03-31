@@ -126,6 +126,9 @@ def FunctionTmpl
                                  FunctionDecl::TK_FunctionTemplate}],
                     "function templates">;
 
+def GlobalFunction
+    : SubsetSubject<Function, [{S->isGlobal()}], "global functions">;
+
 def ClassTmpl : SubsetSubject<CXXRecord, [{S->getDescribedClassTemplate()}],
                               "class templates">;
 
@@ -346,6 +349,8 @@ def BlocksSupported : LangOpt<"Blocks">;
 def ObjCAutoRefCount : LangOpt<"ObjCAutoRefCount">;
 def ObjCNonFragileRuntime
     : LangOpt<"", "LangOpts.ObjCRuntime.allowsClassStubs()">;
+
+def HLSL : LangOpt<"HLSL">;
 
 // Language option for CMSE extensions
 def Cmse : LangOpt<"Cmse">;
@@ -4828,4 +4833,12 @@ def Error : InheritableAttr {
   let Args = [StringArgument<"UserDiagnostic">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [ErrorAttrDocs];
+}
+
+def HLSLNumThreads: InheritableAttr {
+  let Spellings = [Microsoft<"numthreads">];
+  let Args = [IntArgument<"X">, IntArgument<"Y">, IntArgument<"Z">];
+  let Subjects = SubjectList<[GlobalFunction]>;
+  let LangOpts = [HLSL];
+  let Documentation = [NumThreadsDocs];
 }

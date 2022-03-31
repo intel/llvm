@@ -28,6 +28,10 @@
 #include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendOptions.h"
+#include "clang/Lex/MacroInfo.h"
+#include "clang/Lex/PPCallbacks.h"
+#include "clang/Lex/PreprocessorOptions.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
@@ -41,9 +45,8 @@ namespace {
 /// information.
 class ExtractAPIVisitor : public RecursiveASTVisitor<ExtractAPIVisitor> {
 public:
-  explicit ExtractAPIVisitor(ASTContext &Context)
-      : Context(Context),
-        API(Context.getTargetInfo().getTriple(), Context.getLangOpts()) {}
+  ExtractAPIVisitor(ASTContext &Context, APISet &API)
+      : Context(Context), API(API) {}
 
   const APISet &getAPI() const { return API; }
 
@@ -217,6 +220,82 @@ public:
     return true;
   }
 
+  bool VisitObjCInterfaceDecl(const ObjCInterfaceDecl *Decl) {
+    // Skip forward declaration for classes (@class)
+    if (!Decl->isThisDeclarationADefinition())
+      return true;
+
+    // Collect symbol information.
+    StringRef Name = Decl->getName();
+    StringRef USR = API.recordUSR(Decl);
+    PresumedLoc Loc =
+        Context.getSourceManager().getPresumedLoc(Decl->getLocation());
+    AvailabilityInfo Availability = getAvailability(Decl);
+    LinkageInfo Linkage = Decl->getLinkageAndVisibility();
+    DocComment Comment;
+    if (auto *RawComment = Context.getRawCommentForDeclNoCache(Decl))
+      Comment = RawComment->getFormattedLines(Context.getSourceManager(),
+                                              Context.getDiagnostics());
+
+    // Build declaration fragments and sub-heading for the interface.
+    DeclarationFragments Declaration =
+        DeclarationFragmentsBuilder::getFragmentsForObjCInterface(Decl);
+    DeclarationFragments SubHeading =
+        DeclarationFragmentsBuilder::getSubHeading(Decl);
+
+    // Collect super class information.
+    SymbolReference SuperClass;
+    if (const auto *SuperClassDecl = Decl->getSuperClass()) {
+      SuperClass.Name = SuperClassDecl->getObjCRuntimeNameAsString();
+      SuperClass.USR = API.recordUSR(SuperClassDecl);
+    }
+
+    ObjCInterfaceRecord *ObjCInterfaceRecord =
+        API.addObjCInterface(Name, USR, Loc, Availability, Linkage, Comment,
+                             Declaration, SubHeading, SuperClass);
+
+    // Record all methods (selectors). This doesn't include automatically
+    // synthesized property methods.
+    recordObjCMethods(ObjCInterfaceRecord, Decl->methods());
+    recordObjCProperties(ObjCInterfaceRecord, Decl->properties());
+    recordObjCInstanceVariables(ObjCInterfaceRecord, Decl->ivars());
+    recordObjCProtocols(ObjCInterfaceRecord, Decl->protocols());
+
+    return true;
+  }
+
+  bool VisitObjCProtocolDecl(const ObjCProtocolDecl *Decl) {
+    // Skip forward declaration for protocols (@protocol).
+    if (!Decl->isThisDeclarationADefinition())
+      return true;
+
+    // Collect symbol information.
+    StringRef Name = Decl->getName();
+    StringRef USR = API.recordUSR(Decl);
+    PresumedLoc Loc =
+        Context.getSourceManager().getPresumedLoc(Decl->getLocation());
+    AvailabilityInfo Availability = getAvailability(Decl);
+    DocComment Comment;
+    if (auto *RawComment = Context.getRawCommentForDeclNoCache(Decl))
+      Comment = RawComment->getFormattedLines(Context.getSourceManager(),
+                                              Context.getDiagnostics());
+
+    // Build declaration fragments and sub-heading for the protocol.
+    DeclarationFragments Declaration =
+        DeclarationFragmentsBuilder::getFragmentsForObjCProtocol(Decl);
+    DeclarationFragments SubHeading =
+        DeclarationFragmentsBuilder::getSubHeading(Decl);
+
+    ObjCProtocolRecord *ObjCProtocolRecord = API.addObjCProtocol(
+        Name, USR, Loc, Availability, Comment, Declaration, SubHeading);
+
+    recordObjCMethods(ObjCProtocolRecord, Decl->methods());
+    recordObjCProperties(ObjCProtocolRecord, Decl->properties());
+    recordObjCProtocols(ObjCProtocolRecord, Decl->protocols());
+
+    return true;
+  }
+
 private:
   /// Get availability information of the declaration \p D.
   AvailabilityInfo getAvailability(const Decl *D) const {
@@ -303,43 +382,220 @@ private:
     }
   }
 
+  /// Collect API information for the Objective-C methods and associate with the
+  /// parent container.
+  void recordObjCMethods(ObjCContainerRecord *Container,
+                         const ObjCContainerDecl::method_range Methods) {
+    for (const auto *Method : Methods) {
+      // Don't record selectors for properties.
+      if (Method->isPropertyAccessor())
+        continue;
+
+      StringRef Name = API.copyString(Method->getSelector().getAsString());
+      StringRef USR = API.recordUSR(Method);
+      PresumedLoc Loc =
+          Context.getSourceManager().getPresumedLoc(Method->getLocation());
+      AvailabilityInfo Availability = getAvailability(Method);
+      DocComment Comment;
+      if (auto *RawComment = Context.getRawCommentForDeclNoCache(Method))
+        Comment = RawComment->getFormattedLines(Context.getSourceManager(),
+                                                Context.getDiagnostics());
+
+      // Build declaration fragments, sub-heading, and signature for the method.
+      DeclarationFragments Declaration =
+          DeclarationFragmentsBuilder::getFragmentsForObjCMethod(Method);
+      DeclarationFragments SubHeading =
+          DeclarationFragmentsBuilder::getSubHeading(Method);
+      FunctionSignature Signature =
+          DeclarationFragmentsBuilder::getFunctionSignature(Method);
+
+      API.addObjCMethod(Container, Name, USR, Loc, Availability, Comment,
+                        Declaration, SubHeading, Signature,
+                        Method->isInstanceMethod());
+    }
+  }
+
+  void recordObjCProperties(ObjCContainerRecord *Container,
+                            const ObjCContainerDecl::prop_range Properties) {
+    for (const auto *Property : Properties) {
+      StringRef Name = Property->getName();
+      StringRef USR = API.recordUSR(Property);
+      PresumedLoc Loc =
+          Context.getSourceManager().getPresumedLoc(Property->getLocation());
+      AvailabilityInfo Availability = getAvailability(Property);
+      DocComment Comment;
+      if (auto *RawComment = Context.getRawCommentForDeclNoCache(Property))
+        Comment = RawComment->getFormattedLines(Context.getSourceManager(),
+                                                Context.getDiagnostics());
+
+      // Build declaration fragments and sub-heading for the property.
+      DeclarationFragments Declaration =
+          DeclarationFragmentsBuilder::getFragmentsForObjCProperty(Property);
+      DeclarationFragments SubHeading =
+          DeclarationFragmentsBuilder::getSubHeading(Property);
+
+      StringRef GetterName =
+          API.copyString(Property->getGetterName().getAsString());
+      StringRef SetterName =
+          API.copyString(Property->getSetterName().getAsString());
+
+      // Get the attributes for property.
+      unsigned Attributes = ObjCPropertyRecord::NoAttr;
+      if (Property->getPropertyAttributes() &
+          ObjCPropertyAttribute::kind_readonly)
+        Attributes |= ObjCPropertyRecord::ReadOnly;
+      if (Property->getPropertyAttributes() & ObjCPropertyAttribute::kind_class)
+        Attributes |= ObjCPropertyRecord::Class;
+
+      API.addObjCProperty(
+          Container, Name, USR, Loc, Availability, Comment, Declaration,
+          SubHeading,
+          static_cast<ObjCPropertyRecord::AttributeKind>(Attributes),
+          GetterName, SetterName, Property->isOptional());
+    }
+  }
+
+  void recordObjCInstanceVariables(
+      ObjCContainerRecord *Container,
+      const llvm::iterator_range<
+          DeclContext::specific_decl_iterator<ObjCIvarDecl>>
+          Ivars) {
+    for (const auto *Ivar : Ivars) {
+      StringRef Name = Ivar->getName();
+      StringRef USR = API.recordUSR(Ivar);
+      PresumedLoc Loc =
+          Context.getSourceManager().getPresumedLoc(Ivar->getLocation());
+      AvailabilityInfo Availability = getAvailability(Ivar);
+      DocComment Comment;
+      if (auto *RawComment = Context.getRawCommentForDeclNoCache(Ivar))
+        Comment = RawComment->getFormattedLines(Context.getSourceManager(),
+                                                Context.getDiagnostics());
+
+      // Build declaration fragments and sub-heading for the instance variable.
+      DeclarationFragments Declaration =
+          DeclarationFragmentsBuilder::getFragmentsForField(Ivar);
+      DeclarationFragments SubHeading =
+          DeclarationFragmentsBuilder::getSubHeading(Ivar);
+
+      ObjCInstanceVariableRecord::AccessControl Access =
+          Ivar->getCanonicalAccessControl();
+
+      API.addObjCInstanceVariable(Container, Name, USR, Loc, Availability,
+                                  Comment, Declaration, SubHeading, Access);
+    }
+  }
+
+  void recordObjCProtocols(ObjCContainerRecord *Container,
+                           ObjCInterfaceDecl::protocol_range Protocols) {
+    for (const auto *Protocol : Protocols)
+      Container->Protocols.emplace_back(Protocol->getName(),
+                                        API.recordUSR(Protocol));
+  }
+
   ASTContext &Context;
-  APISet API;
+  APISet &API;
 };
 
 class ExtractAPIConsumer : public ASTConsumer {
 public:
-  ExtractAPIConsumer(ASTContext &Context, StringRef ProductName,
-                     std::unique_ptr<raw_pwrite_stream> OS)
-      : Visitor(Context), ProductName(ProductName), OS(std::move(OS)) {}
+  ExtractAPIConsumer(ASTContext &Context, APISet &API)
+      : Visitor(Context, API) {}
 
   void HandleTranslationUnit(ASTContext &Context) override {
     // Use ExtractAPIVisitor to traverse symbol declarations in the context.
     Visitor.TraverseDecl(Context.getTranslationUnitDecl());
-
-    // Setup a SymbolGraphSerializer to write out collected API information in
-    // the Symbol Graph format.
-    // FIXME: Make the kind of APISerializer configurable.
-    SymbolGraphSerializer SGSerializer(Visitor.getAPI(), ProductName);
-    SGSerializer.serialize(*OS);
   }
 
 private:
   ExtractAPIVisitor Visitor;
-  std::string ProductName;
-  std::unique_ptr<raw_pwrite_stream> OS;
+};
+
+class MacroCallback : public PPCallbacks {
+public:
+  MacroCallback(const SourceManager &SM, APISet &API) : SM(SM), API(API) {}
+
+  void MacroDefined(const Token &MacroNameToken,
+                    const MacroDirective *MD) override {
+    auto *MacroInfo = MD->getMacroInfo();
+
+    if (MacroInfo->isBuiltinMacro())
+      return;
+
+    auto SourceLoc = MacroNameToken.getLocation();
+    if (SM.isWrittenInBuiltinFile(SourceLoc) ||
+        SM.isWrittenInCommandLineFile(SourceLoc))
+      return;
+
+    PendingMacros.emplace_back(MacroNameToken, MD);
+  }
+
+  // If a macro gets undefined at some point during preprocessing of the inputs
+  // it means that it isn't an exposed API and we should therefore not add a
+  // macro definition for it.
+  void MacroUndefined(const Token &MacroNameToken, const MacroDefinition &MD,
+                      const MacroDirective *Undef) override {
+    llvm::erase_if(PendingMacros, [&MD](const PendingMacro &PM) {
+      return MD.getMacroInfo()->getDefinitionLoc() ==
+             PM.MD->getMacroInfo()->getDefinitionLoc();
+    });
+  }
+
+  void EndOfMainFile() override {
+    for (auto &PM : PendingMacros) {
+      // `isUsedForHeaderGuard` is only set when the preprocessor leaves the
+      // file so check for it here.
+      if (PM.MD->getMacroInfo()->isUsedForHeaderGuard())
+        continue;
+
+      StringRef Name = PM.MacroNameToken.getIdentifierInfo()->getName();
+      PresumedLoc Loc = SM.getPresumedLoc(PM.MacroNameToken.getLocation());
+      StringRef USR =
+          API.recordUSRForMacro(Name, PM.MacroNameToken.getLocation(), SM);
+
+      API.addMacroDefinition(
+          Name, USR, Loc,
+          DeclarationFragmentsBuilder::getFragmentsForMacro(Name, PM.MD),
+          DeclarationFragmentsBuilder::getSubHeadingForMacro(Name));
+    }
+
+    PendingMacros.clear();
+  }
+
+private:
+  struct PendingMacro {
+    Token MacroNameToken;
+    const MacroDirective *MD;
+
+    PendingMacro(const Token &MacroNameToken, const MacroDirective *MD)
+        : MacroNameToken(MacroNameToken), MD(MD) {}
+  };
+
+  const SourceManager &SM;
+  APISet &API;
+  llvm::SmallVector<PendingMacro> PendingMacros;
 };
 
 } // namespace
 
 std::unique_ptr<ASTConsumer>
 ExtractAPIAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
-  std::unique_ptr<raw_pwrite_stream> OS = CreateOutputFile(CI, InFile);
+  OS = CreateOutputFile(CI, InFile);
   if (!OS)
     return nullptr;
-  return std::make_unique<ExtractAPIConsumer>(
-      CI.getASTContext(), CI.getInvocation().getFrontendOpts().ProductName,
-      std::move(OS));
+
+  ProductName = CI.getFrontendOpts().ProductName;
+
+  // Now that we have enough information about the language options and the
+  // target triple, let's create the APISet before anyone uses it.
+  API = std::make_unique<APISet>(
+      CI.getTarget().getTriple(),
+      CI.getFrontendOpts().Inputs.back().getKind().getLanguage());
+
+  // Register preprocessor callbacks that will add macro definitions to API.
+  CI.getPreprocessor().addPPCallbacks(
+      std::make_unique<MacroCallback>(CI.getSourceManager(), *API));
+
+  return std::make_unique<ExtractAPIConsumer>(CI.getASTContext(), *API);
 }
 
 bool ExtractAPIAction::PrepareToExecuteAction(CompilerInstance &CI) {
@@ -369,6 +625,18 @@ bool ExtractAPIAction::PrepareToExecuteAction(CompilerInstance &CI) {
   Inputs.emplace_back(Buffer->getMemBufferRef(), Kind, /*IsSystem*/ false);
 
   return true;
+}
+
+void ExtractAPIAction::EndSourceFileAction() {
+  if (!OS)
+    return;
+
+  // Setup a SymbolGraphSerializer to write out collected API information in
+  // the Symbol Graph format.
+  // FIXME: Make the kind of APISerializer configurable.
+  SymbolGraphSerializer SGSerializer(*API, ProductName);
+  SGSerializer.serialize(*OS);
+  OS->flush();
 }
 
 std::unique_ptr<raw_pwrite_stream>

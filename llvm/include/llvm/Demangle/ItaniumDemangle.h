@@ -1073,7 +1073,9 @@ struct ModuleName : Node {
       : Node(KModuleName), Parent(Parent_), Name(Name_),
         IsPartition(IsPartition_) {}
 
-  template <typename Fn> void match(Fn F) const { F(Parent, Name); }
+  template <typename Fn> void match(Fn F) const {
+    F(Parent, Name, IsPartition);
+  }
 
   void printLeft(OutputBuffer &OB) const override {
     if (Parent)
@@ -1834,7 +1836,9 @@ public:
   ArraySubscriptExpr(const Node *Op1_, const Node *Op2_, Prec Prec_)
       : Node(KArraySubscriptExpr, Prec_), Op1(Op1_), Op2(Op2_) {}
 
-  template<typename Fn> void match(Fn F) const { F(Op1, Op2); }
+  template <typename Fn> void match(Fn F) const {
+    F(Op1, Op2, getPrecedence());
+  }
 
   void printLeft(OutputBuffer &OB) const override {
     Op1->printAsOperand(OB, getPrecedence());
@@ -1852,7 +1856,9 @@ public:
   PostfixExpr(const Node *Child_, StringView Operator_, Prec Prec_)
       : Node(KPostfixExpr, Prec_), Child(Child_), Operator(Operator_) {}
 
-  template<typename Fn> void match(Fn F) const { F(Child, Operator); }
+  template <typename Fn> void match(Fn F) const {
+    F(Child, Operator, getPrecedence());
+  }
 
   void printLeft(OutputBuffer &OB) const override {
     Child->printAsOperand(OB, getPrecedence(), true);
@@ -1870,7 +1876,9 @@ public:
                   Prec Prec_)
       : Node(KConditionalExpr, Prec_), Cond(Cond_), Then(Then_), Else(Else_) {}
 
-  template<typename Fn> void match(Fn F) const { F(Cond, Then, Else); }
+  template <typename Fn> void match(Fn F) const {
+    F(Cond, Then, Else, getPrecedence());
+  }
 
   void printLeft(OutputBuffer &OB) const override {
     Cond->printAsOperand(OB, getPrecedence());
@@ -1890,7 +1898,9 @@ public:
   MemberExpr(const Node *LHS_, StringView Kind_, const Node *RHS_, Prec Prec_)
       : Node(KMemberExpr, Prec_), LHS(LHS_), Kind(Kind_), RHS(RHS_) {}
 
-  template<typename Fn> void match(Fn F) const { F(LHS, Kind, RHS); }
+  template <typename Fn> void match(Fn F) const {
+    F(LHS, Kind, RHS, getPrecedence());
+  }
 
   void printLeft(OutputBuffer &OB) const override {
     LHS->printAsOperand(OB, getPrecedence(), true);
@@ -1942,7 +1952,9 @@ public:
   EnclosingExpr(StringView Prefix_, Node *Infix_, Prec Prec_ = Prec::Primary)
       : Node(KEnclosingExpr, Prec_), Prefix(Prefix_), Infix(Infix_) {}
 
-  template <typename Fn> void match(Fn F) const { F(Prefix, Infix); }
+  template <typename Fn> void match(Fn F) const {
+    F(Prefix, Infix, getPrecedence());
+  }
 
   void printLeft(OutputBuffer &OB) const override {
     OB += Prefix;
@@ -1963,7 +1975,9 @@ public:
   CastExpr(StringView CastKind_, const Node *To_, const Node *From_, Prec Prec_)
       : Node(KCastExpr, Prec_), CastKind(CastKind_), To(To_), From(From_) {}
 
-  template<typename Fn> void match(Fn F) const { F(CastKind, To, From); }
+  template <typename Fn> void match(Fn F) const {
+    F(CastKind, To, From, getPrecedence());
+  }
 
   void printLeft(OutputBuffer &OB) const override {
     OB += CastKind;
@@ -2007,7 +2021,9 @@ public:
   CallExpr(const Node *Callee_, NodeArray Args_, Prec Prec_)
       : Node(KCallExpr, Prec_), Callee(Callee_), Args(Args_) {}
 
-  template<typename Fn> void match(Fn F) const { F(Callee, Args); }
+  template <typename Fn> void match(Fn F) const {
+    F(Callee, Args, getPrecedence());
+  }
 
   void printLeft(OutputBuffer &OB) const override {
     Callee->print(OB);
@@ -2031,7 +2047,7 @@ public:
         InitList(InitList_), IsGlobal(IsGlobal_), IsArray(IsArray_) {}
 
   template<typename Fn> void match(Fn F) const {
-    F(ExprList, Type, InitList, IsGlobal, IsArray);
+    F(ExprList, Type, InitList, IsGlobal, IsArray, getPrecedence());
   }
 
   void printLeft(OutputBuffer &OB) const override {
@@ -2065,7 +2081,9 @@ public:
       : Node(KDeleteExpr, Prec_), Op(Op_), IsGlobal(IsGlobal_),
         IsArray(IsArray_) {}
 
-  template<typename Fn> void match(Fn F) const { F(Op, IsGlobal, IsArray); }
+  template <typename Fn> void match(Fn F) const {
+    F(Op, IsGlobal, IsArray, getPrecedence());
+  }
 
   void printLeft(OutputBuffer &OB) const override {
     if (IsGlobal)
@@ -2086,7 +2104,9 @@ public:
   PrefixExpr(StringView Prefix_, Node *Child_, Prec Prec_)
       : Node(KPrefixExpr, Prec_), Prefix(Prefix_), Child(Child_) {}
 
-  template<typename Fn> void match(Fn F) const { F(Prefix, Child); }
+  template <typename Fn> void match(Fn F) const {
+    F(Prefix, Child, getPrecedence());
+  }
 
   void printLeft(OutputBuffer &OB) const override {
     OB += Prefix;
@@ -2116,7 +2136,9 @@ public:
   ConversionExpr(const Node *Type_, NodeArray Expressions_, Prec Prec_)
       : Node(KConversionExpr, Prec_), Type(Type_), Expressions(Expressions_) {}
 
-  template<typename Fn> void match(Fn F) const { F(Type, Expressions); }
+  template <typename Fn> void match(Fn F) const {
+    F(Type, Expressions, getPrecedence());
+  }
 
   void printLeft(OutputBuffer &OB) const override {
     OB.printOpen();
@@ -2139,7 +2161,9 @@ public:
       : Node(KPointerToMemberConversionExpr, Prec_), Type(Type_),
         SubExpr(SubExpr_), Offset(Offset_) {}
 
-  template<typename Fn> void match(Fn F) const { F(Type, SubExpr, Offset); }
+  template <typename Fn> void match(Fn F) const {
+    F(Type, SubExpr, Offset, getPrecedence());
+  }
 
   void printLeft(OutputBuffer &OB) const override {
     OB.printOpen();
@@ -2893,7 +2917,7 @@ Node *AbstractManglingParser<Derived, Alloc>::parseUnqualifiedName(
     Result = getDerived().parseOperatorName(State);
   }
 
-  if (Module)
+  if (Result != nullptr && Module != nullptr)
     Result = make<ModuleEntity>(Module, Result);
   if (Result != nullptr)
     Result = getDerived().parseAbiTags(Result);

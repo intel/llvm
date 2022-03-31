@@ -44714,14 +44714,15 @@ static bool checkBoolTestAndOrSetCCCombine(SDValue Cond, X86::CondCode &CC0,
 static SDValue combineCarryThroughADD(SDValue EFLAGS, SelectionDAG &DAG) {
   if (EFLAGS.getOpcode() == X86ISD::ADD) {
     if (isAllOnesConstant(EFLAGS.getOperand(1))) {
+      bool FoundAndLSB = false;
       SDValue Carry = EFLAGS.getOperand(0);
       while (Carry.getOpcode() == ISD::TRUNCATE ||
              Carry.getOpcode() == ISD::ZERO_EXTEND ||
-             Carry.getOpcode() == ISD::SIGN_EXTEND ||
-             Carry.getOpcode() == ISD::ANY_EXTEND ||
              (Carry.getOpcode() == ISD::AND &&
-              isOneConstant(Carry.getOperand(1))))
+              isOneConstant(Carry.getOperand(1)))) {
+        FoundAndLSB |= Carry.getOpcode() == ISD::AND;
         Carry = Carry.getOperand(0);
+      }
       if (Carry.getOpcode() == X86ISD::SETCC ||
           Carry.getOpcode() == X86ISD::SETCC_CARRY) {
         // TODO: Merge this code with equivalent in combineAddOrSubToADCOrSBB?
@@ -44752,6 +44753,21 @@ static SDValue combineCarryThroughADD(SDValue EFLAGS, SelectionDAG &DAG) {
             CarryOp1.getOpcode() == X86ISD::ADD &&
             isOneConstant(CarryOp1.getOperand(1)))
           return CarryOp1;
+      } else if (FoundAndLSB) {
+        SDLoc DL(Carry);
+        SDValue BitNo = DAG.getConstant(0, DL, Carry.getValueType());
+        if (Carry.getOpcode() == ISD::SRL) {
+          BitNo = Carry.getOperand(1);
+          Carry = Carry.getOperand(0);
+        }
+        if (Carry.getScalarValueSizeInBits() < 32)
+          Carry = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Carry);
+        EVT CarryVT = Carry.getValueType();
+        if (DAG.getTargetLoweringInfo().isTypeLegal(CarryVT)) {
+          if (CarryVT != BitNo.getValueType())
+            BitNo = DAG.getNode(ISD::ANY_EXTEND, DL, CarryVT, BitNo);
+          return DAG.getNode(X86ISD::BT, DL, MVT::i32, Carry, BitNo);
+        }
       }
     }
   }
@@ -52305,6 +52321,17 @@ static SDValue combineADC(SDNode *N, SelectionDAG &DAG,
                     DAG.getTargetConstant(X86::COND_B, DL, MVT::i8), CarryIn),
         DAG.getConstant(1, DL, VT));
     return DCI.CombineTo(N, Res1, CarryOut);
+  }
+
+  // Fold ADC(C1,C2,Carry) -> ADC(0,C1+C2,Carry)
+  // iff the flag result is dead.
+  // TODO: Allow flag result if C1+C2 doesn't signed/unsigned overflow.
+  if (LHSC && RHSC && !LHSC->isZero() && !N->hasAnyUseOfValue(1)) {
+    SDLoc DL(N);
+    APInt Sum = LHSC->getAPIntValue() + RHSC->getAPIntValue();
+    return DAG.getNode(X86ISD::ADC, DL, N->getVTList(),
+                       DAG.getConstant(0, DL, LHS.getValueType()),
+                       DAG.getConstant(Sum, DL, LHS.getValueType()), CarryIn);
   }
 
   if (SDValue Flags = combineCarryThroughADD(CarryIn, DAG)) {
