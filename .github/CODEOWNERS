@@ -56,3 +56,8 @@ esimd/ @intel/dpcpp-esimd-reviewers
 sycl/include/sycl/ext/intel/esimd.hpp @intel/dpcpp-esimd-reviewers
 sycl/doc/extensions/experimental/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers
 llvm/lib/SYCLLowerIR/CMakeLists.txt @intel/dpcpp-tools-reviewers @intel/dpcpp-esimd-reviewers
+
+# DevOps configs
+.github/workflows/ @intel/dpcpp-devops-reviewers
+buildbot/ @intel/dpcpp-devops-reviewers
+devops/ @intel/dpcpp-devops-reviewers

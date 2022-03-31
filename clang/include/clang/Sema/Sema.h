@@ -335,7 +335,8 @@ public:
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
   void startKernel(const FunctionDecl *SyclKernel, QualType KernelNameType,
-                   SourceLocation Loc, bool IsESIMD, bool IsUnnamedKernel);
+                   SourceLocation Loc, bool IsESIMD, bool IsUnnamedKernel,
+                   int64_t ObjSize);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
@@ -357,6 +358,13 @@ public:
 
     assert(Itr != KernelDescs.end() && "Unknown kernel description");
     Itr->updateKernelNames(Name, StableName);
+  }
+
+  /// Signals that emission of __sycl_device_global_registration type and
+  /// declaration of variable __sycl_device_global_registrar of this type in
+  /// integration header is required.
+  void addDeviceGlobalRegistration() {
+    NeedToEmitDeviceGlobalRegistration = true;
   }
 
 private:
@@ -402,10 +410,15 @@ private:
     // hasn't provided an explicit name for.
     bool IsUnnamedKernel;
 
+    /// Size of the kernel object.
+    int64_t ObjSize = 0;
+
     KernelDesc(const FunctionDecl *SyclKernel, QualType NameType,
-               SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel)
+               SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel,
+               int64_t ObjSize)
         : SyclKernel(SyclKernel), NameType(NameType), KernelLocation(KernelLoc),
-          IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel) {}
+          IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel),
+          ObjSize(ObjSize) {}
 
     void updateKernelNames(StringRef Name, StringRef StableName) {
       this->Name = Name.str();
@@ -433,6 +446,10 @@ private:
   llvm::SmallVector<SpecConstID, 4> SpecConsts;
 
   Sema &S;
+
+  /// Keeps track of whether declaration of __sycl_device_global_registration
+  /// type and __sycl_device_global_registrar variable are required to emit.
+  bool NeedToEmitDeviceGlobalRegistration = false;
 };
 
 class SYCLIntegrationFooter {
@@ -440,14 +457,12 @@ public:
   SYCLIntegrationFooter(Sema &S) : S(S) {}
   bool emit(StringRef MainSrc);
   void addVarDecl(const VarDecl *VD);
-  bool isDeviceGlobalsEmitted() { return DeviceGlobalsEmitted; }
 
 private:
   bool emit(raw_ostream &O);
   Sema &S;
   llvm::SmallVector<const VarDecl *> GlobalVars;
   void emitSpecIDName(raw_ostream &O, const VarDecl *VD);
-  bool DeviceGlobalsEmitted = false;
 };
 
 /// Tracks expected type during expression parsing, for use in code completion.
