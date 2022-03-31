@@ -609,9 +609,10 @@ float float_to_tf32(float a) {
   int32_t tmp_int = __nvvm_f2tf32_rna(a);
   return __nvvm_bitcast_i2f(tmp_int);
 #else
-  throw runtime_error("When using SYCL_EXT_ONEAPI_MATRIX=3 float_to_tf32 is "
-                      "only supported by CUDA devices",
-                      PI_INVALID_DEVICE);
+  uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
+  tmp_uint += 0x1000u;
+  float ret = reinterpret_cast<float &>(tmp_uint);
+  return ret;
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
@@ -619,7 +620,8 @@ float float_to_tf32(float a) {
 float tf32_to_float(float a) {
   uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
   tmp_uint &= 0xFFFFE000u;
-  return reinterpret_cast<float &>(tmp_uint);
+  float ret = reinterpret_cast<float &>(tmp_uint);
+  return ret;
 }
 
 } // namespace experimental::matrix

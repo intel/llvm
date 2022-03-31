@@ -77,6 +77,7 @@ int main() {
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.f32.p1f32(float addrspace(1)* %_arg_accC, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), N);
 
+          // CHECK: tail call i32 @llvm.nvvm.f2tf32.rna(float {{.*}}
           // Round a, b to tf32
           for (auto i = 0; i < 4; ++i)
             sub_a.data[i] = float_to_tf32(sub_a.data[i]);
@@ -120,14 +121,15 @@ int main() {
           joint_matrix_load(sg, sub_b, accB.get_pointer(), N);
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.f32.p1f32(float addrspace(1)* {{.*}}, i32 {{.*}}) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), N);
-          
+
+          // CHECK: tail call i32 @llvm.nvvm.f2tf32.rna(float {{.*}}
           // Round a, b to tf32
           for (auto i = 0; i < 4; ++i)
             sub_a.data[i] = float_to_tf32(sub_a.data[i]);
 
           for (auto i = 0; i < 4; ++i)
             sub_b.data[i] = float_to_tf32(sub_b.data[i]);
-          
+
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k8.mma.col.col.tf32(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}) #{{.*}}
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           //CHECK: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.col.stride.f32.p1f32(float addrspace(1)* {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 16) #{{.*}}
