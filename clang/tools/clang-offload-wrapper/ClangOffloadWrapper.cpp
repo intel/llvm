@@ -260,13 +260,6 @@ static cl::opt<bool> AddOpenMPOffloadNotes(
 
 namespace {
 
-struct OffloadKindToUint {
-  using argument_type = OffloadKind;
-  unsigned operator()(argument_type Kind) const {
-    return static_cast<unsigned>(Kind);
-  }
-};
-
 /// Implements binary image information collecting and wrapping it in a host
 /// bitcode file.
 class BinaryWrapper {
