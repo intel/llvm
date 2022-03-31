@@ -39,7 +39,6 @@ def generate_ze_pretty_printers(header):
                 arg_name = arg.strip().split(" ")[-1].replace('*', '')
                 arg_types = [ x.strip() for x in arg.strip().split(" ")[:-1]]
                 printers.write("PrintOffset();\n")
-                print(arg_types)
                 scalar = ["size_t*", "void**", "uint32_t*", "uint64_t*"]
                 if any(item in scalar for item in arg_types):
                     printers.write('std::cout << "{}: " << *(Args->{}) << "\\n";\n'.format(arg_name[1:], arg_name))
