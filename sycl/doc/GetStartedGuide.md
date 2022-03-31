@@ -831,6 +831,18 @@ which contains all the symbols required.
   significantly slower but matches the default precision used by `nvcc`, and
   this `clang++` flag is equivalent to the `nvcc` `-prec-sqrt` flag, except that
   it defaults to `false`.
+* No Opt (O0) uses the IPSCCP compiler pass by default, although the IPSCCP pass
+  can be switched off at O0 using the `-mllvm -use-ipsccp-nvptx-O0=false` flag at
+  the user's discretion.
+  The reason that the IPSCCP pass is used by default even at O0 is that there is
+  currently an unresolved issue with the nvvm-reflect compiler pass: This pass is
+  used to pick the correct branches depending on the SM version which can be
+  optionally specified by the `--cuda-gpu-arch` flag.
+  If the arch flag is not specified by the user, the default value, SM 50, is used.
+  Without the execution of the IPSCCP pass at -O0 when using a low SM version,
+  dead instructions which require a higher SM version can remain. Since
+  corresponding issues occur in other backends future work will aim for a
+  universal solution to these issues.
 
 ### HIP back-end limitations
 
