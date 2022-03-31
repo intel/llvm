@@ -104,7 +104,7 @@ inline backend_return_t<backend::opencl, event> get_native<
   // TODO use SYCL 2020 exception when implemented
   return reinterpret_cast<
       typename detail::interop<backend::opencl, event>::type>(
-      Obj.lazyInit(backend::opencl));
+    Obj.lazyInit(backend::opencl));
 }
 #endif
 
