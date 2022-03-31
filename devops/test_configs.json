@@ -4,10 +4,11 @@
       "config": "l0_gen9",
       "name": "L0 GEN9 LLVM Test Suite",
       "runs-on": [
+        "Linux",
         "gen9"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
-      "container_options": "-u 1001 --device=/dev/dri",
+      "container_options": "-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN",
       "check_sycl_all": "level_zero:gpu,host",
       "cmake_args": ""
     },
@@ -15,10 +16,11 @@
       "config": "ocl_gen9",
       "name": "OCL GEN9 LLVM Test Suite",
       "runs-on": [
+        "Linux",
         "gen9"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
-      "container_options": "-u 1001 --device=/dev/dri",
+      "container_options": "-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN",
       "check_sycl_all": "opencl:gpu,host",
       "cmake_args": ""
     },
@@ -26,6 +28,7 @@
       "config": "ocl_x64",
       "name": "OCL x64 LLVM Test Suite",
       "runs-on": [
+        "Linux",
         "x64"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
@@ -34,9 +37,22 @@
       "cmake_args": ""
     },
     {
+      "config": "esimd_emu",
+      "name": "ESIMD Emu LLVM Test Suite",
+      "runs-on": [
+        "Linux",
+        "x64"
+      ],
+      "image": "${{ inputs.intel_drivers_image }}",
+      "container_options": "-u 1001",
+      "check_sycl_all": "ext_intel_esimd_emulator:gpu",
+      "cmake_args": ""
+    },
+    {
       "config": "hip_amdgpu",
       "name": "HIP AMDGPU LLVM Test Suite",
       "runs-on": [
+        "Linux",
         "amdgpu"
       ],
       "image": "${{ inputs.amdgpu_image }}",

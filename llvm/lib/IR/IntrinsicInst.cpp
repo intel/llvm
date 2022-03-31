@@ -299,7 +299,12 @@ ElementCount VPIntrinsic::getStaticVectorLength() const {
   };
 
   Value *VPMask = getMaskParam();
-  assert(VPMask && "No mask param?");
+  if (!VPMask) {
+    assert((getIntrinsicID() == Intrinsic::vp_merge ||
+            getIntrinsicID() == Intrinsic::vp_select) &&
+           "Unexpected VP intrinsic without mask operand");
+    return GetVectorLengthOfType(getType());
+  }
   return GetVectorLengthOfType(VPMask->getType());
 }
 
@@ -493,6 +498,7 @@ Function *VPIntrinsic::getDeclarationForParams(Module *M, Intrinsic::ID VPID,
     break;
   }
   case Intrinsic::vp_fptosi:
+  case Intrinsic::vp_sitofp:
     VPFunc =
         Intrinsic::getDeclaration(M, VPID, {ReturnType, Params[0]->getType()});
     break;
@@ -504,6 +510,10 @@ Function *VPIntrinsic::getDeclarationForParams(Module *M, Intrinsic::ID VPID,
     VPFunc = Intrinsic::getDeclaration(
         M, VPID, {ReturnType, Params[0]->getType()});
     break;
+  case Intrinsic::experimental_vp_strided_load:
+    VPFunc = Intrinsic::getDeclaration(
+        M, VPID, {ReturnType, Params[0]->getType(), Params[1]->getType()});
+    break;
   case Intrinsic::vp_gather:
     VPFunc = Intrinsic::getDeclaration(
         M, VPID, {ReturnType, Params[0]->getType()});
@@ -511,6 +521,11 @@ Function *VPIntrinsic::getDeclarationForParams(Module *M, Intrinsic::ID VPID,
   case Intrinsic::vp_store:
     VPFunc = Intrinsic::getDeclaration(
         M, VPID, {Params[0]->getType(), Params[1]->getType()});
+    break;
+  case Intrinsic::experimental_vp_strided_store:
+    VPFunc = Intrinsic::getDeclaration(
+        M, VPID,
+        {Params[0]->getType(), Params[1]->getType(), Params[2]->getType()});
     break;
   case Intrinsic::vp_scatter:
     VPFunc = Intrinsic::getDeclaration(

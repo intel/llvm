@@ -74,7 +74,8 @@ enum InternalCapability {
   ICapabilityJointMatrixINTEL = 6118,
   ICapabilityHWThreadQueryINTEL = 6134,
   ICapFPArithmeticFenceINTEL = 6144,
-  ICapGlobalVariableDecorationsINTEL = 6146
+  ICapGlobalVariableDecorationsINTEL = 6146,
+  ICapabilityNonConstantAddrspacePrintfINTEL = 6411
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
@@ -106,6 +107,8 @@ _SPIRV_OP(Op, JointMatrixWorkItemLengthINTEL)
 _SPIRV_OP(Capability, HWThreadQueryINTEL)
 _SPIRV_OP(BuiltIn, SubDeviceIDINTEL)
 _SPIRV_OP(BuiltIn, GlobalHWThreadIDINTEL)
+
+_SPIRV_OP(Capability, NonConstantAddrspacePrintfINTEL)
 #undef _SPIRV_OP
 
 constexpr Op OpForward = static_cast<Op>(IOpForward);

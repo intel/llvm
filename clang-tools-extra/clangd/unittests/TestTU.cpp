@@ -12,11 +12,9 @@
 #include "Diagnostics.h"
 #include "TestFS.h"
 #include "index/FileIndex.h"
-#include "index/MemIndex.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Frontend/CompilerInvocation.h"
-#include "clang/Frontend/Utils.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/raw_ostream.h"
@@ -247,7 +245,7 @@ const NamedDecl &findDecl(ParsedAST &AST,
   Visitor.F = Filter;
   Visitor.TraverseDecl(AST.getASTContext().getTranslationUnitDecl());
   if (Visitor.Decls.size() != 1) {
-    llvm::errs() << Visitor.Decls.size() << " symbols matched.";
+    llvm::errs() << Visitor.Decls.size() << " symbols matched.\n";
     assert(Visitor.Decls.size() == 1);
   }
   return *Visitor.Decls.front();

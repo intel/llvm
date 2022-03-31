@@ -121,9 +121,6 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     auto CleanUp = [&]() {
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        if (Type == CG::RunOnHostIntel)
-          static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
-
         NewEvent->setCommand(nullptr);
         delete NewCmd;
       }
@@ -239,6 +236,11 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
   // objects, this is needed to guarantee that streamed data is printed and
   // resources are released.
   std::vector<std::shared_ptr<stream_impl>> StreamsToDeallocate;
+  // Similar to streams, we also collect the auxiliary resources used by the
+  // commands. Cleanup will make sure the commands do not own the resources
+  // anymore, so we just need them to survive the graph lock then they can die
+  // as they go out of scope.
+  std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
   {
     // Avoiding deadlock situation, where one thread is in the process of
     // enqueueing (with a locked mutex) a currently blocked task that waits for
@@ -249,7 +251,8 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
       // The command might have been cleaned up (and set to nullptr) by another
       // thread
       if (FinishedCmd)
-        MGraphBuilder.cleanupFinishedCommands(FinishedCmd, StreamsToDeallocate);
+        MGraphBuilder.cleanupFinishedCommands(FinishedCmd, StreamsToDeallocate,
+                                              AuxResourcesToDeallocate);
     }
   }
   deallocateStreams(StreamsToDeallocate);
@@ -261,6 +264,11 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   // objects, this is needed to guarantee that streamed data is printed and
   // resources are released.
   std::vector<std::shared_ptr<stream_impl>> StreamsToDeallocate;
+  // Similar to streams, we also collect the auxiliary resources used by the
+  // commands. Cleanup will make sure the commands do not own the resources
+  // anymore, so we just need them to survive the graph lock then they can die
+  // as they go out of scope.
+  std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
 
   {
     MemObjRecord *Record = nullptr;
@@ -282,7 +290,8 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
       WriteLockT Lock(MGraphLock, std::defer_lock);
       acquireWriteLock(Lock);
       MGraphBuilder.decrementLeafCountersForRecord(Record);
-      MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate);
+      MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
+                                             AuxResourcesToDeallocate);
       MGraphBuilder.removeRecordForMemObj(MemObj);
     }
   }
@@ -291,17 +300,17 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
   std::vector<Command *> AuxiliaryCmds;
-  Command *NewCmd = nullptr;
+  EventImplPtr NewCmdEvent = nullptr;
 
   {
     WriteLockT Lock(MGraphLock, std::defer_lock);
     acquireWriteLock(Lock);
 
-    NewCmd = MGraphBuilder.addHostAccessor(Req, AuxiliaryCmds);
+    Command *NewCmd = MGraphBuilder.addHostAccessor(Req, AuxiliaryCmds);
+    if (!NewCmd)
+      return nullptr;
+    NewCmdEvent = NewCmd->getEvent();
   }
-
-  if (!NewCmd)
-    return nullptr;
 
   std::vector<Command *> ToCleanUp;
   {
@@ -315,14 +324,15 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
         throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
     }
 
-    Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    if (Command *NewCmd = static_cast<Command *>(NewCmdEvent->getCommand())) {
+      Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    }
   }
 
-  EventImplPtr NewEvent = NewCmd->getEvent();
   cleanupCommands(ToCleanUp);
-  return NewEvent;
+  return NewCmdEvent;
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
