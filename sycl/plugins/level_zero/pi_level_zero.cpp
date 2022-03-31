@@ -1108,12 +1108,6 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
   // command list is available for reuse.
   _pi_result pi_result = PI_OUT_OF_RESOURCES;
   ZeStruct<ze_fence_desc_t> ZeFenceDesc;
-
-  auto &ZeCommandListCache =
-      UseCopyEngine
-          ? Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice]
-          : Queue->Context->ZeComputeCommandListCache[Queue->Device->ZeDevice];
-
   // Initally, we need to check if a command list has already been created
   // on this device that is available for use. If so, then reuse that
   // Level-Zero Command List and Fence for this PI call.
@@ -1121,6 +1115,13 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
     // Make sure to acquire the lock before checking the size, or there
     // will be a race condition.
     std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
+    // Under mutex since operator[] does insertion on the first usage for every
+    // unique ZeDevice.
+    auto &ZeCommandListCache =
+        UseCopyEngine
+            ? Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice]
+            : Queue->Context
+                  ->ZeComputeCommandListCache[Queue->Device->ZeDevice];
 
     if (ZeCommandListCache.size() > 0) {
       auto &ZeCommandList = ZeCommandListCache.front();

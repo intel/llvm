@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_ANALYSIS_PRESBURGER_INTEGERPOLYHEDRON_H
-#define MLIR_ANALYSIS_PRESBURGER_INTEGERPOLYHEDRON_H
+#ifndef MLIR_ANALYSIS_PRESBURGER_INTEGERRELATION_H
+#define MLIR_ANALYSIS_PRESBURGER_INTEGERRELATION_H
 
 #include "mlir/Analysis/Presburger/Fraction.h"
 #include "mlir/Analysis/Presburger/Matrix.h"
@@ -24,7 +24,7 @@
 namespace mlir {
 namespace presburger {
 
-/// An IntegerRelation is a PresburgerLocalSpace subject to affine constraints.
+/// An IntegerRelation is a PresburgerSpace subject to affine constraints.
 /// Affine constraints can be inequalities or equalities in the form:
 ///
 /// Inequality: c_0*x_0 + c_1*x_1 + .... + c_{n-1}*x_{n-1} + c_n >= 0
@@ -42,7 +42,7 @@ namespace presburger {
 ///
 /// Since IntegerRelation makes a distinction between dimensions, IdKind::Range
 /// and IdKind::Domain should be used to refer to dimension identifiers.
-class IntegerRelation : public PresburgerLocalSpace {
+class IntegerRelation : public PresburgerSpace {
 public:
   /// All derived classes of IntegerRelation.
   enum class Kind {
@@ -59,7 +59,7 @@ public:
                   unsigned numReservedEqualities, unsigned numReservedCols,
                   unsigned numDomain, unsigned numRange, unsigned numSymbols,
                   unsigned numLocals)
-      : PresburgerLocalSpace(numDomain, numRange, numSymbols, numLocals),
+      : PresburgerSpace(numDomain, numRange, numSymbols, numLocals),
         equalities(0, getNumIds() + 1, numReservedEqualities, numReservedCols),
         inequalities(0, getNumIds() + 1, numReservedInequalities,
                      numReservedCols) {
@@ -94,6 +94,10 @@ public:
   /// Appends constraints from `other` into `this`. This is equivalent to an
   /// intersection with no simplification of any sort attempted.
   void append(const IntegerRelation &other);
+
+  /// Return the intersection of the two sets.
+  /// If there are locals, they will be merged.
+  IntegerRelation intersect(IntegerRelation other) const;
 
   /// Return whether `this` and `other` are equal. This is integer-exact
   /// and somewhat expensive, since it uses the integer emptiness check
@@ -143,6 +147,30 @@ public:
   inline ArrayRef<int64_t> getInequality(unsigned idx) const {
     return inequalities.getRow(idx);
   }
+
+  /// The struct CountsSnapshot stores the count of each IdKind, and also of
+  /// each constraint type. getCounts() returns a CountsSnapshot object
+  /// describing the current state of the IntegerRelation. truncate() truncates
+  /// all ids of each IdKind and all constraints of both kinds beyond the counts
+  /// in the specified CountsSnapshot object. This can be used to achieve
+  /// rudimentary rollback support. As long as none of the existing constraints
+  /// or ids are disturbed, and only additional ids or constraints are added,
+  /// this addition can be rolled back using truncate.
+  struct CountsSnapshot {
+  public:
+    CountsSnapshot(const PresburgerSpace &space, unsigned numIneqs,
+                   unsigned numEqs)
+        : space(space), numIneqs(numIneqs), numEqs(numEqs) {}
+    const PresburgerSpace &getSpace() const { return space; };
+    unsigned getNumIneqs() const { return numIneqs; }
+    unsigned getNumEqs() const { return numEqs; }
+
+  private:
+    PresburgerSpace space;
+    unsigned numIneqs, numEqs;
+  };
+  CountsSnapshot getCounts() const;
+  void truncate(const CountsSnapshot &counts);
 
   /// Insert `num` identifiers of the specified kind at position `pos`.
   /// Positions are relative to the kind of identifier. The coefficient columns
@@ -257,11 +285,12 @@ public:
   Optional<uint64_t> computeVolume() const;
 
   /// Returns true if the given point satisfies the constraints, or false
-  /// otherwise.
-  ///
-  /// Note: currently, if the relation contains local ids, the values of
-  /// the local ids must also be provided.
+  /// otherwise. Takes the values of all ids including locals.
   bool containsPoint(ArrayRef<int64_t> point) const;
+  /// Given the values of non-local ids, return a satisfying assignment to the
+  /// local if one exists, or an empty optional otherwise.
+  Optional<SmallVector<int64_t, 8>>
+  containsPointNoLocal(ArrayRef<int64_t> point) const;
 
   /// Find equality and pairs of inequality contraints identified by their
   /// position indices, using which an explicit representation for each local
@@ -386,9 +415,14 @@ public:
   /// O(VC) time.
   void removeRedundantConstraints();
 
-  /// Converts identifiers in the column range [idStart, idLimit) to local
-  /// variables.
-  void convertDimToLocal(unsigned dimStart, unsigned dimLimit);
+  /// Converts identifiers of kind srcKind in the range [idStart, idLimit) to
+  /// variables of kind dstKind and placed after all the other variables of kind
+  /// dstKind. The internal ordering among the moved variables is preserved.
+  void convertIdKind(IdKind srcKind, unsigned idStart, unsigned idLimit,
+                     IdKind dstKind);
+  void convertToLocal(IdKind kind, unsigned idStart, unsigned idLimit) {
+    convertIdKind(kind, idStart, idLimit, IdKind::Local);
+  }
 
   /// Adds additional local ids to the sets such that they both have the union
   /// of the local ids in each set, without changing the set of points that
@@ -482,6 +516,11 @@ protected:
   /// arrays as needed.
   void removeIdRange(unsigned idStart, unsigned idLimit);
 
+  using PresburgerSpace::truncateIdKind;
+  /// Truncate the ids to the number in the space of the specified
+  /// CountsSnapshot.
+  void truncateIdKind(IdKind kind, const CountsSnapshot &counts);
+
   /// A parameter that controls detection of an unrealistic number of
   /// constraints. If the number of constraints is this many times the number of
   /// variables, we consider such a system out of line with the intended use
@@ -501,7 +540,7 @@ protected:
   Matrix inequalities;
 };
 
-/// An IntegerPolyhedron is a PresburgerLocalSpace subject to affine
+/// An IntegerPolyhedron is a PresburgerSpace subject to affine
 /// constraints. Affine constraints can be inequalities or equalities in the
 /// form:
 ///
@@ -564,4 +603,4 @@ public:
 } // namespace presburger
 } // namespace mlir
 
-#endif // MLIR_ANALYSIS_PRESBURGER_INTEGERPOLYHEDRON_H
+#endif // MLIR_ANALYSIS_PRESBURGER_INTEGERRELATION_H

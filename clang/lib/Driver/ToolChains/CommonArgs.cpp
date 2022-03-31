@@ -582,6 +582,13 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
     CmdArgs.push_back("-plugin-opt=-data-sections");
   }
 
+  // Pass an option to enable split machine functions.
+  if (auto *A = Args.getLastArg(options::OPT_fsplit_machine_functions,
+                                options::OPT_fno_split_machine_functions)) {
+    if (A->getOption().matches(options::OPT_fsplit_machine_functions))
+      CmdArgs.push_back("-plugin-opt=-split-machine-functions");
+  }
+
   if (Arg *A = getLastProfileSampleUseArg(Args)) {
     StringRef FName = A->getValue();
     if (!llvm::sys::fs::exists(FName))
@@ -849,6 +856,10 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   // The stats_client library is also statically linked into DSOs.
   if (SanArgs.needsStatsRt() && SanArgs.linkRuntimes())
     StaticRuntimes.push_back("stats_client");
+
+  // Always link the static runtime regardless of DSO or executable.
+  if (SanArgs.needsAsanRt())
+    HelperStaticRuntimes.push_back("asan_static");
 
   // Collect static runtimes.
   if (Args.hasArg(options::OPT_shared)) {
