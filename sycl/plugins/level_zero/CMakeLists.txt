@@ -153,7 +153,6 @@ add_custom_target(ze-api
   COMMAND ${Python3_EXECUTABLE}
   ${CMAKE_CURRENT_SOURCE_DIR}/ze_api_generator.py
   ${LEVEL_ZERO_INCLUDE_DIR}/level_zero/ze_api.h
-  SOURCES ${LEVEL_ZERO_INCLUDE_DIR}/level_zero/ze_api.h
   BYPRODUCTS
     ${CMAKE_CURRENT_BINARY_DIR}/ze_api.def
   )
