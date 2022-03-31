@@ -18,6 +18,7 @@
 #include <CL/sycl/sampler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/kernel_info.hpp>
@@ -2201,12 +2202,12 @@ cl_uint enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
   // 1. Encode this in the pipe registration
   // 2. Initialize the pipe registration from first kernel launch, but then this
   // will violate the spec
-  detail::OSModuleHandle M =
-      detail::OSUtil::getOSModuleHandle("HostPipeReadWriteKernelName");
+  detail::HostPipeMapEntry *hostPipeEntry =
+      detail::ProgramManager::getInstance().getHostPipeEntry(PipeName);
   RT::PiProgram Program =
-      sycl::detail::ProgramManager::getInstance().getBuiltPIProgram(
-          M, Queue->getContextImplPtr(), Queue->getDeviceImplPtr(),
-          "HostPipeReadWriteKernelName");
+      sycl::detail::ProgramManager::getInstance().createPIProgram(
+          *(hostPipeEntry->mDeviceImage), Queue->get_context(),
+          Queue->get_device());
 
   // Get plugin for calling opencl functions
   const detail::plugin &Plugin = Queue->getPlugin();

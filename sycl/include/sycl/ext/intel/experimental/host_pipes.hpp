@@ -52,16 +52,19 @@ class
 
   struct
 #ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_global_variable_attributes(
-    "sycl-host-pipe",
-    nullptr
-    )]]
-  [[__sycl_detail__::host_pipe]]
-  [[__sycl_detail__::global_variable_allowed]] // may not be needed
+      [[__sycl_detail__::add_ir_global_variable_attributes(
+          "sycl-host-pipe",
+          nullptr)]] [[__sycl_detail__::
+                           host_pipe]] [[__sycl_detail__::
+                                             global_variable_allowed]] // may
+                                                                       // not be
+                                                                       // needed
 #endif
-  __pipeType { const char __p; };
-  
-  static constexpr __pipeType __pipe = {0};  
+      __pipeType {
+    const char __p;
+  };
+
+  static constexpr __pipeType __pipe = {0};
 
 public:
   using value_type = _dataT;

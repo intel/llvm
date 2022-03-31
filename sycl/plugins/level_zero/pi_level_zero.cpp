@@ -4123,12 +4123,12 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
         uint32_t Count = 0;
         ZE_CALL(zeModuleGetKernelNames, (Program->ZeModule, &Count, nullptr));
         std::unique_ptr<const char *[]> PNames(new const char *[Count]);
-            ZE_CALL(zeModuleGetKernelNames,
-                    (Program->ZeModule, &Count, PNames.get()));
-            for (uint32_t I = 0; I < Count; ++I) {
-              PINames += (I > 0 ? ";" : "");
-              PINames += PNames[I];
-            }
+        ZE_CALL(zeModuleGetKernelNames,
+                (Program->ZeModule, &Count, PNames.get()));
+        for (uint32_t I = 0; I < Count; ++I) {
+          PINames += (I > 0 ? ";" : "");
+          PINames += PNames[I];
+        }
       } else {
         return PI_INVALID_PROGRAM;
       }
