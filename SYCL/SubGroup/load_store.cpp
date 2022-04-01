@@ -7,9 +7,6 @@
 // AMD
 // XFAIL: hip_amd
 //
-// Missing GroupNonUniformArithmetic capability on CPU RT
-// XFAIL: cpu
-//
 //==----------- load_store.cpp - SYCL sub_group load/store test ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
