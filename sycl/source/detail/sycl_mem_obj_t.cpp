@@ -117,10 +117,8 @@ void SYCLMemObjT::updateHostMemory() {
   releaseHostMem(MShadowCopy);
 
   if (MInteropContext) {
-    const plugin &Plugin = getPlugin();
-    if (Plugin.getBackend() == backend::opencl)
-      Plugin.call<PiApiKind::piMemRelease>(
-          pi::cast<RT::PiMem>(MInteropMemObject));
+    getPlugin().call<PiApiKind::piMemRelease>(
+        pi::cast<RT::PiMem>(MInteropMemObject));
   }
 }
 const plugin &SYCLMemObjT::getPlugin() const {
