@@ -10,6 +10,6 @@ void kernel_parallel_for_work_group(const Kernel&) {
   unknown(); // expected-error{{use of undeclared identifier 'unknown'}}
 }
 void foo() {
-  auto lambda = []{};
+  auto lambda = [] {};
   kernel_parallel_for_work_group<int, int>(lambda);
 }
