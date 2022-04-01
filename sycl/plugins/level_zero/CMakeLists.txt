@@ -160,6 +160,7 @@ target_include_directories(pi_level_zero PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(pi_level_zero ze-api)
 
 if (TARGET level-zero-loader)
+  add_dependencies(ze-api level-zero-loader)
   add_dependencies(pi_level_zero level-zero-loader)
 endif()
 

@@ -43,6 +43,7 @@ add_custom_target(ze-pretty-printers
   COMMAND ${Python3_EXECUTABLE}
   ${CMAKE_CURRENT_SOURCE_DIR}/generate_ze_pretty_printers.py
   ${LEVEL_ZERO_INCLUDE_DIR}/level_zero/ze_api.h
+  DEPENDS pi_level_zero
   BYPRODUCTS
     ${CMAKE_CURRENT_BINARY_DIR}/ze_printers.def
   )
