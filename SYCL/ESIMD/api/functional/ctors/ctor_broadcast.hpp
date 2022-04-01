@@ -148,7 +148,7 @@ private:
                         const std::string &dst_data_type) {
     shared_vector<DstT> result(NumElems, shared_allocator<DstT>(queue));
     shared_vector<SrcT> shared_ref_data(1, shared_allocator<SrcT>(queue));
-    shared_ref_data.push_back(ref_value);
+    shared_ref_data[0] = ref_value;
 
     queue.submit([&](sycl::handler &cgh) {
       const SrcT *const ref = shared_ref_data.data();
