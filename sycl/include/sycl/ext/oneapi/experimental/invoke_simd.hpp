@@ -226,6 +226,23 @@ simd_call_helper(const void *obj_ptr,
   return f(simd_args...);
 };
 
+// TODO
+// This is a workaround for Linux clang behavior which returns false for
+//   template <class F> bool foo(F &&f) {
+//     return std::is_function_v<std::remove_reference_t<F>>;
+//   }
+// where F is a function type with __regcall.
+template <class F> struct is_regcall_function : std::false_type {};
+
+template <class Ret, class... Args>
+struct is_regcall_function<Ret(__regcall *)(Args...)> : std::true_type {};
+
+template <class Ret, class... Args>
+struct is_regcall_function<Ret(__regcall &)(Args...)> : std::true_type {};
+
+template <class F>
+static constexpr bool is_regcall_function_v = is_regcall_function<F>::value;
+
 } // namespace detail
 
 // --- The main API
@@ -259,7 +276,8 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
 
   using CallableNoRef = std::remove_reference_t<Callable>;
   using CallableNoRefNoPtr = std::remove_pointer_t<CallableNoRef>;
-  constexpr bool is_function = std::is_function_v<CallableNoRefNoPtr>;
+  constexpr bool is_function = std::is_function_v<CallableNoRefNoPtr> ||
+                               detail::is_regcall_function_v<Callable>;
 
   if constexpr (is_function) {
     return __builtin_invoke_simd<is_function, RetSpmd>(
