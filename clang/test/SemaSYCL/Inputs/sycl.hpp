@@ -314,16 +314,6 @@ public:
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
     kernel_parallel_for_work_group<NameT>(kernelFunc, kh);
   }
-  template <typename KernelName = auto_name, typename KernelType, int Dims>
-  void parallel_for_work_group(range<Dims> numWorkGroups, range<Dims> WorkGroupSize, const KernelType &kernelFunc) {
-    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
-#ifdef __SYCL_DEVICE_ONLY__
-    kernel_parallel_for_work_group<NameT, KernelType, Dims>(kernelFunc);
-#else
-    group<Dims> G;
-    kernelFunc(G);
-#endif
-  }
 };
 
 class __attribute__((sycl_special_class)) stream {
