@@ -657,6 +657,13 @@ struct _pi_context : _pi_object {
   // and return the pool to the cache if there are no unreleased events.
   pi_result decrementUnreleasedEventsInPool(pi_event Event);
 
+  // Return event if cache has an event available, nullptr otherwise.
+  ze_event_handle_t getZeEventFromCache();
+
+  // Put the event in the cache for reuse.
+  void addZeEventToCache(ze_event_handle_t ZeEvent,
+                         bool CamefromEventRelease = false);
+
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
   // per each pair of (context, device) per each memory type.
@@ -718,6 +725,15 @@ private:
   // Mutex to control operations on event pool caches and the helper maps
   // holding the current pool usage counts.
   std::mutex ZeEventPoolCacheMutex;
+
+  // This counts how many PI events used a particular L0 event. If the counter
+  // becomes zero when we release the PI event, this means it was the last user
+  // of the L0 event and we can safely put it back in the cache.
+  std::unordered_map<ze_event_handle_t, size_t> ZeEventUseCount;
+  // Cache of allocated events that are in non-signaled state and can be reused.
+  std::unordered_set<ze_event_handle_t> ZeEventsCache;
+  // Mutex to control operations on L0 event cache and event usage counts.
+  std::mutex ZeEventsCacheMutex;
 };
 
 struct _pi_queue : _pi_object {
@@ -869,6 +885,10 @@ struct _pi_queue : _pi_object {
     auto CommandBatch = (IsCopy) ? CopyCommandBatch : ComputeCommandBatch;
     return CommandBatch.OpenCommandList != CommandListMap.end();
   }
+
+  // Reset LastCommandEvent->ZeEvent if necessary and put it in cache for reuse.
+  pi_result resetLastEventIfNeeded(pi_command_list_ptr_t CommandList);
+
   // Attach a command list to this queue, close, and execute it.
   // Note that this command list cannot be appended to after this.
   // The "IsBlocking" tells if the wait for completion is required.

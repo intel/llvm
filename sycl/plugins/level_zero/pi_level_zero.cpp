@@ -497,6 +497,41 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
   return PI_SUCCESS;
 }
 
+ze_event_handle_t _pi_context::getZeEventFromCache() {
+  std::lock_guard<std::mutex> Lock(ZeEventsCacheMutex);
+  if (ZeEventsCache.empty())
+    return nullptr;
+
+  auto It = ZeEventsCache.begin();
+  ze_event_handle_t ZeEvent = *It;
+  ZeEventsCache.erase(It);
+
+  ++ZeEventUseCount[ZeEvent];
+  return ZeEvent;
+}
+
+void _pi_context::addZeEventToCache(ze_event_handle_t ZeEvent,
+                                    bool CamefromEventRelease) {
+  std::lock_guard<std::mutex> Lock(ZeEventsCacheMutex);
+
+  if (CamefromEventRelease) {
+    auto It = ZeEventUseCount.find(ZeEvent);
+    if (It == ZeEventUseCount.end()) {
+      ZeEventUseCount[ZeEvent] = 0;
+    } else {
+      if (--(ZeEventUseCount[ZeEvent]) != 0) {
+        return;
+      }
+    }
+  } else {
+    auto It = ZeEventUseCount.find(ZeEvent);
+    if (It == ZeEventUseCount.end()) {
+      ZeEventUseCount[ZeEvent] = 1;
+    }
+  }
+  ZeEventsCache.emplace(ZeEvent);
+}
+
 // Some opencl extensions we know are supported by all Level Zero devices.
 constexpr char ZE_SUPPORTED_EXTENSIONS[] =
     "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
@@ -787,6 +822,13 @@ pi_result _pi_context::finalize() {
   // This function is called when pi_context is deallocated, piContextRelease.
   // There could be some memory that may have not been deallocated.
   // For example, event pool caches would be still alive.
+  {
+    std::lock_guard<std::mutex> Lock(ZeEventsCacheMutex);
+    for (auto &ZeEvent : ZeEventsCache) {
+      ZE_CALL(zeEventDestroy, (ZeEvent));
+    }
+  }
+
   {
     std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
     for (auto &ZePoolCache : ZeEventPoolCache) {
@@ -1257,6 +1299,23 @@ void _pi_queue::adjustBatchSizeForPartialBatch(bool IsCopy) {
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
   }
+}
+
+pi_result _pi_queue::resetLastEventIfNeeded(pi_command_list_ptr_t CommandList) {
+  if (!this->LastCommandEvent)
+    return PI_SUCCESS;
+
+  auto &ZeEvent = this->LastCommandEvent->ZeEvent;
+  if (ZeEvent == CommandList->second.EventList.back()->ZeEvent)
+    die("Current command event and last command event must be different");
+
+  if (isInOrderQueue() && !this->LastCommandEvent->isHostVisible() &&
+      !this->LastCommandEvent->isProfilingEnabled()) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents, (CommandList->first, 1, &ZeEvent));
+    ZE_CALL(zeCommandListAppendEventReset, (CommandList->first, ZeEvent));
+    this->LastCommandEvent->Context->addZeEventToCache(ZeEvent);
+  }
+  return PI_SUCCESS;
 }
 
 pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
@@ -4897,6 +4956,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   if (IndirectAccessTrackingEnabled)
     Queue->KernelsToBeSubmitted.push_back(Kernel);
 
+  if (auto Res = Queue->resetLastEventIfNeeded(CommandList))
+    return Res;
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
   if (auto Res = Queue->executeCommandList(CommandList, false, true))
@@ -4982,6 +5043,9 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
       ZE_CALL(zeCommandListAppendSignalEvent,
               (CommandList->first, HostVisibleEvent->ZeEvent));
 
+      if (auto Res = Queue->resetLastEventIfNeeded(CommandList))
+        return Res;
+
       if (auto Res = Queue->executeCommandList(CommandList, false, OkToBatch))
         return Res;
     }
@@ -5002,38 +5066,49 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
   bool ProfilingEnabled =
       !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
 
-  size_t Index = 0;
-  ze_event_pool_handle_t ZeEventPool = {};
-  if (auto Res = Context->getFreeSlotInExistingOrNewPool(
-          ZeEventPool, Index, HostVisible, ProfilingEnabled))
-    return Res;
+  ze_event_handle_t ZeEvent = nullptr;
+  ze_event_pool_handle_t ZeEventPool = nullptr;
 
-  ze_event_handle_t ZeEvent;
-  ZeStruct<ze_event_desc_t> ZeEventDesc;
-  ZeEventDesc.index = Index;
-  ZeEventDesc.wait = 0;
-
-  if (HostVisible) {
-    ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
-  } else {
-    //
-    // Set the scope to "device" for every event. This is sufficient for global
-    // device access and peer device access. If needed to be seen on the host
-    // we are doing special handling, see EventsScope options.
-    //
-    // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
-    //       used in some circumstances.
-    //
-    ZeEventDesc.signal = 0;
+  bool OwnZeEvent = HostVisible || ProfilingEnabled || !Queue->isInOrderQueue();
+  if (!OwnZeEvent) {
+    ZeEvent = Context->getZeEventFromCache();
   }
 
-  ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
+  if (!ZeEvent) {
+    size_t Index = 0;
+    if (auto Res = Context->getFreeSlotInExistingOrNewPool(
+            ZeEventPool, Index, HostVisible, ProfilingEnabled))
+      return Res;
+
+    ZeStruct<ze_event_desc_t> ZeEventDesc;
+    ZeEventDesc.index = Index;
+    ZeEventDesc.wait = 0;
+
+    if (HostVisible) {
+      ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
+    } else {
+      //
+      // Set the scope to "device" for every event. This is sufficient for
+      // global device access and peer device access. If needed to be seen on
+      // the host we are doing special handling, see EventsScope options.
+      //
+      // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
+      //       used in some circumstances.
+      //
+      ZeEventDesc.signal = 0;
+    }
+
+    ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
+
+    if (!OwnZeEvent)
+      ZeEventPool = nullptr;
+  }
 
   try {
     PI_ASSERT(RetEvent, PI_INVALID_VALUE);
 
     *RetEvent = new _pi_event(ZeEvent, ZeEventPool, Context,
-                              PI_COMMAND_TYPE_USER, true);
+                              PI_COMMAND_TYPE_USER, OwnZeEvent);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -5385,6 +5460,11 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
     }
     if (Event->OwnZeEvent) {
       ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+    } else {
+      if (Event->Queue->isInOrderQueue() && !Event->isHostVisible() &&
+          !Event->isProfilingEnabled()) {
+        Event->Context->addZeEventToCache(Event->ZeEvent, true);
+      }
     }
     // It is possible that host-visible event was never created.
     // In case it was check if that's different from this same event
@@ -5650,6 +5730,9 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
     ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
+    if (auto Res = Queue->resetLastEventIfNeeded(CommandList))
+      return Res;
+
     // Execute command list asynchronously as the event will be used
     // to track down its completion.
     return Queue->executeCommandList(CommandList);
@@ -5717,6 +5800,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   ZE_CALL(zeCommandListAppendBarrier,
           (CommandList->first, ZeEvent, (*Event)->WaitList.Length,
            (*Event)->WaitList.ZeEventList));
+
+  if (auto Res = Queue->resetLastEventIfNeeded(CommandList))
+    return Res;
 
   // Execute command list asynchronously as the event will be used
   // to track down its completion.
@@ -5820,6 +5906,9 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
+  if (auto Res = Queue->resetLastEventIfNeeded(CommandList))
+    return Res;
+
   if (auto Res =
           Queue->executeCommandList(CommandList, BlockingWrite, OkToBatch))
     return Res;
@@ -5917,6 +6006,9 @@ static pi_result enqueueMemCopyRectHelper(
 
   zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
+
+  if (auto Res = Queue->resetLastEventIfNeeded(CommandList))
+    return Res;
 
   if (auto Res = Queue->executeCommandList(CommandList, Blocking, OkToBatch))
     return Res;
@@ -6098,6 +6190,9 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
           pi_cast<pi_uint64>(ZeEvent));
   printZeEventList(WaitList);
 
+  if (auto Res = Queue->resetLastEventIfNeeded(CommandList))
+    return Res;
+
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
   if (auto Res = Queue->executeCommandList(CommandList, false, OkToBatch))
@@ -6253,6 +6348,9 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
            pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size, ZeEvent, 0,
            nullptr));
 
+  if (auto Res = Queue->resetLastEventIfNeeded(CommandList))
+    return Res;
+
   if (auto Res = Queue->executeCommandList(CommandList, BlockingMap))
     return Res;
 
@@ -6378,6 +6476,9 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
           (ZeCommandList,
            pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
            MapInfo.Size, ZeEvent, 0, nullptr));
+
+  if (auto Res = Queue->resetLastEventIfNeeded(CommandList))
+    return Res;
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
@@ -6575,6 +6676,9 @@ static pi_result enqueueMemImageCommandHelper(
     zePrint("enqueueMemImageUpdate: unsupported image command type\n");
     return PI_INVALID_OPERATION;
   }
+
+  if (auto Res = Queue->resetLastEventIfNeeded(CommandList))
+    return Res;
 
   if (auto Res = Queue->executeCommandList(CommandList, IsBlocking, OkToBatch))
     return Res;
@@ -7464,6 +7568,9 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
+  if (auto Res = Queue->resetLastEventIfNeeded(CommandList))
+    return Res;
+
   if (auto Res = Queue->executeCommandList(CommandList, false))
     return Res;
 
@@ -7525,6 +7632,9 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // TODO: Level Zero does not have a completion "event" with the advise API,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
+
+  if (auto Res = Queue->resetLastEventIfNeeded(CommandList))
+    return Res;
 
   Queue->executeCommandList(CommandList, false);
   return PI_SUCCESS;
