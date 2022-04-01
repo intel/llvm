@@ -2505,7 +2505,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   void markParallelWorkItemCalls() {
     if (getKernelInvocationKind(KernelCallerFunc) ==
         InvokeParallelForWorkGroup) {
-      CXXRecordDecl *KernelObj=
+      CXXRecordDecl *KernelObj =
           GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
       CXXMethodDecl *WGLambdaFn;
       if (KernelObj->isLambda())
