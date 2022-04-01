@@ -77,6 +77,12 @@ static pi_result redefinedMemGetInfo(pi_mem mem, pi_mem_info param_name,
     *Result = 8;
   }
 }
+static pi_result
+redefinedMemCreateWithNativeHandle(pi_native_handle native_handle,
+                                   pi_context context, bool own_native_handle,
+                                   pi_mem *mem) {
+  return PI_SUCCESS;
+}
 
 TEST_F(SchedulerTest, NoHostUnifiedMemory) {
   platform Plt{default_selector()};
@@ -96,6 +102,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
   Mock.redefine<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
   Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
   Mock.redefine<detail::PiApiKind::piMemGetInfo>(redefinedMemGetInfo);
+  Mock.redefine<detail::PiApiKind::piextMemCreateWithNativeHandle>(
+      redefinedMemCreateWithNativeHandle);
   cl::sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
   device HostDevice;
