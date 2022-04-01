@@ -13,7 +13,7 @@ namespace sycl {
 namespace detail {
 namespace device_global_map {
 
-void add(void *DeviceGlobalPtr, const char *UniqueId);
+__SYCL_EXPORT void add(const void *DeviceGlobalPtr, const char *UniqueId);
 
 } // namespace device_global_map
 } // namespace detail
