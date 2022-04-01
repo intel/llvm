@@ -260,3 +260,51 @@ SYCL_EXTERNAL auto barx(sub_group sg, float a, char ch,
   auto x = invoke_simd(sg, f, 1.f, uniform{a});
   static_assert(std::is_same_v<decltype(x), uniform<char>>);
 }
+
+// Internal is_function_ref_v meta-API checks {
+template <class F> void assert_is_func(F &&f) {
+  static_assert(
+      sycl::ext::oneapi::experimental::detail::is_function_ptr_or_ref_v<F>);
+}
+
+template <class F> void assert_is_not_func(F &&f) {
+  static_assert(
+      !sycl::ext::oneapi::experimental::detail::is_function_ptr_or_ref_v<F>);
+}
+
+void ordinary_func();
+
+// clang-format off
+void check_f(
+  int(*func_ptr)(float*), int(__regcall* func_ptr_regcall)(float*),
+  int(&func_ref)(float*), int(__regcall& func_ref_regcall)(float*),
+  int(func)(float*), int(__regcall func_regcall)(float*)) {
+
+  assert_is_func(SIMD_CALLEE);
+  assert_is_func(ordinary_func);
+
+  assert_is_func(func_ptr);
+  assert_is_func(func_ptr_regcall);
+
+  assert_is_func(func_ref);
+  assert_is_func(func_ref_regcall);
+
+  assert_is_func(func);
+  assert_is_func(func_regcall);
+}
+// clang-format on
+
+void check_not_f(char ch) {
+  assert_is_not_func(SIMD_FUNCTOR{10});
+  const auto capt_lambda = [=] [[gnu::regcall]] (simd<float, 16>, float) {
+    // capturing lambda
+    return ch;
+  };
+  const auto non_capt_lambda = [](simd<float, 16>, float) {
+    // non-capturing lambda
+    return 10;
+  };
+  assert_is_not_func(capt_lambda);
+  assert_is_not_func(non_capt_lambda);
+}
+// }

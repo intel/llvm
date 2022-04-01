@@ -226,6 +226,13 @@ simd_call_helper(const void *obj_ptr,
   return f(simd_args...);
 };
 
+#ifdef _GLIBCXX_RELEASE
+#if _GLIBCXX_RELEASE < 10
+#define __INVOKE_SIMD_USE_STD_IS_FUNCTION_WA
+#endif // _GLIBCXX_RELEASE < 10
+#endif // _GLIBCXX_RELEASE
+
+#ifdef __INVOKE_SIMD_USE_STD_IS_FUNCTION_WA
 // TODO This is a workaround for libstdc++ version 9 buggy behavior which
 // returns false in the code below. Version 10 works fine. Once required
 // minimum libstdc++ version is bumped to 10, this w/a should be removed.
@@ -233,17 +240,28 @@ simd_call_helper(const void *obj_ptr,
 //     return std::is_function_v<std::remove_reference_t<F>>;
 //   }
 // where F is a function type with __regcall.
-template <class F> struct is_regcall_function : std::false_type {};
+template <class F> struct is_regcall_function_ptr_or_ref_v : std::false_type {};
 
 template <class Ret, class... Args>
-struct is_regcall_function<Ret(__regcall *)(Args...)> : std::true_type {};
+struct is_regcall_function_ptr_or_ref_v<Ret(__regcall &)(Args...)>
+    : std::true_type {};
 
 template <class Ret, class... Args>
-struct is_regcall_function<Ret(__regcall &)(Args...)> : std::true_type {};
+struct is_regcall_function_ptr_or_ref_v<Ret(__regcall *)(Args...)>
+    : std::true_type {};
 
 template <class F>
-static constexpr bool is_regcall_function_v = is_regcall_function<F>::value;
+static constexpr bool is_regcall_function_ptr_or_ref_v =
+    is_regcall_function_ptr_or_ref_v<F>::value;
+#endif // __INVOKE_SIMD_USE_STD_IS_FUNCTION_WA
 
+template <class Callable>
+static constexpr bool is_function_ptr_or_ref_v =
+    std::is_function_v<std::remove_pointer_t<std::remove_reference_t<Callable>>>
+#ifdef __INVOKE_SIMD_USE_STD_IS_FUNCTION_WA
+    || is_regcall_function_ptr_or_ref_v<Callable>
+#endif // __INVOKE_SIMD_USE_STD_IS_FUNCTION_WA
+    ;
 } // namespace detail
 
 // --- The main API
@@ -274,11 +292,7 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
   // is fine in this case.
   constexpr int N = detail::get_sg_size<Callable, T...>();
   using RetSpmd = detail::SpmdRetType<N, Callable, T...>;
-
-  using CallableNoRef = std::remove_reference_t<Callable>;
-  using CallableNoRefNoPtr = std::remove_pointer_t<CallableNoRef>;
-  constexpr bool is_function = std::is_function_v<CallableNoRefNoPtr> ||
-                               detail::is_regcall_function_v<Callable>;
+  constexpr bool is_function = detail::is_function_ptr_or_ref_v<Callable>;
 
   if constexpr (is_function) {
     return __builtin_invoke_simd<is_function, RetSpmd>(
