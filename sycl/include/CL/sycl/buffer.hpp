@@ -319,7 +319,7 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         detail::pi::cast<pi_native_handle>(MemObject), SyclContext,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
-        AvailableEvent);
+        /* OwnNativeHandle */ true, AvailableEvent);
     Range[0] = impl->getSize() / sizeof(T);
     impl->constructorNotification(CodeLoc, (void *)impl.get(), &MemObject,
                                   (const void *)typeid(T).name(), dimensions,

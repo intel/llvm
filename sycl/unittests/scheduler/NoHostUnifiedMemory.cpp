@@ -81,6 +81,7 @@ static pi_result
 redefinedMemCreateWithNativeHandle(pi_native_handle native_handle,
                                    pi_context context, bool own_native_handle,
                                    pi_mem *mem) {
+  *mem = detail::pi::cast<pi_mem>(native_handle);
   return PI_SUCCESS;
 }
 
