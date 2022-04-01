@@ -2505,9 +2505,11 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   void markParallelWorkItemCalls() {
     if (getKernelInvocationKind(KernelCallerFunc) ==
         InvokeParallelForWorkGroup) {
+      // Fetch the kernel object and the associated call operator
+      // (of either the lambda or the function object).
       CXXRecordDecl *KernelObj =
           GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
-      CXXMethodDecl *WGLambdaFn;
+      CXXMethodDecl *WGLambdaFn = nullptr;
       if (KernelObj->isLambda())
         WGLambdaFn = KernelObj->getLambdaCallOperator();
       else
