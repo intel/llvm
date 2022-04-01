@@ -933,7 +933,7 @@ struct _pi_mem : _pi_object {
   bool OwnZeMemHandle;
 
   // Flag to indicate that this memory is allocated in host memory
-  const bool OnHost;
+  bool OnHost;
 
   // Flag to indicate that the host ptr has been imported into USM
   bool HostPtrImported;
@@ -951,13 +951,17 @@ struct _pi_mem : _pi_object {
   // The value is the information needed to maintain/undo the mapping.
   std::unordered_map<void *, Mapping> Mappings;
 
+  enum access_mode_t { unknown, read_write, read_only, write_only };
+
   // Interface of the _pi_mem object
 
   // Get the Level Zero handle of the current memory object
-  virtual void *getZeHandle() = 0;
+  virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
+                                pi_device Device = nullptr) = 0;
 
   // Get a pointer to the Level Zero handle of the current memory object
-  virtual void *getZeHandlePtr() = 0;
+  virtual pi_result getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
+                                   pi_device Device = nullptr) = 0;
 
   // Method to get type of the derived object (image or buffer)
   virtual bool isImage() const = 0;
@@ -971,42 +975,96 @@ protected:
         OnHost{MemOnHost}, HostPtrImported{ImportedHostPtr}, Mappings{} {}
 };
 
+struct _pi_buffer;
+using pi_buffer = _pi_buffer *;
+
 struct _pi_buffer final : _pi_mem {
-  // Buffer/Sub-buffer constructor
-  _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr, bool OwnZeMemHandle,
-             _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0,
-             bool MemOnHost = false, bool ImportedHostPtr = false)
-      : _pi_mem(Ctx, HostPtr, OwnZeMemHandle, MemOnHost, ImportedHostPtr),
-        ZeMem{Mem}, SubBuffer{Parent, Origin, Size} {}
+  // Buffer constructor
+  _pi_buffer(pi_context Context, size_t Size, char *HostPtr,
+             bool OwnZeMemHandle, bool ImportedHostPtr = false)
+      : _pi_mem(Context, HostPtr, OwnZeMemHandle, false, ImportedHostPtr),
+        Size(Size), SubBuffer{nullptr, 0} {
 
-  void *getZeHandle() override { return ZeMem; }
+    // We treat integrated devices (physical memory shared with the CPU)
+    // differently from discrete devices (those with distinct memories).
+    // For integrated devices, allocating the buffer in the host memory
+    // enables automatic access from the device, and makes copying
+    // unnecessary in the map/unmap operations. This improves performance.
+    OnHost = Context->Devices.size() == 1 &&
+             Context->Devices[0]->ZeDeviceProperties->flags &
+                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 
-  void *getZeHandlePtr() override { return &ZeMem; }
+    // Make first device in the context be the master. Mark that
+    // allocation (yet to be made) having "valid" data. And real
+    // allocation and initialization should follow the buffer
+    // construction with a "write_only" access copy.
+    LastDeviceWithValidAllocation = Context->Devices[0];
+    Allocations[LastDeviceWithValidAllocation].Valid = true;
+  }
+
+  // Sub-buffer constructor
+  _pi_buffer(pi_buffer Parent, size_t Origin, size_t Size)
+      : _pi_mem(Parent->Context, nullptr, Parent->OnHost, false),
+        Size(Size), SubBuffer{Parent, Origin} {}
+
+  // Returns a pointer to the USM allocation representing this PI buffer
+  // on the specified Device. If Device is nullptr then the returned
+  // USM allocation is on the device where this buffer was used the latest.
+  // The returned allocation is always valid, i.e. its contents is
+  // up-to-date and any data copies needed for that are performed under
+  // the hood.
+  //
+  virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
+                                pi_device Device = nullptr) override;
+  virtual pi_result getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
+                                   pi_device Device = nullptr) override;
 
   bool isImage() const override { return false; }
 
   bool isSubBuffer() const { return SubBuffer.Parent != nullptr; }
 
-  // Level Zero memory handle is really just a naked pointer.
-  // It is just convenient to have it char * to simplify offset arithmetics.
-  char *ZeMem;
+  // Frees all allocations made for the buffer.
+  pi_result free();
+
+  struct device_allocation_t {
+    // Level Zero memory handle is really just a naked pointer.
+    // It is just convenient to have it char * to simplify offset arithmetics.
+    char *ZeHandle{nullptr};
+    // Indicates if this allocation's data is valid.
+    bool Valid{false};
+  };
+
+  // We maintain multiple allocations on possibly all devices in the context.
+  // Sub-buffers don't maintain own allocations but rely on parent buffer.
+  std::unordered_map<pi_device, device_allocation_t> Allocations;
+  pi_device LastDeviceWithValidAllocation{nullptr};
+
+  // The size of the buffer
+  size_t Size;
 
   struct {
     _pi_mem *Parent;
     size_t Origin; // only valid if Parent != nullptr
-    size_t Size;   // only valid if Parent != nullptr
   } SubBuffer;
 };
 
+// TODO: add proepr support for images on context with multiple devices.
 struct _pi_image final : _pi_mem {
   // Image constructor
   _pi_image(pi_context Ctx, ze_image_handle_t Image, char *HostPtr,
             bool OwnZeMemHandle)
       : _pi_mem(Ctx, HostPtr, OwnZeMemHandle), ZeImage{Image} {}
 
-  void *getZeHandle() override { return ZeImage; }
-
-  void *getZeHandlePtr() override { return &ZeImage; }
+  virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
+                                pi_device Device = nullptr) override {
+    ZeHandle = pi_cast<char *>(ZeImage);
+    return PI_SUCCESS;
+  }
+  virtual pi_result getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
+                                   pi_device Device = nullptr) override {
+    ZeHandlePtr = pi_cast<char **>(&ZeImage);
+    return PI_SUCCESS;
+  }
 
   bool isImage() const override { return true; }
 
@@ -1310,6 +1368,18 @@ struct _pi_kernel : _pi_object {
   // of times. And that's why there is no value of RefCount which can mean zero
   // submissions.
   std::atomic<pi_uint32> SubmissionsCount;
+
+  // Keeps info about an argument to the kernel enough to set it with
+  // zeKernelSetArgumentValue.
+  struct ArgumentInfo {
+    uint32_t Index;
+    size_t Size;
+    const pi_mem Value;
+    _pi_mem::access_mode_t AccessMode{_pi_mem::unknown};
+  };
+  // Arguments that still need to be set (with zeKernelSetArgumentValue)
+  // before kernel is enqueued.
+  std::vector<ArgumentInfo> PendingArguments;
 
   // Cache of the kernel properties.
   ZeCache<ZeStruct<ze_kernel_properties_t>> ZeKernelProperties;
