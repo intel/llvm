@@ -732,13 +732,19 @@ struct _pi_queue : _pi_object {
     // and reused thereafter.
     std::vector<pi_command_list_ptr_t> ImmCmdLists;
 
+    // Return the index of the next queue to use based on a
+    // round robin strategy and the queue group ordinal.
+    uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal);
+
+    // Return a queue descriptor using the provided ordinal and index.
+    void createQueueDesc(uint32_t Index, uint32_t Ordinal,
+                         ZeStruct<ze_command_queue_desc_t> &ZeCommandQueueDesc);
+
     // This function will return one of possibly multiple available native
-    // queues. Currently, a round robin strategy is used. This function also
-    // sends back the value of the queue group ordinal.
+    // queues and the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
 
-    // This function returns an immediate commandlist that corresponds
-    // to the ZeQueue returned by getZeQueue.
+    // This function returns the next immediate commandlist to use.
     pi_command_list_ptr_t &getImmCmdList(bool UseCopyEngine);
 
     // These indices are to filter specific range of the queues to use,

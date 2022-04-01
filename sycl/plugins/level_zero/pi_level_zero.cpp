@@ -1475,11 +1475,10 @@ bool _pi_queue::isBatchingAllowed(bool IsCopy) const {
           ((ZeSerialize & ZeSerializeBlock) == 0));
 }
 
-// This function will return one of possibly multiple available native queues.
-// Currently, a round robin strategy is used.
-// This function also sends back the value of the queue group ordinal.
-ze_command_queue_handle_t &
-_pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
+// Return the index of the next queue to use based on a
+// round robin strategy and the queue group ordinal.
+uint32_t
+_pi_queue::pi_queue_group_t::getQueueIndex(uint32_t *QueueGroupOrdinal) {
 
   auto CurrentIndex = NextIndex;
   ++NextIndex;
@@ -1495,27 +1494,28 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
                     : queue_type::LinkCopy;
 
   *QueueGroupOrdinal = Queue->Device->QueueGroup[QueueType].ZeOrdinal;
-
-  ze_command_queue_handle_t &ZeQueue = ZeQueues[CurrentIndex];
-  if (ZeQueue)
-    return ZeQueue;
-
-  // Command queue is not available at chosen index. So we create it below.
-  ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-
-  // Adjust the index to the L0 queue group since we represent "main" and "link"
+  // Adjust the index to the L0 queue group since we represent "main" and
+  // "link"
   // L0 groups with a single copy group ("main" would take "0" index).
   auto ZeCommandQueueIndex = CurrentIndex;
   if (QueueType == queue_type::LinkCopy && Queue->Device->hasMainCopyEngine()) {
     ZeCommandQueueIndex -= 1;
   }
 
-  ZeCommandQueueDesc.ordinal = *QueueGroupOrdinal;
-  ZeCommandQueueDesc.index = ZeCommandQueueIndex;
+  return CurrentIndex;
+}
+
+// Return a queue descriptor using the provided ordinal and index.
+void _pi_queue::pi_queue_group_t::createQueueDesc(
+    uint32_t Index, uint32_t Ordinal,
+    ZeStruct<ze_command_queue_desc_t> &ZeCommandQueueDesc) {
+
+  ZeCommandQueueDesc.ordinal = Ordinal;
+  ZeCommandQueueDesc.index = Index;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
 
   // Evaluate performance of explicit usage for "0" index.
-  if (ZeCommandQueueIndex != 0) {
+  if (Index != 0) {
     ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
   }
 
@@ -1523,39 +1523,27 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
           "(round robin in [%d, %d])\n",
           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
           UpperIndex);
+}
 
-  // When using immediate commandlists, we create a commandlist corresponding
-  // to the ordinal/index assigned above. Created once, the commandlists are
-  // reused without needing a close or reset. Each commandlist has an implicit
-  // L0 queue.
-  if (UseImmediateCommandLists &&
-      ImmCmdLists[CurrentIndex] == Queue->CommandListMap.end()) {
-    ze_command_list_handle_t ZeCommandList;
-    ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
-                    (Queue->Context->ZeContext, Queue->Device->ZeDevice,
-                     &ZeCommandQueueDesc, &ZeCommandList));
-    ImmCmdLists[CurrentIndex] =
-        Queue->CommandListMap
-            .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
-                ZeCommandList,
-                {nullptr, false, ZeQueues[CurrentIndex], *QueueGroupOrdinal}})
-            .first;
-    // Add this commandlist to the cache so it can be destroyed as part of
-    // QueueRelease
-    auto &ZeCommandListCache =
-        QueueType != queue_type::Compute
-            ? Queue->Context->ZeComputeCommandListCache[Queue->Device->ZeDevice]
-            : Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice];
-    std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
-    ZeCommandListCache.push_back(ZeCommandList);
-  } else {
-    auto ZeResult =
-        ZE_CALL_NOCHECK(zeCommandQueueCreate,
-                        (Queue->Context->ZeContext, Queue->Device->ZeDevice,
-                         &ZeCommandQueueDesc, &ZeQueue));
-    if (ZeResult) {
-      die("[L0] getZeQueue: failed to create queue");
-    }
+// This function will return one of possibly multiple available native
+// queues and the value of the queue group ordinal.
+ze_command_queue_handle_t &
+_pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
+
+  auto Index = getQueueIndex(QueueGroupOrdinal);
+
+  ze_command_queue_handle_t &ZeQueue = ZeQueues[Index];
+  if (ZeQueue)
+    return ZeQueue;
+
+  ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
+  createQueueDesc(Index, *QueueGroupOrdinal, ZeCommandQueueDesc);
+
+  auto ZeResult = ZE_CALL_NOCHECK(
+      zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
+                             &ZeCommandQueueDesc, &ZeQueue));
+  if (ZeResult) {
+    die("[L0] getZeQueue: failed to create queue");
   }
 
   return ZeQueue;
@@ -1566,10 +1554,35 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
 pi_command_list_ptr_t &
 _pi_queue::pi_queue_group_t::getImmCmdList(bool UseCopyEngine) {
 
-  auto CurrentIndex = NextIndex;
-  uint32_t QueueGroupOrdinal;
-  Queue->getQueueGroup(UseCopyEngine).getZeQueue(&QueueGroupOrdinal);
-  return ImmCmdLists[CurrentIndex];
+  uint32_t Ordinal;
+  auto Index = getQueueIndex(&Ordinal);
+
+  if (ImmCmdLists[Index] != Queue->CommandListMap.end())
+    return ImmCmdLists[Index];
+
+  ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
+  createQueueDesc(Index, Ordinal, ZeCommandQueueDesc);
+
+  ze_command_list_handle_t ZeCommandList;
+  ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
+                  (Queue->Context->ZeContext, Queue->Device->ZeDevice,
+                   &ZeCommandQueueDesc, &ZeCommandList));
+  ImmCmdLists[Index] =
+      Queue->CommandListMap
+          .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
+              ZeCommandList, {nullptr, false, ZeQueues[Index], Ordinal}})
+          .first;
+  // Add this commandlist to the cache so it can be destroyed as part of
+  // QueueRelease
+  auto QueueType = Type;
+  auto &ZeCommandListCache =
+      QueueType != queue_type::Compute
+          ? Queue->Context->ZeComputeCommandListCache[Queue->Device->ZeDevice]
+          : Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice];
+  std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
+  ZeCommandListCache.push_back(ZeCommandList);
+
+  return ImmCmdLists[Index];
 }
 
 pi_result _pi_queue::executeOpenCommandListWithEvent(pi_event Event) {
