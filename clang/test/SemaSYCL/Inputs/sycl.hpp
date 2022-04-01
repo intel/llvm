@@ -299,16 +299,6 @@ ATTR_SYCL_KERNEL void kernel_parallel_for_work_group(const KernelType &KernelFun
 #endif
 }
 
-template <typename KernelName, typename KernelType, int Dims>
-ATTR_SYCL_KERNEL void
-kernel_parallel_for_work_group(const KernelType &KernelFunc) { // #KernelPFWG2
-#ifdef __SYCL_DEVICE_ONLY__
-  KernelFunc(group<Dims>());
-#else
-  (void)KernelFunc;
-#endif
-}
-
 class handler {
 public:
   template <typename KernelName = auto_name, typename KernelType>
