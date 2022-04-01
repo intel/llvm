@@ -7,6 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
+#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -70,6 +71,8 @@ __SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 32, 8, int32_t, 8)
 // m16n16k16
 __SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, a, 16, 16, int32_t, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, b, 16, 16, int32_t, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD(cl::sycl::ext::oneapi::experimental::bfloat16, a, 16, 16, int32_t, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD(cl::sycl::ext::oneapi::experimental::bfloat16, b, 16, 16, int32_t, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD(half, a, 16, 16, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(half, b, 16, 16, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(float, accumulator, 16, 16, float, 8)
@@ -124,7 +127,7 @@ struct joint_matrix_load_impl<
   void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
                 T, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
             multi_ptr<T, Space> src, size_t stride) {
-    if constexpr (std::is_same<T, uint16_t>::value) {
+    if constexpr (std::is_same<T, uint16_t>::value || std::is_same<T, cl::sycl::ext::oneapi::experimental::bfloat16>::value) {
       int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
       if constexpr (NumRows == 16 && NumCols == 16) {
         if constexpr (Use ==
@@ -453,7 +456,7 @@ struct joint_matrix_mad_impl<
                                       get_layout_pair_id<LayoutA, LayoutB>(),
                                       0);
         }
-      } else if constexpr (std::is_same<T1, uint16_t>::value) {
+      } else if constexpr (std::is_same<T1, uint16_t>::value || std::is_same<T1, cl::sycl::ext::oneapi::experimental::bfloat16>::value) {
         __mma_bf16_m16n16k16_mma_f32(D.data, A.data, B.data, C.data,
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
