@@ -151,6 +151,22 @@ public:
       : BaseT(MemObject, SyclContext, OwnNativeHandle,
               std::move(AvailableEvent), std::move(Allocator)) {}
 
+  // TODO: remove the following 2 constructors when it is allowed to break ABI.
+  buffer_impl(cl_mem MemObject, const context &SyclContext,
+              const size_t SizeInBytes,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              event AvailableEvent)
+      : buffer_impl(pi::cast<pi_native_handle>(MemObject), SyclContext,
+                    SizeInBytes, std::move(Allocator),
+                    std::move(AvailableEvent)) {}
+
+  buffer_impl(pi_native_handle MemObject, const context &SyclContext,
+              const size_t SizeInBytes,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              event AvailableEvent)
+      : BaseT(MemObject, SyclContext, SizeInBytes, std::move(AvailableEvent),
+              std::move(Allocator)) {}
+
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &OutEventToWait) override;
   void constructorNotification(const detail::code_location &CodeLoc,
