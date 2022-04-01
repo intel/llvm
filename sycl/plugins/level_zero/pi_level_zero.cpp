@@ -3654,10 +3654,10 @@ pi_result piMemRelease(pi_mem Mem) {
               if (IndirectAccessTrackingEnabled)
                 ContextsLock.lock();
               return USMFreeHelper(Mem->Context, Mem->getZeHandle(),
-                                  Mem->OwnZeMemHandle);
+                                   Mem->OwnZeMemHandle);
             } else {
               if (auto Res = ZeMemFreeHelper(Mem->Context, Mem->getZeHandle(),
-                                            Mem->OwnZeMemHandle))
+                                             Mem->OwnZeMemHandle))
                 return Res;
             }
           }

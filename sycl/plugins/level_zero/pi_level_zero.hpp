@@ -965,10 +965,10 @@ struct _pi_mem : _pi_object {
   virtual ~_pi_mem() = default;
 
 protected:
-  _pi_mem(pi_context Ctx, char *HostPtr, bool OwnZeMemHandle, bool MemOnHost = false,
-          bool ImportedHostPtr = false)
-      : Context{Ctx}, MapHostPtr{HostPtr}, OwnZeMemHandle{OwnZeMemHandle}, OnHost{MemOnHost},
-        HostPtrImported{ImportedHostPtr}, Mappings{} {}
+  _pi_mem(pi_context Ctx, char *HostPtr, bool OwnZeMemHandle,
+          bool MemOnHost = false, bool ImportedHostPtr = false)
+      : Context{Ctx}, MapHostPtr{HostPtr}, OwnZeMemHandle{OwnZeMemHandle},
+        OnHost{MemOnHost}, HostPtrImported{ImportedHostPtr}, Mappings{} {}
 };
 
 struct _pi_buffer final : _pi_mem {
