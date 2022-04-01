@@ -102,14 +102,6 @@ template <int dim>
 struct id {
 };
 
-template <int dim> struct item {
-  template <typename... T>
-  item(T... args) {}
-
-private:
-  int Data;
-};
-
 template <int dim>
 struct _ImplT {
   range<dim> AccessRange;
