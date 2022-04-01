@@ -40,7 +40,8 @@ int main() {
     int Data;
     NestedSimple NestedSimpleObj;
     NestedComplex NestedComplexObj;
-    cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> CapturedAcc1, CapturedAcc2;
+    cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> CapturedAcc1,
+        CapturedAcc2;
     cgh.single_task<class Kernel2>([=]() {
       Data;
       CapturedAcc1;
