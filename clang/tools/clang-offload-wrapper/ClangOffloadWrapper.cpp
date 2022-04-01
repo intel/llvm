@@ -1515,7 +1515,7 @@ private:
 
   /// Does the actual sequencing of options found in given list.
   template <int ID, typename T> void addListImpl(T &L) {
-    // iterate via all occurences of an option of given list class
+    // iterate via all occurrences of an option of given list class
     for (auto It = L.begin(); It != L.end(); It++) {
       // calculate its sequential position in the command line
       unsigned Pos = L.getPosition(It - L.begin());
