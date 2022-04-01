@@ -226,8 +226,9 @@ simd_call_helper(const void *obj_ptr,
   return f(simd_args...);
 };
 
-// TODO
-// This is a workaround for Linux clang behavior which returns false for
+// TODO This is a workaround for libstdc++ version 9 buggy behavior which
+// returns false in the code below. Version 10 works fine. Once required
+// minimum libstdc++ version is bumped to 10, this w/a should be removed.
 //   template <class F> bool foo(F &&f) {
 //     return std::is_function_v<std::remove_reference_t<F>>;
 //   }
