@@ -55,6 +55,7 @@ public:
   }
 };
 } // namespace DependsOnTest
+
 detail::Command *AddTaskCG(bool IsHost, MockScheduler &MS,
                            detail::QueueImplPtr DevQueue,
                            const std::vector<EventImplPtr> &Events) {
@@ -112,6 +113,7 @@ TEST_F(SchedulerTest, EnqueueNoMemObjTwoHostTasks) {
 
   default_selector Selector;
   platform Plt{Selector};
+
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
@@ -153,6 +155,7 @@ TEST_F(SchedulerTest, EnqueueNoMemObjKernelDepHost) {
 
   default_selector Selector;
   platform Plt{Selector};
+
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
@@ -192,6 +195,7 @@ TEST_F(SchedulerTest, EnqueueNoMemObjHostDepKernel) {
 
   default_selector Selector;
   platform Plt{Selector};
+
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
@@ -231,6 +235,7 @@ TEST_F(SchedulerTest, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
 
   default_selector Selector;
   platform Plt{Selector};
+
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
@@ -346,6 +351,7 @@ TEST_F(SchedulerTest, InOrderEnqueueNoMemObjDoubleKernelDepHost) {
 
   default_selector Selector;
   platform Plt{Selector};
+
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
