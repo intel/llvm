@@ -2083,7 +2083,7 @@ pi_result hip_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   return PI_SUCCESS;
 }
 
-pi_result hip_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
+pi_result hip_piMemGetInfo(pi_mem memObj, pi_mem_info queriedInfo,
                            size_t expectedQuerySize, void *queryOutput,
                            size_t *writtenQuerySize) {
   (void)memObj;

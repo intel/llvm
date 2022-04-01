@@ -1048,7 +1048,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   return PI_SUCCESS;
 }
 
-pi_result piMemGetInfo(pi_mem, cl_mem_info, size_t, void *, size_t *) {
+pi_result piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
