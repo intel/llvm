@@ -16,6 +16,8 @@
 
 #include "common.hpp"
 
+#include <string>
+
 namespace esimd = sycl::ext::intel::esimd;
 
 namespace esimd_test::api::functional::ctors {
@@ -29,7 +31,7 @@ namespace alignment {
 
 struct element {
   static std::string to_string() { return "element_aligned"; }
-  template <typename DataT, int> static size_t get_size() {
+  template <typename DataT, int> static constexpr size_t get_size() {
     return alignof(DataT);
   }
   static constexpr auto get_value() { return esimd::element_aligned; }
@@ -37,23 +39,30 @@ struct element {
 
 struct vector {
   static std::string to_string() { return "vector_aligned"; }
-  template <typename DataT, int NumElems> static size_t get_size() {
+  template <typename DataT, int NumElems> static constexpr size_t get_size() {
     // Referring to the simd class specialization on the host side is by design.
     return alignof(esimd::simd<DataT, NumElems>);
   }
   static constexpr auto get_value() { return esimd::vector_aligned; }
 };
 
-struct overal {
-  static std::string to_string() { return "overaligned"; }
+template <unsigned int size = 16 /*oword alignment*/> struct overal {
   // Use 16 instead of std::max_align_t because of the fact that long double is
   // not a native type in Intel GPUs. So 16 is not driven by any type, but
   // rather the "oword alignment" requirement for all block loads. In that
   // sense, std::max_align_t would give wrong idea.
-  static constexpr int oword_align = 16;
-  template <typename, int> static size_t get_size() { return oword_align; }
 
-  static constexpr auto get_value() { return esimd::overaligned<oword_align>; }
+  static std::string to_string() {
+    return "overaligned<" + std::to_string(size) + ">";
+  }
+
+  template <typename DataT, int> static constexpr size_t get_size() {
+    static_assert(size % alignof(DataT) == 0,
+                  "Unsupported data type alignment");
+    return size;
+  }
+
+  static constexpr auto get_value() { return esimd::overaligned<size>; }
 };
 
 } // namespace alignment
