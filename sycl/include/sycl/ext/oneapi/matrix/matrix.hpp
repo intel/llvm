@@ -16,6 +16,8 @@
 
 #include <CL/sycl/feature_test.hpp>
 
+// the default is matrix-jit-use but existing tests in llvm-test-suite won't
+// fail because we have the "unnecessary" use value
 #if (SYCL_EXT_ONEAPI_MATRIX == 1)
 #include <sycl/ext/oneapi/matrix/matrix-jit.hpp>
 #include <sycl/ext/oneapi/matrix/static-query.hpp>
