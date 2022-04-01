@@ -149,25 +149,11 @@ unsigned getHostcallImplicitArgPosition() {
   case 4:
     return 24;
   case 5:
-    return 80;
+    return AMDGPU::ImplicitArg::HOSTCALL_PTR_OFFSET;
   default:
     llvm_unreachable("Unexpected code object version");
     return 0;
   }
-}
-
-unsigned getHeapPtrImplicitArgPosition() {
-  if (AmdhsaCodeObjectVersion == 5)
-    return 96;
-  llvm_unreachable("hidden_heap is supported only by code object version 5");
-  return 0;
-}
-
-unsigned getQueuePtrImplicitArgPosition() {
-  if (AmdhsaCodeObjectVersion == 5)
-    return 200;
-  llvm_unreachable("queue_ptr is supported only by code object version 5");
-  return 0;
 }
 
 #define GET_MIMGBaseOpcodesTable_IMPL
@@ -178,6 +164,7 @@ unsigned getQueuePtrImplicitArgPosition() {
 #define GET_MIMGBiasMappingTable_IMPL
 #define GET_MIMGOffsetMappingTable_IMPL
 #define GET_MIMGG16MappingTable_IMPL
+#define GET_MAIInstInfoTable_IMPL
 #include "AMDGPUGenSearchableTables.inc"
 
 int getMIMGOpcode(unsigned BaseOpcode, unsigned MIMGEncoding,
@@ -354,6 +341,16 @@ bool getVOP2IsSingle(unsigned Opc) {
 bool getVOP3IsSingle(unsigned Opc) {
   const VOPInfo *Info = getVOP3OpcodeHelper(Opc);
   return Info ? Info->IsSingle : false;
+}
+
+bool getMAIIsDGEMM(unsigned Opc) {
+  const MAIInstInfo *Info = getMAIInstInfoHelper(Opc);
+  return Info ? Info->is_dgemm : false;
+}
+
+bool getMAIIsGFX940XDL(unsigned Opc) {
+  const MAIInstInfo *Info = getMAIInstInfoHelper(Opc);
+  return Info ? Info->is_gfx940_xdl : false;
 }
 
 // Wrapper for Tablegen'd function.  enum Subtarget is not defined in any
@@ -1301,40 +1298,18 @@ unsigned getDefaultFormatEncoding(const MCSubtargetInfo &STI) {
 
 namespace SendMsg {
 
-int64_t getMsgId(const StringRef Name) {
-  for (int i = ID_GAPS_FIRST_; i < ID_GAPS_LAST_; ++i) {
-    if (IdSymbolic[i] && Name == IdSymbolic[i])
-      return i;
-  }
-  return ID_UNKNOWN_;
+int64_t getMsgId(const StringRef Name, const MCSubtargetInfo &STI) {
+  int Idx = getOprIdx<const MCSubtargetInfo &>(Name, Msg, MSG_SIZE, STI);
+  return (Idx < 0) ? Idx : Msg[Idx].Encoding;
 }
 
-bool isValidMsgId(int64_t MsgId, const MCSubtargetInfo &STI, bool Strict) {
-  if (Strict) {
-    switch (MsgId) {
-    case ID_SAVEWAVE:
-      return isVI(STI) || isGFX9Plus(STI);
-    case ID_STALL_WAVE_GEN:
-    case ID_HALT_WAVES:
-    case ID_ORDERED_PS_DONE:
-    case ID_GS_ALLOC_REQ:
-    case ID_GET_DOORBELL:
-      return isGFX9Plus(STI);
-    case ID_EARLY_PRIM_DEALLOC:
-      return isGFX9(STI);
-    case ID_GET_DDID:
-      return isGFX10Plus(STI);
-    default:
-      return 0 <= MsgId && MsgId < ID_GAPS_LAST_ && IdSymbolic[MsgId];
-    }
-  } else {
-    return 0 <= MsgId && isUInt<ID_WIDTH_>(MsgId);
-  }
+bool isValidMsgId(int64_t MsgId) {
+  return 0 <= MsgId && isUInt<ID_WIDTH_>(MsgId);
 }
 
-StringRef getMsgName(int64_t MsgId) {
-  assert(0 <= MsgId && MsgId < ID_GAPS_LAST_);
-  return IdSymbolic[MsgId];
+StringRef getMsgName(int64_t MsgId, const MCSubtargetInfo &STI) {
+  int Idx = getOprIdx<const MCSubtargetInfo &>(MsgId, Msg, MSG_SIZE, STI);
+  return (Idx < 0) ? "" : Msg[Idx].Name;
 }
 
 int64_t getMsgOpId(int64_t MsgId, const StringRef Name) {
@@ -1351,7 +1326,7 @@ int64_t getMsgOpId(int64_t MsgId, const StringRef Name) {
 
 bool isValidMsgOp(int64_t MsgId, int64_t OpId, const MCSubtargetInfo &STI,
                   bool Strict) {
-  assert(isValidMsgId(MsgId, STI, Strict));
+  assert(isValidMsgId(MsgId));
 
   if (!Strict)
     return 0 <= OpId && isUInt<OP_WIDTH_>(OpId);
@@ -1537,6 +1512,10 @@ bool isGFX9_GFX10(const MCSubtargetInfo &STI) {
   return isGFX9(STI) || isGFX10(STI);
 }
 
+bool isGFX8Plus(const MCSubtargetInfo &STI) {
+  return isVI(STI) || isGFX9Plus(STI);
+}
+
 bool isGFX9Plus(const MCSubtargetInfo &STI) {
   return isGFX9(STI) || isGFX10Plus(STI);
 }
@@ -1546,6 +1525,14 @@ bool isGFX10(const MCSubtargetInfo &STI) {
 }
 
 bool isGFX10Plus(const MCSubtargetInfo &STI) { return isGFX10(STI); }
+
+bool isNotGFX10Plus(const MCSubtargetInfo &STI) {
+  return isSI(STI) || isCI(STI) || isVI(STI) || isGFX9(STI);
+}
+
+bool isGFX10Before1030(const MCSubtargetInfo &STI) {
+  return isGFX10(STI) && !AMDGPU::isGFX10_BEncoding(STI);
+}
 
 bool isGCN3Encoding(const MCSubtargetInfo &STI) {
   return STI.getFeatureBits()[AMDGPU::FeatureGCN3Encoding];

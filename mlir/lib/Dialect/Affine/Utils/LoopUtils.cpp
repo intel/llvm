@@ -18,6 +18,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -2611,7 +2612,7 @@ gatherLoopsInBlock(Block *block, unsigned currLoopDepth,
   }
 }
 
-/// Gathers all AffineForOps in 'builtin.func' grouped by loop depth.
+/// Gathers all AffineForOps in 'func.func' grouped by loop depth.
 void mlir::gatherLoops(FuncOp func,
                        std::vector<SmallVector<AffineForOp, 2>> &depthToLoops) {
   for (auto &block : func)
@@ -2659,9 +2660,7 @@ static AffineIfOp createSeparationCondition(MutableArrayRef<AffineForOp> loops,
 
   FlatAffineValueConstraints cst;
   SmallVector<Operation *, 8> ops;
-  ops.reserve(loops.size());
-  for (AffineForOp forOp : loops)
-    ops.push_back(forOp);
+  llvm::append_range(ops, loops);
   (void)getIndexSet(ops, &cst);
 
   // Remove constraints that are independent of these loop IVs.

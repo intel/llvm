@@ -1108,12 +1108,6 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
   // command list is available for reuse.
   _pi_result pi_result = PI_OUT_OF_RESOURCES;
   ZeStruct<ze_fence_desc_t> ZeFenceDesc;
-
-  auto &ZeCommandListCache =
-      UseCopyEngine
-          ? Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice]
-          : Queue->Context->ZeComputeCommandListCache[Queue->Device->ZeDevice];
-
   // Initally, we need to check if a command list has already been created
   // on this device that is available for use. If so, then reuse that
   // Level-Zero Command List and Fence for this PI call.
@@ -1121,6 +1115,13 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
     // Make sure to acquire the lock before checking the size, or there
     // will be a race condition.
     std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
+    // Under mutex since operator[] does insertion on the first usage for every
+    // unique ZeDevice.
+    auto &ZeCommandListCache =
+        UseCopyEngine
+            ? Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice]
+            : Queue->Context
+                  ->ZeComputeCommandListCache[Queue->Device->ZeDevice];
 
     if (ZeCommandListCache.size() > 0) {
       auto &ZeCommandList = ZeCommandListCache.front();
@@ -2271,6 +2272,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // std::array<std::byte, 16>. For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
     return ReturnValue(Device->ZeDeviceProperties->uuid.id);
+  case PI_DEVICE_INFO_ATOMIC_64:
+    return ReturnValue(pi_bool{Device->ZeDeviceModuleProperties->flags &
+                               ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS});
   case PI_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
     //     "Returns a space separated list of extension names (the extension
@@ -6832,7 +6836,8 @@ static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
   // Check that incorrect bits are not set in the properties.
-  PI_ASSERT(!Properties || (Properties && !(*Properties & ~PI_MEM_ALLOC_FLAGS)),
+  PI_ASSERT(!Properties ||
+                (*Properties == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0),
             PI_INVALID_VALUE);
 
   // TODO: translate PI properties to Level Zero flags
@@ -6861,12 +6866,9 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
                                     pi_device Device,
                                     pi_usm_mem_properties *Properties,
                                     size_t Size, pi_uint32 Alignment) {
+  (void)Properties;
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_INVALID_DEVICE);
-
-  // Check that incorrect bits are not set in the properties.
-  PI_ASSERT(!Properties || (Properties && !(*Properties & ~PI_MEM_ALLOC_FLAGS)),
-            PI_INVALID_VALUE);
 
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
@@ -6898,7 +6900,8 @@ static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
   // Check that incorrect bits are not set in the properties.
-  PI_ASSERT(!Properties || (Properties && !(*Properties & ~PI_MEM_ALLOC_FLAGS)),
+  PI_ASSERT(!Properties ||
+                (*Properties == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0),
             PI_INVALID_VALUE);
 
   // TODO: translate PI properties to Level Zero flags
@@ -6930,6 +6933,13 @@ public:
 
 pi_result USMSharedMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
                                              pi_uint32 Alignment) {
+  return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, Size,
+                            Alignment);
+}
+
+pi_result USMSharedReadOnlyMemoryAlloc::allocateImpl(void **ResultPtr,
+                                                     size_t Size,
+                                                     pi_uint32 Alignment) {
   return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, Size,
                             Alignment);
 }
@@ -7056,6 +7066,15 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
                               pi_device Device,
                               pi_usm_mem_properties *Properties, size_t Size,
                               pi_uint32 Alignment) {
+  // See if the memory is going to be read-only on the device.
+  bool DeviceReadOnly = false;
+  // Check that incorrect bits are not set in the properties.
+  if (Properties) {
+    PI_ASSERT(*(Properties) == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0,
+              PI_INVALID_VALUE);
+    DeviceReadOnly = *(Properties + 1) & PI_MEM_ALLOC_DEVICE_READ_ONLY;
+  }
+
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   if (Alignment > 65536)
@@ -7093,11 +7112,16 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   }
 
   try {
-    auto It = Context->SharedMemAllocContexts.find(Device);
-    if (It == Context->SharedMemAllocContexts.end())
+    auto &Allocator = (DeviceReadOnly ? Context->SharedReadOnlyMemAllocContexts
+                                      : Context->SharedMemAllocContexts);
+    auto It = Allocator.find(Device);
+    if (It == Allocator.end())
       return PI_INVALID_VALUE;
 
     *ResultPtr = It->second.allocate(Size, Alignment);
+    if (DeviceReadOnly) {
+      Context->SharedReadOnlyAllocs.insert(*ResultPtr);
+    }
     if (IndirectAccessTrackingEnabled) {
       // Keep track of all memory allocations in the context
       Context->MemAllocs.emplace(std::piecewise_construct,
@@ -7226,6 +7250,9 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
     return PI_SUCCESS;
   }
 
+  // Points out an allocation in SharedReadOnlyMemAllocContexts
+  auto SharedReadOnlyAllocsIterator = Context->SharedReadOnlyAllocs.end();
+
   if (!ZeDeviceHandle) {
     // The only case where it is OK not have device identified is
     // if the memory is not known to the driver. We should not ever get
@@ -7265,7 +7292,12 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
 
     switch (ZeMemoryAllocationProperties.type) {
     case ZE_MEMORY_TYPE_SHARED:
-      return DeallocationHelper(Context->SharedMemAllocContexts);
+      // Distinguish device_read_only allocations since they have own pool.
+      SharedReadOnlyAllocsIterator = Context->SharedReadOnlyAllocs.find(Ptr);
+      return DeallocationHelper(SharedReadOnlyAllocsIterator !=
+                                        Context->SharedReadOnlyAllocs.end()
+                                    ? Context->SharedReadOnlyMemAllocContexts
+                                    : Context->SharedMemAllocContexts);
     case ZE_MEMORY_TYPE_DEVICE:
       return DeallocationHelper(Context->DeviceMemAllocContexts);
     default:
@@ -7275,7 +7307,9 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
   }
 
   pi_result Res = USMFreeImpl(Context, Ptr);
-
+  if (SharedReadOnlyAllocsIterator != Context->SharedReadOnlyAllocs.end()) {
+    Context->SharedReadOnlyAllocs.erase(SharedReadOnlyAllocsIterator);
+  }
   if (IndirectAccessTrackingEnabled)
     PI_CALL(ContextReleaseHelper(Context));
   return Res;

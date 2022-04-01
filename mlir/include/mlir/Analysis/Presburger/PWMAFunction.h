@@ -41,8 +41,7 @@ namespace presburger {
 /// each id, and an extra column at the end for the constant term.
 ///
 /// Checking equality of two such functions is supported, as well as finding the
-/// value of the function at a specified point. Note that local ids in the
-/// domain are not yet supported for finding the value at a point.
+/// value of the function at a specified point.
 class MultiAffineFunction : protected IntegerPolyhedron {
 public:
   /// We use protected inheritance to avoid inheriting the whole public
@@ -53,6 +52,8 @@ public:
   using IntegerPolyhedron::getNumIds;
   using IntegerPolyhedron::getNumLocalIds;
   using IntegerPolyhedron::getNumSymbolIds;
+  using PresburgerSpace::isSpaceCompatible;
+  using PresburgerSpace::isSpaceEqual;
 
   MultiAffineFunction(const IntegerPolyhedron &domain, const Matrix &output)
       : IntegerPolyhedron(domain), output(output) {}
@@ -97,16 +98,6 @@ public:
   /// the intersection of the domains.
   bool isEqualWhereDomainsOverlap(MultiAffineFunction other) const;
 
-  /// Returns whether the underlying PresburgerSpace is equal to `other`.
-  bool isSpaceEqual(const PresburgerSpace &other) const {
-    return PresburgerSpace::isEqual(other);
-  };
-
-  /// Returns whether the underlying PresburgerLocalSpace is equal to `other`.
-  bool isSpaceEqual(const PresburgerLocalSpace &other) const {
-    return PresburgerLocalSpace::isEqual(other);
-  };
-
   /// Return whether the `this` and `other` are equal. This is the case if
   /// they lie in the same space, i.e. have the same dimensions, and their
   /// domains are identical and their outputs are equal on their domain.
@@ -114,12 +105,9 @@ public:
 
   /// Get the value of the function at the specified point. If the point lies
   /// outside the domain, an empty optional is returned.
-  ///
-  /// Note: domains with local ids are not yet supported, and will assert-fail.
   Optional<SmallVector<int64_t, 8>> valueAt(ArrayRef<int64_t> point) const;
 
   void print(raw_ostream &os) const;
-
   void dump() const;
 
 private:
@@ -146,12 +134,12 @@ private:
 /// symbolic ids.
 ///
 /// Support is provided to compare equality of two such functions as well as
-/// finding the value of the function at a point. Note that local ids in the
-/// piece are not supported for the latter.
+/// finding the value of the function at a point.
 class PWMAFunction : public PresburgerSpace {
 public:
   PWMAFunction(unsigned numDims, unsigned numSymbols, unsigned numOutputs)
-      : PresburgerSpace(/*numDomain=*/0, /*numRange=*/numDims, numSymbols),
+      : PresburgerSpace(/*numDomain=*/0, /*numRange=*/numDims, numSymbols,
+                        /*numLocals=*/0),
         numOutputs(numOutputs) {
     assert(numOutputs >= 1 && "The function must output something!");
   }
@@ -171,8 +159,6 @@ public:
 
   /// Return the value at the specified point and an empty optional if the
   /// point does not lie in the domain.
-  ///
-  /// Note: domains with local ids are not yet supported, and will assert-fail.
   Optional<SmallVector<int64_t, 8>> valueAt(ArrayRef<int64_t> point) const;
 
   /// Return whether `this` and `other` are equal as PWMAFunctions, i.e. whether

@@ -550,6 +550,8 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.BinutilsVersion =
       llvm::TargetMachine::parseBinutilsVersion(CodeGenOpts.BinutilsVersion);
   Options.UseInitArray = CodeGenOpts.UseInitArray;
+  Options.LowerGlobalDtorsViaCxaAtExit =
+      CodeGenOpts.RegisterGlobalDtorsWithAtExit;
   Options.DisableIntegratedAS = CodeGenOpts.DisableIntegratedAS;
   Options.CompressDebugSections = CodeGenOpts.getCompressDebugSections();
   Options.RelaxELFRelocations = CodeGenOpts.RelaxELFRelocations;
@@ -1008,10 +1010,10 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
     TheModule->setDataLayout(TM->createDataLayout());
 
   DebugifyCustomPassManager PerModulePasses;
-  DebugInfoPerPassMap DIPreservationMap;
+  DebugInfoPerPass DebugInfoBeforePass;
   if (CodeGenOpts.EnableDIPreservationVerify) {
     PerModulePasses.setDebugifyMode(DebugifyMode::OriginalDebugInfo);
-    PerModulePasses.setDIPreservationMap(DIPreservationMap);
+    PerModulePasses.setDebugInfoBeforePass(DebugInfoBeforePass);
 
     if (!CodeGenOpts.DIBugsReportFilePath.empty())
       PerModulePasses.setOrigDIVerifyBugsReportFilePath(
