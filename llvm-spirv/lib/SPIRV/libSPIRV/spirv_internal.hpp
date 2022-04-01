@@ -93,7 +93,14 @@ enum InternalLoopControlMask { ILoopControlLoopCountINTELMask = 0x1000000 };
 constexpr LinkageType LinkageTypeInternal =
     static_cast<LinkageType>(ILTInternal);
 
-enum InternalJointMatrixLayout { RowMajor, ColumnMajor, PackedA, PackedB };
+enum InternalJointMatrixLayout {
+  RowMajor = 0,
+  ColumnMajor = 1,
+  PackedA = 2,
+  PackedB = 3
+};
+
+enum InternalJointMatrixUse { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
 
 enum InternalBuiltIn {
   IBuiltInSubDeviceIDINTEL = 6135,

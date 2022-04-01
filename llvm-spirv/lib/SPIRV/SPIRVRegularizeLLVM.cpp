@@ -473,16 +473,26 @@ void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
     auto *PtrTy = dyn_cast<PointerType>(ST->getElementType(0));
     assert(PtrTy &&
            "Expected a pointer to an array to represent joint matrix type");
-    size_t TypeLayout[4] = {0, 0, 0, 0};
+    std::vector<size_t> TypeLayout;
     ArrayType *ArrayTy = dyn_cast<ArrayType>(PtrTy->getPointerElementType());
     assert(ArrayTy && "Expected a pointer element type of an array type to "
                       "represent joint matrix type");
-    TypeLayout[0] = ArrayTy->getNumElements();
+    TypeLayout.push_back(ArrayTy->getNumElements());
     for (size_t I = 1; I != 4; ++I) {
       ArrayTy = dyn_cast<ArrayType>(ArrayTy->getElementType());
       assert(ArrayTy &&
              "Expected a element type to represent joint matrix type");
-      TypeLayout[I] = ArrayTy->getNumElements();
+      TypeLayout.push_back(ArrayTy->getNumElements());
+    }
+    // JointMatrixINTEL type can have optional 'Use' parameter, which is encoded
+    // as another array dimention. In case if it has default 'Unnecessary' (4)
+    // parameter - ignore it.
+    if (isa<ArrayType>(ArrayTy->getElementType())) {
+      ArrayTy = cast<ArrayType>(ArrayTy->getElementType());
+      uint32_t UseInt = ArrayTy->getNumElements();
+      assert(UseInt <= 4 && "Use parameter encoded in the array must be < 5 ");
+      if (UseInt != 4)
+        TypeLayout.push_back(UseInt);
     }
 
     auto *ElemTy = ArrayTy->getElementType();
@@ -536,6 +546,9 @@ void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
             << kSPIRVTypeName::PostfixDelim << std::to_string(TypeLayout[2] - 1)
             << kSPIRVTypeName::PostfixDelim
             << std::to_string(TypeLayout[3] - 1);
+    if (TypeLayout.size() == 5)
+      SPVName << kSPIRVTypeName::PostfixDelim
+              << std::to_string(TypeLayout[4] - 1);
     // Note, that this structure is not opaque and there is no way to make it
     // opaque but to recreate it entirely and replace it everywhere. Lets
     // keep the structure as is, dealing with it during SPIR-V generation.
