@@ -33,7 +33,7 @@ def do_configure(args):
     libclc_gen_remangled_variants = 'OFF'
     sycl_build_pi_hip_platform = 'AMD'
     sycl_clang_extra_flags = ''
-    sycl_werror = 'ON'
+    sycl_werror = 'OFF'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
     llvm_enable_sphinx = 'OFF'
@@ -42,7 +42,7 @@ def do_configure(args):
     sycl_enabled_plugins = ["opencl", "level_zero"]
 
     sycl_enable_xpti_tracing = 'ON'
-    xpti_enable_werror = 'ON'
+    xpti_enable_werror = 'OFF'
 
     # replace not append, so ARM ^ X86
     if args.arm:
@@ -75,9 +75,9 @@ def do_configure(args):
         sycl_build_pi_hip_platform = args.hip_platform
         sycl_enabled_plugins.append("hip")
 
-    if args.no_werror:
-        sycl_werror = 'OFF'
-        xpti_enable_werror = 'OFF'
+    if args.werror or args.ci_defaults:
+        sycl_werror = 'ON'
+        xpti_enable_werror = 'ON'
 
     if args.no_assertions:
         llvm_enable_assertions = 'OFF'
@@ -212,7 +212,7 @@ def main():
     parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
-    parser.add_argument("--no-werror", action='store_true', help="Don't treat warnings as errors")
+    parser.add_argument("--werror", action='store_true', help="Don't treat warnings as errors")
     parser.add_argument("--shared-libs", action='store_true', help="Build shared libraries")
     parser.add_argument("--cmake-opt", action='append', help="Additional CMake option not configured via script parameters")
     parser.add_argument("--cmake-gen", default="Ninja", help="CMake generator")
