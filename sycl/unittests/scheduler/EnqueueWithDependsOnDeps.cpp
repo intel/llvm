@@ -104,8 +104,6 @@ TEST_F(SchedulerTest, EnqueueNoMemObjTwoHostTasks) {
     std::cout << "Not run due to host-only environment\n";
     return;
   }
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
 
   queue QueueDev(context(Plt), Selector);
   MockScheduler MS;
