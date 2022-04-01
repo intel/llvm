@@ -1502,8 +1502,10 @@ private:
     return (*OptListIDs)[Cur];
   }
 
+  // clang-format off
   template <int MAX, int ID, typename XTy, typename... XTys>
-      std::enable_if_t < ID<MAX> addLists(XTy &Arg, XTys &...Args) {
+      std::enable_if_t<ID < MAX> addLists(XTy &Arg, XTys &...Args) {
+    // clang-format on
     addListImpl<ID>(Arg);
     addLists<MAX, ID + 1>(Args...);
   }
