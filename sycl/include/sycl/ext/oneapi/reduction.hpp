@@ -718,6 +718,7 @@ public:
     auto RWReduVal = std::make_shared<T>(MIdentity);
     CGH.addReduction(RWReduVal);
     MOutBufPtr = std::make_shared<buffer<T, 1>>(RWReduVal.get(), range<1>(1));
+    MOutBufPtr->set_final_data();
     CGH.addReduction(MOutBufPtr);
     return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
   }
@@ -728,6 +729,7 @@ public:
     auto CounterMem = std::make_shared<int>(0);
     CGH.addReduction(CounterMem);
     auto CounterBuf = std::make_shared<buffer<int, 1>>(CounterMem.get(), 1);
+    CounterBuf->set_final_data();
     CGH.addReduction(CounterBuf);
     return {*CounterBuf, CGH};
   }

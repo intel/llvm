@@ -9,7 +9,7 @@
 #ifndef _LIBCPP___RANGES_TAKE_VIEW_H
 #define _LIBCPP___RANGES_TAKE_VIEW_H
 
-#include <__algorithm/min.h>
+#include <__algorithm/ranges_min.h>
 #include <__config>
 #include <__iterator/concepts.h>
 #include <__iterator/counted_iterator.h>
@@ -34,7 +34,7 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_CONCEPTS) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
+#if _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
 
 namespace ranges {
   template<view _View>
@@ -118,15 +118,13 @@ namespace ranges {
     _LIBCPP_HIDE_FROM_ABI
     constexpr auto size() requires sized_range<_View> {
       auto __n = ranges::size(__base_);
-      // TODO: use ranges::min here.
-      return std::min(__n, static_cast<decltype(__n)>(__count_));
+      return ranges::min(__n, static_cast<decltype(__n)>(__count_));
     }
 
     _LIBCPP_HIDE_FROM_ABI
     constexpr auto size() const requires sized_range<const _View> {
       auto __n = ranges::size(__base_);
-      // TODO: use ranges::min here.
-      return std::min(__n, static_cast<decltype(__n)>(__count_));
+      return ranges::min(__n, static_cast<decltype(__n)>(__count_));
     }
   };
 
@@ -176,7 +174,7 @@ public:
   inline constexpr bool enable_borrowed_range<take_view<_Tp>> = enable_borrowed_range<_Tp>;
 } // namespace ranges
 
-#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
+#endif // _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
 

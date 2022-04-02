@@ -13,6 +13,7 @@
 // canonically for use in semantic checking.
 
 #include "flang/Common/Fortran.h"
+#include "flang/Common/visit.h"
 #include "flang/Evaluate/expression.h"
 #include "flang/Evaluate/shape.h"
 #include "flang/Evaluate/type.h"
@@ -240,7 +241,7 @@ const Symbol *FindExternallyVisibleObject(
 template <typename T>
 const Symbol *FindExternallyVisibleObject(
     const evaluate::Expr<T> &expr, const Scope &scope) {
-  return std::visit(
+  return common::visit(
       [&](const auto &x) { return FindExternallyVisibleObject(x, scope); },
       expr.u);
 }
@@ -528,6 +529,8 @@ UltimateComponentIterator::const_iterator FindPointerUltimateComponent(
     const DerivedTypeSpec &);
 UltimateComponentIterator::const_iterator FindAllocatableUltimateComponent(
     const DerivedTypeSpec &);
+DirectComponentIterator::const_iterator FindAllocatableOrPointerDirectComponent(
+    const DerivedTypeSpec &);
 UltimateComponentIterator::const_iterator
 FindPolymorphicAllocatableUltimateComponent(const DerivedTypeSpec &);
 UltimateComponentIterator::const_iterator
@@ -582,6 +585,16 @@ std::optional<ArraySpec> ToArraySpec(
     evaluate::FoldingContext &, const evaluate::Shape &);
 std::optional<ArraySpec> ToArraySpec(
     evaluate::FoldingContext &, const std::optional<evaluate::Shape> &);
+
+// Searches a derived type and a scope for a particular user defined I/O
+// procedure.
+bool HasDefinedIo(
+    GenericKind::DefinedIo, const DerivedTypeSpec &, const Scope * = nullptr);
+// Seeks out an allocatable or pointer ultimate component that is not
+// nested in a nonallocatable/nonpointer component with a specific
+// defined I/O procedure.
+const Symbol *FindUnsafeIoDirectComponent(
+    GenericKind::DefinedIo, const DerivedTypeSpec &, const Scope * = nullptr);
 
 } // namespace Fortran::semantics
 #endif // FORTRAN_SEMANTICS_TOOLS_H_

@@ -288,7 +288,7 @@ MaybeExpr ExpressionAnalyzer::ApplySubscripts(
   if (subscripts.empty()) {
     return std::nullopt; // error recovery
   }
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](SymbolRef &&symbol) {
             return CompleteSubscripts(ArrayRef{symbol, std::move(subscripts)});
@@ -337,7 +337,7 @@ static void FixMisparsedSubstring(const parser::Designator &d) {
           if (!std::get<2>(triplet->t) /* no stride */ &&
               ++iter == arrElement.subscripts.end() /* one subscript */) {
             if (Symbol *
-                symbol{std::visit(
+                symbol{common::visit(
                     common::visitors{
                         [](parser::Name &n) { return n.symbol; },
                         [](common::Indirection<parser::StructureComponent>
@@ -397,7 +397,7 @@ int ExpressionAnalyzer::AnalyzeKindParam(
   if (!kindParam) {
     return defaultKind;
   }
-  return std::visit(
+  return common::visit(
       common::visitors{
           [](std::uint64_t k) { return static_cast<int>(k); },
           [&](const parser::Scalar<
@@ -433,7 +433,7 @@ struct IntTypeVisitor {
                          LanguageFeature::BigIntLiterals)) {
             analyzer.Say(digits,
                 "Integer literal is too large for default INTEGER(KIND=%d); "
-                "assuming INTEGER(KIND=%d)"_en_US,
+                "assuming INTEGER(KIND=%d)"_port_en_US,
                 kind, T::kind);
           }
         }
@@ -556,7 +556,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::RealLiteralConstant &x) {
   auto kind{AnalyzeKindParam(x.kind, defaultKind)};
   if (letterKind && kind != *letterKind && expoLetter != 'e') {
     Say("Explicit kind parameter on real constant disagrees with "
-        "exponent letter '%c'"_en_US,
+        "exponent letter '%c'"_port_en_US,
         expoLetter);
   }
   auto result{common::SearchTypes(
@@ -841,7 +841,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(
   if (MaybeExpr string{Analyze(std::get<parser::CharLiteralConstant>(x.t))}) {
     if (auto *charExpr{std::get_if<Expr<SomeCharacter>>(&string->u)}) {
       Expr<SubscriptInteger> length{
-          std::visit([](const auto &ckExpr) { return ckExpr.LEN().value(); },
+          common::visit([](const auto &ckExpr) { return ckExpr.LEN().value(); },
               charExpr->u)};
       if (!lower) {
         lower = Expr<SubscriptInteger>{1};
@@ -850,7 +850,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(
         upper = Expr<SubscriptInteger>{
             static_cast<std::int64_t>(ToInt64(length).value())};
       }
-      return std::visit(
+      return common::visit(
           [&](auto &&ckExpr) -> MaybeExpr {
             using Result = ResultType<decltype(ckExpr)>;
             auto *cp{std::get_if<Constant<Result>>(&ckExpr.u)};
@@ -904,7 +904,7 @@ std::optional<Expr<SubscriptInteger>> ExpressionAnalyzer::TripletPart(
 
 std::optional<Subscript> ExpressionAnalyzer::AnalyzeSectionSubscript(
     const parser::SectionSubscript &ss) {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const parser::SubscriptTriplet &t) -> std::optional<Subscript> {
             const auto &lower{std::get<0>(t.t)};
@@ -983,7 +983,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::ArrayElement &ae) {
 // Type parameter inquiries apply to data references, but don't depend
 // on any trailing (co)subscripts.
 static NamedEntity IgnoreAnySubscripts(Designator<SomeDerived> &&designator) {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [](SymbolRef &&symbol) { return NamedEntity{symbol}; },
           [](Component &&component) {
@@ -1075,7 +1075,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::StructureComponent &sc) {
     if (kind == MiscKind::ComplexPartRe || kind == MiscKind::ComplexPartIm) {
       if (auto *zExpr{std::get_if<Expr<SomeComplex>>(&base->u)}) {
         if (std::optional<DataRef> dataRef{ExtractDataRef(std::move(*zExpr))}) {
-          Expr<SomeReal> realExpr{std::visit(
+          Expr<SomeReal> realExpr{common::visit(
               [&](const auto &z) {
                 using PartType = typename ResultType<decltype(z)>::Part;
                 auto part{kind == MiscKind::ComplexPartRe
@@ -1150,7 +1150,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::CoindexedNamedObject &x) {
     }
     for (const auto &imageSelSpec :
         std::get<std::list<parser::ImageSelectorSpec>>(x.imageSelector.t)) {
-      std::visit(
+      common::visit(
           common::visitors{
               [&](const auto &x) { Analyze(x.v); },
           },
@@ -1187,7 +1187,7 @@ ArrayConstructorValues<T> MakeSpecific(
     ArrayConstructorValues<SomeType> &&from) {
   ArrayConstructorValues<T> to;
   for (ArrayConstructorValue<SomeType> &x : from) {
-    std::visit(
+    common::visit(
         common::visitors{
             [&](common::CopyableIndirection<Expr<SomeType>> &&expr) {
               auto *typed{UnwrapExpr<Expr<T>>(expr.value())};
@@ -1284,7 +1284,7 @@ void ArrayConstructorContext::Push(MaybeExpr &&x) {
       if (exprAnalyzer_.context().ShouldWarn(
               common::LanguageFeature::BOZAsDefaultInteger)) {
         exprAnalyzer_.Say(
-            "BOZ literal in array constructor without explicit type is assumed to be default INTEGER"_en_US);
+            "BOZ literal in array constructor without explicit type is assumed to be default INTEGER"_port_en_US);
       }
       x = AsGenericExpr(ConvertToKind<TypeCategory::Integer>(
           exprAnalyzer_.GetDefaultKind(TypeCategory::Integer),
@@ -1299,7 +1299,7 @@ void ArrayConstructorContext::Push(MaybeExpr &&x) {
         if (exprAnalyzer_.context().ShouldWarn(
                 common::LanguageFeature::BOZAsDefaultInteger)) {
           exprAnalyzer_.Say(
-              "BOZ literal in array constructor without explicit type is assumed to be default INTEGER"_en_US);
+              "BOZ literal in array constructor without explicit type is assumed to be default INTEGER"_port_en_US);
         }
         x = AsGenericExpr(ConvertToKind<TypeCategory::Integer>(
             exprAnalyzer_.GetDefaultKind(TypeCategory::Integer),
@@ -1336,7 +1336,7 @@ void ArrayConstructorContext::Push(MaybeExpr &&x) {
   if (Expr<SomeCharacter> * charExpr{UnwrapExpr<Expr<SomeCharacter>>(*x)}) {
     CHECK(xType.category() == TypeCategory::Character);
     xType.length =
-        std::visit([](const auto &kc) { return kc.LEN(); }, charExpr->u);
+        common::visit([](const auto &kc) { return kc.LEN(); }, charExpr->u);
   }
   if (!type_) {
     // If there is no explicit type-spec in an array constructor, the type
@@ -1360,7 +1360,7 @@ void ArrayConstructorContext::Push(MaybeExpr &&x) {
             if (!(messageDisplayedSet_ & 1)) {
               exprAnalyzer_.Say(
                   "Character literal in array constructor without explicit "
-                  "type has different length than earlier elements"_en_US);
+                  "type has different length than earlier elements"_port_en_US);
               messageDisplayedSet_ |= 1;
             }
           }
@@ -1397,7 +1397,7 @@ void ArrayConstructorContext::Push(MaybeExpr &&x) {
 }
 
 void ArrayConstructorContext::Add(const parser::AcValue &x) {
-  std::visit(
+  common::visit(
       common::visitors{
           [&](const parser::AcValue::Triplet &triplet) { Add(triplet); },
           [&](const common::Indirection<parser::Expr> &expr) {
@@ -1642,7 +1642,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(
           if (context().ShouldWarn(LanguageFeature::AnonymousParents)) {
             Say(source,
                 "Whole parent component '%s' in structure "
-                "constructor should not be anonymous"_en_US,
+                "constructor should not be anonymous"_port_en_US,
                 symbol->name());
           }
         }
@@ -1766,7 +1766,8 @@ MaybeExpr ExpressionAnalyzer::Analyze(
                 *symbol);
           }
         } else if (IsAllocatable(*symbol) && IsBareNullPointer(&*value)) {
-          // NULL() with no arguments allowed by 7.5.10 para 6 for ALLOCATABLE
+          // NULL() with no arguments allowed by 7.5.10 para 6 for ALLOCATABLE.
+          result.Add(*symbol, Expr<SomeType>{NullPointer{}});
         } else if (auto symType{DynamicType::From(symbol)}) {
           if (IsAllocatable(*symbol) && symType->IsUnlimitedPolymorphic() &&
               valueType) {
@@ -1795,10 +1796,12 @@ MaybeExpr ExpressionAnalyzer::Analyze(
   // Ensure that unmentioned component objects have default initializers.
   for (const Symbol &symbol : components) {
     if (!symbol.test(Symbol::Flag::ParentComp) &&
-        unavailable.find(symbol.name()) == unavailable.cend() &&
-        !IsAllocatable(symbol)) {
-      if (const auto *details{
-              symbol.detailsIf<semantics::ObjectEntityDetails>()}) {
+        unavailable.find(symbol.name()) == unavailable.cend()) {
+      if (IsAllocatable(symbol)) {
+        // Set all remaining allocatables to explicit NULL()
+        result.Add(symbol, Expr<SomeType>{NullPointer{}});
+      } else if (const auto *details{
+                     symbol.detailsIf<semantics::ObjectEntityDetails>()}) {
         if (details->init()) {
           result.Add(symbol, common::Clone(*details->init()));
         } else { // C799
@@ -1817,7 +1820,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(
 
 static std::optional<parser::CharBlock> GetPassName(
     const semantics::Symbol &proc) {
-  return std::visit(
+  return common::visit(
       [](const auto &details) {
         if constexpr (std::is_base_of_v<semantics::WithPassArg,
                           std::decay_t<decltype(details)>>) {
@@ -1832,7 +1835,7 @@ static std::optional<parser::CharBlock> GetPassName(
 static int GetPassIndex(const Symbol &proc) {
   CHECK(!proc.attrs().test(semantics::Attr::NOPASS));
   std::optional<parser::CharBlock> passName{GetPassName(proc)};
-  const auto *interface{semantics::FindInterface(proc)};
+  const auto *interface { semantics::FindInterface(proc) };
   if (!passName || !interface) {
     return 0; // first argument is passed-object
   }
@@ -1956,7 +1959,7 @@ auto ExpressionAnalyzer::AnalyzeProcedureComponentRef(
 static bool CheckCompatibleArgument(bool isElemental,
     const ActualArgument &actual, const characteristics::DummyArgument &dummy) {
   const auto *expr{actual.UnwrapExpr()};
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const characteristics::DummyDataObject &x) {
             if (x.attrs.test(characteristics::DummyDataObject::Attr::Pointer) &&
@@ -2151,7 +2154,7 @@ auto ExpressionAnalyzer::GetCalleeAndArguments(
     const parser::ProcedureDesignator &pd, ActualArguments &&arguments,
     bool isSubroutine, bool mightBeStructureConstructor)
     -> std::optional<CalleeAndArguments> {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const parser::Name &name) {
             return GetCalleeAndArguments(name, std::move(arguments),
@@ -2242,7 +2245,7 @@ void ExpressionAnalyzer::CheckBadExplicitType(
                 typeAndShape->Characterize(intrinsic, GetFoldingContext())}) {
           if (!declared->type().IsTkCompatibleWith(typeAndShape->type())) {
             if (auto *msg{Say(
-                    "The result type '%s' of the intrinsic function '%s' is not the explicit declared type '%s'"_en_US,
+                    "The result type '%s' of the intrinsic function '%s' is not the explicit declared type '%s'"_warn_en_US,
                     typeAndShape->AsFortran(), intrinsic.name(),
                     declared->AsFortran())}) {
               msg->Attach(intrinsic.name(),
@@ -2303,7 +2306,7 @@ static const Symbol *AssumedTypePointerOrAllocatableDummy(const A &object) {
   // point it is is not guaranteed that it has been checked the object has
   // POINTER or ALLOCATABLE attribute, so do not assume nullptr can be directly
   // returned.
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const parser::StructureComponent &x) {
             return AssumedTypeDummy(x.component);
@@ -2457,29 +2460,30 @@ const Assignment *ExpressionAnalyzer::Analyze(
           new GenericAssignmentWrapper{}, GenericAssignmentWrapper::Deleter);
     } else {
       Assignment assignment{std::move(*lhs), std::move(*rhs)};
-      std::visit(common::visitors{
-                     [&](const std::list<parser::BoundsRemapping> &list) {
-                       Assignment::BoundsRemapping bounds;
-                       for (const auto &elem : list) {
-                         auto lower{AsSubscript(Analyze(std::get<0>(elem.t)))};
-                         auto upper{AsSubscript(Analyze(std::get<1>(elem.t)))};
-                         if (lower && upper) {
-                           bounds.emplace_back(Fold(std::move(*lower)),
-                               Fold(std::move(*upper)));
-                         }
-                       }
-                       assignment.u = std::move(bounds);
-                     },
-                     [&](const std::list<parser::BoundsSpec> &list) {
-                       Assignment::BoundsSpec bounds;
-                       for (const auto &bound : list) {
-                         if (auto lower{AsSubscript(Analyze(bound.v))}) {
-                           bounds.emplace_back(Fold(std::move(*lower)));
-                         }
-                       }
-                       assignment.u = std::move(bounds);
-                     },
-                 },
+      common::visit(
+          common::visitors{
+              [&](const std::list<parser::BoundsRemapping> &list) {
+                Assignment::BoundsRemapping bounds;
+                for (const auto &elem : list) {
+                  auto lower{AsSubscript(Analyze(std::get<0>(elem.t)))};
+                  auto upper{AsSubscript(Analyze(std::get<1>(elem.t)))};
+                  if (lower && upper) {
+                    bounds.emplace_back(
+                        Fold(std::move(*lower)), Fold(std::move(*upper)));
+                  }
+                }
+                assignment.u = std::move(bounds);
+              },
+              [&](const std::list<parser::BoundsSpec> &list) {
+                Assignment::BoundsSpec bounds;
+                for (const auto &bound : list) {
+                  if (auto lower{AsSubscript(Analyze(bound.v))}) {
+                    bounds.emplace_back(Fold(std::move(*lower)));
+                  }
+                }
+                assignment.u = std::move(bounds);
+              },
+          },
           std::get<parser::PointerAssignmentStmt::Bounds>(x.t).u);
       x.typedAssignment.Reset(
           new GenericAssignmentWrapper{std::move(assignment)},
@@ -2689,7 +2693,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::Expr::Concat &x) {
   if (!analyzer.fatalErrors()) {
     if (analyzer.IsIntrinsicConcat()) {
       analyzer.CheckForNullPointer();
-      return std::visit(
+      return common::visit(
           [&](auto &&x, auto &&y) -> MaybeExpr {
             using T = ResultType<decltype(x)>;
             if constexpr (std::is_same_v<T, ResultType<decltype(y)>>) {
@@ -2873,12 +2877,12 @@ static void FixMisparsedFunctionReference(
     auto &proc{std::get<parser::ProcedureDesignator>(funcRef.v.t)};
     if (Symbol *
         origSymbol{
-            std::visit(common::visitors{
-                           [&](parser::Name &name) { return name.symbol; },
-                           [&](parser::ProcComponentRef &pcr) {
-                             return pcr.v.thing.component.symbol;
-                           },
-                       },
+            common::visit(common::visitors{
+                              [&](parser::Name &name) { return name.symbol; },
+                              [&](parser::ProcComponentRef &pcr) {
+                                return pcr.v.thing.component.symbol;
+                              },
+                          },
                 proc.u)}) {
       Symbol &symbol{origSymbol->GetUltimate()};
       if (symbol.has<semantics::ObjectEntityDetails>() ||
@@ -3022,7 +3026,7 @@ Expr<SubscriptInteger> ExpressionAnalyzer::AnalyzeKindSelector(
   if (!selector) {
     return Expr<SubscriptInteger>{defaultKind};
   }
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const parser::ScalarIntConstantExpr &x) {
             if (MaybeExpr kind{Analyze(x)}) {
@@ -3212,26 +3216,28 @@ void ArgumentAnalyzer::Analyze(
   // be detected and represented (they're not expressions).
   // TODO: C1534: Don't allow a "restricted" specific intrinsic to be passed.
   std::optional<ActualArgument> actual;
-  std::visit(common::visitors{
-                 [&](const common::Indirection<parser::Expr> &x) {
-                   actual = AnalyzeExpr(x.value());
-                   SetArgSourceLocation(actual, x.value().source);
-                 },
-                 [&](const parser::AltReturnSpec &label) {
-                   if (!isSubroutine) {
-                     context_.Say(
-                         "alternate return specification may not appear on"
-                         " function reference"_err_en_US);
-                   }
-                   actual = ActualArgument(label.v);
-                 },
-                 [&](const parser::ActualArg::PercentRef &) {
-                   context_.Say("TODO: %REF() argument"_err_en_US);
-                 },
-                 [&](const parser::ActualArg::PercentVal &) {
-                   context_.Say("TODO: %VAL() argument"_err_en_US);
-                 },
-             },
+  common::visit(
+      common::visitors{
+          [&](const common::Indirection<parser::Expr> &x) {
+            actual = AnalyzeExpr(x.value());
+            SetArgSourceLocation(actual, x.value().source);
+          },
+          [&](const parser::AltReturnSpec &label) {
+            if (!isSubroutine) {
+              context_.Say("alternate return specification may not appear on"
+                           " function reference"_err_en_US);
+            }
+            actual = ActualArgument(label.v);
+          },
+          [&](const parser::ActualArg::PercentRef &) {
+            context_.Say(
+                "not yet implemented: %REF() intrinsic for arguments"_err_en_US);
+          },
+          [&](const parser::ActualArg::PercentVal &) {
+            context_.Say(
+                "not yet implemetned: %VAL() intrinsic for arguments"_err_en_US);
+          },
+      },
       std::get<parser::ActualArg>(arg.t).u);
   if (actual) {
     if (const auto &argKW{std::get<std::optional<parser::Keyword>>(arg.t)}) {
@@ -3449,10 +3455,10 @@ bool ArgumentAnalyzer::OkLogicalIntegerAssignment(
   std::optional<parser::MessageFixedText> msg;
   if (lhs == TypeCategory::Integer && rhs == TypeCategory::Logical) {
     // allow assignment to LOGICAL from INTEGER as a legacy extension
-    msg = "nonstandard usage: assignment of LOGICAL to INTEGER"_en_US;
+    msg = "nonstandard usage: assignment of LOGICAL to INTEGER"_port_en_US;
   } else if (lhs == TypeCategory::Logical && rhs == TypeCategory::Integer) {
     // ... and assignment to LOGICAL from INTEGER
-    msg = "nonstandard usage: assignment of INTEGER to LOGICAL"_en_US;
+    msg = "nonstandard usage: assignment of INTEGER to LOGICAL"_port_en_US;
   } else {
     return false;
   }
@@ -3590,7 +3596,8 @@ const Symbol *ArgumentAnalyzer::FindBoundOp(
 void ArgumentAnalyzer::AddAssignmentConversion(
     const DynamicType &lhsType, const DynamicType &rhsType) {
   if (lhsType.category() == rhsType.category() &&
-      lhsType.kind() == rhsType.kind()) {
+      (lhsType.category() == TypeCategory::Derived ||
+          lhsType.kind() == rhsType.kind())) {
     // no conversion necessary
   } else if (auto rhsExpr{evaluate::ConvertToType(lhsType, MoveExpr(1))}) {
     std::optional<parser::CharBlock> source;
@@ -3679,7 +3686,10 @@ std::string ArgumentAnalyzer::TypeAsFortran(std::size_t i) {
   if (i >= actuals_.size() || !actuals_[i]) {
     return "missing argument";
   } else if (std::optional<DynamicType> type{GetType(i)}) {
-    return type->category() == TypeCategory::Derived
+    return type->IsAssumedType()         ? "TYPE(*)"s
+        : type->IsUnlimitedPolymorphic() ? "CLASS(*)"s
+        : type->IsPolymorphic()          ? "CLASS("s + type->AsFortran() + ')'
+        : type->category() == TypeCategory::Derived
         ? "TYPE("s + type->AsFortran() + ')'
         : type->category() == TypeCategory::Character
         ? "CHARACTER(KIND="s + std::to_string(type->kind()) + ')'

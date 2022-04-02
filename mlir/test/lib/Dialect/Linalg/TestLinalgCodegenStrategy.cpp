@@ -13,11 +13,11 @@
 #include <utility>
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/CodegenStrategy.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
@@ -45,7 +45,6 @@ struct TestLinalgCodegenStrategy
                     linalg::LinalgDialect,
                     memref::MemRefDialect,
                     scf::SCFDialect,
-                    StandardOpsDialect,
                     vector::VectorDialect>();
     // clang-format on
   }
@@ -185,6 +184,7 @@ void TestLinalgCodegenStrategy::runStrategy(
     LinalgPaddingOptions paddingOptions,
     vector::VectorContractLowering vectorContractLowering,
     vector::VectorTransferSplit vectorTransferSplit) {
+  std::string anchorOpNameOrWildcard = fuse ? "" : anchorOpName.getValue();
   CodegenStrategy strategy;
   strategy
       .tileAndFuseIf(fuse && !tileSizes.empty(), anchorOpName,
@@ -200,11 +200,11 @@ void TestLinalgCodegenStrategy::runStrategy(
                  LinalgPromotionOptions()
                      .setAlignment(16)
                      .setUseFullTileBuffersByDefault(registerPromoteFullTile))
-      .padIf(pad, "", std::move(paddingOptions))
+      .padIf(pad, anchorOpNameOrWildcard, std::move(paddingOptions))
       .decomposeIf(decompose)
-      .generalizeIf(generalize, "")
+      .generalizeIf(generalize, anchorOpNameOrWildcard)
       .interchangeIf(!iteratorInterchange.empty(), iteratorInterchange)
-      .vectorizeIf(vectorize, "", nullptr, vectorizePadding)
+      .vectorizeIf(vectorize, anchorOpNameOrWildcard, nullptr, vectorizePadding)
       .vectorLowering(
           LinalgVectorLoweringOptions()
               .setVectorTransformsOptions(
@@ -219,7 +219,7 @@ void TestLinalgCodegenStrategy::runStrategy(
               .enableTransferToSCFConversion());
   // Created a nested OpPassManager and run.
   FuncOp funcOp = getOperation();
-  OpPassManager dynamicPM("builtin.func");
+  OpPassManager dynamicPM("func.func");
   strategy.configurePassPipeline(dynamicPM, funcOp.getContext(), runEnablePass);
   if (failed(runPipeline(dynamicPM, funcOp)))
     return signalPassFailure();

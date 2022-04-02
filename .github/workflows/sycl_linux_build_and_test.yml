@@ -15,10 +15,6 @@ on:
         type: string
         required: false
         default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
-      build_runs_on:
-        type: string
-        required: false
-        default: "build"
       build_ref:
         type: string
         required: false
@@ -36,7 +32,7 @@ on:
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --cuda"
+        default: "--hip --cuda --enable-esimd-emulator"
       build_artifact_suffix:
         type: string
         required: true
@@ -68,7 +64,7 @@ on:
 jobs:
   build:
     name: Build + LIT
-    runs-on: ${{ inputs.build_runs_on }}
+    runs-on: [Linux, build]
     container:
       image: ${{ inputs.build_image }}
       options: -u 1001:1001
@@ -208,6 +204,11 @@ jobs:
       image: ${{ matrix.image }}
       options: ${{ matrix.container_options }}
     steps:
+    - name: Reset GPU
+      if: ${{ contains(matrix.config, 'gen9') }}
+      run: |
+        sudo mount -t debugfs none /sys/kernel/debug
+        sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
     - run: cp -r /actions .
     - name: Register cleanup after job is finished
       uses: ./actions/cleanup

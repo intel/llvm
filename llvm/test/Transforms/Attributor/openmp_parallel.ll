@@ -54,6 +54,7 @@ define dso_local void @func(float* nocapture %a, float* %b, i32 %N) local_unname
 ; IS__CGSCC_OPM-NEXT:    [[N_ADDR:%.*]] = alloca i32, align 4
 ; IS__CGSCC_OPM-NEXT:    store float* [[A]], float** [[A_ADDR]], align 8
 ; IS__CGSCC_OPM-NEXT:    store float* [[B]], float** [[B_ADDR]], align 8
+; IS__CGSCC_OPM-NEXT:    store i32 199, i32* [[N_ADDR]], align 4
 ; IS__CGSCC_OPM-NEXT:    call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call(%struct.ident_t* noundef nonnull align 8 dereferenceable(24) @[[GLOB2]], i32 noundef 3, void (i32*, i32*, ...)* noundef bitcast (void (i32*, i32*, i32*, float**, float**)* @.omp_outlined. to void (i32*, i32*, ...)*), i32* noalias nocapture nofree noundef nonnull readnone align 4 dereferenceable(4) [[N_ADDR]], float** nocapture nofree noundef nonnull readonly align 8 dereferenceable(8) [[A_ADDR]], float** nocapture nofree noundef nonnull readonly align 8 dereferenceable(8) [[B_ADDR]])
 ; IS__CGSCC_OPM-NEXT:    ret void
 ;
@@ -66,6 +67,7 @@ define dso_local void @func(float* nocapture %a, float* %b, i32 %N) local_unname
 ; IS__CGSCC_NPM-NEXT:    [[N_ADDR:%.*]] = alloca i32, align 4
 ; IS__CGSCC_NPM-NEXT:    store float* [[A]], float** [[A_ADDR]], align 8
 ; IS__CGSCC_NPM-NEXT:    store float* [[B]], float** [[B_ADDR]], align 8
+; IS__CGSCC_NPM-NEXT:    store i32 199, i32* [[N_ADDR]], align 4
 ; IS__CGSCC_NPM-NEXT:    call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call(%struct.ident_t* noundef nonnull align 8 dereferenceable(24) @[[GLOB2]], i32 noundef 3, void (i32*, i32*, ...)* noundef bitcast (void (i32*, i32*, i32*, float**, float**)* @.omp_outlined. to void (i32*, i32*, ...)*), i32* noalias nocapture nofree noundef nonnull readnone align 4 dereferenceable(4) [[N_ADDR]], float** noalias nocapture nofree noundef nonnull readonly align 8 dereferenceable(8) [[A_ADDR]], float** noalias nocapture nofree noundef nonnull readonly align 8 dereferenceable(8) [[B_ADDR]])
 ; IS__CGSCC_NPM-NEXT:    ret void
 ;
@@ -286,7 +288,7 @@ attributes #2 = { nounwind }
 ;.
 ; CHECK: attributes #[[ATTR0:[0-9]+]] = { nounwind uwtable }
 ; CHECK: attributes #[[ATTR1:[0-9]+]] = { alwaysinline nofree norecurse nounwind uwtable }
-; CHECK: attributes #[[ATTR2:[0-9]+]] = { argmemonly nofree nosync nounwind willreturn }
+; CHECK: attributes #[[ATTR2:[0-9]+]] = { argmemonly nocallback nofree nosync nounwind willreturn }
 ;.
 ; CHECK: [[META0:![0-9]+]] = !{i32 7, !"openmp", i32 50}
 ; CHECK: [[META1:![0-9]+]] = !{!2}

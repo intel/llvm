@@ -12,7 +12,6 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
@@ -64,7 +63,6 @@ class ConvertShapeConstraints
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
-mlir::createConvertShapeConstraintsPass() {
+std::unique_ptr<Pass> mlir::createConvertShapeConstraintsPass() {
   return std::make_unique<ConvertShapeConstraints>();
 }

@@ -103,26 +103,14 @@ void populateFoldReshapeOpsByLinearizationPatterns(RewritePatternSet &patterns);
 void populateFoldUnitDimsReshapeOpsByLinearizationPatterns(
     RewritePatternSet &patterns);
 
-/// Pattern to fuse a `linalg.pad_tensor` operation with the producer of its
-/// source, if the producer is a `linalg` operation with all parallel iterator
-/// types.
-void populateFusePadTensorWithProducerLinalgOpPatterns(
+/// Pattern to fuse a `tensor.pad` operation with the producer of its source,
+/// if the producer is a `linalg` operation with all parallel iterator types.
+void populateFuseTensorPadWithProducerLinalgOpPatterns(
     RewritePatternSet &patterns);
 
 /// Patterns to convert from one named op to another. These can be seen as
 /// canonicalizations of named ops into another named op.
 void populateLinalgNamedOpConversionPatterns(RewritePatternSet &patterns);
-
-/// Populate the given list with patterns to bufferize linalg ops.
-void populateLinalgBufferizePatterns(
-    bufferization::BufferizeTypeConverter &converter,
-    RewritePatternSet &patterns);
-
-/// Create linalg op on buffers given the original tensor-based operation and
-/// the buffers for the outputs.
-LinalgOp createLinalgOpOnBuffers(ConversionPatternRewriter &rewriter,
-                                 LinalgOp linalgOp, ValueRange inputs,
-                                 ValueRange outputs);
 
 /// Patterns to fold unit-extent dimensions in operands/results of linalg ops on
 /// tensors.
@@ -130,9 +118,6 @@ void populateFoldUnitExtentDimsPatterns(RewritePatternSet &patterns);
 
 /// Patterns that are used to inline constant operands into linalg generic ops.
 void populateInlineConstantOperandsPatterns(RewritePatternSet &patterns);
-
-/// Pattern to convert TiledLoopOp to SCF loops.
-void populateTiledLoopToSCFPattern(RewritePatternSet &patterns);
 
 /// Options that control fusion of elementwise operations.
 struct LinalgElementwiseFusionOptions {
@@ -544,9 +529,9 @@ makeTiledLoopRanges(RewriterBase &b, Location loc, AffineMap map,
 /// operand_dim_1 = dim %operand, 1 : memref<50x100xf32>
 /// scf.for %k = %c0 to operand_dim_0 step %c10 {
 ///   scf.for %l = %c0 to operand_dim_1 step %c25 {
-///     %4 = std.subview %operand[%k, %l][%c10, %c25][%c1, %c1]
+///     %4 = memref.subview %operand[%k, %l][%c10, %c25][%c1, %c1]
 ///       : memref<50x100xf32> to memref<?x?xf32, #strided>
-///     %5 = std.subview %result[%k, %l][%c10, %c25][%c1, %c1]
+///     %5 = memref.subview %result[%k, %l][%c10, %c25][%c1, %c1]
 ///       : memref<50x100xf32> to memref<?x?xf32, #strided>
 ///     linalg.generic pointwise_2d_trait %4, %5 {
 ///     ^bb0(%operand_in: f32, %result_in: f32):
@@ -638,8 +623,20 @@ struct LinalgPaddingOptions {
 struct LinalgTilingAndFusionOptions {
   /// Tile sizes used to tile the root operation.
   SmallVector<int64_t> tileSizes;
+  LinalgTilingAndFusionOptions &setTileSizes(ArrayRef<int64_t> ts) {
+    tileSizes.assign(ts.begin(), ts.end());
+    return *this;
+  }
   /// Tile interchange used to permute the tile loops.
   SmallVector<int64_t> tileInterchange;
+  /// When specified, specifies distribution of generated tile loops to
+  /// processors.
+  Optional<LinalgLoopDistributionOptions> tileDistribution = None;
+  LinalgTilingAndFusionOptions &
+  setDistributionOptions(LinalgLoopDistributionOptions distributionOptions) {
+    tileDistribution = std::move(distributionOptions);
+    return *this;
+  }
 };
 
 struct LinalgTilingOptions {
@@ -868,8 +865,16 @@ struct LinalgTileAndFuseTensorOpsPattern : public RewritePattern {
       LinalgTilingAndFusionOptions options,
       LinalgTransformationFilter f = LinalgTransformationFilter(),
       PatternBenefit benefit = 1);
+
+  /// `matchAndRewrite` implementation that returns the significant transformed
+  /// pieces of IR.
+  FailureOr<TileLoopNest>
+  returningMatchAndRewrite(Operation *op, PatternRewriter &rewriter) const;
+
   LogicalResult matchAndRewrite(Operation *op,
-                                PatternRewriter &rewriter) const override;
+                                PatternRewriter &rewriter) const override {
+    return returningMatchAndRewrite(op, rewriter);
+  }
 
 private:
   /// LinalgTransformMarker handles special attribute manipulations.
@@ -1236,13 +1241,6 @@ void populateDecomposeConvolutionPatterns(
     const LinalgTransformationFilter &filter = LinalgTransformationFilter(),
     PatternBenefit benefit = 1);
 
-/// Linalg distribution patterns
-//
-/// Populates `patterns` with patterns to distribute linalg.tiled_loop.
-void populateLinalgDistributeTiledLoopPattern(
-    RewritePatternSet &patterns, const LinalgLoopDistributionOptions &opts,
-    const LinalgTransformationFilter &marker);
-
 //===----------------------------------------------------------------------===//
 // Op-specific patterns.
 //===----------------------------------------------------------------------===//
@@ -1356,31 +1354,6 @@ struct LinalgCopyVTWForwardingPattern
                                 PatternRewriter &rewriter) const override;
 };
 
-/// Rewrite a TiledLoopOp with bounds/step that potentially do not divide evenly
-/// into a TiledLoopOp where the step divides the iteration space evenly,
-/// followed by another TiledLoopOp for the last (partial) iteration (if any).
-/// This transformation is called "loop peeling".
-///
-/// This function peels the `idx`-th loop of the TiledLoopOp. To tile all loops
-/// in the loop nest, this function must be called multiple times.
-///
-/// After loop peeling, this function tries to simplify/canonicalize affine.min
-/// and affine.max ops in the body of the two TiledLoopOps. For more details,
-/// refer to `mlir::scf::peelAndCanonicalizeForLoop`.
-///
-/// The return value indicates whether the loop was rewritten or not. Loops are
-/// not rewritten if:
-/// * Loop step size is 1 or
-/// * Loop bounds and step size are static, and step already divides the
-///   iteration space evenly.
-///
-/// Note: This function rewrites the given TiledLoopOp in-place and clones the
-/// TileLoopOp operation for the last iteration. It replaces all uses of the
-/// unpeeled TiledLoopOp with the results of the newly generated TiledLoopOp.
-LogicalResult peelAndCanonicalizeTiledLoop(RewriterBase &rewriter,
-                                           TiledLoopOp loopOp, int64_t idx,
-                                           TiledLoopOp &result);
-
 //===----------------------------------------------------------------------===//
 // Support for staged pattern application.
 //===----------------------------------------------------------------------===//
@@ -1473,6 +1446,64 @@ public:
     TilingPatterns<OpTypes...>::insert(patterns, options, f);
   }
 };
+
+/// Function signature to control reduction splitting. This returns a pair
+/// containing a ratio and a dimension index. The ratio is used to split the
+/// reduction dimension. The dimension index is used to control where the extra
+/// dimension is added to the intermediate tensor shape. If the ratio value is
+/// less or equal to 1 then nothing will be done.
+using ControlSplitReductionFn =
+    std::function<std::pair<int64_t, unsigned>(LinalgOp op)>;
+
+/// Patterns to apply `splitReduction` below.
+void populateSplitReductionPattern(
+    RewritePatternSet &patterns,
+    ControlSplitReductionFn controlSplitReductionFn,
+    LinalgTransformationFilter f = LinalgTransformationFilter());
+
+/// Apply transformation to split the single linalg op reduction into a parallel
+/// and reduction dimension. Then create a new linalg.generic op doing the rest
+/// of the reduction. Return the new linalg op with an extra parallel dimension
+/// or failure if the transformation didn't happen.
+/// Example:
+/// ```
+///  %r = linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>,
+///                                        affine_map<(d0) -> ()>],
+///       iterator_types = ["reduction"]}
+///  ins(%in : tensor<32xf32>)
+///  outs(%out : tensor<f32>) {
+///  ^bb0(%arg1: f32, %arg2: f32):
+///    %y = arith.addf %arg1, %arg2 : f32
+///    linalg.yield %y : f32
+///  } -> tensor<f32>
+/// ```
+/// To:
+/// ```
+///  %cst = arith.constant 0.000000e+00 : f32
+///  %0 = tensor.expand_shape %in [[0, 1]] : tensor<32xf32> into tensor<4x8xf32>
+///  %1 = linalg.init_tensor [4] : tensor<4xf32>
+///  %2 = linalg.fill ins(%cst : f32) outs(%1 : tensor<4xf32>) -> tensor<4xf32>
+///  %3 = linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
+///                                        affine_map<(d0, d1) -> (d0)>],
+///    iterator_types = ["parallel", "reduction"]}
+///    ins(%0 : tensor<4x8xf32>) outs(%2 : tensor<4xf32>) {
+///    ^bb0(%arg3: f32, %arg5: f32):
+///    %5 = arith.addf %arg3, %arg4 : f32
+///    linalg.yield %5 : f32
+///  } -> tensor<4xf32>
+/// %r = linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>,
+///                                       affine_map<(d0) -> ()>],
+///   iterator_types = ["reduction"]}
+///   ins(%3 : tensor<4xf32>) outs(%out : tensor<f32>) {
+///   ^bb0(%arg3: f32, %arg4: f32):
+///   %5 = arith.addf %arg3, %arg4 : f32
+///   linalg.yield %5 : f32
+/// } -> tensor<f32>
+/// ```
+FailureOr<LinalgOp>
+splitReduction(PatternRewriter &b, LinalgOp op,
+               ControlSplitReductionFn controlSplitReductionFn,
+               LinalgTransformationFilter f);
 
 } // namespace linalg
 } // namespace mlir

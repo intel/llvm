@@ -17,6 +17,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -618,6 +619,7 @@ LogicalResult mlir::normalizeAffineFor(AffineForOp op) {
       AffineMap::get(origLbMap.getNumDims() + origUbMap.getNumDims(),
                      origLbMap.getNumSymbols() + origUbMap.getNumSymbols(),
                      newUbExprs, opBuilder.getContext());
+  canonicalizeMapAndOperands(&newUbMap, &ubOperands);
 
   // Normalize the loop.
   op.setUpperBound(ubOperands, newUbMap);
@@ -640,6 +642,7 @@ LogicalResult mlir::normalizeAffineFor(AffineForOp op) {
   AffineExpr newIVExpr = origIVExpr * origLoopStep + origLbMap.getResult(0);
   AffineMap ivMap = AffineMap::get(origLbMap.getNumDims() + 1,
                                    origLbMap.getNumSymbols(), newIVExpr);
+  canonicalizeMapAndOperands(&ivMap, &lbOperands);
   Operation *newIV = opBuilder.create<AffineApplyOp>(loc, ivMap, lbOperands);
   op.getInductionVar().replaceAllUsesExcept(newIV->getResult(0), newIV);
   return success();
@@ -1239,7 +1242,7 @@ LogicalResult mlir::replaceAllMemRefUsesWith(Value oldMemRef, Value newMemRef,
   }
 
   // Create the new operation.
-  auto *repOp = builder.createOperation(state);
+  auto *repOp = builder.create(state);
   op->replaceAllUsesWith(repOp);
   op->erase();
 

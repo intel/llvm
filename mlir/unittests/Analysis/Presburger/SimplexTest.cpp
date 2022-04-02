@@ -14,8 +14,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-namespace mlir {
-using namespace presburger_utils;
+using namespace mlir;
+using namespace presburger;
 
 /// Take a snapshot, add constraints making the set empty, and rollback.
 /// The set should not be empty after rolling back. We add additional
@@ -389,7 +389,7 @@ TEST(SimplexTest, isMarkedRedundantTiledLoopNestConstraints) {
   EXPECT_FALSE(simplex.isMarkedRedundant(5));
 }
 
-TEST(Simplextest, pivotRedundantRegressionTest) {
+TEST(SimplexTest, pivotRedundantRegressionTest) {
   Simplex simplex(2);
   simplex.addInequality({-1, 0, -1}); // x <= -1.
   unsigned snapshot = simplex.getSnapshot();
@@ -539,4 +539,19 @@ TEST(SimplexTest, IsRationalSubsetOf) {
   EXPECT_FALSE(sim2.isRationalSubsetOf(empty));
 }
 
-} // namespace mlir
+TEST(SimplexTest, addDivisionVariable) {
+  Simplex simplex(/*nVar=*/1);
+  simplex.addDivisionVariable({1, 0}, 2);
+  simplex.addInequality({1, 0, -3}); // x >= 3.
+  simplex.addInequality({-1, 0, 9}); // x <= 9.
+  Optional<SmallVector<int64_t, 8>> sample = simplex.findIntegerSample();
+  ASSERT_TRUE(sample.hasValue());
+  EXPECT_EQ((*sample)[0] / 2, (*sample)[1]);
+}
+
+TEST(LexSimplexTest, addEquality) {
+  IntegerRelation rel(/*numDomain=*/0, /*numRange=*/1);
+  rel.addEquality({1, 0});
+  LexSimplex simplex(rel);
+  EXPECT_EQ(simplex.getNumConstraints(), 1u);
+}

@@ -144,12 +144,12 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Half1>([=]() { return t1.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Half1{{.*}} 'void (sycl::half, sycl::half, sycl::half, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}Half1{{.*}} 'void (StructWithArray<StructWithHalf>)'
 
     DerivedStruct<StructWithHalf> t2;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Half2>([=]() { return t2.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Half2{{.*}} 'void (sycl::half, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}Half2{{.*}} 'void (DerivedStruct<StructWithHalf>)'
   }
 }
