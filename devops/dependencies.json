@@ -1,5 +1,5 @@
 {
-  "linux": {
+  "linux_staging": {
     "compute_runtime": {
       "github_tag": "22.10.22597",
       "version": "22.10.22597",
@@ -40,7 +40,7 @@
       "root": "{ARCHIVE_ROOT}/comp/oclfpga/linux"
     }
   },
-  "linux_staging": {
+  "linux": {
     "compute_runtime": {
       "github_tag": "22.11.22682",
       "version": "22.11.22682",
