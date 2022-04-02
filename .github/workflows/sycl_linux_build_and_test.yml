@@ -216,6 +216,7 @@ jobs:
       if: env.compute_runtime_tag != ''
       run: |
         if [ -e /opt/install_drivers.sh ]; then
+          sudo apt install -yqq wget
           sudo /opt/install_drivers.sh --all
         fi
     # FIXME cached_checkout fails here, but works everywhere else
