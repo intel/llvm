@@ -53,9 +53,11 @@ module.exports = ({core, process}) => {
       for (let [key, value] of Object.entries(inputs)) {
         ltsString = ltsString.replaceAll("${{ inputs." + key + " }}", value);
       }
-      ltsString = ltsString.replaceAll(
-          "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest",
-          "ghcr.io/intel/llvm/ubuntu2004_base:latest");
+      if (needsDrivers) {
+        ltsString = ltsString.replaceAll(
+            "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest",
+            "ghcr.io/intel/llvm/ubuntu2004_base:latest");
+      }
 
       core.setOutput('lts', ltsString);
     }
