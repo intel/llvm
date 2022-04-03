@@ -10,8 +10,8 @@
 #include <sycl/ext/intel/experimental/bfloat16.hpp>
 #include <sycl/sycl.hpp>
 
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -60,8 +60,8 @@ inline bool check_bf16_to_float(uint16_t &Val, float &Expected) {
 int main() {
   bool Success =
       check_bf16_from_float(0.0f, std::stoi("0000000000000000", nullptr, 2));
-  Success &= check_bf16_from_float(42.0f,
-                                   std::stoi("100001000101000", nullptr, 2));
+  Success &=
+      check_bf16_from_float(42.0f, std::stoi("100001000101000", nullptr, 2));
   Success &= check_bf16_from_float(std::numeric_limits<float>::min(),
                                    std::stoi("0000000010000000", nullptr, 2));
   Success &= check_bf16_from_float(std::numeric_limits<float>::max(),
@@ -69,15 +69,12 @@ int main() {
   Success &= check_bf16_from_float(std::numeric_limits<float>::quiet_NaN(),
                                    std::stoi("1111111111000001", nullptr, 2));
 
-  Success &=
-      check_bf16_to_float(to_float(0),
-                          bitToFloatConv("00000000000000000000000000000000"));
-  Success &=
-      check_bf16_to_float(to_float(1),
-                          bitToFloatConv("01000111100000000000000000000000"));
-  Success &=
-      check_bf16_to_float(to_float(42),
-                          bitToFloatConv("00000000001010100000000000000000"));
+  Success &= check_bf16_to_float(
+      to_float(0), bitToFloatConv("00000000000000000000000000000000"));
+  Success &= check_bf16_to_float(
+      to_float(1), bitToFloatConv("01000111100000000000000000000000"));
+  Success &= check_bf16_to_float(
+      to_float(42), bitToFloatConv("00000000001010100000000000000000"));
   Success &=
       check_bf16_to_float(to_float(std::numeric_limits<uint16_t>::max()),
                           bitToFloatConv("11111111111111110000000000000000"));
