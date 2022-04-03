@@ -7,6 +7,8 @@ TBB_TAG=$tbb_tag
 FPGA_TAG=$fpgaemu_tag
 CPU_TAG=$cpu_tag
 
+env
+
 TBB_INSTALLED=false
 
 LOCATION=$(dirname -- "$(readlink -f "${BASH_SOURCE}")")
