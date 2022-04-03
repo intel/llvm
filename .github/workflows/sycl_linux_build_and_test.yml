@@ -90,6 +90,7 @@ jobs:
         ARGS: ${{ inputs.build_configure_extra_args }}
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
       run: |
+        sudo rm -rf oneapi-tbb oclcpu
         mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
