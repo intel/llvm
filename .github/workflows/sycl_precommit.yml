@@ -42,4 +42,3 @@ jobs:
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       lts_config: "ocl_gen9"
-      build_image: "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest"
