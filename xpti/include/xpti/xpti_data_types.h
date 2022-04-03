@@ -396,8 +396,6 @@ enum class trace_point_type_t : uint16_t {
   offload_alloc_release = XPTI_TRACE_POINT_BEGIN(23),
   /// Used to notify about creation accessor for offload buffer
   offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(24),
-  /// Used to notify about kernel enqueue
-  offload_kernel_enqueue = XPTI_TRACE_POINT_BEGIN(25),
   /// Indicates that the trace point is user defined and only the tool defined
   /// for a stream will be able to handle it
   user_defined = 1 << 7
@@ -464,8 +462,6 @@ enum class trace_event_type_t : uint16_t {
   offload_buffer = XPTI_EVENT(9),
   /// Indicates that the current event is an offload accessor related
   offload_accessor = XPTI_EVENT(10),
-  /// Indicates that the current event is an kernel enqueue related
-  offload_kernel_enqueue = XPTI_EVENT(11),
   /// User defined event for extensibility and will have to be registered by
   /// the tool/runtime
   user_defined = 1 << 7
@@ -715,8 +711,6 @@ constexpr uint16_t trace_offload_alloc_release =
     static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_release);
 constexpr uint16_t trace_offload_alloc_accessor =
     static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_accessor);
-constexpr uint16_t trace_offload_kernel_enqueue =
-    static_cast<uint16_t>(xpti::trace_point_type_t::offload_kernel_enqueue);
 
 constexpr uint16_t trace_graph_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::graph);
@@ -726,8 +720,6 @@ constexpr uint16_t trace_offload_buffer_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::offload_buffer);
 constexpr uint16_t trace_offload_accessor_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::offload_accessor);
-constexpr uint16_t trace_offload_kernel_enqueue_event =
-    static_cast<uint16_t>(xpti::trace_event_type_t::offload_kernel_enqueue);
 } // namespace xpti
 
 using xpti_tp = xpti::trace_point_type_t;

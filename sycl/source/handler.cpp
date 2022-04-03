@@ -262,7 +262,7 @@ event handler::finalize() {
         } else {
           Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
                                     MKernel, MKernelName, MOSModuleHandle,
-                                    RawEvents, OutEvent, nullptr, MCodeLoc);
+                                    RawEvents, OutEvent, nullptr);
         }
       }
       // assert(Result != CL_INVALID_VALUE);

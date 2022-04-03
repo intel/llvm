@@ -86,6 +86,41 @@ static std::string deviceToString(device Device) {
     return "UNKNOWN";
 }
 
+static void applyFuncOnFilteredArgs(
+    const ProgramManager::KernelArgMask &EliminatedArgMask,
+    std::vector<ArgDesc> &Args,
+    std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func) {
+  if (EliminatedArgMask.empty()) {
+    for (ArgDesc &Arg : Args) {
+      Func(Arg, Arg.MIndex);
+    }
+  } else {
+    // TODO this is not necessary as long as we can guarantee that the
+    // arguments are already sorted (e. g. handle the sorting in handler
+    // if necessary due to set_arg(...) usage).
+    std::sort(Args.begin(), Args.end(), [](const ArgDesc &A, const ArgDesc &B) {
+      return A.MIndex < B.MIndex;
+    });
+    int LastIndex = -1;
+    size_t NextTrueIndex = 0;
+
+    for (ArgDesc &Arg : Args) {
+      // Handle potential gaps in set arguments (e. g. if some of them are
+      // set on the user side).
+      for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
+        if (!EliminatedArgMask[Idx])
+          ++NextTrueIndex;
+      LastIndex = Arg.MIndex;
+
+      if (EliminatedArgMask[Arg.MIndex])
+        continue;
+
+      Func(Arg, NextTrueIndex);
+      ++NextTrueIndex;
+    }
+  }
+}
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 static size_t deviceToID(const device &Device) {
   if (Device.is_host())
@@ -1777,6 +1812,73 @@ void ExecCGCommand::emitInstrumentationData() {
       xpti::addMetadata(CmdTraceEvent, "sym_column_no", MCommandGroup->MColumn);
     }
 
+    if (MCommandGroup->getType() == detail::CG::Kernel) {
+      auto KernelCG =
+          reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
+      auto &NDRDesc = KernelCG->MNDRDesc;
+      std::vector<ArgDesc> Args;
+
+      auto FilterArgs = [&Args](detail::ArgDesc &Arg, int NextTrueIndex) {
+        Args.push_back({Arg.MType, Arg.MPtr, Arg.MSize, NextTrueIndex});
+      };
+      RT::PiProgram Program = nullptr;
+      RT::PiKernel Kernel = nullptr;
+      std::mutex *KernelMutex = nullptr;
+
+      std::shared_ptr<kernel_impl> SyclKernelImpl;
+      std::shared_ptr<device_image_impl> DeviceImageImpl;
+      auto KernelBundleImplPtr = KernelCG->getKernelBundle();
+
+      // Use kernel_bundle if available unless it is interop.
+      // Interop bundles can't be used in the first branch, because the kernels
+      // in interop kernel bundles (if any) do not have kernel_id
+      // and can therefore not be looked up, but since they are self-contained
+      // they can simply be launched directly.
+      if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+        kernel_id KernelID =
+            detail::ProgramManager::getInstance().getSYCLKernelID(
+                KernelCG->MKernelName);
+        kernel SyclKernel =
+            KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
+        Program = detail::getSyclObjImpl(SyclKernel)
+                      ->getDeviceImage()
+                      ->get_program_ref();
+      } else if (nullptr != KernelCG->MSyclKernel) {
+        auto SyclProg = detail::getSyclObjImpl(
+            KernelCG->MSyclKernel->get_info<info::kernel::program>());
+        Program = SyclProg->getHandleRef();
+      } else {
+        std::tie(Kernel, KernelMutex, Program) =
+            detail::ProgramManager::getInstance().getOrCreateKernel(
+                KernelCG->MOSModuleHandle, MQueue->getContextImplPtr(),
+                MQueue->getDeviceImplPtr(), KernelCG->MKernelName, nullptr);
+      }
+
+      ProgramManager::KernelArgMask EliminatedArgMask;
+      if (nullptr == KernelCG->MSyclKernel ||
+          !KernelCG->MSyclKernel->isCreatedFromSource()) {
+        EliminatedArgMask =
+            detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
+                KernelCG->MOSModuleHandle, Program, KernelCG->MKernelName);
+      }
+
+      applyFuncOnFilteredArgs(EliminatedArgMask, KernelCG->MArgs, FilterArgs);
+
+      xpti::offload_kernel_enqueue_data_t KernelData{
+          {NDRDesc.GlobalSize[0], NDRDesc.GlobalSize[1], NDRDesc.GlobalSize[2]},
+          {NDRDesc.LocalSize[0], NDRDesc.LocalSize[1], NDRDesc.LocalSize[2]},
+          {NDRDesc.GlobalOffset[0], NDRDesc.GlobalOffset[1],
+           NDRDesc.GlobalOffset[2]},
+          Args.size()};
+      xpti::addMetadata(CmdTraceEvent, "enqueue_kernel_data", KernelData);
+      for (size_t i = 0; i < Args.size(); i++) {
+        std::string Prefix("arg");
+        xpti::offload_kernel_arg_data_t arg{(int)Args[i].MType, Args[i].MPtr,
+                                            Args[i].MSize, Args[i].MIndex};
+        xpti::addMetadata(CmdTraceEvent, Prefix + std::to_string(i), arg);
+      }
+    }
+
     xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
                           detail::GSYCLGraphEvent, CmdTraceEvent,
                           CGKernelInstanceNo,
@@ -1872,8 +1974,7 @@ static pi_result SetKernelParamsAndLaunch(
     RT::PiKernel Kernel, NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
     RT::PiEvent *OutEvent,
     const ProgramManager::KernelArgMask &EliminatedArgMask,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const cl::sycl::detail::code_location &CodeLoc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   const detail::plugin &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -1936,44 +2037,7 @@ static pi_result SetKernelParamsAndLaunch(
     }
   };
 
-  auto applyFuncOnFilteredArgs =
-      [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc, &Queue,
-       &EliminatedArgMask](
-          std::vector<ArgDesc> &Args,
-          std::function<void(detail::ArgDesc & Arg, int NextTrueIndex)> Func) {
-        if (EliminatedArgMask.empty()) {
-          for (ArgDesc &Arg : Args) {
-            Func(Arg, Arg.MIndex);
-          }
-        } else {
-          // TODO this is not necessary as long as we can guarantee that the
-          // arguments are already sorted (e. g. handle the sorting in handler
-          // if necessary due to set_arg(...) usage).
-          std::sort(Args.begin(), Args.end(),
-                    [](const ArgDesc &A, const ArgDesc &B) {
-                      return A.MIndex < B.MIndex;
-                    });
-          int LastIndex = -1;
-          size_t NextTrueIndex = 0;
-
-          for (ArgDesc &Arg : Args) {
-            // Handle potential gaps in set arguments (e. g. if some of them are
-            // set on the user side).
-            for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
-              if (!EliminatedArgMask[Idx])
-                ++NextTrueIndex;
-            LastIndex = Arg.MIndex;
-
-            if (EliminatedArgMask[Arg.MIndex])
-              continue;
-
-            Func(Arg, NextTrueIndex);
-            ++NextTrueIndex;
-          }
-        }
-      };
-
-  applyFuncOnFilteredArgs(Args, setFunc);
+  applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
 
   adjustNDRangePerKernel(NDRDesc, Kernel, *(Queue->getDeviceImplPtr()));
 
@@ -1999,22 +2063,6 @@ static pi_result SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
-    NDRDescT NDRDescT = NDRDesc;
-    std::vector<ArgDesc> SetArgs;
-    auto FilterArgs = [&SetArgs](detail::ArgDesc &Arg, int NextTrueIndex) {
-      SetArgs.push_back({Arg.MType, Arg.MPtr, Arg.MSize, NextTrueIndex});
-    };
-
-    applyFuncOnFilteredArgs(Args, FilterArgs);
-    if (LocalSize != nullptr) {
-      NDRDescT.LocalSize =
-          cl::sycl::range<3>(LocalSize[0], LocalSize[1], LocalSize[2]);
-    }
-    XPTIRegistry::kernelEnqueueNotification(Kernel, NDRDescT, SetArgs, CodeLoc);
-  }
-#endif
   pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
@@ -2055,8 +2103,7 @@ cl_int enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const sycl::detail::code_location &CodeLoc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2122,13 +2169,13 @@ cl_int enqueueImpKernel(
   if (KernelMutex != nullptr) {
     // For cacheable kernels, we use per-kernel mutex
     std::lock_guard<std::mutex> Lock(*KernelMutex);
-    Error = SetKernelParamsAndLaunch(
-        Queue, Args, DeviceImageImpl, Kernel, NDRDesc, RawEvents, OutEvent,
-        EliminatedArgMask, getMemAllocationFunc, CodeLoc);
+    Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
+                                     NDRDesc, RawEvents, OutEvent,
+                                     EliminatedArgMask, getMemAllocationFunc);
   } else {
-    Error = SetKernelParamsAndLaunch(
-        Queue, Args, DeviceImageImpl, Kernel, NDRDesc, RawEvents, OutEvent,
-        EliminatedArgMask, getMemAllocationFunc, CodeLoc);
+    Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
+                                     NDRDesc, RawEvents, OutEvent,
+                                     EliminatedArgMask, getMemAllocationFunc);
   }
 
   if (PI_SUCCESS != Error) {
@@ -2323,15 +2370,6 @@ cl_int ExecCGCommand::enqueueImp() {
         const detail::plugin &Plugin = EventImpls[0]->getPlugin();
         Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-      if (xptiTraceEnabled()) {
-        XPTIRegistry::kernelEnqueueNotification(
-            (const void *)ExecKernel->MSyclKernel->getHandleRef(), NDRDesc,
-            Args,
-            {MCommandGroup->MFileName.c_str(), ExecKernel->MKernelName.c_str(),
-             MCommandGroup->MLine, MCommandGroup->MColumn});
-      }
-#endif
 
       if (MQueue->is_host()) {
         ExecKernel->MHostKernel->call(NDRDesc,
@@ -2372,9 +2410,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc,
-        {MCommandGroup->MFileName.c_str(), KernelName.c_str(),
-         MCommandGroup->MLine, MCommandGroup->MColumn});
+        KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
