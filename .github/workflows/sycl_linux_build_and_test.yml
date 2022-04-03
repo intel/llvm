@@ -216,6 +216,7 @@ jobs:
       if: env.compute_runtime_tag != ''
       run: |
         if [ -e /opt/install_drivers.sh ]; then
+          env
           # TODO pack this script into container
           wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/get_release.py
           sudo mv get_release.py /opt/
