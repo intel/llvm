@@ -220,7 +220,7 @@ jobs:
           # TODO pack this script into container
           wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/get_release.py
           sudo mv get_release.py /opt/
-          sudo /opt/install_drivers.sh --all
+          sudo -E /opt/install_drivers.sh --all
         fi
     # FIXME cached_checkout fails here, but works everywhere else
     - uses: actions/checkout@v2
