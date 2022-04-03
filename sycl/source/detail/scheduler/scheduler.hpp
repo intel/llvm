@@ -366,15 +366,6 @@ public:
   EventImplPtr addCG(std::unique_ptr<detail::CG> CommandGroup,
                      QueueImplPtr Queue);
 
-  /// Registers command group to copy the most recent memory to the
-  /// user-provided memory of the interoperability buffer associated with this
-  /// requirement.
-  ///
-  /// \param Req is a requirement that points to the memory where data is
-  /// needed.
-  /// \return an event object to wait on for copy finish.
-  EventImplPtr updateInteropMemory(Requirement *Req);
-
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
   ///
@@ -498,9 +489,6 @@ protected:
     Command *addCGUpdateHost(std::unique_ptr<detail::CG> CommandGroup,
                              QueueImplPtr HostQueue,
                              std::vector<Command *> &ToEnqueue);
-
-    Command *updateInteropMemory(Requirement *Req,
-                                 std::vector<Command *> &ToEnqueue);
 
     /// Enqueues a command to update memory to the latest state.
     ///

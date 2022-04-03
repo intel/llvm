@@ -1095,7 +1095,6 @@
 ?acospi@__host_std@cl@@YANN@Z
 ?addHostAccessorAndWait@detail@sycl@cl@@YAXPEAVAccessorImplHost@123@@Z
 ?addOrReplaceAccessorProperties@SYCLMemObjT@detail@sycl@cl@@QEAAXAEBVproperty_list@34@@Z
-?updateInteropMemory@SYCLMemObjT@detail@sycl@cl@@IEAAXXZ
 ?addReduction@handler@sycl@cl@@AEAAXAEBV?$shared_ptr@$$CBX@std@@@Z
 ?addStream@handler@sycl@cl@@AEAAXAEBV?$shared_ptr@Vstream_impl@detail@sycl@cl@@@std@@@Z
 ?advise_usm@MemoryManager@detail@sycl@cl@@SAXPEBXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KW4_pi_mem_advice@@V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@AEAPEAU_pi_event@@@Z

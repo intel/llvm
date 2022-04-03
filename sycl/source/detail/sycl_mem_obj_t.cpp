@@ -34,9 +34,9 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
     : MAllocator(std::move(Allocator)), MProps(),
       MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
-      MOwnNativeHandle(OwnNativeHandle), MHostPtrReadOnly(false),
-      MNeedWriteBack(true), MUserPtr(nullptr), MShadowCopy(nullptr),
-      MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr) {
+      MOpenCLInterop(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
+      MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
+      MSharedPtrStorage(nullptr) {
   if (MInteropContext->is_host())
     throw cl::sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
@@ -71,23 +71,6 @@ void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
   return MemoryManager::releaseMemObj(Context, this, MemAllocation, Ptr);
 }
 
-void SYCLMemObjT::updateInteropMemory() {
-  const id<3> Offset{0, 0, 0};
-  const range<3> AccessRange{MSizeInBytes, 1, 1};
-  const range<3> MemoryRange{MSizeInBytes, 1, 1};
-  const access::mode AccessMode = access::mode::read;
-  SYCLMemObjI *SYCLMemObject = this;
-  const int Dims = 1;
-  const int ElemSize = 1;
-
-  Requirement Req(Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject,
-                  Dims, ElemSize);
-
-  EventImplPtr Event = Scheduler::getInstance().updateInteropMemory(&Req);
-  if (Event)
-    Event->wait(Event);
-}
-
 void SYCLMemObjT::updateHostMemory(void *const Ptr) {
   const id<3> Offset{0, 0, 0};
   const range<3> AccessRange{MSizeInBytes, 1, 1};
@@ -116,8 +99,9 @@ void SYCLMemObjT::updateHostMemory() {
     Scheduler::getInstance().removeMemoryObject(this);
   releaseHostMem(MShadowCopy);
 
-  if (MInteropContext) {
-    getPlugin().call<PiApiKind::piMemRelease>(
+  if (MOpenCLInterop) {
+    const plugin &Plugin = getPlugin();
+    Plugin.call<PiApiKind::piMemRelease>(
         pi::cast<RT::PiMem>(MInteropMemObject));
   }
 }
@@ -142,7 +126,7 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
   return BufSize;
 }
 
-bool SYCLMemObjT::isInterop() const { return MInteropContext != nullptr; }
+bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
 
 void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
                                    bool InitFromUserData, void *&HostPtr,
@@ -161,7 +145,7 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
   // 4. The allocation is not the first one and not on host. InitFromUserData ==
   // false, HostPtr is provided if the command is linked. The host pointer is
   // guaranteed to be reused in this case.
-  if (Context->is_host() && !MInteropContext && !MHostPtrReadOnly)
+  if (Context->is_host() && !MOpenCLInterop && !MHostPtrReadOnly)
     InitFromUserData = true;
 
   if (InitFromUserData) {
