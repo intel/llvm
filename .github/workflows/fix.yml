@@ -7,7 +7,7 @@ on:
     
 jobs:
   fix:
-    runs-on: intel_sycl156
+    runs-on: [Linux, gen9]
     container:
       image: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
       options: -u 1001:1001
