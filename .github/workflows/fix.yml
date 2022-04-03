@@ -1,0 +1,15 @@
+name: machine fix
+
+on:
+  pull_request:
+    branches:
+    - sycl
+    
+jobs:
+  fix:
+    runs-on: intel_sycl156
+    container:
+      image: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
+      options: -u 1001:1001
+    steps:
+    - run: sudo rm -rf *
