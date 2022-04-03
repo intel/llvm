@@ -9,7 +9,7 @@ jobs:
   fix:
     runs-on: [Linux, gen9]
     container:
-      image: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
+      image: "ghcr.io/intel/llvm/ubuntu2004_base:latest"
       options: -u 1001:1001
     steps:
     - run: sudo rm -rf *
