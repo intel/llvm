@@ -3571,11 +3571,10 @@ pi_result piMemGetInfo(pi_mem Mem, pi_mem_info ParamName, size_t ParamValueSize,
     return ReturnValue(Mem->Context);
   case PI_MEM_SIZE: {
     // Get size of the allocation
-    void *Base;
     size_t Size;
     ZE_CALL(zeMemGetAddressRange,
             (Mem->Context->ZeContext, pi_cast<void *>(Mem->getZeHandle()),
-             &Base, &Size));
+             nullptr, &Size));
 
     return ReturnValue(Size);
   }
@@ -3857,7 +3856,7 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Mem, PI_INVALID_VALUE);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
-  PI_ASSERT(Context->Devices.size() > 0, PI_INVALID_CONTEXT);
+  PI_ASSERT(Context->Devices.size() == 1, PI_INVALID_CONTEXT);
 
   // Get base of the allocation
   void *Base;
@@ -3879,11 +3878,6 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
     break;
   case ZE_MEMORY_TYPE_SHARED:
   case ZE_MEMORY_TYPE_DEVICE:
-    // Currently the Level Zero plugin doesn't support handling of the
-    // allocations associated with a device.
-    if (Context->Devices.size() > 1)
-      die("Interoperability is not yet supported in Level Zero for shared "
-          "and device allocations in a multi-device contexts");
     break;
   case ZE_MEMORY_TYPE_UNKNOWN:
     // Memory allocation is unrelated to the context
@@ -7636,7 +7630,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 /// @param ParamValue is the result
 /// @param ParamValueRet is how many bytes were written
 pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
-                                  pi_usm_info ParamName, size_t ParamValueSize,
+                                  pi_mem_alloc_info ParamName, size_t ParamValueSize,
                                   void *ParamValue, size_t *ParamValueSizeRet) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 

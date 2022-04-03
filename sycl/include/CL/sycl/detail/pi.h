@@ -1632,7 +1632,7 @@ typedef enum {
   PI_MEM_ALLOC_BASE_PTR = CL_MEM_ALLOC_BASE_PTR_INTEL,
   PI_MEM_ALLOC_SIZE = CL_MEM_ALLOC_SIZE_INTEL,
   PI_MEM_ALLOC_DEVICE = CL_MEM_ALLOC_DEVICE_INTEL,
-} _pi_usm_info;
+} _pi_mem_alloc_info;
 
 typedef enum {
   PI_MEM_TYPE_UNKNOWN = CL_MEM_TYPE_UNKNOWN_INTEL,
@@ -1650,7 +1650,7 @@ typedef enum : pi_bitfield {
 
 using pi_usm_capability_query = _pi_usm_capability_query;
 using pi_usm_capabilities = _pi_usm_capabilities;
-using pi_usm_info = _pi_usm_info;
+using pi_mem_alloc_info = _pi_mem_alloc_info;
 using pi_usm_type = _pi_usm_type;
 using pi_usm_migration_flags = _pi_usm_migration_flags;
 
@@ -1779,7 +1779,7 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
 /// \param param_value is the result
 /// \param param_value_size_ret is how many bytes were written
 __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
-    pi_context context, const void *ptr, pi_usm_info param_name,
+    pi_context context, const void *ptr, pi_mem_alloc_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 /// API to get Plugin internal data, opaque to SYCL RT. Some devices whose

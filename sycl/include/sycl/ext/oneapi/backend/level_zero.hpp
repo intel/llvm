@@ -210,7 +210,7 @@ make_buffer(
     const context &TargetContext) {
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      TargetContext, {},
+      TargetContext, event{},
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
 

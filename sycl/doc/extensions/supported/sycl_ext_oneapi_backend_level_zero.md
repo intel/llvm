@@ -175,7 +175,7 @@ struct {
 <td>
 
 ``` C++
-void *
+/* not supported */
 ```
 </td>
 <td>
@@ -324,9 +324,9 @@ make_buffer(
 </td>
 <td>This API is available starting with revision 2 of this specification.
 
-Construct a SYCL buffer instance from a pointer to a Level Zero memory buffer. The pointer must be the value returned from a previous call to <code>zeMemAllocShared()</code>, <code>zeMemAllocDevice()</code>, or <code>zeMemAllocHost()</code>. If pointer is the value returned from <code>zeMemAllocDevice()</code> or <code>zeMemAllocShared()</code> then SYCL context <code>Context</code> must be associated with a single device, matching the device used at the prior allocation.
-The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero memory must be allocated on the same context. Created SYCL buffer can accessed on another contexts.
-The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the runtime is going to free the input Level-Zero memory buffer. 
+Construct a SYCL buffer instance from a pointer to a Level Zero memory allocation. The pointer must be the value returned from a previous call to <code>zeMemAllocShared()</code>, <code>zeMemAllocDevice()</code>, or <code>zeMemAllocHost()</code>. The input SYCL context <code>Context</code> must be associated with a single device, matching the device used at the prior allocation.
+The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero memory must be allocated on the same context. Created SYCL buffer can be accessed in another contexts, not only in the provided input context.
+The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the runtime is going to free the input Level-Zero memory allocation. 
 Synchronization rules for a buffer that is created with this API are described in Section 4.5</td>
 </tr><tr>
 <td>
@@ -340,9 +340,9 @@ make_buffer(
 </td>
 <td>This API is available starting with revision 2 of this specification.
 
-Construct a SYCL buffer instance from a pointer to a Level Zero memory buffer. Please refer to <code>make_buffer</code>
+Construct a SYCL buffer instance from a pointer to a Level Zero memory allocation. Please refer to <code>make_buffer</code>
 description above for semantics and restrictions.
-The additional <code>AvailableEvent</code> argument must be a valid SYCL event, the instance of the SYCL buffer class template being constructed must wait for the SYCL event parameter, signaled event means that the memory native handle is ready to be used.
+The additional <code>AvailableEvent</code> argument must be a valid SYCL event. The instance of the SYCL buffer class template being constructed must wait for the SYCL event parameter to signal that the memory native handle is ready to be used.
 </tr>
 </table>
 
@@ -400,13 +400,13 @@ the application should not attempt further direct use of those handles.
 
 ### 4.5 Interoperability buffer synchronization rules
 
-A SYCL buffer that is constructed with this interop API uses the Level Zero memory buffer for its full lifetime, and the contents of the Level Zero memory buffer are unspecified for the lifetime of the SYCL buffer. If the application modifies the contents of that Level Zero memory buffer during the lifetime of the SYCL buffer, the behavior is undefined. The initial contents of the SYCL buffer will be the initial contents of the Level Zero memory buffer at the time of the SYCL buffer's construction.
+A SYCL buffer that is constructed with this interop API uses the Level Zero memory allocation for its full lifetime, and the contents of the Level Zero memory allocation are unspecified for the lifetime of the SYCL buffer. If the application modifies the contents of that Level Zero memory allocation during the lifetime of the SYCL buffer, the behavior is undefined. The initial contents of the SYCL buffer will be the initial contents of the Level Zero memory allocation at the time of the SYCL buffer's construction.
 
-As with other SYCL buffers, the SYCL buffer destructor is triggered only when the last reference count to the buffer is dropped, as described in the core SYCL specification section 4.7.2.3, "Buffer synchronization rules". The SYCL buffer destructor does not need to block even if work on the buffer has not completed.
+As with other SYCL objects, the SYCL buffer destructor is triggered only when the last reference count to the buffer is dropped, as described in the core SYCL specification section 4.7.2.3, "Buffer synchronization rules". The SYCL buffer destructor does not need to block even if work on the buffer has not completed.
 
-* If the ownership is keep (i.e. the application retains ownership of the Level Zero memory buffer), then SYCL runtime doesn't free the Level Zero memory buffer and leaves this responsibility to the user.
+* If the ownership is keep (i.e. the application retains ownership of the Level Zero memory allocation), then SYCL runtime doesn't free the Level Zero memory allocation and leaves this responsibility to the user.
 
-* If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory buffer) then SYCL runtime frees the Level Zero memory buffer asynchronously when it is no longer in use in queues.
+* If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory allocation) then SYCL runtime frees the Level Zero memory allocation asynchronously when it is no longer in use in queues.
 
 ## 5 Level-Zero additional functionality
 
@@ -462,4 +462,4 @@ struct free_memory {
 |5|2021-07-25|Sergey Maslov|Introduced SYCL interop for events
 |6|2021-08-30|Dmitry Vodopyanov|Updated according to SYCL 2020 reqs for extensions
 |7|2021-09-13|Sergey Maslov|Updated according to SYCL 2020 standard
-|7|2022-01-06|Artur Gainullin|Introduced SYCL 2020 interop for buffers
+|8|2022-01-06|Artur Gainullin|Introduced make_buffer() API
