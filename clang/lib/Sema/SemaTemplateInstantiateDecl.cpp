@@ -521,8 +521,7 @@ static void instantiateOMPDeclareVariantAttr(
       continue;
     NeedDevicePtrExprs.push_back(ER.get());
   }
-  for (auto A : Attr.appendArgs())
-    AppendArgs.push_back(A);
+  llvm::append_range(AppendArgs, Attr.appendArgs());
 
   S.ActOnOpenMPDeclareVariantDirective(
       FD, E, TI, NothingExprs, NeedDevicePtrExprs, AppendArgs, SourceLocation(),
@@ -1396,6 +1395,7 @@ Decl *TemplateDeclInstantiator::InstantiateTypedefNameDecl(TypedefNameDecl *D,
     SemaRef.inferGslPointerAttribute(Typedef);
 
   Typedef->setAccess(D->getAccess());
+  Typedef->setReferenced(D->isReferenced());
 
   return Typedef;
 }
@@ -2278,7 +2278,7 @@ Decl *TemplateDeclInstantiator::VisitCXXRecordDecl(CXXRecordDecl *D) {
   if (D->isLambda())
     Record = CXXRecordDecl::CreateLambda(
         SemaRef.Context, Owner, D->getLambdaTypeInfo(), D->getLocation(),
-        D->isDependentLambda(), D->isGenericLambda(),
+        D->getLambdaDependencyKind(), D->isGenericLambda(),
         D->getLambdaCaptureDefault());
   else
     Record = CXXRecordDecl::Create(SemaRef.Context, D->getTagKind(), Owner,

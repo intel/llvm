@@ -19,7 +19,7 @@ jobs:
       lts_config: "ocl_gen9;ocl_x64;hip_amdgpu"
 
   windows_default:
-    name: Windows (experimental)
+    name: Windows
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
 
