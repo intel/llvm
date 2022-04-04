@@ -30,7 +30,15 @@ make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt) {
   return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, Evt);
 }
 
-template <backend Backend> struct BufferInterop;
+template <backend BackendName, typename DataT, int Dimensions,
+          typename Allocator>
+auto get_native_buffer(const buffer<DataT, Dimensions, Allocator, void> &Obj)
+    -> backend_return_t<BackendName,
+                        buffer<DataT, Dimensions, Allocator, void>>;
+
+template <backend Backend, typename DataT, int Dimensions,
+          typename AllocatorT = cl::sycl::buffer_allocator>
+struct BufferInterop;
 } // namespace detail
 
 /// Defines a shared array that can be used by kernels in queues.
@@ -614,14 +622,17 @@ private:
 
   template <backend BackendName, typename DataT, int Dimensions,
             typename Allocator>
-  friend auto get_native(const buffer<DataT, Dimensions, Allocator> &Obj)
-      -> backend_return_t<BackendName, buffer<DataT, Dimensions, Allocator>>;
+  friend auto detail::get_native_buffer(
+      const buffer<DataT, Dimensions, Allocator, void> &Obj)
+      -> backend_return_t<BackendName,
+                          buffer<DataT, Dimensions, Allocator, void>>;
 
   template <backend BackendName>
   backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>>
-  get_native() const {
+  getNative() const {
     auto NativeHandles = impl->getNativeVector(BackendName);
-    return detail::BufferInterop<BackendName>::GetNativeObjs(NativeHandles);
+    return detail::BufferInterop<BackendName, T, dimensions,
+                                 AllocatorT>::GetNativeObjs(NativeHandles);
   }
 };
 

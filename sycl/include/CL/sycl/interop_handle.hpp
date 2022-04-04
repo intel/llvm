@@ -157,7 +157,8 @@ private:
   backend_return_t<Backend, buffer<DataT, Dims>>
   getMemImpl(detail::Requirement *Req) const {
     std::vector<pi_native_handle> NativeHandles{getNativeMem(Req)};
-    return detail::BufferInterop<Backend>::GetNativeObjs(NativeHandles);
+    return detail::BufferInterop<Backend, DataT, Dims>::GetNativeObjs(
+        NativeHandles);
   }
 
   __SYCL_EXPORT pi_native_handle getNativeMem(detail::Requirement *Req) const;
