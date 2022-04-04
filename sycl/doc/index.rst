@@ -28,6 +28,7 @@ Design Documents for the oneAPI DPC++ Compiler
    Clang Documentation <https://intel.github.io/llvm-docs/clang>
    Clang API Reference <https://intel.github.io/llvm-docs/clang_doxygen>
    design/CompilerAndRuntimeDesign
+   design/MappingHostAddressesToDeviceEntities
    design/KernelParameterPassing
    design/PluginInterface
    design/SpecializationConstants
