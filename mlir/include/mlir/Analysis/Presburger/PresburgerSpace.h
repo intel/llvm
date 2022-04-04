@@ -64,10 +64,29 @@ enum class IdKind { Symbol, Local, Domain, Range, SetDim = Range };
 /// identifiers of each kind are equal.
 class PresburgerSpace {
 public:
-  PresburgerSpace(unsigned numDomain = 0, unsigned numRange = 0,
-                  unsigned numSymbols = 0, unsigned numLocals = 0)
-      : numDomain(numDomain), numRange(numRange), numSymbols(numSymbols),
-        numLocals(numLocals) {}
+  static PresburgerSpace getRelationSpace(unsigned numDomain = 0,
+                                          unsigned numRange = 0,
+                                          unsigned numSymbols = 0,
+                                          unsigned numLocals = 0) {
+    return PresburgerSpace(numDomain, numRange, numSymbols, numLocals);
+  }
+
+  static PresburgerSpace getSetSpace(unsigned numDims = 0,
+                                     unsigned numSymbols = 0,
+                                     unsigned numLocals = 0) {
+    return PresburgerSpace(/*numDomain=*/0, /*numRange=*/numDims, numSymbols,
+                           numLocals);
+  }
+
+  /// Returns the space. This function is primarily intended to be used from
+  /// derived classes.
+  PresburgerSpace getSpace() const { return *this; }
+
+  /// Returns the space without locals. This function is primarily intended to
+  /// be used from derived classes.
+  PresburgerSpace getSpaceWithoutLocals() const {
+    return PresburgerSpace(numDomain, numRange, numSymbols);
+  }
 
   virtual ~PresburgerSpace() = default;
 
@@ -98,6 +117,9 @@ public:
   /// [idStart, idLimit).
   unsigned getIdKindOverlap(IdKind kind, unsigned idStart,
                             unsigned idLimit) const;
+
+  /// Return the IdKind of the id at the specified position.
+  IdKind getIdKindAt(unsigned pos) const;
 
   /// Insert `num` identifiers of the specified kind at position `pos`.
   /// Positions are relative to the kind of identifier. Return the absolute
@@ -130,6 +152,12 @@ public:
 
   void print(llvm::raw_ostream &os) const;
   void dump() const;
+
+protected:
+  PresburgerSpace(unsigned numDomain = 0, unsigned numRange = 0,
+                  unsigned numSymbols = 0, unsigned numLocals = 0)
+      : numDomain(numDomain), numRange(numRange), numSymbols(numSymbols),
+        numLocals(numLocals) {}
 
 private:
   // Number of identifiers corresponding to domain identifiers.

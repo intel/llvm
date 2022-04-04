@@ -943,6 +943,24 @@ LogicalResult vector::ExtractElementOp::verify() {
   return success();
 }
 
+OpFoldResult vector::ExtractElementOp::fold(ArrayRef<Attribute> operands) {
+  // Skip the 0-D vector here now.
+  if (operands.size() < 2)
+    return {};
+
+  Attribute src = operands[0];
+  Attribute pos = operands[1];
+  if (!src || !pos)
+    return {};
+
+  auto srcElements = src.cast<DenseElementsAttr>().getValues<Attribute>();
+
+  auto attr = pos.dyn_cast<IntegerAttr>();
+  uint64_t posIdx = attr.getInt();
+
+  return srcElements[posIdx];
+}
+
 //===----------------------------------------------------------------------===//
 // ExtractOp
 //===----------------------------------------------------------------------===//
@@ -1839,6 +1857,29 @@ LogicalResult InsertElementOp::verify() {
   return success();
 }
 
+OpFoldResult vector::InsertElementOp::fold(ArrayRef<Attribute> operands) {
+  // Skip the 0-D vector here.
+  if (operands.size() < 3)
+    return {};
+
+  Attribute src = operands[0];
+  Attribute dst = operands[1];
+  Attribute pos = operands[2];
+  if (!src || !dst || !pos)
+    return {};
+
+  auto dstElements = dst.cast<DenseElementsAttr>().getValues<Attribute>();
+
+  SmallVector<Attribute> results(dstElements);
+
+  auto attr = pos.dyn_cast<IntegerAttr>();
+  uint64_t posIdx = attr.getInt();
+
+  results[posIdx] = src;
+
+  return DenseElementsAttr::get(getDestVectorType(), results);
+}
+
 //===----------------------------------------------------------------------===//
 // InsertOp
 //===----------------------------------------------------------------------===//
@@ -2501,24 +2542,27 @@ public:
     if (!broadcast)
       return failure();
     auto srcVecType = broadcast.getSource().getType().dyn_cast<VectorType>();
-    unsigned srcRrank = srcVecType ? srcVecType.getRank() : 0;
+    unsigned srcRank = srcVecType ? srcVecType.getRank() : 0;
     auto dstVecType = op.getType().cast<VectorType>();
     unsigned dstRank = dstVecType.getRank();
-    unsigned rankDiff = dstRank - srcRrank;
+    unsigned rankDiff = dstRank - srcRank;
     // Check if the most inner dimensions of the source of the broadcast are the
     // same as the destination of the extract. If this is the case we can just
     // use a broadcast as the original dimensions are untouched.
     bool lowerDimMatch = true;
-    for (unsigned i = 0; i < srcRrank; i++) {
+    for (unsigned i = 0; i < srcRank; i++) {
       if (srcVecType.getDimSize(i) != dstVecType.getDimSize(i + rankDiff)) {
         lowerDimMatch = false;
         break;
       }
     }
     Value source = broadcast.getSource();
-    if (!lowerDimMatch) {
-      // The inner dimensions don't match, it means we need to extract from the
-      // source of the orignal broadcast and then broadcast the extracted value.
+    // If the inner dimensions don't match, it means we need to extract from the
+    // source of the orignal broadcast and then broadcast the extracted value.
+    // We also need to handle degenerated cases where the source is effectively
+    // just a single scalar.
+    bool isScalarSrc = (srcRank == 0 || srcVecType.getNumElements() == 1);
+    if (!lowerDimMatch && !isScalarSrc) {
       source = rewriter.create<ExtractStridedSliceOp>(
           op->getLoc(), source,
           getI64SubArray(op.getOffsets(), /* dropFront=*/rankDiff),
@@ -4209,11 +4253,33 @@ public:
   }
 };
 
+// Folds transpose(broadcast(<scalar>)) into brodcast(<scalar>).
+struct FoldTransposedScalarBroadcast final
+    : public OpRewritePattern<vector::TransposeOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(vector::TransposeOp transposeOp,
+                                PatternRewriter &rewriter) const override {
+    auto bcastOp = transposeOp.getVector().getDefiningOp<vector::BroadcastOp>();
+    if (!bcastOp)
+      return failure();
+
+    auto srcVectorType = bcastOp.getSourceType().dyn_cast<VectorType>();
+    if (!srcVectorType || srcVectorType.getNumElements() == 1) {
+      rewriter.replaceOpWithNewOp<vector::BroadcastOp>(
+          transposeOp, transposeOp.getResultType(), bcastOp.getSource());
+      return success();
+    }
+
+    return failure();
+  }
+};
+
 } // namespace
 
 void vector::TransposeOp::getCanonicalizationPatterns(
     RewritePatternSet &results, MLIRContext *context) {
-  results.add<TransposeFolder>(context);
+  results.add<FoldTransposedScalarBroadcast, TransposeFolder>(context);
 }
 
 void vector::TransposeOp::getTransp(SmallVectorImpl<int64_t> &results) {

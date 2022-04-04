@@ -49,10 +49,6 @@ size_t IntelPTInstruction::GetMemoryUsage() {
   return sizeof(IntelPTInstruction);
 }
 
-Optional<uint64_t> IntelPTInstruction::GetTimestampCounter() const {
-  return m_timestamp;
-}
-
 Optional<size_t> DecodedThread::GetRawTraceSize() const {
   return m_raw_trace_size;
 }
@@ -90,17 +86,69 @@ IntelPTInstruction::GetControlFlowType(lldb::addr_t next_load_address) const {
 
 ThreadSP DecodedThread::GetThread() { return m_thread_sp; }
 
+void DecodedThread::RecordTscForLastInstruction(uint64_t tsc) {
+  if (!m_last_tsc || *m_last_tsc != tsc) {
+    // In case the first instructions are errors or did not have a TSC, we'll
+    // get a first valid TSC not in position 0. We can safely force these error
+    // instructions to use the first valid TSC, so that all the trace has TSCs.
+    size_t start_index =
+        m_instruction_timestamps.empty() ? 0 : m_instructions.size() - 1;
+    m_instruction_timestamps.emplace(start_index, tsc);
+    m_last_tsc = tsc;
+  }
+}
+
+void DecodedThread::AppendInstruction(const pt_insn &insn) {
+  m_instructions.emplace_back(insn);
+}
+
+void DecodedThread::AppendInstruction(const pt_insn &insn, uint64_t tsc) {
+  AppendInstruction(insn);
+  RecordTscForLastInstruction(tsc);
+}
+
 void DecodedThread::AppendError(llvm::Error &&error) {
   m_errors.try_emplace(m_instructions.size(), toString(std::move(error)));
   m_instructions.emplace_back();
+}
+
+void DecodedThread::AppendError(llvm::Error &&error, uint64_t tsc) {
+  AppendError(std::move(error));
+  RecordTscForLastInstruction(tsc);
+}
+
+void DecodedThread::LibiptErrors::RecordError(int libipt_error_code) {
+  libipt_errors[pt_errstr(pt_errcode(libipt_error_code))]++;
+  total_count++;
+}
+
+void DecodedThread::RecordTscError(int libipt_error_code) {
+  m_tsc_errors.RecordError(libipt_error_code);
+}
+
+const DecodedThread::LibiptErrors &DecodedThread::GetTscErrors() const {
+  return m_tsc_errors;
 }
 
 ArrayRef<IntelPTInstruction> DecodedThread::GetInstructions() const {
   return makeArrayRef(m_instructions);
 }
 
-const char *DecodedThread::GetErrorByInstructionIndex(uint64_t idx) {
-  auto it = m_errors.find(idx);
+Optional<DecodedThread::TscRange>
+DecodedThread::CalculateTscRange(size_t insn_index) const {
+  auto it = m_instruction_timestamps.upper_bound(insn_index);
+  if (it == m_instruction_timestamps.begin())
+    return None;
+
+  return TscRange(--it, *this);
+}
+
+bool DecodedThread::IsInstructionAnError(size_t insn_idx) const {
+  return m_instructions[insn_idx].IsError();
+}
+
+const char *DecodedThread::GetErrorByInstructionIndex(size_t insn_idx) {
+  auto it = m_errors.find(insn_idx);
   if (it == m_errors.end())
     return nullptr;
 
@@ -125,7 +173,47 @@ lldb::TraceCursorUP DecodedThread::GetCursor() {
 }
 
 size_t DecodedThread::CalculateApproximateMemoryUsage() const {
-  return m_raw_trace_size.getValueOr(0) +
-         IntelPTInstruction::GetMemoryUsage() * m_instructions.size() +
+  return IntelPTInstruction::GetMemoryUsage() * m_instructions.size() +
          m_errors.getMemorySize();
+}
+
+DecodedThread::TscRange::TscRange(std::map<size_t, uint64_t>::const_iterator it,
+                                  const DecodedThread &decoded_thread)
+    : m_it(it), m_decoded_thread(&decoded_thread) {
+  auto next_it = m_it;
+  ++next_it;
+  m_end_index = (next_it == m_decoded_thread->m_instruction_timestamps.end())
+                    ? m_decoded_thread->GetInstructions().size() - 1
+                    : next_it->first - 1;
+}
+
+size_t DecodedThread::TscRange::GetTsc() const { return m_it->second; }
+
+size_t DecodedThread::TscRange::GetStartInstructionIndex() const {
+  return m_it->first;
+}
+
+size_t DecodedThread::TscRange::GetEndInstructionIndex() const {
+  return m_end_index;
+}
+
+bool DecodedThread::TscRange::InRange(size_t insn_index) {
+  return GetStartInstructionIndex() <= insn_index &&
+         insn_index <= GetEndInstructionIndex();
+}
+
+Optional<DecodedThread::TscRange> DecodedThread::TscRange::Next() {
+  auto next_it = m_it;
+  ++next_it;
+  if (next_it == m_decoded_thread->m_instruction_timestamps.end())
+    return None;
+  return TscRange(next_it, *m_decoded_thread);
+}
+
+Optional<DecodedThread::TscRange> DecodedThread::TscRange::Prev() {
+  if (m_it == m_decoded_thread->m_instruction_timestamps.begin())
+    return None;
+  auto prev_it = m_it;
+  --prev_it;
+  return TscRange(prev_it, *m_decoded_thread);
 }
