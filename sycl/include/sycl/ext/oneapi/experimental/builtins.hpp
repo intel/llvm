@@ -44,7 +44,7 @@ sycl::detail::enable_if_t<sycl::detail::is_genfloath<T>::value ||
                           T>
 fma_relu(T a, T b, T c) __NOEXC {
   if constexpr (std::is_same<T, bfloat16>::value) {
-    uint16_t tmp = __sycl_std::__invoke_fma_relu<uint16_t>(
+    return bfloat16::from_bits(__sycl_std::__invoke_fma_relu<uint16_t>(x.raw(), y.raw(), z.raw()));
         reinterpret_cast<uint16_t &>(a), reinterpret_cast<uint16_t &>(b),
         reinterpret_cast<uint16_t &>(c));
     return reinterpret_cast<bfloat16 &>(tmp);
