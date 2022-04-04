@@ -40,9 +40,11 @@ __SYCL_JOINT_MATRIX_OVERLOAD(double, b, 4, 8, double, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD(double, accumulator, 8, 8, double, 2)
 
 // m8n32k16
-// bf16 data format uses uint16_t data type
+// bf16 data format uint16_t implementation is deprecated
 __SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, a, 8, 16, int32_t, 2)
 __SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, b, 16, 32, int32_t, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD(bfloat16, a, 8, 16, int32_t, 2)
+__SYCL_JOINT_MATRIX_OVERLOAD(bfloat16, b, 16, 32, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(half, a, 8, 16, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(half, b, 16, 32, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(float, accumulator, 8, 32, float, 8)
@@ -57,6 +59,8 @@ __SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 8, 32, int32_t, 8)
 // m32n8k16
 __SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, a, 32, 16, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, b, 16, 8, int32_t, 2)
+__SYCL_JOINT_MATRIX_OVERLOAD(bfloat16, a, 32, 16, int32_t, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD(bfloat16, b, 16, 8, int32_t, 2)
 __SYCL_JOINT_MATRIX_OVERLOAD(half, a, 32, 16, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(half, b, 16, 8, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(float, accumulator, 32, 8, float, 8)
@@ -71,8 +75,8 @@ __SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 32, 8, int32_t, 8)
 // m16n16k16
 __SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, a, 16, 16, int32_t, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, b, 16, 16, int32_t, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD(cl::sycl::ext::oneapi::experimental::bfloat16, a, 16, 16, int32_t, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD(cl::sycl::ext::oneapi::experimental::bfloat16, b, 16, 16, int32_t, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD(bfloat16, a, 16, 16, int32_t, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD(bfloat16, b, 16, 16, int32_t, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD(half, a, 16, 16, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(half, b, 16, 16, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(float, accumulator, 16, 16, float, 8)
@@ -127,7 +131,7 @@ struct joint_matrix_load_impl<
   void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
                 T, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
             multi_ptr<T, Space> src, size_t stride) {
-    if constexpr (std::is_same<T, uint16_t>::value || std::is_same<T, cl::sycl::ext::oneapi::experimental::bfloat16>::value) {
+    if constexpr (std::is_same<T, uint16_t>::value || std::is_same<T, sycl::ext::oneapi::experimental::bfloat16>::value) {
       int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
       if constexpr (NumRows == 16 && NumCols == 16) {
         if constexpr (Use ==
@@ -456,7 +460,7 @@ struct joint_matrix_mad_impl<
                                       get_layout_pair_id<LayoutA, LayoutB>(),
                                       0);
         }
-      } else if constexpr (std::is_same<T1, uint16_t>::value || std::is_same<T1, cl::sycl::ext::oneapi::experimental::bfloat16>::value) {
+      } else if constexpr (std::is_same<T1, uint16_t>::value || std::is_same<T1, sycl::ext::oneapi::experimental::bfloat16>::value) {
         __mma_bf16_m16n16k16_mma_f32(D.data, A.data, B.data, C.data,
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
@@ -475,7 +479,7 @@ struct joint_matrix_mad_impl<
           __hmma_m8n32k16_mma_f16f16(D.data, A.data, B.data, C.data,
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
-      } else if constexpr (std::is_same<T1, uint16_t>::value) {
+      } else if constexpr (std::is_same<T1, uint16_t>::value || std::is_same<T1, sycl::ext::oneapi::experimental::bfloat16>::value) {
         __mma_bf16_m8n32k16_mma_f32(D.data, A.data, B.data, C.data,
                                     get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
@@ -486,7 +490,7 @@ struct joint_matrix_mad_impl<
       } else if constexpr (std::is_same<T1, uint8_t>::value) {
         __imma_m32n8k16_mma_u8(D.data, A.data, B.data, C.data,
                                get_layout_pair_id<LayoutA, LayoutB>(), 0);
-      } else if constexpr (std::is_same<T1, uint16_t>::value) {
+      } else if constexpr (std::is_same<T1, uint16_t>::value || std::is_same<T1, sycl::ext::oneapi::experimental::bfloat16>::value) {
         __mma_bf16_m32n8k16_mma_f32(D.data, A.data, B.data, C.data,
                                     get_layout_pair_id<LayoutA, LayoutB>(), 0);
       } else if constexpr (std::is_same<T1, half>::value) {

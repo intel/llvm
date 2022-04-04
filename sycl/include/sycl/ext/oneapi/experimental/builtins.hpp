@@ -156,10 +156,10 @@ fabs(T x) {
 
 template <typename T>
 std::enable_if_t<
-    std::is_same<T, cl::sycl::ext::oneapi::experimental::bfloat16>::value, T>
+    std::is_same<T, bfloat16>::value, T>
 fabs(T x) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return cl::sycl::ext::oneapi::experimental::bfloat16::from_bits(
+  return bfloat16::from_bits(
       __clc_fabs(x.raw()));
 #else
   (void)x;
@@ -183,10 +183,10 @@ fmin(T x, T y) {
 
 template <typename T>
 std::enable_if_t<
-    std::is_same<T, cl::sycl::ext::oneapi::experimental::bfloat16>::value, T>
+    std::is_same<T, bfloat16>::value, T>
 fmin(T x, T y) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return cl::sycl::ext::oneapi::experimental::bfloat16::from_bits(
+  return bfloat16::from_bits(
       __clc_fmin(x.raw(), y.raw()));
 #else
   (void)x;
@@ -211,10 +211,10 @@ fmax(T x, T y) {
 
 template <typename T>
 std::enable_if_t<
-    std::is_same<T, cl::sycl::ext::oneapi::experimental::bfloat16>::value, T>
+    std::is_same<T, bfloat16>::value, T>
 fmax(T x, T y) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return cl::sycl::ext::oneapi::experimental::bfloat16::from_bits(
+  return bfloat16::from_bits(
       __clc_fmax(x.raw(), y.raw()));
 #else
   (void)x;
@@ -240,10 +240,10 @@ fma(T x, T y, T z) {
 
 template <typename T>
 std::enable_if_t<
-    std::is_same<T, cl::sycl::ext::oneapi::experimental::bfloat16>::value, T>
+    std::is_same<T, bfloat16>::value, T>
 fma(T x, T y, T z) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return cl::sycl::ext::oneapi::experimental::bfloat16::from_bits(
+  return bfloat16::from_bits(
       __clc_fma(x.raw(), y.raw(), z.raw()));
 #else
   (void)x;
