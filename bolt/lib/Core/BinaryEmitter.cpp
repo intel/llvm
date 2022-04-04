@@ -277,7 +277,7 @@ void BinaryEmitter::emitFunctions() {
 }
 
 bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
-  if (Function.size() == 0)
+  if (Function.size() == 0 && !Function.hasIslandsInfo())
     return false;
 
   if (Function.getState() == BinaryFunction::State::Empty)
@@ -499,6 +499,13 @@ void BinaryEmitter::emitConstantIslands(BinaryFunction &BF, bool EmitColdPart,
   BinaryFunction::IslandInfo &Islands = BF.getIslandInfo();
   if (Islands.DataOffsets.empty() && Islands.Dependency.empty())
     return;
+
+  // AArch64 requires CI to be aligned to 8 bytes due to access instructions
+  // restrictions. E.g. the ldr with imm, where imm must be aligned to 8 bytes.
+  const uint16_t Alignment = OnBehalfOf
+                                 ? OnBehalfOf->getConstantIslandAlignment()
+                                 : BF.getConstantIslandAlignment();
+  Streamer.emitCodeAlignment(Alignment, &*BC.STI);
 
   if (!OnBehalfOf) {
     if (!EmitColdPart)

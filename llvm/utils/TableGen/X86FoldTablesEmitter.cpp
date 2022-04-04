@@ -18,6 +18,7 @@
 #include "llvm/TableGen/TableGenBackend.h"
 
 using namespace llvm;
+using namespace X86Disassembler;
 
 namespace {
 
@@ -212,42 +213,6 @@ static inline uint64_t getValueFromBitsInit(const BitsInit *B) {
   return Value;
 }
 
-// Return the size of the register operand
-static inline unsigned int getRegOperandSize(const Record *RegRec) {
-  if (RegRec->isSubClassOf("RegisterOperand"))
-    RegRec = RegRec->getValueAsDef("RegClass");
-  if (RegRec->isSubClassOf("RegisterClass"))
-    return RegRec->getValueAsListOfDefs("RegTypes")[0]->getValueAsInt("Size");
-
-  llvm_unreachable("Register operand's size not known!");
-}
-
-// Return the size of the memory operand
-static inline unsigned getMemOperandSize(const Record *MemRec) {
-  if (MemRec->isSubClassOf("Operand")) {
-    StringRef Name =
-        MemRec->getValueAsDef("ParserMatchClass")->getValueAsString("Name");
-    if (Name == "Mem8")
-      return 8;
-    if (Name == "Mem16")
-      return 16;
-    if (Name == "Mem32")
-      return 32;
-    if (Name == "Mem64")
-      return 64;
-    if (Name == "Mem80")
-      return 80;
-    if (Name == "Mem128")
-      return 128;
-    if (Name == "Mem256")
-      return 256;
-    if (Name == "Mem512")
-      return 512;
-  }
-
-  llvm_unreachable("Memory operand's size not known!");
-}
-
 // Return true if the instruction defined as a register flavor.
 static inline bool hasRegisterFormat(const Record *Inst) {
   const BitsInit *FormBits = Inst->getValueAsBitsInit("FormBits");
@@ -268,22 +233,6 @@ static inline bool hasMemoryFormat(const Record *Inst) {
 
 static inline bool isNOREXRegClass(const Record *Op) {
   return Op->getName().contains("_NOREX");
-}
-
-static inline bool isRegisterOperand(const Record *Rec) {
-  return Rec->isSubClassOf("RegisterClass") ||
-         Rec->isSubClassOf("RegisterOperand") ||
-         Rec->isSubClassOf("PointerLikeRegClass");
-}
-
-static inline bool isMemoryOperand(const Record *Rec) {
-  return Rec->isSubClassOf("Operand") &&
-         Rec->getValueAsString("OperandType") == "OPERAND_MEMORY";
-}
-
-static inline bool isImmediateOperand(const Record *Rec) {
-  return Rec->isSubClassOf("Operand") &&
-         Rec->getValueAsString("OperandType") == "OPERAND_IMMEDIATE";
 }
 
 // Get the alternative instruction pointed by "FoldGenRegForm" field.
@@ -311,8 +260,8 @@ public:
   bool operator()(const CodeGenInstruction *RegInst) {
     X86Disassembler::RecognizableInstrBase RegRI(*RegInst);
     X86Disassembler::RecognizableInstrBase MemRI(*MemInst);
-    const Record *RegRec = RegRI.Rec;
-    const Record *MemRec = MemRI.Rec;
+    const Record *RegRec = RegInst->TheDef;
+    const Record *MemRec = MemInst->TheDef;
 
     // EVEX_B means different things for memory and register forms.
     if (RegRI.HasEVEX_B != 0 || MemRI.HasEVEX_B != 0)
@@ -328,15 +277,15 @@ public:
     if (RegRI.Encoding != MemRI.Encoding || RegRI.Opcode != MemRI.Opcode ||
         RegRI.OpPrefix != MemRI.OpPrefix || RegRI.OpMap != MemRI.OpMap ||
         RegRI.OpSize != MemRI.OpSize || RegRI.AdSize != MemRI.AdSize ||
-        RegRI.HasREX_WPrefix != MemRI.HasREX_WPrefix ||
+        RegRI.HasREX_W != MemRI.HasREX_W ||
         RegRI.HasVEX_4V != MemRI.HasVEX_4V ||
-        RegRI.HasVEX_LPrefix != MemRI.HasVEX_LPrefix ||
+        RegRI.HasVEX_L != MemRI.HasVEX_L ||
         RegRI.HasVEX_W != MemRI.HasVEX_W ||
         RegRI.IgnoresVEX_L != MemRI.IgnoresVEX_L ||
         RegRI.IgnoresVEX_W != MemRI.IgnoresVEX_W ||
         RegRI.HasEVEX_K != MemRI.HasEVEX_K ||
         RegRI.HasEVEX_KZ != MemRI.HasEVEX_KZ ||
-        RegRI.HasEVEX_L2Prefix != MemRI.HasEVEX_L2Prefix ||
+        RegRI.HasEVEX_L2 != MemRI.HasEVEX_L2 ||
         RegRec->getValueAsBit("hasEVEX_RC") !=
             MemRec->getValueAsBit("hasEVEX_RC") ||
         RegRec->getValueAsBit("hasLockPrefix") !=
@@ -344,9 +293,7 @@ public:
         RegRec->getValueAsBit("hasNoTrackPrefix") !=
             MemRec->getValueAsBit("hasNoTrackPrefix") ||
         RegRec->getValueAsBit("EVEX_W1_VEX_W0") !=
-            MemRec->getValueAsBit("EVEX_W1_VEX_W0") ||
-        RegRec->getValueAsBit("isAsmParserOnly") !=
-            MemRec->getValueAsBit("isAsmParserOnly"))
+            MemRec->getValueAsBit("EVEX_W1_VEX_W0"))
       return false;
 
     // Make sure the sizes of the operands of both instructions suit each other.
@@ -508,7 +455,10 @@ void X86FoldTablesEmitter::updateTables(const CodeGenInstruction *RegInstr,
     for (unsigned i = RegOutSize, e = RegInstr->Operands.size(); i < e; i++) {
       Record *RegOpRec = RegInstr->Operands[i].Rec;
       Record *MemOpRec = MemInstr->Operands[i].Rec;
-      if (isRegisterOperand(RegOpRec) && isMemoryOperand(MemOpRec)) {
+      // PointerLikeRegClass: For instructions like TAILJMPr, TAILJMPr64, TAILJMPr64_REX
+      if ((isRegisterOperand(RegOpRec) ||
+           RegOpRec->isSubClassOf("PointerLikeRegClass")) &&
+          isMemoryOperand(MemOpRec)) {
         switch (i) {
         case 0:
           addEntryWithFlags(Table0, RegInstr, MemInstr, S, 0);
@@ -556,10 +506,9 @@ void X86FoldTablesEmitter::run(formatted_raw_ostream &OS) {
       Target.getInstructionsByEnumValue();
 
   for (const CodeGenInstruction *Inst : NumberedInstructions) {
-    if (!Inst->TheDef->getNameInit() || !Inst->TheDef->isSubClassOf("X86Inst"))
-      continue;
-
     const Record *Rec = Inst->TheDef;
+    if (!Rec->isSubClassOf("X86Inst") || Rec->getValueAsBit("isAsmParserOnly"))
+      continue;
 
     // - Do not proceed if the instruction is marked as notMemoryFoldable.
     // - Instructions including RST register class operands are not relevant
