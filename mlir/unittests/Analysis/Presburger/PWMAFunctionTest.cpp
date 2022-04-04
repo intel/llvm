@@ -24,36 +24,6 @@ using namespace presburger;
 
 using testing::ElementsAre;
 
-static Matrix makeMatrix(unsigned numRow, unsigned numColumns,
-                         ArrayRef<SmallVector<int64_t, 8>> matrix) {
-  Matrix results(numRow, numColumns);
-  assert(matrix.size() == numRow);
-  for (unsigned i = 0; i < numRow; ++i) {
-    assert(matrix[i].size() == numColumns &&
-           "Output expression has incorrect dimensionality!");
-    for (unsigned j = 0; j < numColumns; ++j)
-      results(i, j) = matrix[i][j];
-  }
-  return results;
-}
-
-/// Construct a PWMAFunction given the dimensionalities and an array describing
-/// the list of pieces. Each piece is given by a string describing the domain
-/// and a 2D array that represents the output.
-static PWMAFunction parsePWMAF(
-    unsigned numInputs, unsigned numOutputs,
-    ArrayRef<std::pair<StringRef, SmallVector<SmallVector<int64_t, 8>, 8>>>
-        data,
-    unsigned numSymbols = 0) {
-  PWMAFunction result(numInputs - numSymbols, numSymbols, numOutputs);
-  for (const auto &pair : data) {
-    IntegerPolyhedron domain = parsePoly(pair.first);
-    result.addPiece(
-        domain, makeMatrix(numOutputs, domain.getNumIds() + 1, pair.second));
-  }
-  return result;
-}
-
 TEST(PWAFunctionTest, isEqual) {
   // The output expressions are different but it doesn't matter because they are
   // equal in this domain.
@@ -159,14 +129,47 @@ TEST(PWAFunctionTest, isEqual) {
 }
 
 TEST(PWMAFunction, valueAt) {
-  PWMAFunction nonNegPWAF = parsePWMAF(
+  PWMAFunction nonNegPWMAF = parsePWMAF(
       /*numInputs=*/2, /*numOutputs=*/2,
       {
           {"(x, y) : (x >= 0)", {{1, 2, 3}, {3, 4, 5}}}, // (x, y).
           {"(x, y) : (y >= 0, -x - 1 >= 0)", {{-1, 2, 3}, {-3, 4, 5}}} // (x, y)
       });
-  EXPECT_THAT(*nonNegPWAF.valueAt({2, 3}), ElementsAre(11, 23));
-  EXPECT_THAT(*nonNegPWAF.valueAt({-2, 3}), ElementsAre(11, 23));
-  EXPECT_THAT(*nonNegPWAF.valueAt({2, -3}), ElementsAre(-1, -1));
-  EXPECT_FALSE(nonNegPWAF.valueAt({-2, -3}).hasValue());
+  EXPECT_THAT(*nonNegPWMAF.valueAt({2, 3}), ElementsAre(11, 23));
+  EXPECT_THAT(*nonNegPWMAF.valueAt({-2, 3}), ElementsAre(11, 23));
+  EXPECT_THAT(*nonNegPWMAF.valueAt({2, -3}), ElementsAre(-1, -1));
+  EXPECT_FALSE(nonNegPWMAF.valueAt({-2, -3}).hasValue());
+
+  PWMAFunction divPWMAF = parsePWMAF(
+      /*numInputs=*/2, /*numOutputs=*/2,
+      {
+          {"(x, y) : (x >= 0, x - 2*(x floordiv 2) == 0)",
+           {{0, 2, 1, 3}, {0, 4, 3, 5}}}, // (x, y).
+          {"(x, y) : (y >= 0, -x - 1 >= 0)", {{-1, 2, 3}, {-3, 4, 5}}} // (x, y)
+      });
+  EXPECT_THAT(*divPWMAF.valueAt({4, 3}), ElementsAre(11, 23));
+  EXPECT_THAT(*divPWMAF.valueAt({4, -3}), ElementsAre(-1, -1));
+  EXPECT_FALSE(divPWMAF.valueAt({3, 3}).hasValue());
+  EXPECT_FALSE(divPWMAF.valueAt({3, -3}).hasValue());
+
+  EXPECT_THAT(*divPWMAF.valueAt({-2, 3}), ElementsAre(11, 23));
+  EXPECT_FALSE(divPWMAF.valueAt({-2, -3}).hasValue());
+}
+
+TEST(PWMAFunction, removeIdRangeRegressionTest) {
+  PWMAFunction pwafA = parsePWMAF(
+      /*numInputs=*/2, /*numOutputs=*/1,
+      {
+          {"(x, y) : (x == 0, y == 0, x - 2*(x floordiv 2) == 0, y - 2*(y "
+           "floordiv 2) == 0)",
+           {{0, 0, 0, 0, 0}}} // (0, 0)
+      });
+  PWMAFunction pwafB = parsePWMAF(
+      /*numInputs=*/2, /*numOutputs=*/1,
+      {
+          {"(x, y) : (x - 11*y == 0, 11*x - y == 0, x - 2*(x floordiv 2) == 0, "
+           "y - 2*(y floordiv 2) == 0)",
+           {{0, 0, 0, 0, 0}}} // (0, 0)
+      });
+  EXPECT_TRUE(pwafA.isEqual(pwafB));
 }
