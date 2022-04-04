@@ -102,6 +102,8 @@ class
 };
 
 specialization_id<int> spec_const(38);
+
+// some code which uses spec_const within a SYCL Kernel Function
 ```
 
 After processed by DPC++ compiler, it will result in the following LLVM IR:
@@ -354,7 +356,7 @@ attributes into the corresponding arguments of the function.
 ### Handling shadowed variables
 
 Unlike with the integration footer the problem with shadowed variables doesn't
-really exists with the modified DPC++ host compiler, because it is compiler
+really exists with the modified DPC++ host compiler, because it is compiler's
 responsibility to uniquely identify shadowed variables at LLVM IR level
 and we are simply re-using what is already there.
 
