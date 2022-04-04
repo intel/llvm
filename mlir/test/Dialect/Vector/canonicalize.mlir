@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -pass-pipeline='builtin.func(canonicalize)' -split-input-file -allow-unregistered-dialect | FileCheck %s
+// RUN: mlir-opt %s -pass-pipeline='func.func(canonicalize)' -split-input-file -allow-unregistered-dialect | FileCheck %s
 
 // -----
 
@@ -9,6 +9,16 @@ func @create_vector_mask_to_constant_mask() -> (vector<4x3xi1>) {
   // CHECK: vector.constant_mask [3, 2] : vector<4x3xi1>
   %0 = vector.create_mask %c3, %c2 : vector<4x3xi1>
   return %0 : vector<4x3xi1>
+}
+
+// -----
+
+// CHECK-LABEL: create_scalable_vector_mask_to_constant_mask
+func @create_scalable_vector_mask_to_constant_mask() -> (vector<[8]xi1>) {
+  %c-1 = arith.constant -1 : index
+  // CHECK: vector.constant_mask [0] : vector<[8]xi1>
+  %0 = vector.create_mask %c-1 : vector<[8]xi1>
+  return %0 : vector<[8]xi1>
 }
 
 // -----

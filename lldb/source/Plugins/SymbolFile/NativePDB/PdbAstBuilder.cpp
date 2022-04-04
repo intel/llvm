@@ -497,7 +497,8 @@ clang::Decl *PdbAstBuilder::GetOrCreateSymbolForId(PdbCompilandSymId id) {
   if (isLocalVariableType(cvs.kind())) {
     clang::DeclContext *scope = GetParentDeclContext(id);
     clang::Decl *scope_decl = clang::Decl::castFromDeclContext(scope);
-    PdbCompilandSymId scope_id(id.modi, m_decl_to_status[scope_decl].uid);
+    PdbCompilandSymId scope_id =
+        PdbSymUid(m_decl_to_status[scope_decl].uid).asCompilandSym();
     return GetOrCreateVariableDecl(scope_id, id);
   }
 
@@ -1230,8 +1231,10 @@ clang::QualType PdbAstBuilder::CreateEnumType(PdbTypeSymId id,
 clang::QualType PdbAstBuilder::CreateArrayType(const ArrayRecord &ar) {
   clang::QualType element_type = GetOrCreateType(ar.ElementType);
 
-  uint64_t element_count =
-      ar.Size / GetSizeOfType({ar.ElementType}, m_index.tpi());
+  uint64_t element_size = GetSizeOfType({ar.ElementType}, m_index.tpi());
+  if (element_size == 0)
+    return {};
+  uint64_t element_count = ar.Size / element_size;
 
   CompilerType array_ct = m_clang.CreateArrayType(ToCompilerType(element_type),
                                                   element_count, false);

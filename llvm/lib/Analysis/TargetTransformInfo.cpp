@@ -11,7 +11,6 @@
 #include "llvm/Analysis/LoopIterator.h"
 #include "llvm/Analysis/TargetTransformInfoImpl.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -21,7 +20,6 @@
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/ErrorHandling.h"
 #include <utility>
 
 using namespace llvm;
@@ -398,6 +396,11 @@ bool TargetTransformInfo::isLegalNTLoad(Type *DataType, Align Alignment) const {
   return TTIImpl->isLegalNTLoad(DataType, Alignment);
 }
 
+bool TargetTransformInfo::isLegalBroadcastLoad(Type *ElementTy,
+                                               unsigned NumElements) const {
+  return TTIImpl->isLegalBroadcastLoad(ElementTy, NumElements);
+}
+
 bool TargetTransformInfo::isLegalMaskedGather(Type *DataType,
                                               Align Alignment) const {
   return TTIImpl->isLegalMaskedGather(DataType, Alignment);
@@ -742,12 +745,11 @@ InstructionCost TargetTransformInfo::getArithmeticInstrCost(
   return Cost;
 }
 
-InstructionCost TargetTransformInfo::getShuffleCost(ShuffleKind Kind,
-                                                    VectorType *Ty,
-                                                    ArrayRef<int> Mask,
-                                                    int Index,
-                                                    VectorType *SubTp) const {
-  InstructionCost Cost = TTIImpl->getShuffleCost(Kind, Ty, Mask, Index, SubTp);
+InstructionCost TargetTransformInfo::getShuffleCost(
+    ShuffleKind Kind, VectorType *Ty, ArrayRef<int> Mask, int Index,
+    VectorType *SubTp, ArrayRef<Value *> Args) const {
+  InstructionCost Cost =
+      TTIImpl->getShuffleCost(Kind, Ty, Mask, Index, SubTp, Args);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }

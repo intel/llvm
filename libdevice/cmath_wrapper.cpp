@@ -23,12 +23,10 @@ DEVICE_EXTERN_C
 div_t div(int x, int y) { return __devicelib_div(x, y); }
 
 DEVICE_EXTERN_C
-ldiv_t ldiv(long int x, long int y) { return __devicelib_ldiv(x, y); }
+ldiv_t ldiv(long x, long y) { return __devicelib_ldiv(x, y); }
 
 DEVICE_EXTERN_C
-lldiv_t lldiv(long long int x, long long int y) {
-  return __devicelib_lldiv(x, y);
-}
+lldiv_t lldiv(long long x, long long y) { return __devicelib_lldiv(x, y); }
 
 DEVICE_EXTERN_C
 float scalbnf(float x, int n) { return __devicelib_scalbnf(x, n); }

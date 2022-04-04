@@ -21,6 +21,7 @@
 #include <cassert>
 
 namespace mlir {
+namespace presburger {
 
 /// This is a class to represent a resizable matrix.
 ///
@@ -71,7 +72,8 @@ public:
   /// reallocations.
   void reserveRows(unsigned rows);
 
-  /// Get an ArrayRef corresponding to the specified row.
+  /// Get a [Mutable]ArrayRef corresponding to the specified row.
+  MutableArrayRef<int64_t> getRow(unsigned row);
   ArrayRef<int64_t> getRow(unsigned row) const;
 
   /// Insert columns having positions pos, pos + 1, ... pos + count - 1.
@@ -117,6 +119,16 @@ public:
   /// Negate the specified column.
   void negateColumn(unsigned column);
 
+  /// Negate the specified row.
+  void negateRow(unsigned row);
+
+  /// Divide the first `nCols` of the specified row by their GCD.
+  /// Returns the GCD of the first `nCols` of the specified row.
+  uint64_t normalizeRow(unsigned row, unsigned nCols);
+  /// Divide the columns of the specified row by their GCD.
+  /// Returns the GCD of the columns of the specified row.
+  uint64_t normalizeRow(unsigned row);
+
   /// The given vector is interpreted as a row vector v. Post-multiply v with
   /// this matrix, say M, and return vM.
   SmallVector<int64_t, 8> preMultiplyWithRow(ArrayRef<int64_t> rowVec) const;
@@ -160,6 +172,7 @@ private:
   SmallVector<int64_t, 64> data;
 };
 
+} // namespace presburger
 } // namespace mlir
 
 #endif // MLIR_ANALYSIS_PRESBURGER_MATRIX_H

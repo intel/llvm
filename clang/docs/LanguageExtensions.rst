@@ -445,6 +445,67 @@ NEON vector types are created using ``neon_vector_type`` and
     return v;
   }
 
+GCC vector types are created using the ``vector_size(N)`` attribute.  The
+argument ``N`` specifies the number of bytes that will be allocated for an
+object of this type.  The size has to be multiple of the size of the vector
+element type. For example:
+
+.. code-block:: c++
+
+  // OK: This declares a vector type with four 'int' elements
+  typedef int int4 __attribute__((vector_size(4 * sizeof(int))));
+
+  // ERROR: '11' is not a multiple of sizeof(int)
+  typedef int int_impossible __attribute__((vector_size(11)));
+
+  int4 foo(int4 a) {
+    int4 v;
+    v = a;
+    return v;
+  }
+
+
+Boolean Vectors
+---------------
+
+Clang also supports the ext_vector_type attribute with boolean element types in
+C and C++.  For example:
+
+.. code-block:: c++
+
+  // legal for Clang, error for GCC:
+  typedef bool bool4 __attribute__((ext_vector_type(4)));
+  // Objects of bool4 type hold 8 bits, sizeof(bool4) == 1
+
+  bool4 foo(bool4 a) {
+    bool4 v;
+    v = a;
+    return v;
+  }
+
+Boolean vectors are a Clang extension of the ext vector type.  Boolean vectors
+are intended, though not guaranteed, to map to vector mask registers.  The size
+parameter of a boolean vector type is the number of bits in the vector.  The
+boolean vector is dense and each bit in the boolean vector is one vector
+element.
+
+The semantics of boolean vectors borrows from C bit-fields with the following
+differences:
+
+* Distinct boolean vectors are always distinct memory objects (there is no
+  packing).
+* Only the operators `?:`, `!`, `~`, `|`, `&`, `^` and comparison are allowed on
+  boolean vectors.
+* Casting a scalar bool value to a boolean vector type means broadcasting the
+  scalar value onto all lanes (same as general ext_vector_type).
+* It is not possible to access or swizzle elements of a boolean vector
+  (different than general ext_vector_type).
+
+The size and alignment are both the number of bits rounded up to the next power
+of two, but the alignment is at most the maximum vector alignment of the
+target.
+
+
 Vector Literals
 ---------------
 
@@ -496,6 +557,7 @@ C-style cast                     yes     yes       yes         no
 reinterpret_cast                 yes     no        yes         no
 static_cast                      yes     no        yes         no
 const_cast                       no      no        no          no
+address &v[i]                    no      no        no [#]_     no
 ============================== ======= ======= ============= =======
 
 See also :ref:`langext-__builtin_shufflevector`, :ref:`langext-__builtin_convertvector`.
@@ -505,6 +567,9 @@ See also :ref:`langext-__builtin_shufflevector`, :ref:`langext-__builtin_convert
   it's only available in C++ and uses normal bool conversions (that is, != 0).
   If it's an extension (OpenCL) vector, it's only available in C and OpenCL C.
   And it selects base on signedness of the condition operands (OpenCL v1.1 s6.3.9).
+.. [#] Clang does not allow the address of an element to be taken while GCC
+   allows this. This is intentional for vectors with a boolean element type and
+   not implemented otherwise.
 
 Vector Builtins
 ---------------
@@ -1369,11 +1434,6 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__is_trivially_constructible`` (C++, GNU, Microsoft)
 * ``__is_trivially_copyable`` (C++, GNU, Microsoft)
 * ``__is_trivially_destructible`` (C++, MSVC 2013)
-* ``__is_trivially_relocatable`` (Clang): Returns true if moving an object
-  of the given type, and then destroying the source object, is known to be
-  functionally equivalent to copying the underlying bytes and then dropping the
-  source object on the floor. This is true of trivial types and types which
-  were made trivially relocatable via the ``clang::trivial_abi`` attribute.
 * ``__is_union`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_unsigned`` (C++, Embarcadero):
   Returns false for enumeration types. Note, before Clang 13, returned true for
@@ -3613,6 +3673,9 @@ with :doc:`ThreadSanitizer`.
 Use ``__has_feature(memory_sanitizer)`` to check if the code is being built
 with :doc:`MemorySanitizer`.
 
+Use ``__has_feature(dataflow_sanitizer)`` to check if the code is being built
+with :doc:`DataFlowSanitizer`.
+
 Use ``__has_feature(safe_stack)`` to check if the code is being built
 with :doc:`SafeStack`.
 
@@ -4074,8 +4137,22 @@ The ``__declspec`` style syntax is also supported:
 
   #pragma clang attribute pop
 
-A single push directive accepts only one attribute regardless of the syntax
-used.
+A single push directive can contain multiple attributes, however, 
+only one syntax style can be used within a single directive:
+
+.. code-block:: c++
+
+  #pragma clang attribute push ([[noreturn, noinline]], apply_to = function)
+
+  void function1(); // The function now has the [[noreturn]] and [[noinline]] attributes
+
+  #pragma clang attribute pop
+  
+  #pragma clang attribute push (__attribute((noreturn, noinline)), apply_to = function)
+
+  void function2(); // The function now has the __attribute((noreturn)) and __attribute((noinline)) attributes
+
+  #pragma clang attribute pop
 
 Because multiple push directives can be nested, if you're writing a macro that
 expands to ``_Pragma("clang attribute")`` it's good hygiene (though not

@@ -231,6 +231,18 @@ bool LLVMToSPIRVBase::isBuiltinTransToExtInst(
   return true;
 }
 
+bool isUniformGroupOperation(Function *F) {
+  auto Name = F->getName();
+  if (Name.contains("GroupIMulKHR") || Name.contains("GroupFMulKHR") ||
+      Name.contains("GroupBitwiseAndKHR") ||
+      Name.contains("GroupBitwiseOrKHR") ||
+      Name.contains("GroupBitwiseXorKHR") ||
+      Name.contains("GroupLogicalAndKHR") ||
+      Name.contains("GroupLogicalOrKHR") || Name.contains("GroupLogicalXorKHR"))
+    return true;
+  return false;
+}
+
 static bool recursiveType(const StructType *ST, const Type *Ty) {
   SmallPtrSet<const StructType *, 4> Seen;
 
@@ -560,6 +572,8 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVJointMatrixINTELType(
     ElemTy = Type::getFloatTy(M->getContext());
   else if (Ty == "double")
     ElemTy = Type::getDoubleTy(M->getContext());
+  else if (Ty == "bfloat16")
+    ElemTy = Type::getInt16Ty(M->getContext());
   else
     llvm_unreachable("Unexpected type for matrix!");
 
@@ -657,8 +671,14 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       std::string Prefix = kSPIRVName::EntrypointPrefix;
       std::string Name = F->getName().str();
       BM->setName(BF, Name.substr(Prefix.size()));
-    } else
+    } else {
+      if (isUniformGroupOperation(F))
+        BM->getErrorLog().checkError(
+            BM->isAllowedToUseExtension(
+                ExtensionID::SPV_KHR_uniform_group_instructions),
+            SPIRVEC_RequiresExtension, "SPV_KHR_uniform_group_instructions\n");
       BM->setName(BF, F->getName().str());
+    }
   }
   if (isKernel(F))
     BM->addEntryPoint(ExecutionModelKernel, BF->getId());
@@ -2076,9 +2096,11 @@ void addFuncPointerCallArgumentAttributes(CallInst *CI,
 
 #define ONE_STRING_DECORATION_CASE(NAME, NAMESPACE)                            \
   case NAMESPACE::Decoration##NAME: {                                          \
-    assert(NumOperands == 2 && #NAME " requires exactly 1 extra operand");     \
+    ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,             \
+                      #NAME " requires exactly 1 extra operand");              \
     auto *StrDecoEO = dyn_cast<MDString>(DecoMD->getOperand(1));               \
-    assert(StrDecoEO &&#NAME " requires extra operand to be a string");        \
+    ErrLog.checkError(StrDecoEO, SPIRVEC_InvalidLlvmModule,                    \
+                      #NAME " requires extra operand to be a string");         \
     Target->addDecorate(                                                       \
         new SPIRVDecorate##NAME##Attr(Target, StrDecoEO->getString().str()));  \
     break;                                                                     \
@@ -2086,10 +2108,12 @@ void addFuncPointerCallArgumentAttributes(CallInst *CI,
 
 #define ONE_INT_DECORATION_CASE(NAME, NAMESPACE, TYPE)                         \
   case NAMESPACE::Decoration##NAME: {                                          \
-    assert(NumOperands == 2 && #NAME " requires exactly 1 extra operand");     \
+    ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,             \
+                      #NAME " requires exactly 1 extra operand");              \
     auto *IntDecoEO =                                                          \
         mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));              \
-    assert(IntDecoEO &&#NAME " requires extra operand to be an integer");      \
+    ErrLog.checkError(IntDecoEO, SPIRVEC_InvalidLlvmModule,                    \
+                      #NAME " requires extra operand to be an integer");       \
     Target->addDecorate(new SPIRVDecorate##NAME(                               \
         Target, static_cast<TYPE>(IntDecoEO->getZExtValue())));                \
     break;                                                                     \
@@ -2097,15 +2121,17 @@ void addFuncPointerCallArgumentAttributes(CallInst *CI,
 
 #define TWO_INT_DECORATION_CASE(NAME, NAMESPACE, TYPE1, TYPE2)                 \
   case NAMESPACE::Decoration##NAME: {                                          \
-    assert(NumOperands == 3 && #NAME " requires exactly 2 extra operand");     \
+    ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,             \
+                      #NAME " requires exactly 2 extra operands");             \
     auto *IntDecoEO1 =                                                         \
         mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));              \
-    assert(IntDecoEO1 &&#NAME                                                  \
-           " requires first extra operand to be an integer");                  \
+    ErrLog.checkError(IntDecoEO1, SPIRVEC_InvalidLlvmModule,                   \
+                      #NAME " requires first extra operand to be an integer"); \
     auto *IntDecoEO2 =                                                         \
         mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));              \
-    assert(IntDecoEO2 &&#NAME                                                  \
-           " requires second extra operand to be an integer");                 \
+    ErrLog.checkError(IntDecoEO2, SPIRVEC_InvalidLlvmModule,                   \
+                      #NAME                                                    \
+                      " requires second extra operand to be an integer");      \
     Target->addDecorate(new SPIRVDecorate##NAME(                               \
         Target, static_cast<TYPE1>(IntDecoEO1->getZExtValue()),                \
         static_cast<TYPE2>(IntDecoEO2->getZExtValue())));                      \
@@ -2126,16 +2152,20 @@ void checkIsGlobalVar(SPIRVEntry *E, Decoration Dec) {
 }
 
 static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
+  SPIRVErrorLog &ErrLog = Target->getErrorLog();
+
   auto *ArgDecoMD = dyn_cast<MDNode>(MD);
   assert(ArgDecoMD && "Decoration list must be a metadata node");
   for (unsigned I = 0, E = ArgDecoMD->getNumOperands(); I != E; ++I) {
     auto *DecoMD = dyn_cast<MDNode>(ArgDecoMD->getOperand(I));
-    assert(DecoMD && "Decoration does not name metadata");
-    assert(DecoMD->getNumOperands() > 0 &&
-           "Decoration metadata must have at least one operand");
+    ErrLog.checkError(DecoMD, SPIRVEC_InvalidLlvmModule,
+                      "Decoration does not name metadata");
+    ErrLog.checkError(DecoMD->getNumOperands() > 0, SPIRVEC_InvalidLlvmModule,
+                      "Decoration metadata must have at least one operand");
     auto *DecoKindConst =
         mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(0));
-    assert(DecoKindConst && "First operand of decoration must be the kind");
+    ErrLog.checkError(DecoKindConst, SPIRVEC_InvalidLlvmModule,
+                      "First operand of decoration must be the kind");
     auto DecoKind = static_cast<Decoration>(DecoKindConst->getZExtValue());
 
     const size_t NumOperands = DecoMD->getNumOperands();
@@ -2162,25 +2192,31 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
       break;
     }
     case DecorationMergeINTEL: {
-      assert(NumOperands == 3 && "MergeINTEL requires exactly 3 extra operand");
+      ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
+                        "MergeINTEL requires exactly 3 extra operands");
       auto *Name = dyn_cast<MDString>(DecoMD->getOperand(1));
-      assert(Name && "MergeINTEL requires first extra operand to be a string");
+      ErrLog.checkError(
+          Name, SPIRVEC_InvalidLlvmModule,
+          "MergeINTEL requires first extra operand to be a string");
       auto *Direction = dyn_cast<MDString>(DecoMD->getOperand(2));
-      assert(Direction &&
-             "MergeINTEL requires second extra operand to be a string");
+      ErrLog.checkError(
+          Direction, SPIRVEC_InvalidLlvmModule,
+          "MergeINTEL requires second extra operand to be a string");
       Target->addDecorate(new SPIRVDecorateMergeINTELAttr(
           Target, Name->getString().str(), Direction->getString().str()));
       break;
     }
     case DecorationLinkageAttributes: {
-      assert(NumOperands == 3 &&
-             "LinkageAttributes requires exactly 3 extra operand");
+      ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
+                        "LinkageAttributes requires exactly 3 extra operands");
       auto *Name = dyn_cast<MDString>(DecoMD->getOperand(1));
-      assert(Name &&
-             "LinkageAttributes requires first extra operand to be a string");
+      ErrLog.checkError(
+          Name, SPIRVEC_InvalidLlvmModule,
+          "LinkageAttributes requires first extra operand to be a string");
       auto *Type = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));
-      assert(Type &&
-             "LinkageAttributes requires second extra operand to be an int");
+      ErrLog.checkError(
+          Type, SPIRVEC_InvalidLlvmModule,
+          "LinkageAttributes requires second extra operand to be an int");
       auto TypeKind = static_cast<SPIRVLinkageTypeKind>(Type->getZExtValue());
       Target->addDecorate(new SPIRVDecorateLinkageAttr(
           Target, Name->getString().str(), TypeKind));
@@ -2189,15 +2225,18 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
     case spv::internal::DecorationHostAccessINTEL: {
       checkIsGlobalVar(Target, DecoKind);
 
-      assert(NumOperands == 3 && "HostAccessINTEL requires 2 extra operands "
-                                 "after the decoration kind number");
+      ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
+                        "HostAccessINTEL requires exactly 2 extra operands "
+                        "after the decoration kind number");
       auto *AccessMode =
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      assert(AccessMode &&
-             "HostAccessINTEL requires first extra operand to be an int");
+      ErrLog.checkError(
+          AccessMode, SPIRVEC_InvalidLlvmModule,
+          "HostAccessINTEL requires first extra operand to be an int");
       auto *Name = dyn_cast<MDString>(DecoMD->getOperand(2));
-      assert(Name &&
-             "HostAccessINTEL requires second extra operand to be a string");
+      ErrLog.checkError(
+          Name, SPIRVEC_InvalidLlvmModule,
+          "HostAccessINTEL requires second extra operand to be a string");
 
       Target->addDecorate(new SPIRVDecorateHostAccessINTEL(
           Target, AccessMode->getZExtValue(), Name->getString().str()));
@@ -2205,15 +2244,17 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
     }
     case spv::internal::DecorationInitModeINTEL: {
       checkIsGlobalVar(Target, DecoKind);
-      assert(static_cast<SPIRVVariable *>(Target)->getInitializer() &&
-             "InitModeINTEL only be applied to a global (module scope) "
-             "variable which has an Initializer operand");
+      ErrLog.checkError(static_cast<SPIRVVariable *>(Target)->getInitializer(),
+                        SPIRVEC_InvalidLlvmModule,
+                        "InitModeINTEL only be applied to a global (module "
+                        "scope) variable which has an Initializer operand");
 
-      assert(NumOperands == 2 &&
-             "InitModeINTEL requires exactly 1 extra operand");
+      ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
+                        "InitModeINTEL requires exactly 1 extra operand");
       auto *Trigger = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      assert(Trigger &&
-             "InitModeINTEL requires extra operand to be an integer");
+      ErrLog.checkError(
+          Trigger, SPIRVEC_InvalidLlvmModule,
+          "InitModeINTEL requires extra operand to be an integer");
 
       Target->addDecorate(
           new SPIRVDecorateInitModeINTEL(Target, Trigger->getZExtValue()));
@@ -2221,12 +2262,12 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
     }
     case spv::internal::DecorationImplementInCSRINTEL: {
       checkIsGlobalVar(Target, DecoKind);
-
-      assert(NumOperands == 2 &&
-             "ImplementInCSRINTEL requires exactly 1 extra operand");
+      ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
+                        "ImplementInCSRINTEL requires exactly 1 extra operand");
       auto *Value = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      assert(Value &&
-             "ImplementInCSRINTEL requires extra operand to be an integer");
+      ErrLog.checkError(
+          Value, SPIRVEC_InvalidLlvmModule,
+          "ImplementInCSRINTEL requires extra operand to be an integer");
 
       Target->addDecorate(
           new SPIRVDecorateImplementInCSRINTEL(Target, Value->getZExtValue()));
@@ -2240,8 +2281,9 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
 
       auto *DecoValEO1 =
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      assert(DecoValEO1 &&
-             "First extra operand in default decoration case must be integer.");
+      ErrLog.checkError(
+          DecoValEO1, SPIRVEC_InvalidLlvmModule,
+          "First extra operand in default decoration case must be integer.");
       if (NumOperands == 2) {
         Target->addDecorate(
             new SPIRVDecorate(DecoKind, Target, DecoValEO1->getZExtValue()));
@@ -2250,9 +2292,12 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
 
       auto *DecoValEO2 =
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));
-      assert(DecoValEO2 &&
-             "First extra operand in default decoration case must be integer.");
-      assert(NumOperands == 3 && "At most 2 extra operands expected.");
+      ErrLog.checkError(
+          DecoValEO2, SPIRVEC_InvalidLlvmModule,
+          "Second extra operand in default decoration case must be integer.");
+
+      ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
+                        "At most 2 extra operands expected.");
       Target->addDecorate(new SPIRVDecorate(DecoKind, Target,
                                             DecoValEO1->getZExtValue(),
                                             DecoValEO2->getZExtValue()));
@@ -2570,6 +2615,17 @@ void processOptionalAnnotationInfo(Constant *Const,
         AnnotationString += ", ";
         AnnotationString += std::to_string(CInt->getSExtValue());
       }
+    }
+  } else if (auto *ZeroStruct =
+                 dyn_cast<ConstantAggregateZero>(Const->getOperand(0))) {
+    // It covers case when all elements of struct are 0 and they become
+    // zeroinitializer. It represents like: { i32 i32 ... } zeroinitializer
+    uint32_t NumOperands = ZeroStruct->getType()->getStructNumElements();
+    AnnotationString += ": ";
+    AnnotationString += "0";
+    for (uint32_t I = 1; I != NumOperands; ++I) {
+      AnnotationString += ", ";
+      AnnotationString += "0";
     }
   }
 }
@@ -3617,7 +3673,26 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
 
   SmallVector<std::string, 2> Dec;
   if (isBuiltinTransToExtInst(CI->getCalledFunction(), &ExtSetKind, &ExtOp,
-                              &Dec))
+                              &Dec)) {
+    if (DemangledName.find("__spirv_ocl_printf") != StringRef::npos) {
+      auto *FormatStrPtr = cast<PointerType>(CI->getArgOperand(0)->getType());
+      if (FormatStrPtr->getAddressSpace() !=
+          SPIR::TypeAttributeEnum::ATTR_CONST) {
+        if (!BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_non_constant_addrspace_printf)) {
+          std::string ErrorStr =
+              "The SPV_INTEL_non_constant_addrspace_printf extension should be "
+              "allowed to translate this module, because this LLVM module "
+              "contains the printf function with format string, whose address "
+              "space is not equal to 2 (constant).";
+          getErrorLog().checkError(false, SPIRVEC_RequiresExtension, CI,
+                                   ErrorStr);
+        }
+        BM->addExtension(ExtensionID::SPV_INTEL_non_constant_addrspace_printf);
+        BM->addCapability(internal::CapabilityNonConstantAddrspacePrintfINTEL);
+      }
+    }
+
     return addDecorations(
         BM->addExtInst(
             transType(CI->getType()), BM->getExtInstSetId(ExtSetKind), ExtOp,
@@ -3625,6 +3700,7 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
                            SPIRVEntry::createUnique(ExtSetKind, ExtOp).get()),
             BB),
         Dec);
+  }
 
   Function *Callee = CI->getCalledFunction();
   if (Callee->isDeclaration()) {

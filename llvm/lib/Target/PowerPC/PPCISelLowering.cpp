@@ -129,7 +129,7 @@ static cl::opt<bool> EnableQuadwordAtomics(
 static cl::opt<bool>
     DisablePerfectShuffle("ppc-disable-perfect-shuffle",
                           cl::desc("disable vector permute decomposition"),
-                          cl::init(false), cl::Hidden);
+                          cl::init(true), cl::Hidden);
 
 STATISTIC(NumTailCalls, "Number of tail calls");
 STATISTIC(NumSiblingCalls, "Number of sibling calls");
@@ -627,6 +627,8 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, Custom);
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::f64, Custom);
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::ppcf128, Custom);
+  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::v4f32, Custom);
+  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::v2f64, Custom);
 
   // To handle counter-based loop conditions.
   setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i1, Custom);
@@ -1333,11 +1335,13 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
     setBooleanVectorContents(ZeroOrNegativeOneBooleanContent);
   }
 
+  setLibcallName(RTLIB::MULO_I128, nullptr);
   if (!isPPC64) {
     // These libcalls are not available in 32-bit.
     setLibcallName(RTLIB::SHL_I128, nullptr);
     setLibcallName(RTLIB::SRL_I128, nullptr);
     setLibcallName(RTLIB::SRA_I128, nullptr);
+    setLibcallName(RTLIB::MUL_I128, nullptr);
     setLibcallName(RTLIB::MULO_I64, nullptr);
   }
 
@@ -10549,6 +10553,16 @@ SDValue PPCTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
              DAG.getTargetConstant(PPC::PRED_EQ, dl, MVT::i32)}),
         0);
   }
+  case Intrinsic::ppc_fnmsub: {
+    EVT VT = Op.getOperand(1).getValueType();
+    if (!Subtarget.hasVSX() || (!Subtarget.hasFloat128() && VT == MVT::f128))
+      return DAG.getNode(
+          ISD::FNEG, dl, VT,
+          DAG.getNode(ISD::FMA, dl, VT, Op.getOperand(1), Op.getOperand(2),
+                      DAG.getNode(ISD::FNEG, dl, VT, Op.getOperand(3))));
+    return DAG.getNode(PPCISD::FNMSUB, dl, VT, Op.getOperand(1),
+                       Op.getOperand(2), Op.getOperand(3));
+  }
   case Intrinsic::ppc_convert_f128_to_ppcf128:
   case Intrinsic::ppc_convert_ppcf128_to_f128: {
     RTLIB::Libcall LC = IntrinsicID == Intrinsic::ppc_convert_ppcf128_to_f128
@@ -11220,6 +11234,7 @@ void PPCTargetLowering::ReplaceNodeResults(SDNode *N,
       Results.push_back(DAG.getNode(ISD::BUILD_PAIR, dl, MVT::ppcf128,
                                     N->getOperand(2), N->getOperand(1)));
       break;
+    case Intrinsic::ppc_fnmsub:
     case Intrinsic::ppc_convert_f128_to_ppcf128:
       Results.push_back(LowerINTRINSIC_WO_CHAIN(SDValue(N, 0), DAG));
       break;
@@ -17760,6 +17775,7 @@ SDValue PPCTargetLowering::lowerToLibCall(const char *LibCallName, SDValue Op,
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   TargetLowering::CallLoweringInfo CLI(DAG);
   EVT RetVT = Op.getValueType();
+  Type *RetTy = RetVT.getTypeForEVT(*DAG.getContext());
   SDValue Callee =
       DAG.getExternalSymbol(LibCallName, TLI.getPointerTy(DAG.getDataLayout()));
   bool SignExtend = TLI.shouldSignExtendTypeInLibCall(RetVT, false);
@@ -17774,11 +17790,19 @@ SDValue PPCTargetLowering::lowerToLibCall(const char *LibCallName, SDValue Op,
     Entry.IsZExt = !Entry.IsSExt;
     Args.push_back(Entry);
   }
+
+  SDValue InChain = DAG.getEntryNode();
+  SDValue TCChain = InChain;
+  const Function &F = DAG.getMachineFunction().getFunction();
+  bool isTailCall =
+      TLI.isInTailCallPosition(DAG, Op.getNode(), TCChain) &&
+      (RetTy == F.getReturnType() || F.getReturnType()->isVoidTy());
+  if (isTailCall)
+    InChain = TCChain;
   CLI.setDebugLoc(SDLoc(Op))
-      .setChain(DAG.getEntryNode())
-      .setLibCallee(CallingConv::C, RetVT.getTypeForEVT(*DAG.getContext()),
-                    Callee, std::move(Args))
-      .setTailCall(true)
+      .setChain(InChain)
+      .setLibCallee(CallingConv::C, RetTy, Callee, std::move(Args))
+      .setTailCall(isTailCall)
       .setSExtResult(SignExtend)
       .setZExtResult(!SignExtend)
       .setIsPostTypeLegalization(true);

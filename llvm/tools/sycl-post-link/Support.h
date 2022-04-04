@@ -20,3 +20,17 @@
     if (!(Cond))                                                               \
       llvm::report_fatal_error(llvm::Twine(__FILE__ " ") + (Msg));             \
   } while (false)
+
+namespace llvm {
+
+inline void error(const Twine &Msg) {
+  errs() << "sycl-post-link: " << Msg << '\n';
+  exit(1);
+}
+
+inline void checkError(std::error_code EC, const Twine &Prefix) {
+  if (EC)
+    error(Prefix + ": " + EC.message());
+}
+
+} // namespace llvm

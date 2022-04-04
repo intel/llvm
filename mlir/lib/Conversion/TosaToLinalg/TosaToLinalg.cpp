@@ -15,7 +15,6 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
@@ -857,8 +856,10 @@ static LogicalResult reduceMatchAndRewriteHelper(Operation *op, uint64_t axis,
         op, "No initial value found for reduction operation");
 
   auto fillValue = rewriter.create<arith::ConstantOp>(loc, fillValueAttr);
-  auto filledTensor =
-      rewriter.create<linalg::FillOp>(loc, fillValue, initTensor).result();
+  auto filledTensor = rewriter
+                          .create<linalg::FillOp>(loc, ValueRange{fillValue},
+                                                  ValueRange{initTensor})
+                          .result();
 
   SmallVector<AffineExpr, 2> srcExprs;
   SmallVector<AffineExpr, 2> dstExprs;
@@ -1718,7 +1719,9 @@ struct ConcatConverter : public OpConversionPattern<tosa::ConcatOp> {
     Value zeroVal = rewriter.createOrFold<arith::ConstantOp>(
         loc, rewriter.getZeroAttr(resultType.getElementType()));
     Value result =
-        rewriter.create<linalg::FillOp>(loc, zeroVal, init).getResult(0);
+        rewriter
+            .create<linalg::FillOp>(loc, ValueRange{zeroVal}, ValueRange{init})
+            .result();
 
     auto toOpFoldResult = [](Value v) -> OpFoldResult {
       auto op = v.getDefiningOp<arith::ConstantIndexOp>();
@@ -1990,7 +1993,9 @@ public:
     auto fillValueIdx = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getIntegerAttr(outElementTy, 0));
     auto filledTensorIdx =
-        rewriter.create<linalg::FillOp>(loc, fillValueIdx, initTensorIdx)
+        rewriter
+            .create<linalg::FillOp>(loc, ValueRange{fillValueIdx},
+                                    ValueRange{initTensorIdx})
             .result();
 
     // Second fill the output buffer for the running max.
@@ -2008,7 +2013,9 @@ public:
     auto fillValueMax =
         rewriter.create<arith::ConstantOp>(loc, fillValueMaxAttr);
     auto filledTensorMax =
-        rewriter.create<linalg::FillOp>(loc, fillValueMax, initTensorMax)
+        rewriter
+            .create<linalg::FillOp>(loc, ValueRange{fillValueMax},
+                                    ValueRange{initTensorMax})
             .result();
 
     // We need to reduce along the arg-max axis, with parallel operations along

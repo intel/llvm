@@ -40,6 +40,9 @@ enum ActionKind {
   /// Emit a .o file.
   EmitObj,
 
+  /// Emit a .s file.
+  EmitAssembly,
+
   /// Parse, unparse the parse-tree and output a Fortran source file
   DebugUnparse,
 
@@ -56,6 +59,9 @@ enum ActionKind {
 
   /// Parse, run semantics and then output the parse tree
   DebugDumpParseTree,
+
+  /// Parse, run semantics and then output the pre-fir parse tree
+  DebugDumpPFT,
 
   /// Parse, run semantics and then output the parse tree and symbols
   DebugDumpAll,
@@ -259,6 +265,10 @@ struct FrontendOptions {
 
   /// The name of the action to run when using a plugin action.
   std::string ActionName;
+
+  /// A list of arguments to forward to LLVM's option processing; this
+  /// should only be used for debugging and experimental features.
+  std::vector<std::string> llvmArgs;
 
   // Return the appropriate input kind for a file extension. For example,
   /// "*.f" would return Language::Fortran.

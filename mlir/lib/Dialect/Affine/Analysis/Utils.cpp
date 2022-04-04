@@ -12,13 +12,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
-#include "mlir/Analysis/Presburger/PresburgerSet.h"
+#include "mlir/Analysis/Presburger/PresburgerRelation.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/IntegerSet.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
@@ -27,6 +26,7 @@
 #define DEBUG_TYPE "analysis-utils"
 
 using namespace mlir;
+using namespace presburger;
 
 using llvm::SmallDenseMap;
 
@@ -1218,22 +1218,14 @@ MemRefAccess::MemRefAccess(Operation *loadOrStoreOpInst) {
   if (auto loadOp = dyn_cast<AffineReadOpInterface>(loadOrStoreOpInst)) {
     memref = loadOp.getMemRef();
     opInst = loadOrStoreOpInst;
-    auto loadMemrefType = loadOp.getMemRefType();
-    indices.reserve(loadMemrefType.getRank());
-    for (auto index : loadOp.getMapOperands()) {
-      indices.push_back(index);
-    }
+    llvm::append_range(indices, loadOp.getMapOperands());
   } else {
     assert(isa<AffineWriteOpInterface>(loadOrStoreOpInst) &&
            "Affine read/write op expected");
     auto storeOp = cast<AffineWriteOpInterface>(loadOrStoreOpInst);
     opInst = loadOrStoreOpInst;
     memref = storeOp.getMemRef();
-    auto storeMemrefType = storeOp.getMemRefType();
-    indices.reserve(storeMemrefType.getRank());
-    for (auto index : storeOp.getMapOperands()) {
-      indices.push_back(index);
-    }
+    llvm::append_range(indices, storeOp.getMapOperands());
   }
 }
 

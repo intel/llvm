@@ -475,6 +475,12 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
         getSPIRVTypeName(kSPIRVTypeName::JointMatrixINTEL, SS.str());
     return mapType(T, getOrCreateOpaquePtrType(M, Name));
   }
+  case OpTypeForwardPointer: {
+    SPIRVTypeForwardPointer *FP =
+        static_cast<SPIRVTypeForwardPointer *>(static_cast<SPIRVEntry *>(T));
+    return mapType(T, transType(static_cast<SPIRVType *>(
+                          BM->getEntry(FP->getPointerId()))));
+  }
 
   default: {
     auto OC = T->getOpCode();
@@ -1750,29 +1756,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     bool IsVolatile = BC->SPIRVMemoryAccess::isVolatile();
     IRBuilder<> Builder(BB);
 
-    // If we copy from zero-initialized array, we can optimize it to llvm.memset
-    if (BC->getSource()->getOpCode() == OpBitcast) {
-      SPIRVValue *Source =
-          static_cast<SPIRVBitcast *>(BC->getSource())->getOperand(0);
-      if (Source->isVariable()) {
-        auto *Init = static_cast<SPIRVVariable *>(Source)->getInitializer();
-        if (isa<OpConstantNull>(Init)) {
-          SPIRVType *Ty = static_cast<SPIRVConstantNull *>(Init)->getType();
-          if (isa<OpTypeArray>(Ty)) {
-            Type *Int8Ty = Type::getInt8Ty(Dst->getContext());
-            llvm::Value *Src = ConstantInt::get(Int8Ty, 0);
-            llvm::Value *NewDst = Dst;
-            if (!Dst->getType()->getPointerElementType()->isIntegerTy(8)) {
-              Type *Int8PointerTy = Type::getInt8PtrTy(
-                  Dst->getContext(), Dst->getType()->getPointerAddressSpace());
-              NewDst = llvm::BitCastInst::CreatePointerCast(Dst, Int8PointerTy,
-                                                            "", BB);
-            }
-            CI = Builder.CreateMemSet(NewDst, Src, Size, Align, IsVolatile);
-          }
-        }
-      }
-    }
     if (!CI) {
       llvm::Value *Src = transValue(BC->getSource(), F, BB);
       CI = Builder.CreateMemCpy(Dst, Align, Src, Align, Size, IsVolatile);

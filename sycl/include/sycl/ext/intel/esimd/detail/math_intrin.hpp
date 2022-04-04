@@ -698,7 +698,7 @@ __esimd_pack_mask(__ESIMD_DNS::vector_type_t<uint16_t, N> src0) {
   // wrapper code (which does the checks already)
   uint32_t retv = 0;
   for (int i = 0; i < N; i++) {
-    if (src0[i] & 0x1) {
+    if (src0[i] != 0) {
       retv |= 0x1 << i;
     }
   }
@@ -709,12 +709,10 @@ __esimd_pack_mask(__ESIMD_DNS::vector_type_t<uint16_t, N> src0) {
 template <int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<uint16_t, N>
 __esimd_unpack_mask(uint32_t src0) {
-  __ESIMD_DNS::vector_type_t<uint16_t, N> retv;
+  __ESIMD_DNS::vector_type_t<uint16_t, N> retv = 0;
   for (int i = 0; i < N; i++) {
     if ((src0 >> i) & 0x1) {
       retv[i] = 1;
-    } else {
-      retv[i] = 0;
     }
   }
   return retv;

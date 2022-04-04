@@ -25,7 +25,7 @@ def AbstractResultOpt : Pass<"abstract-result-opt", "mlir::FuncOp"> {
   }];
   let constructor = "::fir::createAbstractResultOptPass()";
   let dependentDialects = [
-    "fir::FIROpsDialect", "mlir::StandardOpsDialect"
+    "fir::FIROpsDialect", "mlir::func::FuncDialect"
   ];
   let options = [
     Option<"passResultAsBox", "abstract-result-as-box",
@@ -56,7 +56,7 @@ def AffineDialectPromotion : Pass<"promote-to-affine", "::mlir::FuncOp"> {
   }];
   let constructor = "::fir::createPromoteToAffinePass()";
   let dependentDialects = [
-    "fir::FIROpsDialect", "mlir::StandardOpsDialect", "mlir::AffineDialect"
+    "fir::FIROpsDialect", "mlir::func::FuncDialect", "mlir::AffineDialect"
   ];
 }
 
@@ -70,8 +70,25 @@ def AffineDialectDemotion : Pass<"demote-affine", "::mlir::FuncOp"> {
   }];
   let constructor = "::fir::createAffineDemotionPass()";
   let dependentDialects = [
-    "fir::FIROpsDialect", "mlir::StandardOpsDialect", "mlir::AffineDialect"
+    "fir::FIROpsDialect", "mlir::func::FuncDialect", "mlir::AffineDialect"
   ];
+}
+
+def AnnotateConstantOperands : Pass<"annotate-constant"> {
+  let summary = "Annotate constant operands to all FIR operations";
+  let description = [{
+    The MLIR canonicalizer makes a distinction between constants based on how
+    they are packaged in the IR. A constant value is wrapped in an Attr and that
+    Attr can be attached to an Op. There is a distinguished Op, ConstantOp, that
+    merely has one of these Attr attached.
+
+    The MLIR canonicalizer treats constants referenced by an Op and constants
+    referenced through a ConstantOp as having distinct semantics. This pass
+    eliminates that distinction, so hashconsing of Ops, basic blocks, etc.
+    behaves as one would expect.
+  }];
+  let constructor = "::fir::createAnnotateConstantOperandsPass()";
+  let dependentDialects = [ "fir::FIROpsDialect" ];
 }
 
 def ArrayValueCopy : Pass<"array-value-copy", "::mlir::FuncOp"> {
@@ -91,6 +108,7 @@ def ArrayValueCopy : Pass<"array-value-copy", "::mlir::FuncOp"> {
     This pass is required before code gen to the LLVM IR dialect.
   }];
   let constructor = "::fir::createArrayValueCopyPass()";
+  let dependentDialects = [ "fir::FIROpsDialect" ];
 }
 
 def CharacterConversion : Pass<"character-conversion"> {
@@ -122,7 +140,7 @@ def CFGConversion : Pass<"cfg-conversion", "::mlir::FuncOp"> {
   }];
   let constructor = "::fir::createFirToCfgPass()";
   let dependentDialects = [
-    "fir::FIROpsDialect", "mlir::StandardOpsDialect"
+    "fir::FIROpsDialect", "mlir::func::FuncDialect"
   ];
   let options = [
     Option<"forceLoopToExecuteOnce", "always-execute-loop-body", "bool",
@@ -148,7 +166,7 @@ def MemRefDataFlowOpt : Pass<"fir-memref-dataflow-opt", "::mlir::FuncOp"> {
   }];
   let constructor = "::fir::createMemDataFlowOptPass()";
   let dependentDialects = [
-    "fir::FIROpsDialect", "mlir::StandardOpsDialect"
+    "fir::FIROpsDialect", "mlir::func::FuncDialect"
   ];
 }
 
@@ -168,6 +186,14 @@ def MemoryAllocationOpt : Pass<"memory-allocation-opt", "mlir::FuncOp"> {
            "Set maximum number of elements of an array allocated on the stack.">
   ];
   let constructor = "::fir::createMemoryAllocationPass()";
+}
+
+def SimplifyRegionLite : Pass<"simplify-region-lite", "mlir::ModuleOp"> {
+  let summary = "Region simplification";
+  let description = [{
+    Run region DCE and erase unreachable blocks in regions.
+  }];
+  let constructor = "::fir::createSimplifyRegionLitePass()";
 }
 
 #endif // FLANG_OPTIMIZER_TRANSFORMS_PASSES

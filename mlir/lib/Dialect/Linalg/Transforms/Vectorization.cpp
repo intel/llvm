@@ -13,6 +13,7 @@
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
@@ -298,17 +299,6 @@ static VectorizationResult vectorizeLinalgIndex(OpBuilder &b, Operation *op,
   return VectorizationResult{VectorizationStatus::NewOp, transposeOp};
 }
 
-/// Create a new vectorized verstion of `op` with the given operands and types.
-static Operation *createVectorizedOp(OpBuilder &b, Operation *op,
-                                     ValueRange newOperands,
-                                     ArrayRef<Type> types) {
-  OperationState state(op->getLoc(), op->getName());
-  state.addAttributes(op->getAttrs());
-  state.addOperands(newOperands);
-  state.addTypes(types);
-  return b.createOperation(state);
-}
-
 /// Emit reduction operations if the shapes of the value to reduce is different
 /// that the result shape.
 static Operation *reduceIfNeeded(OpBuilder &b, LinalgOp linalgOp, Operation *op,
@@ -325,7 +315,9 @@ static Operation *reduceIfNeeded(OpBuilder &b, LinalgOp linalgOp, Operation *op,
     return nullptr;
   SmallVector<bool> reductionMask = getReductionMask(linalgOp);
   Value reduce = buildMultiDimReduce(b, op, reduceVec, reductionMask);
-  return createVectorizedOp(b, op, {reduce, outputVec}, reduce.getType());
+  return b.create(op->getLoc(), op->getName().getIdentifier(),
+                  /*operands=*/{reduce, outputVec}, reduce.getType(),
+                  op->getAttrs());
 }
 
 /// Generic vectorization for a single operation `op`, given already vectorized
@@ -365,7 +357,7 @@ vectorizeOneOp(OpBuilder &b, LinalgOp linalgOp, Operation *op,
 
   // 2. Constant ops don't get vectorized but rather broadcasted at their users.
   // Clone so that the constant is not confined to the linalgOp block .
-  if (isa<arith::ConstantOp, ConstantOp>(op))
+  if (isa<arith::ConstantOp, func::ConstantOp>(op))
     return VectorizationResult{VectorizationStatus::NewOp, b.clone(*op)};
 
   // 3. Only ElementwiseMappable are allowed in the generic vectorization.
@@ -419,8 +411,9 @@ vectorizeOneOp(OpBuilder &b, LinalgOp linalgOp, Operation *op,
   // Build and return the new op.
   return VectorizationResult{
       VectorizationStatus::NewOp,
-      createVectorizedOp(b, op, llvm::to_vector<4>(vectorizedOperands),
-                         llvm::to_vector<4>(returnTypes))};
+      b.create(op->getLoc(), op->getName().getIdentifier(),
+               llvm::to_vector<4>(vectorizedOperands),
+               llvm::to_vector<4>(returnTypes), op->getAttrs())};
 }
 
 /// Detect whether `r` has only ConstantOp, ElementwiseMappable and YieldOp.
@@ -428,8 +421,8 @@ static bool hasOnlyScalarElementwiseOp(Region &r) {
   if (!llvm::hasSingleElement(r))
     return false;
   for (Operation &op : r.front()) {
-    if (!(isa<arith::ConstantOp, ConstantOp, linalg::YieldOp, linalg::IndexOp>(
-              op) ||
+    if (!(isa<arith::ConstantOp, func::ConstantOp, linalg::YieldOp,
+              linalg::IndexOp>(op) ||
           OpTrait::hasElementwiseMappableTraits(&op)) ||
         llvm::any_of(op.getResultTypes(),
                      [](Type type) { return !type.isIntOrIndexOrFloat(); }))
@@ -1354,8 +1347,8 @@ namespace {
 struct Conv1DNwcGenerator : public StructuredGenerator<LinalgOp> {
   Conv1DNwcGenerator(OpBuilder &builder, LinalgOp linalgOp, int strideW,
                      int dilationW)
-      : StructuredGenerator<LinalgOp>(builder, linalgOp), valid(false),
-        strideW(strideW), dilationW(dilationW) {
+      : StructuredGenerator<LinalgOp>(builder, linalgOp), strideW(strideW),
+        dilationW(dilationW) {
     // Determine whether `linalgOp` can be generated with this generator
     if (linalgOp.getNumInputs() != 2 || linalgOp.getNumOutputs() != 1)
       return;
@@ -1664,7 +1657,7 @@ struct Conv1DNwcGenerator : public StructuredGenerator<LinalgOp> {
   }
 
 private:
-  bool valid;
+  bool valid = false;
   int strideW, dilationW;
   Value lhsShaped, rhsShaped, resShaped;
   ShapedType lhsShapedType, rhsShapedType, resShapedType;
