@@ -67,7 +67,7 @@ of which approach is in use.
 ## Common front-end part
 
 DPC++ FE should support the following attribute:
-`[[__sycl_detail__::uniquely_identifiable_object(kind)]]`. This attribute accepts
+`[[__sycl_detail__::uniquely_identifiable_object(kind)]]`. The attribute accepts
 a string literal and should be applied to types (like `device_global` or
 `specialization_id`).
 
@@ -82,6 +82,31 @@ things:
 - emit `sycl-uid-kind` LLVM IR attribute alongside `sycl-unique-id`, which
   contains the `kind` string passed via
   `[[__sycl_detail__::uniquely_identifiable_object(kind)]]` attribute
+
+To illustrate, here is a SYCL code snippet:
+
+```
+template <typename T>
+class
+  // Note: the attribute usage will be guarded by macro to be only applied when
+  // DPC++ compiler is used to avoid generating warnings. That is described
+  // later in the doc
+  [[__sycl_detail__::uniquely_identifiable_object("specialization_id")]]
+  specialization_id {
+  // ...
+};
+
+specialization_id<int> spec_const(38);
+```
+
+After processed by DPC++ compiler, it will result in the following LLVM IR:
+
+```
+%class.specialization_id = type { i32 }
+@spec_const = dso_local global %class.specialization_id { i32 38 } #0
+
+attributes #0 = { "sycl-unique-id"="string returned by __builtin_sycl_unique_id(spec_const)" "sycl-uid-kind"="specialization_id" }
+```
 
 **TODO**: we have `[[__sycl_detail__::device_global]]` attribute documented in
 [device global design doc][device-global-design], which instructs front-end to
