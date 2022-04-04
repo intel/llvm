@@ -19,7 +19,6 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
@@ -32,6 +31,7 @@
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/GlobalsModRef.h"
+#include "llvm/Analysis/InstructionPrecedenceTracking.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
@@ -42,12 +42,10 @@
 #include "llvm/Analysis/PHITransAddr.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
-#include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
@@ -55,11 +53,9 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Type.h"
@@ -72,7 +68,6 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -927,11 +922,12 @@ ConstructSSAForLoadSet(LoadInst *Load,
   return SSAUpdate.GetValueInMiddleOfBlock(Load->getParent());
 }
 
-static LoadInst *findDominatingLoad(Value *Ptr, SelectInst *Sel,
+static LoadInst *findDominatingLoad(Value *Ptr, Type *LoadTy, SelectInst *Sel,
                                     DominatorTree &DT) {
   for (Value *U : Ptr->users()) {
     auto *LI = dyn_cast<LoadInst>(U);
-    if (LI && LI->getParent() == Sel->getParent() && DT.dominates(LI, Sel))
+    if (LI && LI->getType() == LoadTy && LI->getParent() == Sel->getParent() &&
+        DT.dominates(LI, Sel))
       return LI;
   }
   return nullptr;
@@ -980,10 +976,10 @@ Value *AvailableValue::MaterializeAdjustedValue(LoadInst *Load,
   } else if (isSelectValue()) {
     // Introduce a new value select for a load from an eligible pointer select.
     SelectInst *Sel = getSelectValue();
-    LoadInst *L1 =
-        findDominatingLoad(Sel->getOperand(1), Sel, gvn.getDominatorTree());
-    LoadInst *L2 =
-        findDominatingLoad(Sel->getOperand(2), Sel, gvn.getDominatorTree());
+    LoadInst *L1 = findDominatingLoad(Sel->getOperand(1), LoadTy, Sel,
+                                      gvn.getDominatorTree());
+    LoadInst *L2 = findDominatingLoad(Sel->getOperand(2), LoadTy, Sel,
+                                      gvn.getDominatorTree());
     assert(L1 && L2 &&
            "must be able to obtain dominating loads for both value operands of "
            "the select");
@@ -1083,14 +1079,15 @@ static void reportMayClobberedLoad(LoadInst *Load, MemDepResult DepInfo,
 /// clobber the loads.
 static Optional<AvailableValue>
 tryToConvertLoadOfPtrSelect(BasicBlock *DepBB, BasicBlock::iterator End,
-                            Value *Address, DominatorTree &DT, AAResults *AA) {
+                            Value *Address, Type *LoadTy, DominatorTree &DT,
+                            AAResults *AA) {
 
   auto *Sel = dyn_cast_or_null<SelectInst>(Address);
   if (!Sel || DepBB != Sel->getParent())
     return None;
 
-  LoadInst *L1 = findDominatingLoad(Sel->getOperand(1), Sel, DT);
-  LoadInst *L2 = findDominatingLoad(Sel->getOperand(2), Sel, DT);
+  LoadInst *L1 = findDominatingLoad(Sel->getOperand(1), LoadTy, Sel, DT);
+  LoadInst *L2 = findDominatingLoad(Sel->getOperand(2), LoadTy, Sel, DT);
   if (!L1 || !L2)
     return None;
 
@@ -1113,8 +1110,8 @@ bool GVNPass::AnalyzeLoadAvailability(LoadInst *Load, MemDepResult DepInfo,
   if (!DepInfo.isDef() && !DepInfo.isClobber()) {
     assert(isa<SelectInst>(Address));
     if (auto R = tryToConvertLoadOfPtrSelect(
-            Load->getParent(), Load->getIterator(), Address, getDominatorTree(),
-            getAliasAnalysis())) {
+            Load->getParent(), Load->getIterator(), Address, Load->getType(),
+            getDominatorTree(), getAliasAnalysis())) {
       Res = *R;
       return true;
     }
@@ -1279,9 +1276,9 @@ void GVNPass::AnalyzeLoadAvailability(LoadInst *Load, LoadDepVect &Deps,
     Value *Address = Deps[i].getAddress();
 
     if (!DepInfo.isDef() && !DepInfo.isClobber()) {
-      if (auto R = tryToConvertLoadOfPtrSelect(DepBB, DepBB->end(), Address,
-                                               getDominatorTree(),
-                                               getAliasAnalysis())) {
+      if (auto R = tryToConvertLoadOfPtrSelect(
+              DepBB, DepBB->end(), Address, Load->getType(), getDominatorTree(),
+              getAliasAnalysis())) {
         ValuesPerBlock.push_back(
             AvailableValueInBlock::get(DepBB, std::move(*R)));
         continue;

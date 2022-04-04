@@ -11,6 +11,7 @@
 #include "src/__support/CPP/ArrayRef.h"
 
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 namespace __llvm_libc {
@@ -143,6 +144,11 @@ int File::seek(long offset, int whence) {
       err = true;
       return -1;
     }
+  } else if (prev_op == FileOp::READ && whence == SEEK_CUR) {
+    // More data could have been read out from the platform file than was
+    // required. So, we have to adjust the offset we pass to platform seek
+    // function. Note that read_limit >= pos is always true.
+    offset -= (read_limit - pos);
   }
   pos = read_limit = 0;
   prev_op = FileOp::SEEK;
@@ -215,8 +221,7 @@ File::ModeFlags File::mode_flags(const char *mode) {
       ++main_mode_count;
       break;
     case '+':
-      flags |= (static_cast<ModeFlags>(OpenMode::WRITE) |
-                static_cast<ModeFlags>(OpenMode::READ));
+      flags |= static_cast<ModeFlags>(OpenMode::PLUS);
       break;
     case 'b':
       flags |= static_cast<ModeFlags>(ContentType::BINARY);

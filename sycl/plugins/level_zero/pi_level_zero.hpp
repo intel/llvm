@@ -29,6 +29,7 @@
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -199,6 +200,45 @@ template <class T> struct ZeCache : private T {
   }
 };
 
+// A single-threaded app has an opportunity to enable this mode to avoid
+// overhead from mutex locking. Default value is 0 which means that single
+// thread mode is disabled.
+static const bool SingleThreadMode = [] {
+  const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE");
+  const bool RetVal = Ret ? std::stoi(Ret) : 0;
+  return RetVal;
+}();
+
+// Class which acts like shared_mutex if SingleThreadMode variable is not set.
+// If SingleThreadMode variable is set then mutex operations are turned into
+// nop.
+class pi_shared_mutex : public std::shared_mutex {
+public:
+  void lock() {
+    if (!SingleThreadMode)
+      std::shared_mutex::lock();
+  }
+  bool try_lock() {
+    return SingleThreadMode ? true : std::shared_mutex::try_lock();
+  }
+  void unlock() {
+    if (!SingleThreadMode)
+      std::shared_mutex::unlock();
+  }
+
+  void lock_shared() {
+    if (!SingleThreadMode)
+      std::shared_mutex::lock_shared();
+  }
+  bool try_lock_shared() {
+    return SingleThreadMode ? true : std::shared_mutex::try_lock_shared();
+  }
+  void unlock_shared() {
+    if (!SingleThreadMode)
+      std::shared_mutex::unlock_shared();
+  }
+};
+
 // Base class to store common data
 struct _pi_object {
   _pi_object() : RefCount{1} {}
@@ -206,6 +246,21 @@ struct _pi_object {
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
   std::atomic<pi_uint32> RefCount;
+
+  // This mutex protects accesses to all the non-const member variables.
+  // Exclusive access is required to modify any of these members.
+  //
+  // To get shared access to the object in a scope use std::shared_lock:
+  //    std::shared_lock Lock(Obj->Mutex);
+  // To get exclusive access to the object in a scope use std::scoped_lock:
+  //    std::scoped_lock Lock(Obj->Mutex);
+  //
+  // If several pi objects are accessed in a scope then each object's mutex must
+  // be locked. For example, to get write access to Obj1 and Obj2 and read
+  // access to Obj3 in a scope use the following approach:
+  //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
+  //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
+  pi_shared_mutex Mutex;
 };
 
 // Record for a memory allocation. This structure is used to keep information
@@ -294,6 +349,18 @@ protected:
 
 public:
   USMSharedMemoryAlloc(pi_context Ctx, pi_device Dev)
+      : USMMemoryAllocBase(Ctx, Dev) {}
+};
+
+// Allocation routines for shared memory type that is only modified from host.
+class USMSharedReadOnlyMemoryAlloc : public USMMemoryAllocBase {
+protected:
+  pi_result allocateImpl(void **ResultPtr, size_t Size,
+                         pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override { return SystemMemory::SharedReadOnly; }
+
+public:
+  USMSharedReadOnlyMemoryAlloc(pi_context Ctx, pi_device Dev)
       : USMMemoryAllocBase(Ctx, Dev) {}
 };
 
@@ -458,6 +525,10 @@ struct _pi_context : _pi_object {
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(
               new USMSharedMemoryAlloc(this, Device))));
+      SharedReadOnlyMemAllocContexts.emplace(
+          std::piecewise_construct, std::make_tuple(Device),
+          std::make_tuple(std::unique_ptr<SystemMemory>(
+              new USMSharedReadOnlyMemoryAlloc(this, Device))));
       DeviceMemAllocContexts.emplace(
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(
@@ -589,8 +660,15 @@ struct _pi_context : _pi_object {
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
   // per each pair of (context, device) per each memory type.
-  std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
   std::unordered_map<pi_device, USMAllocContext> DeviceMemAllocContexts;
+  std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
+  std::unordered_map<pi_device, USMAllocContext> SharedReadOnlyMemAllocContexts;
+
+  // Since L0 native runtime does not distinguisg "shared device_read_only"
+  // vs regular "shared" allocations, we have keep track of it to use
+  // proper USMAllocContext when freeing allocations.
+  std::unordered_set<void *> SharedReadOnlyAllocs;
+
   // Store the host allocator context. It does not depend on any device.
   std::unique_ptr<USMAllocContext> HostMemAllocContext;
 
@@ -705,13 +783,6 @@ struct _pi_queue : _pi_object {
   // This field is only set at _pi_queue creation time, and cannot change.
   // Therefore it can be accessed without holding a lock on this _pi_queue.
   const pi_device Device;
-
-  // Mutex to be locked on entry to a _pi_queue API call, and unlocked
-  // prior to exit.  Access to all state of a queue is done only after
-  // this lock has been acquired, and this must be released upon exit
-  // from a pi_queue API call.  No other mutexes/locking should be
-  // needed/used for the queue data structures.
-  std::mutex PiQueueMutex;
 
   // Keeps track of the event associated with the last enqueued command into
   // this queue. this is used to add dependency with the last command to add
@@ -853,7 +924,7 @@ struct _pi_mem : _pi_object {
   char *MapHostPtr;
 
   // Flag to indicate that this memory is allocated in host memory
-  bool OnHost;
+  const bool OnHost;
 
   // Flag to indicate that the host ptr has been imported into USM
   bool HostPtrImported;
@@ -866,6 +937,10 @@ struct _pi_mem : _pi_object {
     // The size of the mapped region.
     size_t Size;
   };
+
+  // The key is the host pointer representing an active mapping.
+  // The value is the information needed to maintain/undo the mapping.
+  std::unordered_map<void *, Mapping> Mappings;
 
   // Interface of the _pi_mem object
 
@@ -880,25 +955,11 @@ struct _pi_mem : _pi_object {
 
   virtual ~_pi_mem() = default;
 
-  // Thread-safe methods to work with memory mappings
-  pi_result addMapping(void *MappedTo, size_t Size, size_t Offset);
-  pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
-
 protected:
   _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false,
           bool ImportedHostPtr = false)
       : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost},
         HostPtrImported{ImportedHostPtr}, Mappings{} {}
-
-private:
-  // The key is the host pointer representing an active mapping.
-  // The value is the information needed to maintain/undo the mapping.
-  std::unordered_map<void *, Mapping> Mappings;
-
-  // TODO: we'd like to create a thread safe map class instead of mutex + map,
-  // that must be carefully used together.
-  // The mutex that is used for thread-safe work with Mappings.
-  std::mutex MappingsMutex;
 };
 
 struct _pi_buffer final : _pi_mem {
@@ -1062,6 +1123,12 @@ struct _pi_event : _pi_object {
   // actions are performed only once.
   //
   bool CleanedUp = {false};
+
+  // Indicates that this PI event had already completed in the sense
+  // that no other synchromization is needed. Note that the underlying
+  // L0 event (if any) is not guranteed to have been signalled, or
+  // being visible to the host at all.
+  bool Completed = {false};
 };
 
 struct _pi_program : _pi_object {
@@ -1152,10 +1219,6 @@ struct _pi_program : _pi_object {
   // This error message is used only in Invalid state to hold a custom error
   // message from a call to piProgramLink.
   const std::string ErrorMessage;
-
-  // Protects accesses to all the non-const member variables.  Exclusive access
-  // is required to modify any of these members.
-  std::shared_mutex Mutex;
 
   state State;
 

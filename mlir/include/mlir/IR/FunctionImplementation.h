@@ -58,7 +58,7 @@ using FuncTypeBuilder = function_ref<Type(
 /// attributes and locations of the arguments.
 ParseResult parseFunctionArgumentList(
     OpAsmParser &parser, bool allowAttributes, bool allowVariadic,
-    SmallVectorImpl<OpAsmParser::OperandType> &argNames,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &argNames,
     SmallVectorImpl<Type> &argTypes, SmallVectorImpl<NamedAttrList> &argAttrs,
     SmallVectorImpl<Location> &argLocations, bool &isVariadic);
 
@@ -66,14 +66,13 @@ ParseResult parseFunctionArgumentList(
 /// indicates whether functions with variadic arguments are supported. The
 /// trailing arguments are populated by this function with names, types,
 /// attributes and locations of the arguments and those of the results.
-ParseResult
-parseFunctionSignature(OpAsmParser &parser, bool allowVariadic,
-                       SmallVectorImpl<OpAsmParser::OperandType> &argNames,
-                       SmallVectorImpl<Type> &argTypes,
-                       SmallVectorImpl<NamedAttrList> &argAttrs,
-                       SmallVectorImpl<Location> &argLocations,
-                       bool &isVariadic, SmallVectorImpl<Type> &resultTypes,
-                       SmallVectorImpl<NamedAttrList> &resultAttrs);
+ParseResult parseFunctionSignature(
+    OpAsmParser &parser, bool allowVariadic,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &argNames,
+    SmallVectorImpl<Type> &argTypes, SmallVectorImpl<NamedAttrList> &argAttrs,
+    SmallVectorImpl<Location> &argLocations, bool &isVariadic,
+    SmallVectorImpl<Type> &resultTypes,
+    SmallVectorImpl<NamedAttrList> &resultAttrs);
 
 /// Parser implementation for function-like operations.  Uses
 /// `funcTypeBuilder` to construct the custom function type given lists of
@@ -86,10 +85,8 @@ ParseResult parseFunctionOp(OpAsmParser &parser, OperationState &result,
                             bool allowVariadic,
                             FuncTypeBuilder funcTypeBuilder);
 
-/// Printer implementation for function-like operations.  Accepts lists of
-/// argument and result types to use while printing.
-void printFunctionOp(OpAsmPrinter &p, Operation *op, ArrayRef<Type> argTypes,
-                     bool isVariadic, ArrayRef<Type> resultTypes);
+/// Printer implementation for function-like operations.
+void printFunctionOp(OpAsmPrinter &p, FunctionOpInterface op, bool isVariadic);
 
 /// Prints the signature of the function-like operation `op`. Assumes `op` has
 /// is a FunctionOpInterface and has passed verification.

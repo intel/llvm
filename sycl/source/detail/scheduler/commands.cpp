@@ -1378,9 +1378,21 @@ std::vector<StreamImplPtr> ExecCGCommand::getStreams() const {
   return {};
 }
 
+std::vector<std::shared_ptr<const void>>
+ExecCGCommand::getAuxiliaryResources() const {
+  if (MCommandGroup->getType() == CG::Kernel)
+    return ((CGExecKernel *)MCommandGroup.get())->getAuxiliaryResources();
+  return {};
+}
+
 void ExecCGCommand::clearStreams() {
   if (MCommandGroup->getType() == CG::Kernel)
     ((CGExecKernel *)MCommandGroup.get())->clearStreams();
+}
+
+void ExecCGCommand::clearAuxiliaryResources() {
+  if (MCommandGroup->getType() == CG::Kernel)
+    ((CGExecKernel *)MCommandGroup.get())->clearAuxiliaryResources();
 }
 
 cl_int UpdateHostRequirementCommand::enqueueImp() {
@@ -1673,7 +1685,9 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
     MEvent->setNeedsCleanupAfterWait(true);
   } else if (MCommandGroup->getType() == CG::CGTYPE::Kernel &&
-             (static_cast<CGExecKernel *>(MCommandGroup.get()))->hasStreams())
+             (static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() ||
+              static_cast<CGExecKernel *>(MCommandGroup.get())
+                  ->hasAuxiliaryResources()))
     MEvent->setNeedsCleanupAfterWait(true);
 
   emitInstrumentationDataProxy();
@@ -2294,12 +2308,11 @@ cl_int ExecCGCommand::enqueueImp() {
       } else {
         assert(MQueue->getPlugin().getBackend() ==
                backend::ext_intel_esimd_emulator);
-        // Dims==0 for 'single_task() - void(void) type'
-        uint32_t Dims = (Args.size() > 0) ? NDRDesc.Dims : 0;
+
         MQueue->getPlugin().call<PiApiKind::piEnqueueKernelLaunch>(
             nullptr,
             reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
-            Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
+            NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
             &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
       }
 
@@ -2484,7 +2497,9 @@ bool ExecCGCommand::supportsPostEnqueueCleanup() const {
   return Command::supportsPostEnqueueCleanup() &&
          (MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask) &&
          (MCommandGroup->getType() != CG::CGTYPE::Kernel ||
-          !(static_cast<CGExecKernel *>(MCommandGroup.get()))->hasStreams());
+          (!static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() &&
+           !static_cast<CGExecKernel *>(MCommandGroup.get())
+                ->hasAuxiliaryResources()));
 }
 
 } // namespace detail

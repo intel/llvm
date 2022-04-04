@@ -58,7 +58,7 @@ MATCHER_P2(HintMatcher, Expected, Code, llvm::to_string(Expected)) {
     return false;
   }
   if (arg.range != Code.range(Expected.RangeName)) {
-    *result_listener << "range is " << arg.label << " but $"
+    *result_listener << "range is " << llvm::to_string(arg.range) << " but $"
                      << Expected.RangeName << " is "
                      << llvm::to_string(Code.range(Expected.RangeName));
     return false;
@@ -81,7 +81,7 @@ void assertHints(InlayHintKind Kind, llvm::StringRef AnnotatedSource,
                  ExpectedHints... Expected) {
   Annotations Source(AnnotatedSource);
   TestTU TU = TestTU::withCode(Source.code());
-  TU.ExtraArgs.push_back("-std=c++14");
+  TU.ExtraArgs.push_back("-std=c++20");
   auto AST = TU.build();
 
   EXPECT_THAT(hintsOfKind(AST, Kind),
@@ -527,13 +527,19 @@ TEST(TypeHints, Lambda) {
   assertTypeHints(R"cpp(
     void f() {
       int cap = 42;
-      auto $L[[L]] = [cap, $init[[init]] = 1 + 1](int a) { 
+      auto $L[[L]] = [cap, $init[[init]] = 1 + 1](int a$ret[[)]] { 
         return a + cap + init; 
       };
     }
   )cpp",
                   ExpectedHint{": (lambda)", "L"},
-                  ExpectedHint{": int", "init"});
+                  ExpectedHint{": int", "init"}, ExpectedHint{"-> int", "ret"});
+
+  // Lambda return hint shown even if no param list.
+  // (The digraph :> is just a ] that doesn't conflict with the annotations).
+  assertTypeHints("auto $L[[x]] = <:$ret[[:>]]{return 42;};",
+                  ExpectedHint{": (lambda)", "L"},
+                  ExpectedHint{"-> int", "ret"});
 }
 
 // Structured bindings tests.
@@ -616,6 +622,11 @@ TEST(TypeHints, ReturnTypeDeduction) {
     // Do not hint `auto` for trailing return type.
     auto f3() -> int;
 
+    // Do not hint when a trailing return type is specified.
+    auto f4() -> auto* { return "foo"; }
+
+    auto f5($noreturn[[)]] {}
+
     // `auto` conversion operator
     struct A {
       operator auto($retConv[[)]] { return 42; }
@@ -628,7 +639,8 @@ TEST(TypeHints, ReturnTypeDeduction) {
     };
   )cpp",
       ExpectedHint{"-> int", "ret1a"}, ExpectedHint{"-> int", "ret1b"},
-      ExpectedHint{"-> int &", "ret2"}, ExpectedHint{"-> int", "retConv"});
+      ExpectedHint{"-> int &", "ret2"}, ExpectedHint{"-> void", "noreturn"},
+      ExpectedHint{"-> int", "retConv"});
 }
 
 TEST(TypeHints, DependentType) {
@@ -674,6 +686,22 @@ TEST(TypeHints, Deduplication) {
     template void foo<float>();
   )cpp",
                   ExpectedHint{": int", "var"});
+}
+
+TEST(TypeHints, SinglyInstantiatedTemplate) {
+  assertTypeHints(R"cpp(
+    auto $lambda[[x]] = [](auto *$param[[y]], auto) { return 42; };
+    int m = x("foo", 3);
+  )cpp",
+                  ExpectedHint{": (lambda)", "lambda"},
+                  ExpectedHint{": const char *", "param"});
+
+  // No hint for packs, or auto params following packs
+  assertTypeHints(R"cpp(
+    int x(auto $a[[a]], auto... b, auto c) { return 42; }
+    int m = x<void*, char, float>(nullptr, 'c', 2.0, 2);
+  )cpp",
+                  ExpectedHint{": void *", "a"});
 }
 
 TEST(DesignatorHints, Basic) {
