@@ -1,9 +1,9 @@
 /// Check compilation tool steps when using the integration footer
 // RUN:  %clangxx -fsycl -I cmdline/dir -include dummy.h %/s -### 2>&1 \
-// RUN:   | FileCheck -check-prefix FOOTER %s -DSRCDIR=%/S -DCMDDIR=cmdline/dir -DSRCFILE=%/s
+// RUN:   | FileCheck -check-prefix FOOTER %s -DSRCDIR=%/S -DCMDDIR=cmdline/dir
 // FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}"{{.*}} "-include" "dummy.h"
 // FOOTER: append-file{{.*}} "[[INPUTFILE:.+\.cpp]]" "--append=[[INTFOOTER]]" "--orig-filename=[[INPUTFILE]]" "--output=[[APPENDEDSRC:.+\.cpp]]"
-// FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-main-file-name" "[[SRCFILE]]" "-fsycl-use-main-file-name"{{.*}} "-include" "dummy.h"{{.*}} "-iquote" "[[SRCDIR]]" "-I" "cmdline/dir"
+// FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-main-file-name" "[[SRCFILE:.+\cpp]]" "-fsycl-use-main-file-name{{.*}} "-include" "dummy.h"{{.*}} "-iquote" "[[SRCDIR]]" "-I" "cmdline/dir"
 // FOOTER-NOT: "-include" "[[INTHEADER]]"
 
 /// Preprocessed file creation with integration footer
