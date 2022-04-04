@@ -42,7 +42,7 @@ So, the overall process is:
 This design document describes two approaches for how the mapping of
 "address of a host variable" -> "unique symbolic ID" can be generated:
 the first one with integration footer and another one with modification of the
-host compiler.
+DPC++ host compiler.
 
 Both approaches have their pros and cons and they are expected to be implemented
 and exist in the implementation at the same time. Only one of them will be
@@ -61,7 +61,7 @@ Such replacement of the main translation unit causes the following issues:
   code debugging to be completely broken in some environments (such as MS Visual
   Studio, for example)
 
-Customizing host compiler allows to avoid issues with debuggers and code
+Modifying DPC++ host compiler allows to avoid issues with debuggers and code
 coverage tools, but that is not an option if a user wants to compile host part
 of an app with a 3rd-party host compiler.
 
@@ -329,7 +329,7 @@ design document][spec-constants-design] for more details on this topic.
 
 [spec-constants-design]: <SYCL2020-SpecializationConstants.md>
 
-## Custom host compiler approach
+## Using a modified DPC++ as single source compiler
 
 With this approach, we simply schedule one more pass in the optimization
 pipeline, which should be executed regardless of the optimization level, because
@@ -354,9 +354,9 @@ attributes into the corresponding arguments of the function.
 ### Handling shadowed variables
 
 Unlike with the integration footer the problem with shadowed variables doesn't
-really exists with the custom host compiler approach, because it is compiler
-responsibility to uniquely identify shadowed variables at LLVM IR level and we
-are simply re-using what is already there.
+really exists with the modified DPC++ host compiler, because it is compiler
+responsibility to uniquely identify shadowed variables at LLVM IR level
+and we are simply re-using what is already there.
 
 For example, for the following code snippet:
 
