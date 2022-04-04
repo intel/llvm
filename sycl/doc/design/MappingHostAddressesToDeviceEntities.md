@@ -12,7 +12,8 @@ IDs of corresponding specialization constants at SPIR-V level.
 Another example is device global [implementation][device-global-design], where
 in order to communicate a value of `device_global` variable between host and
 device we need to map its host address to a symbolic name/identifier and some
-other info, which is used at PI layer and below.
+other info like the size of an underlying type of a device global, which is used
+at PI layer and below.
 
 This design document describes a generic way how to map the address of any SYCL
 object defined in a namespace scope to its unique symbolic ID. Please note that
@@ -24,8 +25,10 @@ design document could be used as a key in those properties to propagate
 additional information using existing mechanisms.
 
 So, the overall process is:
-- device compiler generates property set/s which provide mapping
-  "unique symbolic ID" -> "various information required by DPC++ RT"
+- (optionally) device compiler generates property set/s which provide mapping
+  "unique symbolic ID" -> "various information required by DPC++ RT".
+  Note: The presence and the format of those property set is defined case by
+  case for each feature
 - device or host compiler generates mapping
   "address of a host variable" -> "unique symbolic ID" (as described below by
   this document)
