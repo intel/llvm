@@ -682,7 +682,7 @@ pack_mask(simd_mask<N> src0) {
 /// the source operand is non-zero and unset otherwise.
 template <typename T, int N>
 __ESIMD_API
-    std::enable_if_t<detail::is_type<T, ushort, uint> && (N > 0 && N <= 32),
+    std::enable_if_t<detail::is_type<T, ushort, uint>() && (N > 0 && N <= 32),
                      uint>
     ballot(simd<T, N> mask) {
   simd_mask<N> cmp = (mask != 0);
