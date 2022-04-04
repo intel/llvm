@@ -187,7 +187,8 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
 
   // Get the global variable with the annotation string.
   const GlobalVariable *AnnotStrArgGV = nullptr;
-  if (auto *GEP = dyn_cast<GEPOperator>(IntrInst->getArgOperand(1)))
+  const Value *IntrAnnotStringArg = IntrInst->getArgOperand(1);
+  if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
     if (auto *C = dyn_cast<Constant>(GEP->getOperand(0)))
       AnnotStrArgGV = dyn_cast<GlobalVariable>(C);
   if (!AnnotStrArgGV)
@@ -266,13 +267,14 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   }
 
   // Replace the annotation string with a bitcast of the new global variable.
-  Type *Int8Ty = IntegerType::getInt8Ty(M.getContext());
   IntrInst->setArgOperand(
-      1, ConstantExpr::getBitCast(NewAnnotStringGV, Int8Ty->getPointerTo(0)));
+      1, ConstantExpr::getBitCast(NewAnnotStringGV,
+                                  IntrAnnotStringArg->getType()));
 
   // The values are not in the annotation string, so we can remove the original
   // annotation value.
   unsigned DefaultAS = M.getDataLayout().getDefaultGlobalsAddressSpace();
+  Type *Int8Ty = IntegerType::getInt8Ty(M.getContext());
   PointerType *Int8DefaultASPtrTy = Int8Ty->getPointerTo(DefaultAS);
   IntrInst->setArgOperand(4, ConstantPointerNull::get(Int8DefaultASPtrTy));
   return true;
