@@ -108,17 +108,15 @@ After processed by DPC++ compiler, it will result in the following LLVM IR:
 attributes #0 = { "sycl-unique-id"="string returned by __builtin_sycl_unique_id(spec_const)" "sycl-uid-kind"="specialization_id" }
 ```
 
-**TODO**: we have `[[__sycl_detail__::device_global]]` attribute documented in
-[device global design doc][device-global-design], which instructs front-end to
-emit some additional semantic checking. Shall we leave it in place or that
-request for semantic checking should also be documented by
-`[[__sycl_detail__::uniquely_identifiable_object(kind)]]` attribute when `kind`
-is set to a certain value?
+The new attribute should not be used for any semantic checking and its
+sole purpose is to generate necessary LLVM IR attributes. If some feature
+requires some semantic checks, then a separate attribute should be introduced
+to perform them: for example see `[[__sycl_detail__::device_global]]` in
+[device global design doc][device-global-design].
 
-**TODO**: alternatively, we could completely re-use existing
-`[[__sycl_detail__::device_global]]` attribute and introduce another one for
-specialization constants, i.e. it is a question of whether or not we want to
-generalize unique IDs generation in form of a generic attribute or not.
+Note about `kind` argument: it should not be parsed by the compiler in any way
+and it should be simply propagated as-is through the compiler stack to be used
+later at runtime.
 
 When DPC++ compiler is used as both host and device compiler, then the attribute
 should be respected by both host and device compiler passes and LLVM IR
