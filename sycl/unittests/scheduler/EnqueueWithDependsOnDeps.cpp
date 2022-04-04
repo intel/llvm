@@ -62,22 +62,23 @@ detail::Command *AddTaskCG(bool IsHost, MockScheduler &MS,
                            const std::vector<EventImplPtr> &Events) {
   std::vector<detail::Command *> ToEnqueue;
 
-  kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(
-          DevQueue->get_context());
-  auto ExecBundle = sycl::build(KernelBundle);
-
   // Emulating processing of command group function
   DependsOnTest::MockHandlerCustom MockCGH(DevQueue, false);
-  MockCGH.use_kernel_bundle(ExecBundle);
 
   for (auto EventImpl : Events)
     MockCGH.depends_on(detail::createSyclObjFromImpl<event>(EventImpl));
 
   if (IsHost)
     MockCGH.host_task([] {});
-  else
+  else {
+    kernel_bundle KernelBundle =
+        sycl::get_kernel_bundle<sycl::bundle_state::input>(
+            DevQueue->get_context());
+    auto ExecBundle = sycl::build(KernelBundle);
+    MockCGH.use_kernel_bundle(ExecBundle);
+
     MockCGH.single_task<TestKernel>([] {});
+  }
 
   std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
 
