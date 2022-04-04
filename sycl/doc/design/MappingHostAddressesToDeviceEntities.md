@@ -209,7 +209,8 @@ When this approach is used, not only is an extra file (integration footer)
 generated, but the integration header is also modified: FE compiler generates a
 definition of a namespace scope variable of type
 `__sycl_device_global_registration` whose sole purpose is to run its constructor
-before the application's `main()` function:
+before the application's `main()` (and any other global constructor defined in
+a user-provided translation unit) function:
 
 ```
 namespace sycl::detail {
@@ -260,6 +261,12 @@ __sycl_device_global_registration::__sycl_device_global_registration() noexcept 
 } // namespace (unnamed)
 } // namespace sycl::detail
 ```
+
+Note: the integration footer is only populated with the registration object when
+integration footer is enabled. Body of the registration object constructor can
+be empty if there are no uniquely identifiable objects found in a translation
+unit and FE is free to completely omit registration object generation in that
+case as well.
 
 ### Handling shadowed variables
 
