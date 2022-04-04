@@ -35,7 +35,13 @@
 // STATIC_LIB: ld{{.*}} "{{.*}}_lib.{{(a|lo)}}" "[[HOSTOBJ]]"
 
 // Test using -l<name> style for passing libraries.
+// RUN: mkdir -p %t_dir
+// RUN: touch %t_dir/liblin64.so
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L%S/Inputs/SYCL -llin64 -### %t_obj.o 2>&1 \
+// RUN:   | FileCheck %s -check-prefixes=STATIC_L_LIB,STATIC_L_LIB_DEF -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -static -L%t_dir -L%S/Inputs/SYCL -llin64 -### %t_obj.o 2>&1 \
+// RUN:   | FileCheck %s -check-prefixes=STATIC_L_LIB,STATIC_L_LIB_DEF -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -Xlinker -Bstatic -L%t_dir -L%S/Inputs/SYCL -llin64 -### %t_obj.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=STATIC_L_LIB,STATIC_L_LIB_DEF -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda -L%S/Inputs/SYCL -llin64 -### %t_obj.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=STATIC_L_LIB,STATIC_L_LIB_NVPTX -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
@@ -49,6 +55,9 @@
 // STATIC_L_LIB: ld{{.*}} "-llin64" "[[HOSTOBJ]]"
 
 // non-fat libraries should not trigger the unbundling step.
+// presence of shared object should not trigger unbundling step.
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L%t_dir -L%S/Inputs/SYCL -llin64 -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefixes=NO_STATIC_UNBUNDLE
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -lc -lm -ldl -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=NO_STATIC_UNBUNDLE
 // NO_STATIC_UNBUNDLE-NOT: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-inputs={{.*}}lib{{.*}}.a"
