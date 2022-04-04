@@ -11,6 +11,8 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/half_type.hpp>
 
+#include <cmath>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {

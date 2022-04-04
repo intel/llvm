@@ -17,8 +17,6 @@
 #include <limits>
 #include <string>
 
-using sycl::ext::intel::experimental::bfloat16;
-
 // Helper to convert the expected bits to float value to compare with the result
 typedef union {
   float Value;
@@ -29,8 +27,8 @@ typedef union {
   } RawData;
 } floatConvHelper;
 
-float bitsToFloatConv(std::string &Bits) {
-  floatConvHelper &Helper;
+float bitsToFloatConv(std::string Bits) {
+  floatConvHelper Helper;
   Helper.RawData.Sign = static_cast<uint32_t>(Bits[0] - '0');
   uint32_t Exponent = 0;
   for (size_t I = 1; I != 9; ++I)
@@ -38,21 +36,26 @@ float bitsToFloatConv(std::string &Bits) {
   Helper.RawData.Exponent = Exponent;
   uint32_t Mantissa = 0;
   for (size_t I = 9; I != 32; ++I)
-    Mantissa = Mantissa + static_cast<uint32_t>(Bits[I] - '0') * pow(2, 8 - I);
+    Mantissa = Mantissa + static_cast<uint32_t>(Bits[I] - '0') * pow(2, 31 - I);
   Helper.RawData.Mantissa = Mantissa;
+  return Helper.Value;
 }
 
-inline bool check_bf16_from_float(float &Val, uint16_t &Expected) {
-  if (from_float(Val) != Expected) {
-    std::cout << "from_float check for Val = " << Val << " failed!\n";
+bool check_bf16_from_float(float Val, uint16_t Expected) {
+  uint16_t Result = sycl::ext::intel::experimental::bfloat16::from_float(Val);
+  if (Result != Expected) {
+    std::cout << "from_float check for Val = " << Val << " failed!\n"
+              << "Expected " << Expected << " Got " << Result << "\n";
     return false;
   }
   return true;
 }
 
-inline bool check_bf16_to_float(uint16_t &Val, float &Expected) {
-  if (to_float(Val) != Expected) {
-    std::cout << "to_float check for Val = " << Val << " failed!\n";
+bool check_bf16_to_float(uint16_t Val, float Expected) {
+  float Result = sycl::ext::intel::experimental::bfloat16::to_float(Val);
+  if (Result != Expected) {
+    std::cout << "to_float check for Val = " << Val << " failed!\n"
+              << "Expected " << Expected << " Got " << Result << "\n";
     return false;
   }
   return true;
@@ -71,14 +74,14 @@ int main() {
                                    std::stoi("1111111111000001", nullptr, 2));
 
   Success &= check_bf16_to_float(
-      to_float(0), bitsToFloatConv("00000000000000000000000000000000"));
+      0, bitsToFloatConv(std::string("00000000000000000000000000000000")));
   Success &= check_bf16_to_float(
-      to_float(1), bitsToFloatConv("01000111100000000000000000000000"));
+      1, bitsToFloatConv(std::string("01000111100000000000000000000000")));
   Success &= check_bf16_to_float(
-      to_float(42), bitsToFloatConv("00000000001010100000000000000000"));
-  Success &=
-      check_bf16_to_float(to_float(std::numeric_limits<uint16_t>::max()),
-                          bitsToFloatConv("11111111111111110000000000000000"));
+      42, bitsToFloatConv(std::string("01001010001010000000000000000000")));
+  Success &= check_bf16_to_float(
+      std::numeric_limits<uint16_t>::max(),
+      bitsToFloatConv(std::string("01001111011111111111111100000000")));
   if (!Success)
     return -1;
   return 0;
