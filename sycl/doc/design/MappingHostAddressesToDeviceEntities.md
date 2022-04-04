@@ -185,12 +185,6 @@ constructor defined in the same translation unit: this is needed to allow usages
 of `specialization_id` and `device_global` variables from user-defined global
 constructors.
 
-That poses some restrictions on those uniquely identifiable objects, i.e. that
-they can't be used from another global object due to risk of accessing a
-non-initialized object, but that is an UB anyway because the order of global
-objects initialization is not defined in C++ when those objects are defined in
-a different translation unit.
-
 ## Compiler driver part
 
 The compiler driver is the component which is responsible for selecting the
