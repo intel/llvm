@@ -1200,10 +1200,6 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
         auto DeviceGlobals = Img->getDeviceGlobals();
         for (const pi_device_binary_property &DeviceGlobal : DeviceGlobals) {
-          auto Entry = m_DeviceGlobals.find(DeviceGlobal->Name);
-          assert(Entry != m_DeviceGlobals.end() &&
-                 "Device global has not been registered.");
-
           pi::ByteArray DeviceGlobalInfo =
               pi::DeviceBinaryProperty(DeviceGlobal).asByteArray();
 
