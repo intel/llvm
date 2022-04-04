@@ -5322,12 +5322,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (!IsSYCL || Args.hasArg(options::OPT_fno_sycl_use_footer)) {
     CmdArgs.push_back(getBaseInputName(Args, Input));
   } else {
-    SmallString<256> InputFilename;
-    InputFilename = llvm::sys::path::filename(Input.getBaseInput());
-    if (!llvm::sys::path::is_relative(InputFilename))
-      InputFilename = llvm::StringRef(Input.getBaseInput());
-    D.getVFS().makeAbsolute(InputFilename);
-    CmdArgs.push_back(Args.MakeArgString(InputFilename));
+    SmallString<256> AbsPath = llvm::StringRef(Input.getBaseInput());
+    D.getVFS().makeAbsolute(AbsPath);
+    CmdArgs.push_back(
+        Args.MakeArgString(llvm::sys::path::filename(Input.getBaseInput())));
     CmdArgs.push_back("-fsycl-use-main-file-name");
   }
 
