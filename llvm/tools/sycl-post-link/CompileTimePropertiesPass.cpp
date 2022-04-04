@@ -14,6 +14,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 
@@ -175,11 +176,14 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                   : PreservedAnalyses::all();
 }
 
+// Returns true if the transformation changed IntrInst.
 bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     Module &M, IntrinsicInst *IntrInst,
-    SmallVector<IntrinsicInst *, 4> &RemovableAnnotations) {
+    SmallVectorImpl<IntrinsicInst *> &RemovableAnnotations) {
   assert(IntrInst->getIntrinsicID() == Intrinsic::ptr_annotation &&
          "Intrinsic is not a pointer annotation.");
+  assert(IntrInst->arg_size() == 5 &&
+         "Unexpected number of arguments in annotation intrinsic.");
 
   // Get the global variable with the annotation string.
   const GlobalVariable *AnnotStrArgGV = nullptr;
@@ -238,7 +242,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
 
   // If the new annotation string is empty there is no reason to keep it, so
   // replace it with the first operand and mark it for removal.
-  if (NewAnnotString == "") {
+  if (NewAnnotString.empty()) {
     IntrInst->replaceAllUsesWith(IntrInst->getOperand(0));
     RemovableAnnotations.push_back(IntrInst);
     return true;
@@ -247,8 +251,8 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   // Either reuse a previously generated one or create a new global variable
   // with the new annotation string.
   GlobalVariable *NewAnnotStringGV = nullptr;
-  auto ExistingNewAnnotStringIt = NewAnnotationStrings.find(NewAnnotString);
-  if (ExistingNewAnnotStringIt != NewAnnotationStrings.end()) {
+  auto ExistingNewAnnotStringIt = ReusableAnnotStrings.find(NewAnnotString);
+  if (ExistingNewAnnotStringIt != ReusableAnnotStrings.end()) {
     NewAnnotStringGV = ExistingNewAnnotStringIt->second;
   } else {
     Constant *NewAnnotStringData =
@@ -258,7 +262,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
                                           NewAnnotStringData, ".str");
     NewAnnotStringGV->setSection(AnnotStrArgGV->getSection());
     NewAnnotStringGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
-    NewAnnotationStrings.insert({NewAnnotString, NewAnnotStringGV});
+    ReusableAnnotStrings.insert({NewAnnotString, NewAnnotStringGV});
   }
 
   // Replace the annotation string with a bitcast of the new global variable.

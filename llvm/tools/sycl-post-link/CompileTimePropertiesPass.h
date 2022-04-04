@@ -14,13 +14,16 @@
 
 #pragma once
 
-#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PassManager.h"
 
 #include <cassert>
+#include <string>
 #include <unordered_map>
 
 namespace llvm {
+
+// Forward declaration.
+class IntrinsicInst;
 
 class CompileTimePropertiesPass
     : public PassInfoMixin<CompileTimePropertiesPass> {
@@ -35,12 +38,12 @@ private:
   // the SPIR-V translator.
   bool transformSYCLPropertiesAnnotation(
       Module &M, IntrinsicInst *IntrInst,
-      SmallVector<IntrinsicInst *, 4> &RemovableAnnotations);
+      SmallVectorImpl<IntrinsicInst *> &RemovableAnnotations);
 
   // Map for keeping track of global variables generated for annotation strings.
   // This allows reuse for annotations with the same generated annotation
   // strings.
-  std::unordered_map<std::string, GlobalVariable *> NewAnnotationStrings;
+  std::unordered_map<std::string, GlobalVariable *> ReusableAnnotStrings;
 };
 
 namespace detail {
