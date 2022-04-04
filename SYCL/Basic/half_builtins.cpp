@@ -6,7 +6,7 @@
 
 // Intel OpenCL CPU and FPGA emulator drivers do not support cl_khr_fp16
 // extension
-// UNSUPPORTED: (cpu || acc) && opencl
+// UNSUPPORTED: (cpu || accelerator) && opencl
 
 #include <sycl/sycl.hpp>
 
