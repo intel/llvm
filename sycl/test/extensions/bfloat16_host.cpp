@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 #include <sycl/ext/intel/experimental/bfloat16.hpp>
 #include <sycl/sycl.hpp>
@@ -28,7 +29,7 @@ typedef union {
   } RawData;
 } floatConvHelper;
 
-float bistToFloatConv(std::string &Bits) {
+float bitsToFloatConv(std::string &Bits) {
   floatConvHelper &Helper;
   Helper.RawData.Sign = static_cast<uint32_t>(Bits[0] - '0');
   uint32_t Exponent = 0;
@@ -70,14 +71,14 @@ int main() {
                                    std::stoi("1111111111000001", nullptr, 2));
 
   Success &= check_bf16_to_float(
-      to_float(0), bitToFloatConv("00000000000000000000000000000000"));
+      to_float(0), bitsToFloatConv("00000000000000000000000000000000"));
   Success &= check_bf16_to_float(
-      to_float(1), bitToFloatConv("01000111100000000000000000000000"));
+      to_float(1), bitsToFloatConv("01000111100000000000000000000000"));
   Success &= check_bf16_to_float(
-      to_float(42), bitToFloatConv("00000000001010100000000000000000"));
+      to_float(42), bitsToFloatConv("00000000001010100000000000000000"));
   Success &=
       check_bf16_to_float(to_float(std::numeric_limits<uint16_t>::max()),
-                          bitToFloatConv("11111111111111110000000000000000"));
+                          bitsToFloatConv("11111111111111110000000000000000"));
   if (!Success)
     return -1;
   return 0;
