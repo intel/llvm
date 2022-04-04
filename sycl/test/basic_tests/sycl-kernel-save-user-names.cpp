@@ -1,8 +1,8 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -c -o %t.bc %s
+// RUN: %clangxx -fsycl -fsycl-device-only -fno-sycl-early-optimizations -o %t.bc %s
 // RUN: sycl-post-link %t.bc -spec-const=default -o %t.table
-// RUN: llvm-spirv -o %t_0.spv -spirv-max-version=1.3 -spirv-ext=+all %t_0.bc
-// RUN: llvm-spirv -o %t_0.r.bc -r %t_0.spv
-// RUN: llvm-dis %t_0.r.bc -o=- | FileCheck %s
+// RUN: llvm-spirv -o %t.spv -spirv-max-version=1.3 -spirv-ext=+all %t.bc
+// RUN: llvm-spirv -o %t.rev.bc -r %t.spv
+// RUN: llvm-dis %t.rev.bc -o=- | FileCheck %s
 
 // Test to verify that user specified names are retained in SPIR kernel argument
 // names. (It is a copy of clang/test/CodeGenSYCL/save-user-names.cpp with just
