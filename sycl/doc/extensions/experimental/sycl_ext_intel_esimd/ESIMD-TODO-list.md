@@ -17,12 +17,3 @@ github issues mechanism.
   For now the check is only if FD is '()' operator. Works OK for today's
   handler::kernel_parallel_for/... implementations as no other '()' operators
   are invoked except the kernel body.
-
-#### Back-end
-
-1. ESIMD_EMULATOR has limitation on number of threads under Linux. As
-software multi-threading is used for emulating hardware threads,
-number of threads being launched for kernel execution is limited by
-the max number of threads supported by Linux host machine. Under
-investigation
-

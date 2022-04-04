@@ -47,12 +47,7 @@ objects and `copy_to` intrinsics are used which are avaiable only in the ESIMD e
 Full runnable code sample can be found on the
 [github repo](https://github.com/intel/llvm-test-suite/blob/intel/SYCL/ESIMD/vadd_usm.cpp).
 
-#### Native mode and Emulation mode for ESIMD kernel execution
-
-ESIMD kernels can run natively on Intel GPU hardware or on CPU under
-emulation without GPU harware.
-
-#### Compiling and running ESIMD code natively
+#### Compiling and running ESIMD code
 
 Code that uses the ESIMD extension can be compiled and run using the same commands
 as standard SYCL:
@@ -66,29 +61,20 @@ To compile using Intel(R) OneAPI Toolkit:
 To run on an Intel GPU device through the Level Zero backend:
 > `$ SYCL_DEVICE_FILTER=level_zero:gpu ./a.out`
 
-The resulting executable (`a.out`) can only be run on Intel GPU
-hardware, such as Intel(R) UHD Graphics 600 or later under native
-mode. The DPC++ runtime automatically recognizes ESIMD kernels and
-dispatches their execution, so no additional setup is needed. Both
-Linux and Windows platforms are supported for native mode, including
-OpenCL and Level Zero backends.
+The resulting executable (`a.out`) can only be run on Intel GPU hardware, such as
+Intel(R) UHD Graphics 600 or later. The DPC++ runtime automatically recognizes ESIMD
+kernels and dispatches their execution, so no additional setup is needed. Both Linux
+and Windows platforms are supported, including OpenCL and Level Zero backends.
 
 Regular SYCL and ESIMD kernels can co-exist in the same translation unit and in
 the same application, however interoperability (e.g. invocation of ESIMD
 functions from a standard SYCL code) between them is not yet supported.
 
-#### Running ESIMD code under emulation mode
+#### ESIMD_EMULATOR backend
 
 Under Linux environment, the same resulting executable file can be run
-on CPU under emulation mode. The ESIMD_EMULATOR backend emulates GPU
-hardware using software multi-threading supported by Linux host
-machine. This means that the executable file can be run and debugged
-like normal x86_64 Linux application without Intel GPU
-hardware. Limitations applied, such as max number of hardware threads
-emulated for kernel execution or only ESIMD kernels being supported.
-
-To run under emulation through ESIMD_EMULATOR backend:
-> `$ SYCL_DEVICE_FILTER=ext_intel_esimd_emulator:gpu ./a.out`
+on CPU under emulation mode without Intel GPU. For details, check
+[ESIMD_EMULATOR bakend] (esimd_emulator.md)
 
 #### Restrictions
 
@@ -116,7 +102,6 @@ done via explicit APIs; e.g. `sycl::ext::intel::experimental::esimd::block_store
 
 ##### Other restrictions:
 
-- Only Intel GPU device is supported in native mode. In ESIMD
-  emulation mode device code is executed on the CPU.
+- Only Intel GPU device is supported.
 - Interoperability between regular SYCL and ESIMD kernels is not yet supported.
   I.e., it's not possible to invoke an ESIMD kernel from SYCL kernel and vice-versa.
