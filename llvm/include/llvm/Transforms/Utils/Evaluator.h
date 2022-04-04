@@ -18,8 +18,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/GlobalVariable.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 #include <cassert>
 #include <deque>
@@ -27,6 +25,7 @@
 
 namespace llvm {
 
+class CallBase;
 class DataLayout;
 class Function;
 class TargetLibraryInfo;
@@ -127,7 +126,7 @@ private:
   }
 
   /// Casts call result to a type of bitcast call expression
-  Constant *castCallResultIfNeeded(Value *CallExpr, Constant *RV);
+  Constant *castCallResultIfNeeded(Type *ReturnType, Constant *RV);
 
   /// Given call site return callee and list of its formal arguments
   Function *getCalleeWithFormalArgs(CallBase &CB,

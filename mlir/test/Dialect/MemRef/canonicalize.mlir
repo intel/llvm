@@ -406,6 +406,8 @@ func @collapse_after_memref_cast_type_change(%arg0 : memref<?x512x1x1xf32>) -> m
   return %collapsed : memref<?x?xf32>
 }
 
+// -----
+
 // CHECK-LABEL:   func @collapse_after_memref_cast(
 // CHECK-SAME:      %[[INPUT:.*]]: memref<?x512x1x?xf32>) -> memref<?x?xf32> {
 // CHECK:           %[[COLLAPSED:.*]] = memref.collapse_shape %[[INPUT]]
@@ -415,6 +417,21 @@ func @collapse_after_memref_cast(%arg0 : memref<?x512x1x?xf32>) -> memref<?x?xf3
   %dynamic = memref.cast %arg0: memref<?x512x1x?xf32> to memref<?x?x?x?xf32>
   %collapsed = memref.collapse_shape %dynamic [[0], [1, 2, 3]] : memref<?x?x?x?xf32> into memref<?x?xf32>
   return %collapsed : memref<?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL:   func @collapse_after_memref_cast_type_change_dynamic(
+// CHECK-SAME:      %[[INPUT:.*]]: memref<1x1x1x?xi64>) -> memref<?x?xi64> {
+// CHECK:           %[[COLLAPSED:.*]] = memref.collapse_shape %[[INPUT]]
+// CHECK_SAME:        {{\[\[}}0, 1, 2], [3]] : memref<1x1x1x?xi64> into memref<1x?xi64>
+// CHECK:           %[[DYNAMIC:.*]] = memref.cast %[[COLLAPSED]] :
+// CHECK-SAME:         memref<1x?xi64> to memref<?x?xi64>
+// CHECK:           return %[[DYNAMIC]] : memref<?x?xi64>
+func @collapse_after_memref_cast_type_change_dynamic(%arg0: memref<1x1x1x?xi64>) -> memref<?x?xi64> {
+  %casted = memref.cast %arg0 : memref<1x1x1x?xi64> to memref<1x1x?x?xi64>
+  %collapsed = memref.collapse_shape %casted [[0, 1, 2], [3]] : memref<1x1x?x?xi64> into memref<?x?xi64>
+  return %collapsed : memref<?x?xi64>
 }
 
 // -----
@@ -535,3 +552,186 @@ func @self_copy(%m1: memref<?xf32>) {
 
 // CHECK-LABEL: func @self_copy
 //  CHECK-NEXT:   return
+
+// -----
+
+func @scopeMerge() {
+  memref.alloca_scope {
+    %cnt = "test.count"() : () -> index
+    %a = memref.alloca(%cnt) : memref<?xi64>
+    "test.use"(%a) : (memref<?xi64>) -> ()
+  }
+  return
+}
+// CHECK:   func @scopeMerge() {
+// CHECK-NOT: alloca_scope
+// CHECK:     %[[cnt:.+]] = "test.count"() : () -> index
+// CHECK:     %[[alloc:.+]] = memref.alloca(%[[cnt]]) : memref<?xi64>
+// CHECK:     "test.use"(%[[alloc]]) : (memref<?xi64>) -> ()
+// CHECK:     return
+
+func @scopeMerge2() {
+  "test.region"() ({
+    memref.alloca_scope {
+      %cnt = "test.count"() : () -> index
+      %a = memref.alloca(%cnt) : memref<?xi64>
+      "test.use"(%a) : (memref<?xi64>) -> ()
+    }
+    "test.terminator"() : () -> ()
+  }) : () -> ()
+  return
+}
+
+// CHECK:   func @scopeMerge2() {
+// CHECK:     "test.region"() ({
+// CHECK:       memref.alloca_scope {
+// CHECK:         %[[cnt:.+]] = "test.count"() : () -> index
+// CHECK:         %[[alloc:.+]] = memref.alloca(%[[cnt]]) : memref<?xi64>
+// CHECK:         "test.use"(%[[alloc]]) : (memref<?xi64>) -> ()
+// CHECK:       }
+// CHECK:       "test.terminator"() : () -> ()
+// CHECK:     }) : () -> ()
+// CHECK:     return
+// CHECK:   }
+
+func @scopeMerge3() {
+  %cnt = "test.count"() : () -> index
+  "test.region"() ({
+    memref.alloca_scope {
+      %a = memref.alloca(%cnt) : memref<?xi64>
+      "test.use"(%a) : (memref<?xi64>) -> ()
+    }
+    "test.terminator"() : () -> ()
+  }) : () -> ()
+  return
+}
+
+// CHECK:   func @scopeMerge3() {
+// CHECK:     %[[cnt:.+]] = "test.count"() : () -> index
+// CHECK:     %[[alloc:.+]] = memref.alloca(%[[cnt]]) : memref<?xi64>
+// CHECK:     "test.region"() ({
+// CHECK:       memref.alloca_scope {
+// CHECK:         "test.use"(%[[alloc]]) : (memref<?xi64>) -> ()
+// CHECK:       }
+// CHECK:       "test.terminator"() : () -> ()
+// CHECK:     }) : () -> ()
+// CHECK:     return
+// CHECK:   }
+
+func @scopeMerge4() {
+  %cnt = "test.count"() : () -> index
+  "test.region"() ({
+    memref.alloca_scope {
+      %a = memref.alloca(%cnt) : memref<?xi64>
+      "test.use"(%a) : (memref<?xi64>) -> ()
+    }
+    "test.op"() : () -> ()
+    "test.terminator"() : () -> ()
+  }) : () -> ()
+  return
+}
+
+// CHECK:   func @scopeMerge4() {
+// CHECK:     %[[cnt:.+]] = "test.count"() : () -> index
+// CHECK:     "test.region"() ({
+// CHECK:       memref.alloca_scope {
+// CHECK:         %[[alloc:.+]] = memref.alloca(%[[cnt]]) : memref<?xi64>
+// CHECK:         "test.use"(%[[alloc]]) : (memref<?xi64>) -> ()
+// CHECK:       }
+// CHECK:       "test.op"() : () -> ()
+// CHECK:       "test.terminator"() : () -> ()
+// CHECK:     }) : () -> ()
+// CHECK:     return
+// CHECK:   }
+
+func @scopeMerge5() {
+  "test.region"() ({
+    memref.alloca_scope {
+      affine.parallel (%arg) = (0) to (64) {
+        %a = memref.alloca(%arg) : memref<?xi64>
+        "test.use"(%a) : (memref<?xi64>) -> ()
+      }
+    }
+    "test.op"() : () -> ()
+    "test.terminator"() : () -> ()
+  }) : () -> ()
+  return
+}
+
+// CHECK:   func @scopeMerge5() {
+// CHECK:     "test.region"() ({
+// CHECK:       affine.parallel (%[[cnt:.+]]) = (0) to (64) {
+// CHECK:         %[[alloc:.+]] = memref.alloca(%[[cnt]]) : memref<?xi64>
+// CHECK:         "test.use"(%[[alloc]]) : (memref<?xi64>) -> ()
+// CHECK:       }
+// CHECK:       "test.op"() : () -> ()
+// CHECK:       "test.terminator"() : () -> ()
+// CHECK:     }) : () -> ()
+// CHECK:     return
+// CHECK:   }
+
+func @scopeInline(%arg : memref<index>) {
+  %cnt = "test.count"() : () -> index
+  "test.region"() ({
+    memref.alloca_scope {
+      memref.store %cnt, %arg[] : memref<index>
+    }
+    "test.terminator"() : () -> ()
+  }) : () -> ()
+  return
+}
+
+// CHECK:   func @scopeInline
+// CHECK-NOT:  memref.alloca_scope
+
+// -----
+
+// CHECK-LABEL: func @reinterpret_of_reinterpret
+//  CHECK-SAME: (%[[ARG:.*]]: memref<?xi8>, %[[SIZE1:.*]]: index, %[[SIZE2:.*]]: index)
+//       CHECK: %[[RES:.*]] = memref.reinterpret_cast %[[ARG]] to offset: [0], sizes: [%[[SIZE2]]], strides: [1]
+//       CHECK: return %[[RES]]
+func @reinterpret_of_reinterpret(%arg : memref<?xi8>, %size1: index, %size2: index) -> memref<?xi8> {
+  %0 = memref.reinterpret_cast %arg to offset: [0], sizes: [%size1], strides: [1] : memref<?xi8> to memref<?xi8>
+  %1 = memref.reinterpret_cast %0 to offset: [0], sizes: [%size2], strides: [1] : memref<?xi8> to memref<?xi8>
+  return %1 : memref<?xi8>
+}
+
+// -----
+
+// CHECK-LABEL: func @reinterpret_of_cast
+//  CHECK-SAME: (%[[ARG:.*]]: memref<?xi8>, %[[SIZE:.*]]: index)
+//       CHECK: %[[RES:.*]] = memref.reinterpret_cast %[[ARG]] to offset: [0], sizes: [%[[SIZE]]], strides: [1]
+//       CHECK: return %[[RES]]
+func @reinterpret_of_cast(%arg : memref<?xi8>, %size: index) -> memref<?xi8> {
+  %0 = memref.cast %arg : memref<?xi8> to memref<5xi8>
+  %1 = memref.reinterpret_cast %0 to offset: [0], sizes: [%size], strides: [1] : memref<5xi8> to memref<?xi8>
+  return %1 : memref<?xi8>
+}
+
+// -----
+
+// CHECK-LABEL: func @reinterpret_of_subview
+//  CHECK-SAME: (%[[ARG:.*]]: memref<?xi8>, %[[SIZE1:.*]]: index, %[[SIZE2:.*]]: index)
+//       CHECK: %[[RES:.*]] = memref.reinterpret_cast %[[ARG]] to offset: [0], sizes: [%[[SIZE2]]], strides: [1]
+//       CHECK: return %[[RES]]
+func @reinterpret_of_subview(%arg : memref<?xi8>, %size1: index, %size2: index) -> memref<?xi8> {
+  %0 = memref.subview %arg[0] [%size1] [1] : memref<?xi8> to memref<?xi8>
+  %1 = memref.reinterpret_cast %0 to offset: [0], sizes: [%size2], strides: [1] : memref<?xi8> to memref<?xi8>
+  return %1 : memref<?xi8>
+}
+
+// -----
+
+func @canonicalize_rank_reduced_subview(%arg0 : memref<8x?xf32>,
+    %arg1 : index) -> memref<?xf32, offset : ?, strides : [?]> {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %0 = memref.subview %arg0[%c0, %c0] [1, %arg1] [%c1, %c1] : memref<8x?xf32> to memref<?xf32, offset : ?, strides : [?]>
+  return %0 :  memref<?xf32, offset : ?, strides : [?]>
+}
+//  CHECK-DAG: #[[MAP:.+]] = affine_map<(d0)[s0] -> (d0 + s0)>
+//      CHECK: func @canonicalize_rank_reduced_subview
+// CHECK-SAME:     %[[ARG0:.+]]: memref<8x?xf32>
+// CHECK-SAME:     %[[ARG1:.+]]: index
+//      CHECK:   %[[SUBVIEW:.+]] = memref.subview %[[ARG0]][0, 0] [1, %[[ARG1]]] [1, 1]
+// CHECK-SAME:       memref<8x?xf32> to memref<?xf32, #[[MAP]]>

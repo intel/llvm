@@ -12,10 +12,13 @@
 //===----------------------------------------------------------------------===//
 
 #include <memory>
+#include <system_error>
 #include <utility>
 #include <vector>
 
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/OperationKinds.h"
+#include "clang/AST/StmtVisitor.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
@@ -23,12 +26,103 @@
 #include "clang/Analysis/FlowSensitive/Transfer.h"
 #include "clang/Analysis/FlowSensitive/TypeErasedDataflowAnalysis.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/Error.h"
 
 namespace clang {
 namespace dataflow {
+
+class StmtToEnvMapImpl : public StmtToEnvMap {
+public:
+  StmtToEnvMapImpl(
+      const ControlFlowContext &CFCtx,
+      llvm::ArrayRef<llvm::Optional<TypeErasedDataflowAnalysisState>>
+          BlockToState)
+      : CFCtx(CFCtx), BlockToState(BlockToState) {}
+
+  const Environment *getEnvironment(const Stmt &S) const override {
+    auto BlockIT = CFCtx.getStmtToBlock().find(&S);
+    assert(BlockIT != CFCtx.getStmtToBlock().end());
+    const auto &State = BlockToState[BlockIT->getSecond()->getBlockID()];
+    assert(State.hasValue());
+    return &State.getValue().Env;
+  }
+
+private:
+  const ControlFlowContext &CFCtx;
+  llvm::ArrayRef<llvm::Optional<TypeErasedDataflowAnalysisState>> BlockToState;
+};
+
+/// Returns the index of `Block` in the successors of `Pred`.
+static int blockIndexInPredecessor(const CFGBlock &Pred,
+                                   const CFGBlock &Block) {
+  auto BlockPos = llvm::find_if(
+      Pred.succs(), [&Block](const CFGBlock::AdjacentBlock &Succ) {
+        return Succ && Succ->getBlockID() == Block.getBlockID();
+      });
+  return BlockPos - Pred.succ_begin();
+}
+
+/// Extends the flow condition of an environment based on a terminator
+/// statement.
+class TerminatorVisitor : public ConstStmtVisitor<TerminatorVisitor> {
+public:
+  TerminatorVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env,
+                    int BlockSuccIdx)
+      : StmtToEnv(StmtToEnv), Env(Env), BlockSuccIdx(BlockSuccIdx) {}
+
+  void VisitIfStmt(const IfStmt *S) {
+    auto *Cond = S->getCond()->IgnoreParenImpCasts();
+    assert(Cond != nullptr);
+    extendFlowCondition(*Cond);
+  }
+
+  void VisitWhileStmt(const WhileStmt *S) {
+    auto *Cond = S->getCond()->IgnoreParenImpCasts();
+    assert(Cond != nullptr);
+    extendFlowCondition(*Cond);
+  }
+
+  void VisitBinaryOperator(const BinaryOperator *S) {
+    assert(S->getOpcode() == BO_LAnd || S->getOpcode() == BO_LOr);
+    auto *LHS = S->getLHS()->IgnoreParenImpCasts();
+    assert(LHS != nullptr);
+    extendFlowCondition(*LHS);
+  }
+
+  void VisitConditionalOperator(const ConditionalOperator *S) {
+    auto *Cond = S->getCond()->IgnoreParenImpCasts();
+    assert(Cond != nullptr);
+    extendFlowCondition(*Cond);
+  }
+
+private:
+  void extendFlowCondition(const Expr &Cond) {
+    // The terminator sub-expression might not be evaluated.
+    if (Env.getValue(Cond, SkipPast::None) == nullptr)
+      transfer(StmtToEnv, Cond, Env);
+
+    auto *Val =
+        cast_or_null<BoolValue>(Env.getValue(Cond, SkipPast::Reference));
+    if (Val == nullptr)
+      return;
+
+    // The condition must be inverted for the successor that encompasses the
+    // "else" branch, if such exists.
+    if (BlockSuccIdx == 1)
+      Val = &Env.makeNot(*Val);
+
+    Env.addToFlowCondition(*Val);
+  }
+
+  const StmtToEnvMap &StmtToEnv;
+  Environment &Env;
+  int BlockSuccIdx;
+};
 
 /// Computes the input state for a given basic block by joining the output
 /// states of its predecessors.
@@ -76,6 +170,8 @@ static TypeErasedDataflowAnalysisState computeBlockInputState(
   }
 
   llvm::Optional<TypeErasedDataflowAnalysisState> MaybeState;
+  bool ApplyBuiltinTransfer = Analysis.applyBuiltinTransfer();
+
   for (const CFGBlock *Pred : Preds) {
     // Skip if the `Block` is unreachable or control flow cannot get past it.
     if (!Pred || Pred->hasNoReturnElement())
@@ -88,13 +184,21 @@ static TypeErasedDataflowAnalysisState computeBlockInputState(
     if (!MaybePredState.hasValue())
       continue;
 
-    const TypeErasedDataflowAnalysisState &PredState =
-        MaybePredState.getValue();
+    TypeErasedDataflowAnalysisState PredState = MaybePredState.getValue();
+    if (ApplyBuiltinTransfer) {
+      if (const Stmt *PredTerminatorStmt = Pred->getTerminatorStmt()) {
+        const StmtToEnvMapImpl StmtToEnv(CFCtx, BlockStates);
+        TerminatorVisitor(StmtToEnv, PredState.Env,
+                          blockIndexInPredecessor(*Pred, Block))
+            .Visit(PredTerminatorStmt);
+      }
+    }
+
     if (MaybeState.hasValue()) {
       Analysis.joinTypeErased(MaybeState->Lattice, PredState.Lattice);
-      MaybeState->Env.join(PredState.Env);
+      MaybeState->Env.join(PredState.Env, Analysis);
     } else {
-      MaybeState = PredState;
+      MaybeState = std::move(PredState);
     }
   }
   if (!MaybeState.hasValue()) {
@@ -109,16 +213,19 @@ static TypeErasedDataflowAnalysisState computeBlockInputState(
 /// Transfers `State` by evaluating `CfgStmt` in the context of `Analysis`.
 /// `HandleTransferredStmt` (if provided) will be applied to `CfgStmt`, after it
 /// is evaluated.
-static void
-transferCFGStmt(const CFGStmt &CfgStmt, TypeErasedDataflowAnalysis &Analysis,
-                TypeErasedDataflowAnalysisState &State,
-                std::function<void(const CFGStmt &,
-                                   const TypeErasedDataflowAnalysisState &)>
-                    HandleTransferredStmt) {
+static void transferCFGStmt(
+    const ControlFlowContext &CFCtx,
+    llvm::ArrayRef<llvm::Optional<TypeErasedDataflowAnalysisState>> BlockStates,
+    const CFGStmt &CfgStmt, TypeErasedDataflowAnalysis &Analysis,
+    TypeErasedDataflowAnalysisState &State,
+    std::function<void(const CFGStmt &,
+                       const TypeErasedDataflowAnalysisState &)>
+        HandleTransferredStmt) {
   const Stmt *S = CfgStmt.getStmt();
   assert(S != nullptr);
 
-  transfer(*S, State.Env);
+  if (Analysis.applyBuiltinTransfer())
+    transfer(StmtToEnvMapImpl(CFCtx, BlockStates), *S, State.Env);
   Analysis.transferTypeErased(S, State.Lattice, State.Env);
 
   if (HandleTransferredStmt != nullptr)
@@ -173,11 +280,12 @@ TypeErasedDataflowAnalysisState transferBlock(
   for (const CFGElement &Element : Block) {
     switch (Element.getKind()) {
     case CFGElement::Statement:
-      transferCFGStmt(*Element.getAs<CFGStmt>(), Analysis, State,
-                      HandleTransferredStmt);
+      transferCFGStmt(CFCtx, BlockStates, *Element.getAs<CFGStmt>(), Analysis,
+                      State, HandleTransferredStmt);
       break;
     case CFGElement::Initializer:
-      transferCFGInitializer(*Element.getAs<CFGInitializer>(), State);
+      if (Analysis.applyBuiltinTransfer())
+        transferCFGInitializer(*Element.getAs<CFGInitializer>(), State);
       break;
     default:
       // FIXME: Evaluate other kinds of `CFGElement`.
@@ -187,7 +295,7 @@ TypeErasedDataflowAnalysisState transferBlock(
   return State;
 }
 
-std::vector<llvm::Optional<TypeErasedDataflowAnalysisState>>
+llvm::Expected<std::vector<llvm::Optional<TypeErasedDataflowAnalysisState>>>
 runTypeErasedDataflowAnalysis(const ControlFlowContext &CFCtx,
                               TypeErasedDataflowAnalysis &Analysis,
                               const Environment &InitEnv) {
@@ -209,12 +317,12 @@ runTypeErasedDataflowAnalysis(const ControlFlowContext &CFCtx,
   // FIXME: Consider making the maximum number of iterations configurable.
   // FIXME: Set up statistics (see llvm/ADT/Statistic.h) to count average number
   // of iterations, number of functions that time out, etc.
-  unsigned Iterations = 0;
-  static constexpr unsigned MaxIterations = 1 << 16;
+  uint32_t Iterations = 0;
+  static constexpr uint32_t MaxIterations = 1 << 16;
   while (const CFGBlock *Block = Worklist.dequeue()) {
     if (++Iterations > MaxIterations) {
-      llvm::errs() << "Maximum number of iterations reached, giving up.\n";
-      break;
+      return llvm::createStringError(std::errc::timed_out,
+                                     "maximum number of iterations reached");
     }
 
     const llvm::Optional<TypeErasedDataflowAnalysisState> &OldBlockState =
@@ -225,7 +333,7 @@ runTypeErasedDataflowAnalysis(const ControlFlowContext &CFCtx,
     if (OldBlockState.hasValue() &&
         Analysis.isEqualTypeErased(OldBlockState.getValue().Lattice,
                                    NewBlockState.Lattice) &&
-        OldBlockState->Env == NewBlockState.Env) {
+        OldBlockState->Env.equivalentTo(NewBlockState.Env, Analysis)) {
       // The state of `Block` didn't change after transfer so there's no need to
       // revisit its successors.
       continue;

@@ -30,6 +30,28 @@ using namespace mlir;
 // normal RewritePattern.
 
 namespace {
+/// Converts math.expm1 to SPIR-V ops.
+///
+/// SPIR-V does not have a direct operations for exp(x)-1. Explicitly lower to
+/// these operations.
+template <typename ExpOp>
+class ExpM1OpPattern final : public OpConversionPattern<math::ExpM1Op> {
+public:
+  using OpConversionPattern<math::ExpM1Op>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(math::ExpM1Op operation, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    assert(adaptor.getOperands().size() == 1);
+    Location loc = operation.getLoc();
+    auto type = this->getTypeConverter()->convertType(operation.getType());
+    auto exp = rewriter.create<ExpOp>(loc, type, adaptor.getOperand());
+    auto one = spirv::ConstantOp::getOne(type, loc, rewriter);
+    rewriter.replaceOpWithNewOp<spirv::FSubOp>(operation, exp, one);
+    return success();
+  }
+};
+
 /// Converts math.log1p to SPIR-V ops.
 ///
 /// SPIR-V does not have a direct operations for log(1+x). Explicitly lower to
@@ -44,11 +66,10 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     assert(adaptor.getOperands().size() == 1);
     Location loc = operation.getLoc();
-    auto type =
-        this->getTypeConverter()->convertType(operation.getOperand().getType());
+    auto type = this->getTypeConverter()->convertType(operation.getType());
     auto one = spirv::ConstantOp::getOne(type, operation.getLoc(), rewriter);
     auto onePlus =
-        rewriter.create<spirv::FAddOp>(loc, one, adaptor.getOperands()[0]);
+        rewriter.create<spirv::FAddOp>(loc, one, adaptor.getOperand());
     rewriter.replaceOpWithNewOp<LogOp>(operation, type, onePlus);
     return success();
   }
@@ -65,29 +86,30 @@ void populateMathToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
 
   // GLSL patterns
   patterns
-      .add<Log1pOpPattern<spirv::GLSLLogOp>,
+      .add<Log1pOpPattern<spirv::GLSLLogOp>, ExpM1OpPattern<spirv::GLSLExpOp>,
            spirv::ElementwiseOpPattern<math::AbsOp, spirv::GLSLFAbsOp>,
            spirv::ElementwiseOpPattern<math::CeilOp, spirv::GLSLCeilOp>,
            spirv::ElementwiseOpPattern<math::CosOp, spirv::GLSLCosOp>,
            spirv::ElementwiseOpPattern<math::ExpOp, spirv::GLSLExpOp>,
            spirv::ElementwiseOpPattern<math::FloorOp, spirv::GLSLFloorOp>,
+           spirv::ElementwiseOpPattern<math::FmaOp, spirv::GLSLFmaOp>,
            spirv::ElementwiseOpPattern<math::LogOp, spirv::GLSLLogOp>,
            spirv::ElementwiseOpPattern<math::PowFOp, spirv::GLSLPowOp>,
            spirv::ElementwiseOpPattern<math::RsqrtOp, spirv::GLSLInverseSqrtOp>,
            spirv::ElementwiseOpPattern<math::SinOp, spirv::GLSLSinOp>,
            spirv::ElementwiseOpPattern<math::SqrtOp, spirv::GLSLSqrtOp>,
-           spirv::ElementwiseOpPattern<math::TanhOp, spirv::GLSLTanhOp>,
-           spirv::ElementwiseOpPattern<math::FmaOp, spirv::GLSLFmaOp>>(
+           spirv::ElementwiseOpPattern<math::TanhOp, spirv::GLSLTanhOp>>(
           typeConverter, patterns.getContext());
 
   // OpenCL patterns
-  patterns.add<Log1pOpPattern<spirv::OCLLogOp>,
+  patterns.add<Log1pOpPattern<spirv::OCLLogOp>, ExpM1OpPattern<spirv::OCLExpOp>,
                spirv::ElementwiseOpPattern<math::AbsOp, spirv::OCLFAbsOp>,
                spirv::ElementwiseOpPattern<math::CeilOp, spirv::OCLCeilOp>,
                spirv::ElementwiseOpPattern<math::CosOp, spirv::OCLCosOp>,
                spirv::ElementwiseOpPattern<math::ErfOp, spirv::OCLErfOp>,
                spirv::ElementwiseOpPattern<math::ExpOp, spirv::OCLExpOp>,
                spirv::ElementwiseOpPattern<math::FloorOp, spirv::OCLFloorOp>,
+               spirv::ElementwiseOpPattern<math::FmaOp, spirv::OCLFmaOp>,
                spirv::ElementwiseOpPattern<math::LogOp, spirv::OCLLogOp>,
                spirv::ElementwiseOpPattern<math::PowFOp, spirv::OCLPowOp>,
                spirv::ElementwiseOpPattern<math::RsqrtOp, spirv::OCLRsqrtOp>,

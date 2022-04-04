@@ -9,35 +9,35 @@
 #ifndef LLD_ELF_OUTPUT_SECTIONS_H
 #define LLD_ELF_OUTPUT_SECTIONS_H
 
-#include "Config.h"
 #include "InputSection.h"
 #include "LinkerScript.h"
-#include "Relocations.h"
 #include "lld/Common/LLVM.h"
-#include "llvm/MC/StringTableBuilder.h"
-#include "llvm/Object/ELF.h"
+
 #include <array>
 
 namespace lld {
 namespace elf {
 
 struct PhdrEntry;
-class InputSection;
-class InputSectionBase;
+
+struct CompressedData {
+  std::unique_ptr<SmallVector<uint8_t, 0>[]> shards;
+  uint32_t numShards = 0;
+  uint32_t checksum = 0;
+  uint64_t uncompressedSize;
+};
 
 // This represents a section in an output file.
 // It is composed of multiple InputSections.
 // The writer creates multiple OutputSections and assign them unique,
 // non-overlapping file offsets and VAs.
-class OutputSection final : public SectionCommand, public SectionBase {
+class OutputSection final : public SectionBase {
 public:
   OutputSection(StringRef name, uint32_t type, uint64_t flags);
 
   static bool classof(const SectionBase *s) {
     return s->kind() == SectionBase::Output;
   }
-
-  static bool classof(const SectionCommand *c);
 
   uint64_t getLMA() const { return ptLoad ? addr + ptLoad->lmaOffset : addr; }
   template <typename ELFT> void writeHeaderTo(typename ELFT::Shdr *sHdr);
@@ -90,7 +90,7 @@ public:
   std::string memoryRegionName;
   std::string lmaRegionName;
   bool nonAlloc = false;
-  bool noload = false;
+  bool typeIsSet = false;
   bool expressionsUseSymbols = false;
   bool usedInExpression = false;
   bool inOverlay = false;
@@ -112,10 +112,19 @@ public:
 
 private:
   // Used for implementation of --compress-debug-sections option.
-  SmallVector<uint8_t, 0> zDebugHeader;
-  SmallVector<char, 0> compressedData;
+  CompressedData compressed;
 
   std::array<uint8_t, 4> getFiller();
+};
+
+struct OutputDesc final : SectionCommand {
+  OutputSection osec;
+  OutputDesc(StringRef name, uint32_t type, uint64_t flags)
+      : SectionCommand(OutputSectionKind), osec(name, type, flags) {}
+
+  static bool classof(const SectionCommand *c) {
+    return c->kind == OutputSectionKind;
+  }
 };
 
 int getPriority(StringRef s);

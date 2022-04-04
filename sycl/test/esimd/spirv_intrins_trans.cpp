@@ -11,7 +11,7 @@
 // LowerESIMD.cpp)
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
@@ -21,16 +21,12 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 size_t caller() {
 
   size_t DoNotOpt[1];
-  cl::sycl::buffer<size_t, 1> buf(&DoNotOpt[0], 1);
   uint32_t DoNotOpt32[1];
-  cl::sycl::buffer<uint32_t, 1> buf32(&DoNotOpt32[0], 1);
-
   size_t DoNotOptXYZ[3];
-  cl::sycl::buffer<size_t, 1> bufXYZ(&DoNotOptXYZ[0], sycl::range<1>(3));
 
   cl::sycl::queue().submit([&](cl::sycl::handler &cgh) {
-    auto DoNotOptimize = buf.get_access<cl::sycl::access::mode::write>(cgh);
-    auto DoNotOptimize32 = buf32.get_access<cl::sycl::access::mode::write>(cgh);
+    auto DoNotOptimize = &DoNotOpt[0];
+    auto DoNotOptimize32 = &DoNotOpt32[0];
 
     kernel<class kernel_GlobalInvocationId_x>([=]() SYCL_ESIMD_KERNEL {
       DoNotOptimize[0] = __spirv_GlobalInvocationId_x();
@@ -193,8 +189,7 @@ size_t caller() {
     //  x i64> %0, i64 1 %3 = extractelement <3 x i64> %0, i64 2
     // In this case we will generate 3 calls to the same GenX intrinsic,
     // But -early-cse will later remove this redundancy.
-    auto DoNotOptimizeXYZ =
-        bufXYZ.get_access<cl::sycl::access::mode::write>(cgh);
+    auto DoNotOptimizeXYZ = &DoNotOptXYZ[0];
     kernel<class kernel_LocalInvocationId_xyz>([=]() SYCL_ESIMD_KERNEL {
       DoNotOptimizeXYZ[0] = __spirv_LocalInvocationId_x();
       DoNotOptimizeXYZ[1] = __spirv_LocalInvocationId_y();

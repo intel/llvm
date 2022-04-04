@@ -8,7 +8,6 @@
 
 #include "lldb/Host/Config.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/Logging.h"
 #include "lldb/lldb-enumerations.h"
 
 #if LLDB_ENABLE_PYTHON
@@ -32,7 +31,7 @@ ScriptedProcessPythonInterface::ScriptedProcessPythonInterface(
 
 StructuredData::GenericSP ScriptedProcessPythonInterface::CreatePluginObject(
     llvm::StringRef class_name, ExecutionContext &exe_ctx,
-    StructuredData::DictionarySP args_sp) {
+    StructuredData::DictionarySP args_sp, StructuredData::Generic *script_obj) {
   if (class_name.empty())
     return {};
 
@@ -46,9 +45,6 @@ StructuredData::GenericSP ScriptedProcessPythonInterface::CreatePluginObject(
   PythonObject ret_val = LLDBSwigPythonCreateScriptedProcess(
       class_name.str().c_str(), m_interpreter.GetDictionaryName(), target_sp,
       args_impl, error_string);
-
-  if (!ret_val)
-    return {};
 
   m_object_instance_sp =
       StructuredData::GenericSP(new StructuredPythonObject(std::move(ret_val)));
@@ -92,6 +88,17 @@ ScriptedProcessPythonInterface::GetMemoryRegionContainingAddress(
   return mem_region;
 }
 
+StructuredData::DictionarySP ScriptedProcessPythonInterface::GetThreadsInfo() {
+  Status error;
+  StructuredData::DictionarySP dict =
+      Dispatch<StructuredData::DictionarySP>("get_threads_info", error);
+
+  if (!CheckStructuredDataObject(LLVM_PRETTY_FUNCTION, dict, error))
+    return {};
+
+  return dict;
+}
+
 StructuredData::DictionarySP
 ScriptedProcessPythonInterface::GetThreadWithID(lldb::tid_t tid) {
   Status error;
@@ -117,9 +124,21 @@ lldb::DataExtractorSP ScriptedProcessPythonInterface::ReadMemoryAtAddress(
                                          address, size);
 }
 
-StructuredData::DictionarySP ScriptedProcessPythonInterface::GetLoadedImages() {
-  // TODO: Implement
-  return {};
+StructuredData::ArraySP ScriptedProcessPythonInterface::GetLoadedImages() {
+  Status error;
+  StructuredData::ArraySP array =
+      Dispatch<StructuredData::ArraySP>("get_loaded_images", error);
+
+  if (!array || !array->IsValid() || error.Fail()) {
+    return ScriptedInterface::ErrorWithMessage<StructuredData::ArraySP>(
+        LLVM_PRETTY_FUNCTION,
+        llvm::Twine("Null or invalid object (" +
+                    llvm::Twine(error.AsCString()) + llvm::Twine(")."))
+            .str(),
+        error);
+  }
+
+  return array;
 }
 
 lldb::pid_t ScriptedProcessPythonInterface::GetProcessID() {
@@ -154,12 +173,8 @@ ScriptedProcessPythonInterface::GetScriptedThreadPluginName() {
 }
 
 lldb::ScriptedThreadInterfaceSP
-ScriptedProcessPythonInterface::GetScriptedThreadInterface() {
-  if (!m_scripted_thread_interface_sp)
-    m_scripted_thread_interface_sp =
-        std::make_shared<ScriptedThreadPythonInterface>(m_interpreter);
-
-  return m_scripted_thread_interface_sp;
+ScriptedProcessPythonInterface::CreateScriptedThreadInterface() {
+  return std::make_shared<ScriptedThreadPythonInterface>(m_interpreter);
 }
 
 #endif

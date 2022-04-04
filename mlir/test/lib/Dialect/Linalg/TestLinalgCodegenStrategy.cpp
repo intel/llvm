@@ -13,12 +13,12 @@
 #include <utility>
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/CodegenStrategy.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 
@@ -45,7 +45,6 @@ struct TestLinalgCodegenStrategy
                     linalg::LinalgDialect,
                     memref::MemRefDialect,
                     scf::SCFDialect,
-                    StandardOpsDialect,
                     vector::VectorDialect>();
     // clang-format on
   }
@@ -109,6 +108,17 @@ struct TestLinalgCodegenStrategy
       *this, "hoist-paddings",
       llvm::cl::desc("Operand hoisting depths when test-pad-pattern."),
       llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
+  ListOption<std::string> transposePaddings{
+      *this, "transpose-paddings",
+      llvm::cl::desc(
+          "Transpose paddings when test-pad-pattern. Specify a "
+          "operand dimension interchange using the following format:\n"
+          "-transpose-paddings=1:0:2,0:1,0:1\n"
+          "It defines the interchange [1, 0, 2] for operand one and "
+          "the interchange [0, 1] (no transpose) for the remaining operands."
+          "All interchange vectors have to be permuations matching the "
+          "operand rank."),
+      llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
   Option<bool> generalize{*this, "generalize",
                           llvm::cl::desc("Generalize named operations."),
                           llvm::cl::init(false)};
@@ -133,7 +143,7 @@ struct TestLinalgCodegenStrategy
           "Split vector transfers between slow (masked) and fast "
           "(unmasked) variants. Possible options are:\n"
           "\tnone: keep unsplit vector.transfer and pay the full price\n"
-          "\tlinalg-copy: use linalg.fill + linalg.copy for the slow path\n"
+          "\tmemref.copy: use linalg.fill + memref.copy for the slow path\n"
           "\tvector-transfers: use extra small unmasked vector.transfer for"
           " the slow path\n"),
       llvm::cl::init("none")};
@@ -156,7 +166,7 @@ struct TestLinalgCodegenStrategy
           "latch on:\n"
           "\tlinalg.matmul: anchor on linalg.matmul\n"
           "\tlinalg.matmul_column_major: anchor on linalg.matmul_column_major\n"
-          "\tlinalg.copy: anchor on linalg.copy\n"
+          "\tmemref.copy: anchor on memref.copy\n"
           "\tlinalg.fill: anchor on linalg.fill\n"),
       llvm::cl::init("")};
   Option<std::string> anchorFuncOpName{
@@ -174,27 +184,27 @@ void TestLinalgCodegenStrategy::runStrategy(
     LinalgPaddingOptions paddingOptions,
     vector::VectorContractLowering vectorContractLowering,
     vector::VectorTransferSplit vectorTransferSplit) {
+  std::string anchorOpNameOrWildcard = fuse ? "" : anchorOpName.getValue();
   CodegenStrategy strategy;
   strategy
       .tileAndFuseIf(fuse && !tileSizes.empty(), anchorOpName,
-                     std::move(tilingAndFusionOptions))
-      .tileIf(!fuse && !tileSizes.empty(), anchorOpName,
-              std::move(tilingOptions))
+                     tilingAndFusionOptions)
+      .tileIf(!fuse && !tileSizes.empty(), anchorOpName, tilingOptions)
       .promoteIf(!fuse && promote, anchorOpName,
                  LinalgPromotionOptions()
                      .setAlignment(16)
                      .setUseFullTileBuffersByDefault(promoteFullTile))
       .tileIf(!fuse && !registerTileSizes.empty(), anchorOpName,
-              std::move(registerTilingOptions))
+              registerTilingOptions)
       .promoteIf(!fuse && registerPromote, anchorOpName,
                  LinalgPromotionOptions()
                      .setAlignment(16)
                      .setUseFullTileBuffersByDefault(registerPromoteFullTile))
-      .padIf(pad, "", std::move(paddingOptions))
+      .padIf(pad, anchorOpNameOrWildcard, std::move(paddingOptions))
       .decomposeIf(decompose)
-      .generalizeIf(generalize, "")
+      .generalizeIf(generalize, anchorOpNameOrWildcard)
       .interchangeIf(!iteratorInterchange.empty(), iteratorInterchange)
-      .vectorizeIf(vectorize, "", nullptr, vectorizePadding)
+      .vectorizeIf(vectorize, anchorOpNameOrWildcard, nullptr, vectorizePadding)
       .vectorLowering(
           LinalgVectorLoweringOptions()
               .setVectorTransformsOptions(
@@ -209,7 +219,7 @@ void TestLinalgCodegenStrategy::runStrategy(
               .enableTransferToSCFConversion());
   // Created a nested OpPassManager and run.
   FuncOp funcOp = getOperation();
-  OpPassManager dynamicPM("builtin.func");
+  OpPassManager dynamicPM("func.func");
   strategy.configurePassPipeline(dynamicPM, funcOp.getContext(), runEnablePass);
   if (failed(runPipeline(dynamicPM, funcOp)))
     return signalPassFailure();
@@ -257,9 +267,21 @@ void TestLinalgCodegenStrategy::runOnOperation() {
                ? hoistPaddings[opOperand.getOperandNumber()]
                : 0;
   };
+  auto transposeFunc = [&](OpOperand &opOperand) {
+    SmallVector<int64_t> transposeVector = {};
+    if (opOperand.getOperandNumber() >= transposePaddings.size())
+      return transposeVector;
+    SmallVector<StringRef> elems;
+    StringRef(transposePaddings[opOperand.getOperandNumber()])
+        .split(elems, ':');
+    for (StringRef elem : elems)
+      transposeVector.push_back(std::stoi(elem.str()));
+    return transposeVector;
+  };
   paddingOptions.setPaddingValueComputationFunction(getNeutralOfLinalgOp);
   paddingOptions.setPaddingNoFoldComputationFunction(packFunc);
   paddingOptions.setPaddingHoistComputationFunction(hoistingFunc);
+  paddingOptions.setPaddingTransposeComputationFunction(transposeFunc);
 
   // Compute input padding values only an return failure for output operands.
   if (padInputsOnly) {
@@ -283,7 +305,7 @@ void TestLinalgCodegenStrategy::runOnOperation() {
       llvm::StringSwitch<vector::VectorTransferSplit>(
           splitVectorTransfersTo.getValue())
           .Case("none", vector::VectorTransferSplit::None)
-          .Case("linalg-copy", vector::VectorTransferSplit::LinalgCopy)
+          .Case("memref-copy", vector::VectorTransferSplit::LinalgCopy)
           .Case("vector-transfers", vector::VectorTransferSplit::VectorTransfer)
           .Default(vector::VectorTransferSplit::None);
 

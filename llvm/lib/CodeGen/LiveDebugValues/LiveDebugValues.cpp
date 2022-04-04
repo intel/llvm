@@ -8,14 +8,16 @@
 
 #include "LiveDebugValues.h"
 
-#include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/MachineFrameInfo.h"
+#include "llvm/ADT/Triple.h"
+#include "llvm/CodeGen/MachineDominators.h"
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/Passes.h"
+#include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/PassRegistry.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Target/TargetMachine.h"
 
 /// \file LiveDebugValues.cpp
 ///
@@ -65,7 +67,7 @@ public:
   static char ID;
 
   LiveDebugValues();
-  ~LiveDebugValues() {}
+  ~LiveDebugValues() = default;
 
   /// Calculate the liveness information for the given machine function.
   bool runOnMachineFunction(MachineFunction &MF) override;
@@ -128,6 +130,6 @@ bool llvm::debuginfoShouldUseDebugInstrRef(const Triple &T) {
       ValueTrackingVariableLocations != cl::boolOrDefault::BOU_FALSE)
     return true;
 
-  // Otherwise: enable if explicitly requestedo n command line.
+  // Enable if explicitly requested on command line.
   return ValueTrackingVariableLocations == cl::boolOrDefault::BOU_TRUE;
 }

@@ -29,6 +29,7 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineDominators.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -549,6 +550,11 @@ void CSKYConstantIslands::initializeFunctionInfo(
           case CSKY::LRW32:
           case CSKY::LRW32_Gen:
             Bits = 16;
+            Scale = 4;
+            break;
+          case CSKY::f2FLRW_S:
+          case CSKY::f2FLRW_D:
+            Bits = 8;
             Scale = 4;
             break;
           case CSKY::GRS32:

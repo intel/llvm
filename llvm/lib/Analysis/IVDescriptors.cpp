@@ -11,26 +11,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Analysis/IVDescriptors.h"
-#include "llvm/ADT/ScopeExit.h"
-#include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/DemandedBits.h"
-#include "llvm/Analysis/DomTreeUpdater.h"
-#include "llvm/Analysis/GlobalsModRef.h"
-#include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/LoopPass.h"
-#include "llvm/Analysis/MustExecute.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Analysis/ScalarEvolutionAliasAnalysis.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
-#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/ValueHandle.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/KnownBits.h"
 
@@ -309,6 +299,10 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
   // flags from all the reduction operations.
   FastMathFlags FMF = FastMathFlags::getFast();
 
+  // The first instruction in the use-def chain of the Phi node that requires
+  // exact floating point operations.
+  Instruction *ExactFPMathInst = nullptr;
+
   // A value in the reduction can be used:
   //  - By the reduction:
   //      - Reduction operation:
@@ -352,6 +346,9 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
     if (Cur != Start) {
       ReduxDesc =
           isRecurrenceInstr(TheLoop, Phi, Cur, Kind, ReduxDesc, FuncFMF);
+      ExactFPMathInst = ExactFPMathInst == nullptr
+                            ? ReduxDesc.getExactFPMathInst()
+                            : ExactFPMathInst;
       if (!ReduxDesc.isRecurrence())
         return false;
       // FIXME: FMF is allowed on phi, but propagation is not handled correctly.
@@ -480,8 +477,8 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
   if (!FoundStartPHI || !FoundReduxOp || !ExitInstruction)
     return false;
 
-  const bool IsOrdered = checkOrderedReduction(
-      Kind, ReduxDesc.getExactFPMathInst(), ExitInstruction, Phi);
+  const bool IsOrdered =
+      checkOrderedReduction(Kind, ExactFPMathInst, ExitInstruction, Phi);
 
   if (Start != Phi) {
     // If the starting value is not the same as the phi node, we speculatively
@@ -538,9 +535,8 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
   // is saved as part of the RecurrenceDescriptor.
 
   // Save the description of this reduction variable.
-  RecurrenceDescriptor RD(RdxStart, ExitInstruction, Kind, FMF,
-                          ReduxDesc.getExactFPMathInst(), RecurrenceType,
-                          IsSigned, IsOrdered, CastInsts,
+  RecurrenceDescriptor RD(RdxStart, ExitInstruction, Kind, FMF, ExactFPMathInst,
+                          RecurrenceType, IsSigned, IsOrdered, CastInsts,
                           MinWidthCastToRecurrenceType);
   RedDes = RD;
 
@@ -911,12 +907,37 @@ bool RecurrenceDescriptor::isFirstOrderRecurrence(
         SinkCandidate->mayReadFromMemory() || SinkCandidate->isTerminator())
       return false;
 
-    // Do not try to sink an instruction multiple times (if multiple operands
-    // are first order recurrences).
-    // TODO: We can support this case, by sinking the instruction after the
-    // 'deepest' previous instruction.
-    if (SinkAfter.find(SinkCandidate) != SinkAfter.end())
-      return false;
+    // Avoid sinking an instruction multiple times (if multiple operands are
+    // first order recurrences) by sinking once - after the latest 'previous'
+    // instruction.
+    auto It = SinkAfter.find(SinkCandidate);
+    if (It != SinkAfter.end()) {
+      auto *OtherPrev = It->second;
+      // Find the earliest entry in the 'sink-after' chain. The last entry in
+      // the chain is the original 'Previous' for a recurrence handled earlier.
+      auto EarlierIt = SinkAfter.find(OtherPrev);
+      while (EarlierIt != SinkAfter.end()) {
+        Instruction *EarlierInst = EarlierIt->second;
+        EarlierIt = SinkAfter.find(EarlierInst);
+        // Bail out if order has not been preserved.
+        if (EarlierIt != SinkAfter.end() &&
+            !DT->dominates(EarlierInst, OtherPrev))
+          return false;
+        OtherPrev = EarlierInst;
+      }
+      // Bail out if order has not been preserved.
+      if (OtherPrev != It->second && !DT->dominates(It->second, OtherPrev))
+        return false;
+
+      // SinkCandidate is already being sunk after an instruction after
+      // Previous. Nothing left to do.
+      if (DT->dominates(Previous, OtherPrev) || Previous == OtherPrev)
+        return true;
+      // Otherwise, Previous comes after OtherPrev and SinkCandidate needs to be
+      // re-sunk to Previous, instead of sinking to OtherPrev. Remove
+      // SinkCandidate from SinkAfter to ensure it's insert position is updated.
+      SinkAfter.erase(SinkCandidate);
+    }
 
     // If we reach a PHI node that is not dominated by Previous, we reached a
     // header PHI. No need for sinking.
@@ -1046,7 +1067,7 @@ RecurrenceDescriptor::getReductionOpChain(PHINode *Phi, Loop *L) const {
   // to check for a pair of icmp/select, for which we use getNextInstruction and
   // isCorrectOpcode functions to step the right number of instruction, and
   // check the icmp/select pair.
-  // FIXME: We also do not attempt to look through Phi/Select's yet, which might
+  // FIXME: We also do not attempt to look through Select's yet, which might
   // be part of the reduction chain, or attempt to looks through And's to find a
   // smaller bitwidth. Subs are also currently not allowed (which are usually
   // treated as part of a add reduction) as they are expected to generally be
@@ -1056,16 +1077,21 @@ RecurrenceDescriptor::getReductionOpChain(PHINode *Phi, Loop *L) const {
   if (RedOp == Instruction::ICmp || RedOp == Instruction::FCmp)
     ExpectedUses = 2;
 
-  auto getNextInstruction = [&](Instruction *Cur) {
-    if (RedOp == Instruction::ICmp || RedOp == Instruction::FCmp) {
-      // We are expecting a icmp/select pair, which we go to the next select
-      // instruction if we can. We already know that Cur has 2 uses.
-      if (isa<SelectInst>(*Cur->user_begin()))
-        return cast<Instruction>(*Cur->user_begin());
-      else
-        return cast<Instruction>(*std::next(Cur->user_begin()));
+  auto getNextInstruction = [&](Instruction *Cur) -> Instruction * {
+    for (auto User : Cur->users()) {
+      Instruction *UI = cast<Instruction>(User);
+      if (isa<PHINode>(UI))
+        continue;
+      if (RedOp == Instruction::ICmp || RedOp == Instruction::FCmp) {
+        // We are expecting a icmp/select pair, which we go to the next select
+        // instruction if we can. We already know that Cur has 2 uses.
+        if (isa<SelectInst>(UI))
+          return UI;
+        continue;
+      }
+      return UI;
     }
-    return cast<Instruction>(*Cur->user_begin());
+    return nullptr;
   };
   auto isCorrectOpcode = [&](Instruction *Cur) {
     if (RedOp == Instruction::ICmp || RedOp == Instruction::FCmp) {
@@ -1080,22 +1106,46 @@ RecurrenceDescriptor::getReductionOpChain(PHINode *Phi, Loop *L) const {
     return Cur->getOpcode() == RedOp;
   };
 
+  // Attempt to look through Phis which are part of the reduction chain
+  unsigned ExtraPhiUses = 0;
+  Instruction *RdxInstr = LoopExitInstr;
+  if (auto ExitPhi = dyn_cast<PHINode>(LoopExitInstr)) {
+    if (ExitPhi->getNumIncomingValues() != 2)
+      return {};
+
+    Instruction *Inc0 = dyn_cast<Instruction>(ExitPhi->getIncomingValue(0));
+    Instruction *Inc1 = dyn_cast<Instruction>(ExitPhi->getIncomingValue(1));
+
+    Instruction *Chain = nullptr;
+    if (Inc0 == Phi)
+      Chain = Inc1;
+    else if (Inc1 == Phi)
+      Chain = Inc0;
+    else
+      return {};
+
+    RdxInstr = Chain;
+    ExtraPhiUses = 1;
+  }
+
   // The loop exit instruction we check first (as a quick test) but add last. We
   // check the opcode is correct (and dont allow them to be Subs) and that they
   // have expected to have the expected number of uses. They will have one use
   // from the phi and one from a LCSSA value, no matter the type.
-  if (!isCorrectOpcode(LoopExitInstr) || !LoopExitInstr->hasNUses(2))
+  if (!isCorrectOpcode(RdxInstr) || !LoopExitInstr->hasNUses(2))
     return {};
 
-  // Check that the Phi has one (or two for min/max) uses.
-  if (!Phi->hasNUses(ExpectedUses))
+  // Check that the Phi has one (or two for min/max) uses, plus an extra use
+  // for conditional reductions.
+  if (!Phi->hasNUses(ExpectedUses + ExtraPhiUses))
     return {};
+
   Instruction *Cur = getNextInstruction(Phi);
 
   // Each other instruction in the chain should have the expected number of uses
   // and be the correct opcode.
-  while (Cur != LoopExitInstr) {
-    if (!isCorrectOpcode(Cur) || !Cur->hasNUses(ExpectedUses))
+  while (Cur != RdxInstr) {
+    if (!Cur || !isCorrectOpcode(Cur) || !Cur->hasNUses(ExpectedUses))
       return {};
 
     ReductionOperations.push_back(Cur);
@@ -1414,17 +1464,22 @@ bool InductionDescriptor::isInductionPHI(
 
   // Always use i8 element type for opaque pointer inductions.
   PointerType *PtrTy = cast<PointerType>(PhiTy);
-  Type *ElementType = PtrTy->isOpaque() ? Type::getInt8Ty(PtrTy->getContext())
-                                        : PtrTy->getElementType();
+  Type *ElementType = PtrTy->isOpaque()
+                          ? Type::getInt8Ty(PtrTy->getContext())
+                          : PtrTy->getNonOpaquePointerElementType();
   if (!ElementType->isSized())
     return false;
 
   ConstantInt *CV = ConstStep->getValue();
   const DataLayout &DL = Phi->getModule()->getDataLayout();
-  int64_t Size = static_cast<int64_t>(DL.getTypeAllocSize(ElementType));
-  if (!Size)
+  TypeSize TySize = DL.getTypeAllocSize(ElementType);
+  // TODO: We could potentially support this for scalable vectors if we can
+  // prove at compile time that the constant step is always a multiple of
+  // the scalable type.
+  if (TySize.isZero() || TySize.isScalable())
     return false;
 
+  int64_t Size = static_cast<int64_t>(TySize.getFixedSize());
   int64_t CVSize = CV->getSExtValue();
   if (CVSize % Size)
     return false;

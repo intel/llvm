@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <format>
@@ -61,7 +60,7 @@ constexpr void test() {
       std::is_same_v<typename std::basic_format_context<OutIt, CharT>::
                          template formatter_type<unsigned long long>,
                      std::formatter<unsigned long long, CharT>>);
-#ifndef _LIBCPP_HAS_NO_INT128
+#ifndef TEST_HAS_NO_INT128
   static_assert(
       std::is_same_v<typename std::basic_format_context<
                          OutIt, CharT>::template formatter_type<__int128_t>,

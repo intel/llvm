@@ -27,7 +27,7 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
@@ -40,8 +40,8 @@
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 #include <cassert>
-#include <iterator>
 #include <string>
 #include <vector>
 
@@ -60,7 +60,7 @@ raw_ostream &llvm::operator<<(raw_ostream &OS, const VPValue &V) {
 }
 #endif
 
-Value *VPLane::getAsRuntimeExpr(IRBuilder<> &Builder,
+Value *VPLane::getAsRuntimeExpr(IRBuilderBase &Builder,
                                 const ElementCount &VF) const {
   switch (LaneKind) {
   case VPLane::Kind::ScalableLast:
@@ -575,13 +575,15 @@ bool VPRecipeBase::mayHaveSideEffects() const {
   case VPBranchOnMaskSC:
     return false;
   case VPWidenIntOrFpInductionSC:
+  case VPWidenPointerInductionSC:
   case VPWidenCanonicalIVSC:
   case VPWidenPHISC:
   case VPBlendSC:
   case VPWidenSC:
   case VPWidenGEPSC:
   case VPReductionSC:
-  case VPWidenSelectSC: {
+  case VPWidenSelectSC:
+  case VPScalarIVStepsSC: {
     const Instruction *I =
         dyn_cast_or_null<Instruction>(getVPSingleValue()->getUnderlyingValue());
     (void)I;
@@ -604,6 +606,14 @@ void VPRecipeBase::insertBefore(VPRecipeBase *InsertPos) {
          "Insertion position not in any VPBasicBlock");
   Parent = InsertPos->getParent();
   Parent->getRecipeList().insert(InsertPos->getIterator(), this);
+}
+
+void VPRecipeBase::insertBefore(VPBasicBlock &BB,
+                                iplist<VPRecipeBase>::iterator I) {
+  assert(!Parent && "Recipe already in some VPBasicBlock");
+  assert(I == BB.end() || I->getParent() == &BB);
+  Parent = &BB;
+  BB.getRecipeList().insert(I, this);
 }
 
 void VPRecipeBase::insertAfter(VPRecipeBase *InsertPos) {
@@ -632,15 +642,13 @@ void VPRecipeBase::moveAfter(VPRecipeBase *InsertPos) {
 
 void VPRecipeBase::moveBefore(VPBasicBlock &BB,
                               iplist<VPRecipeBase>::iterator I) {
-  assert(I == BB.end() || I->getParent() == &BB);
   removeFromParent();
-  Parent = &BB;
-  BB.getRecipeList().insert(I, this);
+  insertBefore(BB, I);
 }
 
 void VPInstruction::generateInstruction(VPTransformState &State,
                                         unsigned Part) {
-  IRBuilder<> &Builder = State.Builder;
+  IRBuilderBase &Builder = State.Builder;
   Builder.SetCurrentDebugLocation(DL);
 
   if (Instruction::isBinaryOp(getOpcode())) {
@@ -873,13 +881,16 @@ void VPlan::prepareToExecute(Value *TripCountV, Value *VectorTripCountV,
     auto *IV = getCanonicalIV();
     assert(all_of(IV->users(),
                   [](const VPUser *U) {
+                    if (isa<VPScalarIVStepsRecipe>(U))
+                      return true;
                     auto *VPI = cast<VPInstruction>(U);
                     return VPI->getOpcode() ==
                                VPInstruction::CanonicalIVIncrement ||
                            VPI->getOpcode() ==
                                VPInstruction::CanonicalIVIncrementNUW;
                   }) &&
-           "the canonical IV should only be used by its increments when "
+           "the canonical IV should only be used by its increments or "
+           "ScalarIVSteps when "
            "resetting the start value");
     IV->setOperand(0, VPV);
   }
@@ -963,7 +974,7 @@ void VPlan::execute(VPTransformState *State) {
 
   // Fix the latch value of canonical, reduction and first-order recurrences
   // phis in the vector loop.
-  VPBasicBlock *Header = Entry->getEntryBasicBlock();
+  VPBasicBlock *Header = getVectorLoopRegion()->getEntryBasicBlock();
   if (Header->empty()) {
     assert(EnableVPlanNativePath);
     Header = cast<VPBasicBlock>(Header->getSingleSuccessor());
@@ -971,7 +982,8 @@ void VPlan::execute(VPTransformState *State) {
   for (VPRecipeBase &R : Header->phis()) {
     // Skip phi-like recipes that generate their backedege values themselves.
     // TODO: Model their backedge values explicitly.
-    if (isa<VPWidenIntOrFpInductionRecipe>(&R) || isa<VPWidenPHIRecipe>(&R))
+    if (isa<VPWidenIntOrFpInductionRecipe>(&R) || isa<VPWidenPHIRecipe>(&R) ||
+        isa<VPWidenPointerInductionRecipe>(&R))
       continue;
 
     auto *PhiR = cast<VPHeaderPHIRecipe>(&R);
@@ -1263,6 +1275,49 @@ void VPWidenIntOrFpInductionRecipe::print(raw_ostream &O, const Twine &Indent,
     O << " " << VPlanIngredient(IV);
 }
 
+void VPWidenPointerInductionRecipe::print(raw_ostream &O, const Twine &Indent,
+                                          VPSlotTracker &SlotTracker) const {
+  O << Indent << "EMIT ";
+  printAsOperand(O, SlotTracker);
+  O << " = WIDEN-POINTER-INDUCTION ";
+  getStartValue()->printAsOperand(O, SlotTracker);
+  O << ", " << *IndDesc.getStep();
+}
+
+#endif
+
+bool VPWidenIntOrFpInductionRecipe::isCanonical() const {
+  auto *StartC = dyn_cast<ConstantInt>(getStartValue()->getLiveInIRValue());
+  auto *StepC = dyn_cast<SCEVConstant>(getInductionDescriptor().getStep());
+  return StartC && StartC->isZero() && StepC && StepC->isOne();
+}
+
+VPCanonicalIVPHIRecipe *VPScalarIVStepsRecipe::getCanonicalIV() const {
+  return cast<VPCanonicalIVPHIRecipe>(getOperand(0));
+}
+
+bool VPScalarIVStepsRecipe::isCanonical() const {
+  auto *CanIV = getCanonicalIV();
+  // The start value of the steps-recipe must match the start value of the
+  // canonical induction and it must step by 1.
+  if (CanIV->getStartValue() != getStartValue())
+    return false;
+  auto *StepVPV = getStepValue();
+  if (StepVPV->getDef())
+    return false;
+  auto *StepC = dyn_cast_or_null<ConstantInt>(StepVPV->getLiveInIRValue());
+  return StepC && StepC->isOne();
+}
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+void VPScalarIVStepsRecipe::print(raw_ostream &O, const Twine &Indent,
+                                  VPSlotTracker &SlotTracker) const {
+  O << Indent;
+  printAsOperand(O, SlotTracker);
+  O << Indent << "= SCALAR-STEPS ";
+  printOperands(O, SlotTracker);
+}
+
 void VPWidenGEPRecipe::print(raw_ostream &O, const Twine &Indent,
                              VPSlotTracker &SlotTracker) const {
   O << Indent << "WIDEN-GEP ";
@@ -1387,6 +1442,27 @@ void VPCanonicalIVPHIRecipe::print(raw_ostream &O, const Twine &Indent,
   O << Indent << "EMIT ";
   printAsOperand(O, SlotTracker);
   O << " = CANONICAL-INDUCTION";
+}
+#endif
+
+void VPExpandSCEVRecipe::execute(VPTransformState &State) {
+  assert(!State.Instance && "cannot be used in per-lane");
+  const DataLayout &DL =
+      State.CFG.VectorPreHeader->getModule()->getDataLayout();
+  SCEVExpander Exp(SE, DL, "induction");
+  Value *Res = Exp.expandCodeFor(Expr, Expr->getType(),
+                                 State.CFG.VectorPreHeader->getTerminator());
+
+  for (unsigned Part = 0, UF = State.UF; Part < UF; ++Part)
+    State.set(this, Res, Part);
+}
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+void VPExpandSCEVRecipe::print(raw_ostream &O, const Twine &Indent,
+                               VPSlotTracker &SlotTracker) const {
+  O << Indent << "EMIT ";
+  getVPSingleValue()->printAsOperand(O, SlotTracker);
+  O << " = EXPAND SCEV " << *Expr;
 }
 #endif
 
@@ -1640,4 +1716,10 @@ void VPSlotTracker::assignSlots(const VPlan &Plan) {
     for (const VPRecipeBase &Recipe : *VPBB)
       for (VPValue *Def : Recipe.definedValues())
         assignSlot(Def);
+}
+
+bool vputils::onlyFirstLaneUsed(VPValue *Def) {
+  return all_of(Def->users(), [Def](VPUser *U) {
+    return cast<VPRecipeBase>(U)->onlyFirstLaneUsed(Def);
+  });
 }

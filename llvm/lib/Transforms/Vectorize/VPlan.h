@@ -33,19 +33,16 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/ilist.h"
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/DebugLoc.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/Support/InstructionCost.h"
+#include "llvm/IR/FMF.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
-#include <map>
 #include <string>
 
 namespace llvm {
@@ -54,6 +51,7 @@ class BasicBlock;
 class DominatorTree;
 class InductionDescriptor;
 class InnerLoopVectorizer;
+class IRBuilderBase;
 class LoopInfo;
 class raw_ostream;
 class RecurrenceDescriptor;
@@ -67,10 +65,11 @@ class VPlanSlp;
 /// Returns a calculation for the total number of elements for a given \p VF.
 /// For fixed width vectors this value is a constant, whereas for scalable
 /// vectors it is an expression determined at runtime.
-Value *getRuntimeVF(IRBuilder<> &B, Type *Ty, ElementCount VF);
+Value *getRuntimeVF(IRBuilderBase &B, Type *Ty, ElementCount VF);
 
 /// Return a value for Step multiplied by VF.
-Value *createStepForVF(IRBuilder<> &B, Type *Ty, ElementCount VF, int64_t Step);
+Value *createStepForVF(IRBuilderBase &B, Type *Ty, ElementCount VF,
+                       int64_t Step);
 
 /// A range of powers-of-2 vectorization factors with fixed start and
 /// adjustable end. The range includes start and excludes end, e.g.,:
@@ -151,7 +150,7 @@ public:
 
   /// Returns an expression describing the lane index that can be used at
   /// runtime.
-  Value *getAsRuntimeExpr(IRBuilder<> &Builder, const ElementCount &VF) const;
+  Value *getAsRuntimeExpr(IRBuilderBase &Builder, const ElementCount &VF) const;
 
   /// Returns the Kind of lane offset.
   Kind getKind() const { return LaneKind; }
@@ -199,7 +198,7 @@ struct VPIteration {
 /// needed for generating the output IR.
 struct VPTransformState {
   VPTransformState(ElementCount VF, unsigned UF, LoopInfo *LI,
-                   DominatorTree *DT, IRBuilder<> &Builder,
+                   DominatorTree *DT, IRBuilderBase &Builder,
                    InnerLoopVectorizer *ILV, VPlan *Plan)
       : VF(VF), UF(UF), LI(LI), DT(DT), Builder(Builder), ILV(ILV), Plan(Plan) {
   }
@@ -337,7 +336,7 @@ struct VPTransformState {
   DominatorTree *DT;
 
   /// Hold a reference to the IRBuilder used to generate output IR code.
-  IRBuilder<> &Builder;
+  IRBuilderBase &Builder;
 
   VPValue2ValueTy VPValue2Value;
 
@@ -699,6 +698,9 @@ public:
   /// Insert an unlinked recipe into a basic block immediately before
   /// the specified recipe.
   void insertBefore(VPRecipeBase *InsertPos);
+  /// Insert an unlinked recipe into \p BB immediately before the insertion
+  /// point \p IP;
+  void insertBefore(VPBasicBlock &BB, iplist<VPRecipeBase>::iterator IP);
 
   /// Insert an unlinked Recipe into a basic block immediately after
   /// the specified Recipe.
@@ -758,6 +760,22 @@ public:
   /// Returns true if the recipe may read from or write to memory.
   bool mayReadOrWriteMemory() const {
     return mayReadFromMemory() || mayWriteToMemory();
+  }
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  /// Conservatively returns false.
+  virtual bool onlyFirstLaneUsed(const VPValue *Op) const {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return false;
+  }
+
+  /// Returns true if the recipe uses scalars of operand \p Op. Conservatively
+  /// returns if only first (scalar) lane is used, as default.
+  virtual bool usesScalars(const VPValue *Op) const {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return onlyFirstLaneUsed(Op);
   }
 };
 
@@ -893,6 +911,24 @@ public:
 
   /// Set the fast-math flags.
   void setFastMathFlags(FastMathFlags FMFNew);
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    if (getOperand(0) != Op)
+      return false;
+    switch (getOpcode()) {
+    default:
+      return false;
+    case VPInstruction::ActiveLaneMask:
+    case VPInstruction::CanonicalIVIncrement:
+    case VPInstruction::CanonicalIVIncrementNUW:
+    case VPInstruction::BranchOnCount:
+      return true;
+    };
+    llvm_unreachable("switch should return");
+  }
 };
 
 /// VPWidenRecipe is a recipe for producing a copy of vector type its
@@ -1023,22 +1059,34 @@ public:
 };
 
 /// A recipe for handling phi nodes of integer and floating-point inductions,
-/// producing their vector and scalar values.
+/// producing their vector values.
 class VPWidenIntOrFpInductionRecipe : public VPRecipeBase, public VPValue {
   PHINode *IV;
   const InductionDescriptor &IndDesc;
+  bool NeedsScalarIV;
+  bool NeedsVectorIV;
+
+  /// SCEV used to expand step.
+  /// FIXME: move expansion of step to the pre-header, once it is modeled
+  /// explicitly.
+  ScalarEvolution &SE;
 
 public:
   VPWidenIntOrFpInductionRecipe(PHINode *IV, VPValue *Start,
-                                const InductionDescriptor &IndDesc)
+                                const InductionDescriptor &IndDesc,
+                                bool NeedsScalarIV, bool NeedsVectorIV,
+                                ScalarEvolution &SE)
       : VPRecipeBase(VPWidenIntOrFpInductionSC, {Start}), VPValue(IV, this),
-        IV(IV), IndDesc(IndDesc) {}
+        IV(IV), IndDesc(IndDesc), NeedsScalarIV(NeedsScalarIV),
+        NeedsVectorIV(NeedsVectorIV), SE(SE) {}
 
   VPWidenIntOrFpInductionRecipe(PHINode *IV, VPValue *Start,
                                 const InductionDescriptor &IndDesc,
-                                TruncInst *Trunc)
+                                TruncInst *Trunc, bool NeedsScalarIV,
+                                bool NeedsVectorIV, ScalarEvolution &SE)
       : VPRecipeBase(VPWidenIntOrFpInductionSC, {Start}), VPValue(Trunc, this),
-        IV(IV), IndDesc(IndDesc) {}
+        IV(IV), IndDesc(IndDesc), NeedsScalarIV(NeedsScalarIV),
+        NeedsVectorIV(NeedsVectorIV), SE(SE) {}
 
   ~VPWidenIntOrFpInductionRecipe() override = default;
 
@@ -1059,6 +1107,7 @@ public:
 
   /// Returns the start value of the induction.
   VPValue *getStartValue() { return getOperand(0); }
+  const VPValue *getStartValue() const { return getOperand(0); }
 
   /// Returns the first defined value as TruncInst, if it is one or nullptr
   /// otherwise.
@@ -1069,8 +1118,26 @@ public:
     return dyn_cast_or_null<TruncInst>(getVPValue(0)->getUnderlyingValue());
   }
 
+  PHINode *getPHINode() { return IV; }
+
   /// Returns the induction descriptor for the recipe.
   const InductionDescriptor &getInductionDescriptor() const { return IndDesc; }
+
+  /// Returns true if the induction is canonical, i.e. starting at 0 and
+  /// incremented by UF * VF (= the original IV is incremented by 1).
+  bool isCanonical() const;
+
+  /// Returns the scalar type of the induction.
+  const Type *getScalarType() const {
+    const TruncInst *TruncI = getTruncInst();
+    return TruncI ? TruncI->getType() : IV->getType();
+  }
+
+  /// Returns true if a scalar phi needs to be created for the induction.
+  bool needsScalarIV() const { return NeedsScalarIV; }
+
+  /// Returns true if a vector phi needs to be created for the induction.
+  bool needsVectorIV() const { return NeedsVectorIV; }
 };
 
 /// A pure virtual base class for all recipes modeling header phis, including
@@ -1118,6 +1185,9 @@ public:
   VPValue *getStartValue() {
     return getNumOperands() == 0 ? nullptr : getOperand(0);
   }
+  VPValue *getStartValue() const {
+    return getNumOperands() == 0 ? nullptr : getOperand(0);
+  }
 
   /// Returns the incoming value from the loop backedge.
   VPValue *getBackedgeValue() {
@@ -1129,6 +1199,49 @@ public:
   VPRecipeBase *getBackedgeRecipe() {
     return cast<VPRecipeBase>(getBackedgeValue()->getDef());
   }
+};
+
+class VPWidenPointerInductionRecipe : public VPHeaderPHIRecipe {
+  const InductionDescriptor &IndDesc;
+
+  /// SCEV used to expand step.
+  /// FIXME: move expansion of step to the pre-header, once it is modeled
+  /// explicitly.
+  ScalarEvolution &SE;
+
+public:
+  /// Create a new VPWidenPointerInductionRecipe for \p Phi with start value \p
+  /// Start.
+  VPWidenPointerInductionRecipe(PHINode *Phi, VPValue *Start,
+                                const InductionDescriptor &IndDesc,
+                                ScalarEvolution &SE)
+      : VPHeaderPHIRecipe(VPVWidenPointerInductionSC, VPWidenPointerInductionSC,
+                          Phi),
+        IndDesc(IndDesc), SE(SE) {
+    addOperand(Start);
+  }
+
+  ~VPWidenPointerInductionRecipe() override = default;
+
+  /// Method to support type inquiry through isa, cast, and dyn_cast.
+  static inline bool classof(const VPRecipeBase *B) {
+    return B->getVPDefID() == VPRecipeBase::VPWidenPointerInductionSC;
+  }
+  static inline bool classof(const VPHeaderPHIRecipe *R) {
+    return R->getVPDefID() == VPRecipeBase::VPWidenPointerInductionSC;
+  }
+  static inline bool classof(const VPValue *V) {
+    return V->getVPValueID() == VPValue::VPVWidenPointerInductionSC;
+  }
+
+  /// Generate vector values for the pointer induction.
+  void execute(VPTransformState &State) override;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Print the recipe.
+  void print(raw_ostream &O, const Twine &Indent,
+             VPSlotTracker &SlotTracker) const override;
+#endif
 };
 
 /// A recipe for handling header phis that are widened in the vector loop.
@@ -1307,6 +1420,17 @@ public:
   void print(raw_ostream &O, const Twine &Indent,
              VPSlotTracker &SlotTracker) const override;
 #endif
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    // Recursing through Blend recipes only, must terminate at header phi's the
+    // latest.
+    return all_of(users(), [this](VPUser *U) {
+      return cast<VPRecipeBase>(U)->onlyFirstLaneUsed(this);
+    });
+  }
 };
 
 /// VPInterleaveRecipe is a recipe for transforming an interleave group of load
@@ -1379,6 +1503,13 @@ public:
   /// for load interleave groups.
   unsigned getNumStoreOperands() const {
     return getNumOperands() - (HasMask ? 2 : 1);
+  }
+
+  /// The recipe only uses the first lane of the address.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return Op == getAddr();
   }
 };
 
@@ -1484,6 +1615,20 @@ public:
   bool isPacked() const { return AlsoPack; }
 
   bool isPredicated() const { return IsPredicated; }
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return isUniform();
+  }
+
+  /// Returns true if the recipe uses scalars of operand \p Op.
+  bool usesScalars(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return true;
+  }
 };
 
 /// A recipe for generating conditional branches on the bits of a mask.
@@ -1552,6 +1697,13 @@ public:
   void print(raw_ostream &O, const Twine &Indent,
              VPSlotTracker &SlotTracker) const override;
 #endif
+
+  /// Returns true if the recipe uses scalars of operand \p Op.
+  bool usesScalars(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return true;
+  }
 };
 
 /// A Recipe for widening load/store operations.
@@ -1640,6 +1792,46 @@ public:
   void print(raw_ostream &O, const Twine &Indent,
              VPSlotTracker &SlotTracker) const override;
 #endif
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+
+    // Widened, consecutive memory operations only demand the first lane of
+    // their address.
+    return Op == getAddr() && isConsecutive();
+  }
+};
+
+/// Recipe to expand a SCEV expression.
+/// TODO: Currently the recipe always expands the expression in the loop
+/// pre-header, but the recipe is currently placed in the header; place it in
+/// the pre-header once the latter is modeled in VPlan as a VPBasicBlock.
+class VPExpandSCEVRecipe : public VPRecipeBase, public VPValue {
+  const SCEV *Expr;
+  ScalarEvolution &SE;
+
+public:
+  VPExpandSCEVRecipe(const SCEV *Expr, ScalarEvolution &SE)
+      : VPRecipeBase(VPExpandSCEVSC, {}), VPValue(nullptr, this), Expr(Expr),
+        SE(SE) {}
+
+  ~VPExpandSCEVRecipe() override = default;
+
+  /// Method to support type inquiry through isa, cast, and dyn_cast.
+  static inline bool classof(const VPDef *D) {
+    return D->getVPDefID() == VPExpandSCEVSC;
+  }
+
+  /// Generate a canonical vector induction variable of the vector loop, with
+  void execute(VPTransformState &State) override;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Print the recipe.
+  void print(raw_ostream &O, const Twine &Indent,
+             VPSlotTracker &SlotTracker) const override;
+#endif
 };
 
 /// Canonical scalar induction phi of the vector loop. Starting at the specified
@@ -1661,6 +1853,12 @@ public:
   static inline bool classof(const VPDef *D) {
     return D->getVPDefID() == VPCanonicalIVPHISC;
   }
+  static inline bool classof(const VPHeaderPHIRecipe *D) {
+    return D->getVPDefID() == VPCanonicalIVPHISC;
+  }
+  static inline bool classof(const VPValue *V) {
+    return V->getVPValueID() == VPValue::VPVCanonicalIVPHISC;
+  }
 
   /// Generate the canonical scalar induction phi of the vector loop.
   void execute(VPTransformState &State) override;
@@ -1670,6 +1868,18 @@ public:
   void print(raw_ostream &O, const Twine &Indent,
              VPSlotTracker &SlotTracker) const override;
 #endif
+
+  /// Returns the scalar type of the induction.
+  const Type *getScalarType() const {
+    return getOperand(0)->getLiveInIRValue()->getType();
+  }
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return true;
+  }
 };
 
 /// A Recipe for widening the canonical induction variable of the vector loop.
@@ -1686,6 +1896,16 @@ public:
     return D->getVPDefID() == VPRecipeBase::VPWidenCanonicalIVSC;
   }
 
+  /// Extra classof implementations to allow directly casting from VPUser ->
+  /// VPWidenCanonicalIVRecipe.
+  static inline bool classof(const VPUser *U) {
+    auto *R = dyn_cast<VPRecipeBase>(U);
+    return R && R->getVPDefID() == VPRecipeBase::VPWidenCanonicalIVSC;
+  }
+  static inline bool classof(const VPRecipeBase *R) {
+    return R->getVPDefID() == VPRecipeBase::VPWidenCanonicalIVSC;
+  }
+
   /// Generate a canonical vector induction variable of the vector loop, with
   /// start = {<Part*VF, Part*VF+1, ..., Part*VF+VF-1> for 0 <= Part < UF}, and
   /// step = <VF*UF, VF*UF, ..., VF*UF>.
@@ -1696,6 +1916,70 @@ public:
   void print(raw_ostream &O, const Twine &Indent,
              VPSlotTracker &SlotTracker) const override;
 #endif
+
+  /// Returns the scalar type of the induction.
+  const Type *getScalarType() const {
+    return cast<VPCanonicalIVPHIRecipe>(getOperand(0)->getDef())
+        ->getScalarType();
+  }
+};
+
+/// A recipe for handling phi nodes of integer and floating-point inductions,
+/// producing their scalar values.
+class VPScalarIVStepsRecipe : public VPRecipeBase, public VPValue {
+  /// Scalar type to use for the generated values.
+  Type *Ty;
+  /// If not nullptr, truncate the generated values to TruncToTy.
+  Type *TruncToTy;
+  const InductionDescriptor &IndDesc;
+
+public:
+  VPScalarIVStepsRecipe(Type *Ty, const InductionDescriptor &IndDesc,
+                        VPValue *CanonicalIV, VPValue *Start, VPValue *Step,
+                        Type *TruncToTy)
+      : VPRecipeBase(VPScalarIVStepsSC, {CanonicalIV, Start, Step}),
+        VPValue(nullptr, this), Ty(Ty), TruncToTy(TruncToTy), IndDesc(IndDesc) {
+  }
+
+  ~VPScalarIVStepsRecipe() override = default;
+
+  /// Method to support type inquiry through isa, cast, and dyn_cast.
+  static inline bool classof(const VPDef *D) {
+    return D->getVPDefID() == VPRecipeBase::VPScalarIVStepsSC;
+  }
+  /// Extra classof implementations to allow directly casting from VPUser ->
+  /// VPScalarIVStepsRecipe.
+  static inline bool classof(const VPUser *U) {
+    auto *R = dyn_cast<VPRecipeBase>(U);
+    return R && R->getVPDefID() == VPRecipeBase::VPScalarIVStepsSC;
+  }
+  static inline bool classof(const VPRecipeBase *R) {
+    return R->getVPDefID() == VPRecipeBase::VPScalarIVStepsSC;
+  }
+
+  /// Generate the scalarized versions of the phi node as needed by their users.
+  void execute(VPTransformState &State) override;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Print the recipe.
+  void print(raw_ostream &O, const Twine &Indent,
+             VPSlotTracker &SlotTracker) const override;
+#endif
+
+  /// Returns true if the induction is canonical, i.e. starting at 0 and
+  /// incremented by UF * VF (= the original IV is incremented by 1).
+  bool isCanonical() const;
+
+  VPCanonicalIVPHIRecipe *getCanonicalIV() const;
+  VPValue *getStartValue() const { return getOperand(1); }
+  VPValue *getStepValue() const { return getOperand(2); }
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return true;
+  }
 };
 
 /// VPBasicBlock serves as the leaf of the Hierarchical Control-Flow Graph. It
@@ -2362,6 +2646,9 @@ public:
   VPRegionBlock *getVectorLoopRegion() {
     return cast<VPRegionBlock>(getEntry());
   }
+  const VPRegionBlock *getVectorLoopRegion() const {
+    return cast<VPRegionBlock>(getEntry());
+  }
 
   /// Returns the canonical induction recipe of the vector loop.
   VPCanonicalIVPHIRecipe *getCanonicalIV() {
@@ -2734,6 +3021,14 @@ public:
   /// Return true if all visited instruction can be combined.
   bool isCompletelySLP() const { return CompletelySLP; }
 };
+
+namespace vputils {
+
+/// Returns true if only the first lane of \p Def is used.
+bool onlyFirstLaneUsed(VPValue *Def);
+
+} // end namespace vputils
+
 } // end namespace llvm
 
 #endif // LLVM_TRANSFORMS_VECTORIZE_VPLAN_H

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple i386-unknown-unknown %s -emit-llvm -o - -fblocks | FileCheck %s
+// RUN: %clang_cc1 -triple i386-unknown-unknown %s -emit-llvm -Wno-strict-prototypes -o - -fblocks | FileCheck %s
 
 // CHECK: %[[STRUCT_BLOCK_DESCRIPTOR:.*]] = type { i32, i32 }
 
@@ -68,7 +68,7 @@ ftype ^test2 = ^ftype {
 
 // rdar://problem/8605032
 void f3_helper(void (^)(void));
-void f3() {
+void f3(void) {
   _Bool b = 0;
   f3_helper(^{ if (b) {} });
 }
@@ -101,7 +101,7 @@ void f5(void) {
 
 // rdar://14085217
 void (^b)() = ^{};
-int main() {
+int main(void) {
    (b?: ^{})();
 }
 // CHECK: [[ZERO:%.*]] = load void (...)*, void (...)** @b
@@ -112,7 +112,7 @@ int main() {
 
 // Ensure that we don't emit helper code in copy/dispose routines for variables
 // that are const-captured.
-void testConstCaptureInCopyAndDestroyHelpers() {
+void testConstCaptureInCopyAndDestroyHelpers(void) {
   const int x = 0;
   __block int i;
   (^ { i = x; })();

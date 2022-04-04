@@ -5,7 +5,7 @@ Contributing to LLVM
 
 Thank you for your interest in contributing to LLVM! There are multiple ways to
 contribute, and we appreciate all contributions. In case you
-have questions, you can either use the `Developer's List (llvm-dev)`_
+have questions, you can either use the `Forum`_
 or the #llvm channel on `irc.oftc.net`_.
 
 If you want to contribute code, please familiarize yourself with the :doc:`DeveloperPolicy`.
@@ -32,7 +32,7 @@ let people know you are working on it.
 
 Then try to reproduce and fix the bug with upstream LLVM. Start by building
 LLVM from source as described in :doc:`GettingStarted` and
-and use the built binaries to reproduce the failure described in the bug. Use
+use the built binaries to reproduce the failure described in the bug. Use
 a debug build (`-DCMAKE_BUILD_TYPE=Debug`) or a build with assertions
 (`-DLLVM_ENABLE_ASSERTIONS=On`, enabled for Debug builds).
 
@@ -45,9 +45,8 @@ Bigger Pieces of Work
 ---------------------
 In case you are interested in taking on a bigger piece of work, a list of
 interesting projects is maintained at the `LLVM's Open Projects page`_. In case
-you are interested in working on any of these projects, please send a mail to
-the `LLVM Developer's mailing list`_, so that we know the project is being
-worked on.
+you are interested in working on any of these projects, please post on the
+`Forum`_, so that we know the project is being worked on.
 
 How to Submit a Patch
 =====================
@@ -147,7 +146,7 @@ of LLVM's high-level design, as well as its internals:
 
   .. __: http://www.aosabook.org/en/llvm.html
 
-.. _Developer's List (llvm-dev): http://lists.llvm.org/mailman/listinfo/llvm-dev
+.. _Forum: https://discourse.llvm.org
 .. _irc.oftc.net: irc://irc.oftc.net/llvm
 .. _beginner: https://github.com/llvm/llvm-project/issues?q=is%3Aopen+is%3Aissue+label%3Abeginner
 .. _bug tracker: https://github.com/llvm/llvm-project/issues
@@ -155,4 +154,3 @@ of LLVM's high-level design, as well as its internals:
 .. _git-clang-format: https://reviews.llvm.org/source/llvm-github/browse/main/clang/tools/clang-format/git-clang-format
 .. _LLVM's Phabricator: https://reviews.llvm.org/
 .. _LLVM's Open Projects page: https://llvm.org/OpenProjects.html#what
-.. _LLVM Developer's mailing list: http://lists.llvm.org/mailman/listinfo/llvm-dev

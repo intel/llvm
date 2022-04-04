@@ -198,8 +198,8 @@ def PPCfsel   : SDNode<"PPCISD::FSEL",
    // Type constraint for fsel.
    SDTypeProfile<1, 3, [SDTCisSameAs<0, 2>, SDTCisSameAs<0, 3>,
                         SDTCisFP<0>, SDTCisVT<1, f64>]>, []>;
-def PPCxsmaxc : SDNode<"PPCISD::XSMAXCDP", SDT_PPCFPMinMax, []>;
-def PPCxsminc : SDNode<"PPCISD::XSMINCDP", SDT_PPCFPMinMax, []>;
+def PPCxsmaxc : SDNode<"PPCISD::XSMAXC", SDT_PPCFPMinMax, []>;
+def PPCxsminc : SDNode<"PPCISD::XSMINC", SDT_PPCFPMinMax, []>;
 def PPChi       : SDNode<"PPCISD::Hi", SDTIntBinOp, []>;
 def PPClo       : SDNode<"PPCISD::Lo", SDTIntBinOp, []>;
 def PPCtoc_entry: SDNode<"PPCISD::TOC_ENTRY", SDTIntBinOp,
@@ -1016,7 +1016,7 @@ def dispRI : Operand<iPTR> {
 }
 def PPCDispRIXOperand : AsmOperandClass {
  let Name = "DispRIX"; let PredicateMethod = "isS16ImmX4";
- let RenderMethod = "addImmOperands";
+ let RenderMethod = "addS16ImmOperands";
 }
 def dispRIX : Operand<iPTR> {
   let ParserMatchClass = PPCDispRIXOperand;
@@ -1030,7 +1030,7 @@ def dispRIHash : Operand<iPTR> {
 }
 def PPCDispRIX16Operand : AsmOperandClass {
  let Name = "DispRIX16"; let PredicateMethod = "isS16ImmX16";
- let RenderMethod = "addImmOperands";
+ let RenderMethod = "addS16ImmOperands";
 }
 def dispRIX16 : Operand<iPTR> {
   let ParserMatchClass = PPCDispRIX16Operand;
@@ -3728,8 +3728,6 @@ def : Pat<(fcopysign f32:$frB, f64:$frA),
 // XL Compat intrinsics.
 def : Pat<(int_ppc_fmsub f64:$A, f64:$B, f64:$C), (FMSUB $A, $B, $C)>;
 def : Pat<(int_ppc_fmsubs f32:$A, f32:$B, f32:$C), (FMSUBS $A, $B, $C)>;
-def : Pat<(int_ppc_fnmsub f64:$A, f64:$B, f64:$C), (FNMSUB $A, $B, $C)>;
-def : Pat<(int_ppc_fnmsubs f32:$A, f32:$B, f32:$C), (FNMSUBS $A, $B, $C)>;
 def : Pat<(int_ppc_fnmadd f64:$A, f64:$B, f64:$C), (FNMADD $A, $B, $C)>;
 def : Pat<(int_ppc_fnmadds f32:$A, f32:$B, f32:$C), (FNMADDS $A, $B, $C)>;
 def : Pat<(int_ppc_fre f64:$A), (FRE $A)>;
@@ -3748,7 +3746,8 @@ def       : Pat<(not i1:$in),
 
 // Prefixed instructions may require access to the above defs at a later
 // time so we include this after the def.
-include "PPCInstrPrefix.td"
+include "PPCInstrP10.td"
+include "PPCInstrMMA.td"
 
 // Patterns for arithmetic i1 operations.
 def : Pat<(add i1:$a, i1:$b),

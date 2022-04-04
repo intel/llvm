@@ -16,6 +16,7 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SpecialCaseList.h"
+#include "llvm/Support/AArch64TargetParser.h"
 #include "llvm/Support/TargetParser.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
@@ -847,10 +848,11 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
     // As a workaround for a bug in gold 2.26 and earlier, dead stripping of
     // globals in ASan is disabled by default on ELF targets.
     // See https://sourceware.org/bugzilla/show_bug.cgi?id=19002
-    AsanGlobalsDeadStripping =
+    AsanGlobalsDeadStripping = Args.hasFlag(
+        options::OPT_fsanitize_address_globals_dead_stripping,
+        options::OPT_fno_sanitize_address_globals_dead_stripping,
         !TC.getTriple().isOSBinFormatELF() || TC.getTriple().isOSFuchsia() ||
-        TC.getTriple().isPS4() ||
-        Args.hasArg(options::OPT_fsanitize_address_globals_dead_stripping);
+            TC.getTriple().isPS4());
 
     AsanUseOdrIndicator =
         Args.hasFlag(options::OPT_fsanitize_address_use_odr_indicator,
@@ -1014,8 +1016,8 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   // AMDGPU sanitizer support is experimental and controlled by -fgpu-sanitize.
   if (TC.getTriple().isNVPTX() ||
       (TC.getTriple().isAMDGPU() &&
-       !Args.hasFlag(options::OPT_fgpu_sanitize,
-                     options::OPT_fno_gpu_sanitize)))
+       !Args.hasFlag(options::OPT_fgpu_sanitize, options::OPT_fno_gpu_sanitize,
+                     true)))
     return;
 
   // Translate available CoverageFeatures to corresponding clang-cc1 flags.

@@ -75,6 +75,9 @@ enum ActionKind {
   /// Emit a .o file.
   EmitObj,
 
+  // Extract API information
+  ExtractAPI,
+
   /// Parse and apply any fixits to the source.
   FixIt,
 
@@ -86,6 +89,9 @@ enum ActionKind {
 
   /// Generate pre-compiled module from a set of header files.
   GenerateHeaderModule,
+
+  /// Generate a C++20 header unit module from a header file.
+  GenerateHeaderUnit,
 
   /// Generate pre-compiled header.
   GeneratePCH,
@@ -406,6 +412,10 @@ public:
 
   /// The name of the action to run when using a plugin action.
   std::string ActionName;
+
+  // Currently this is only used as part of the `-extract-api` action.
+  /// The name of the product the input files belong too.
+  std::string ProductName;
 
   /// Args to pass to the plugins
   std::map<std::string, std::vector<std::string>> PluginArgs;

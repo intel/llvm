@@ -12,21 +12,18 @@
 
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/LoopUtils.h"
-#include "mlir/Transforms/Passes.h"
 
 #define PASS_NAME "test-loop-permutation"
 
 using namespace mlir;
 
-static llvm::cl::OptionCategory clOptionsCategory(PASS_NAME " options");
-
 namespace {
 
 /// This pass applies the permutation on the first maximal perfect nest.
 struct TestLoopPermutation
-    : public PassWrapper<TestLoopPermutation, OperationPass<FuncOp>> {
+    : public PassWrapper<TestLoopPermutation, OperationPass<>> {
   StringRef getArgument() const final { return PASS_NAME; }
   StringRef getDescription() const final {
     return "Tests affine loop permutation utility";
@@ -51,7 +48,7 @@ void TestLoopPermutation::runOnOperation() {
   SmallVector<unsigned, 4> permMap(permList.begin(), permList.end());
 
   SmallVector<AffineForOp, 2> forOps;
-  getOperation().walk([&](AffineForOp forOp) { forOps.push_back(forOp); });
+  getOperation()->walk([&](AffineForOp forOp) { forOps.push_back(forOp); });
 
   for (auto forOp : forOps) {
     SmallVector<AffineForOp, 6> nest;

@@ -21,6 +21,8 @@ namespace mlir {
 struct LogicalResult;
 
 namespace pdll {
+class CodeCompleteContext;
+
 namespace ast {
 class DiagnosticEngine;
 } // namespace ast
@@ -35,6 +37,7 @@ public:
     // Markers.
     eof,
     error,
+    code_complete,
 
     // Keywords.
     KW_BEGIN,
@@ -55,7 +58,9 @@ public:
     kw_OpName,
     kw_Pattern,
     kw_replace,
+    kw_return,
     kw_rewrite,
+    kw_Rewrite,
     kw_Type,
     kw_TypeRange,
     kw_Value,
@@ -133,16 +138,16 @@ public:
   bool is(Kind k) const { return kind == k; }
 
   /// Return a location for the start of this token.
-  llvm::SMLoc getStartLoc() const {
-    return llvm::SMLoc::getFromPointer(spelling.data());
+  SMLoc getStartLoc() const {
+    return SMLoc::getFromPointer(spelling.data());
   }
   /// Return a location at the end of this token.
-  llvm::SMLoc getEndLoc() const {
-    return llvm::SMLoc::getFromPointer(spelling.data() + spelling.size());
+  SMLoc getEndLoc() const {
+    return SMLoc::getFromPointer(spelling.data() + spelling.size());
   }
   /// Return a location for the range of this token.
-  llvm::SMRange getLoc() const {
-    return llvm::SMRange(getStartLoc(), getEndLoc());
+  SMRange getLoc() const {
+    return SMRange(getStartLoc(), getEndLoc());
   }
 
 private:
@@ -160,7 +165,8 @@ private:
 
 class Lexer {
 public:
-  Lexer(llvm::SourceMgr &mgr, ast::DiagnosticEngine &diagEngine);
+  Lexer(llvm::SourceMgr &mgr, ast::DiagnosticEngine &diagEngine,
+        CodeCompleteContext *codeCompleteContext);
   ~Lexer();
 
   /// Return a reference to the source manager used by the lexer.
@@ -182,10 +188,10 @@ public:
   void resetPointer(const char *newPointer) { curPtr = newPointer; }
 
   /// Emit an error to the lexer with the given location and message.
-  Token emitError(llvm::SMRange loc, const Twine &msg);
+  Token emitError(SMRange loc, const Twine &msg);
   Token emitError(const char *loc, const Twine &msg);
-  Token emitErrorAndNote(llvm::SMRange loc, const Twine &msg,
-                         llvm::SMRange noteLoc, const Twine &note);
+  Token emitErrorAndNote(SMRange loc, const Twine &msg,
+                         SMRange noteLoc, const Twine &note);
 
 private:
   Token formToken(Token::Kind kind, const char *tokStart) {
@@ -213,6 +219,9 @@ private:
   /// A flag indicating if we added a default diagnostic handler to the provided
   /// diagEngine.
   bool addedHandlerToDiagEngine;
+
+  /// The optional code completion point within the input file.
+  const char *codeCompletionLocation;
 };
 } // namespace pdll
 } // namespace mlir

@@ -15,7 +15,7 @@ using namespace mlir;
 
 ParseResult mlir::function_interface_impl::parseFunctionArgumentList(
     OpAsmParser &parser, bool allowAttributes, bool allowVariadic,
-    SmallVectorImpl<OpAsmParser::OperandType> &argNames,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &argNames,
     SmallVectorImpl<Type> &argTypes, SmallVectorImpl<NamedAttrList> &argAttrs,
     SmallVectorImpl<Location> &argLocations, bool &isVariadic) {
   if (parser.parseLParen())
@@ -25,10 +25,10 @@ ParseResult mlir::function_interface_impl::parseFunctionArgumentList(
   // types, or just be a type list.  It isn't ok to sometimes have SSA ID's and
   // sometimes not.
   auto parseArgument = [&]() -> ParseResult {
-    llvm::SMLoc loc = parser.getCurrentLocation();
+    SMLoc loc = parser.getCurrentLocation();
 
     // Parse argument name if present.
-    OpAsmParser::OperandType argument;
+    OpAsmParser::UnresolvedOperand argument;
     Type argumentType;
     if (succeeded(parser.parseOptionalRegionArgument(argument)) &&
         !argument.name.empty()) {
@@ -80,7 +80,7 @@ ParseResult mlir::function_interface_impl::parseFunctionArgumentList(
       if (parseArgument())
         return failure();
 
-      llvm::SMLoc loc = parser.getCurrentLocation();
+      SMLoc loc = parser.getCurrentLocation();
       if (argTypes.size() == numTypedArguments &&
           succeeded(parser.parseOptionalComma()))
         return parser.emitError(
@@ -133,7 +133,7 @@ parseFunctionResultList(OpAsmParser &parser, SmallVectorImpl<Type> &resultTypes,
 
 ParseResult mlir::function_interface_impl::parseFunctionSignature(
     OpAsmParser &parser, bool allowVariadic,
-    SmallVectorImpl<OpAsmParser::OperandType> &argNames,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &argNames,
     SmallVectorImpl<Type> &argTypes, SmallVectorImpl<NamedAttrList> &argAttrs,
     SmallVectorImpl<Location> &argLocations, bool &isVariadic,
     SmallVectorImpl<Type> &resultTypes,
@@ -194,7 +194,7 @@ void mlir::function_interface_impl::addArgAndResultAttrs(
 ParseResult mlir::function_interface_impl::parseFunctionOp(
     OpAsmParser &parser, OperationState &result, bool allowVariadic,
     FuncTypeBuilder funcTypeBuilder) {
-  SmallVector<OpAsmParser::OperandType> entryArgs;
+  SmallVector<OpAsmParser::UnresolvedOperand> entryArgs;
   SmallVector<NamedAttrList> argAttrs;
   SmallVector<NamedAttrList> resultAttrs;
   SmallVector<Type> argTypes;
@@ -212,7 +212,7 @@ ParseResult mlir::function_interface_impl::parseFunctionOp(
     return failure();
 
   // Parse the function signature.
-  llvm::SMLoc signatureLocation = parser.getCurrentLocation();
+  SMLoc signatureLocation = parser.getCurrentLocation();
   bool isVariadic = false;
   if (parseFunctionSignature(parser, allowVariadic, entryArgs, argTypes,
                              argAttrs, argLocations, isVariadic, resultTypes,
@@ -231,7 +231,7 @@ ParseResult mlir::function_interface_impl::parseFunctionOp(
 
   // If function attributes are present, parse them.
   NamedAttrList parsedAttributes;
-  llvm::SMLoc attributeDictLocation = parser.getCurrentLocation();
+  SMLoc attributeDictLocation = parser.getCurrentLocation();
   if (parser.parseOptionalAttrDictWithKeyword(parsedAttributes))
     return failure();
 
@@ -256,7 +256,7 @@ ParseResult mlir::function_interface_impl::parseFunctionOp(
   // Parse the optional function body. The printer will not print the body if
   // its empty, so disallow parsing of empty body in the parser.
   auto *body = result.addRegion();
-  llvm::SMLoc loc = parser.getCurrentLocation();
+  SMLoc loc = parser.getCurrentLocation();
   OptionalParseResult parseResult = parser.parseOptionalRegion(
       *body, entryArgs, entryArgs.empty() ? ArrayRef<Type>() : argTypes,
       entryArgs.empty() ? ArrayRef<Location>() : argLocations,
@@ -344,9 +344,9 @@ void mlir::function_interface_impl::printFunctionAttributes(
   p.printOptionalAttrDictWithKeyword(op->getAttrs(), ignoredAttrs);
 }
 
-void mlir::function_interface_impl::printFunctionOp(
-    OpAsmPrinter &p, Operation *op, ArrayRef<Type> argTypes, bool isVariadic,
-    ArrayRef<Type> resultTypes) {
+void mlir::function_interface_impl::printFunctionOp(OpAsmPrinter &p,
+                                                    FunctionOpInterface op,
+                                                    bool isVariadic) {
   // Print the operation and the function name.
   auto funcName =
       op->getAttrOfType<StringAttr>(SymbolTable::getSymbolAttrName())
@@ -358,6 +358,8 @@ void mlir::function_interface_impl::printFunctionOp(
     p << visibility.getValue() << ' ';
   p.printSymbolName(funcName);
 
+  ArrayRef<Type> argTypes = op.getArgumentTypes();
+  ArrayRef<Type> resultTypes = op.getResultTypes();
   printFunctionSignature(p, op, argTypes, isVariadic, resultTypes);
   printFunctionAttributes(p, op, argTypes.size(), resultTypes.size(),
                           {visibilityAttrName});

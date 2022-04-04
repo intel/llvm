@@ -277,18 +277,19 @@ def SPV_DeviceTypeAttr : SPV_EnumAttr<
   ]>;
 
 def SPV_V_AMD         : I32EnumAttrCase<"AMD", 0>;
-def SPV_V_ARM         : I32EnumAttrCase<"ARM", 1>;
-def SPV_V_Imagination : I32EnumAttrCase<"Imagination", 2>;
-def SPV_V_Intel       : I32EnumAttrCase<"Intel", 3>;
-def SPV_V_NVIDIA      : I32EnumAttrCase<"NVIDIA", 4>;
-def SPV_V_Qualcomm    : I32EnumAttrCase<"Qualcomm", 5>;
-def SPV_V_SwiftShader : I32EnumAttrCase<"SwiftShader", 6>;
-def SPV_V_Unknown     : I32EnumAttrCase<"Unknown", 7>;
+def SPV_V_Apple       : I32EnumAttrCase<"Apple", 1>;
+def SPV_V_ARM         : I32EnumAttrCase<"ARM", 2>;
+def SPV_V_Imagination : I32EnumAttrCase<"Imagination", 3>;
+def SPV_V_Intel       : I32EnumAttrCase<"Intel", 4>;
+def SPV_V_NVIDIA      : I32EnumAttrCase<"NVIDIA", 5>;
+def SPV_V_Qualcomm    : I32EnumAttrCase<"Qualcomm", 6>;
+def SPV_V_SwiftShader : I32EnumAttrCase<"SwiftShader", 7>;
+def SPV_V_Unknown     : I32EnumAttrCase<"Unknown", 0xff>;
 
 def SPV_VendorAttr : SPV_EnumAttr<
   "Vendor", "recognized SPIR-V vendor strings", "vendor", [
-    SPV_V_AMD, SPV_V_ARM, SPV_V_Imagination, SPV_V_Intel,
-    SPV_V_NVIDIA, SPV_V_Qualcomm, SPV_V_SwiftShader,
+    SPV_V_AMD, SPV_V_Apple, SPV_V_ARM, SPV_V_Imagination,
+    SPV_V_Intel, SPV_V_NVIDIA, SPV_V_Qualcomm, SPV_V_SwiftShader,
     SPV_V_Unknown
   ]>;
 
@@ -3082,12 +3083,12 @@ def SPV_ExecutionModelAttr :
       SPV_EM_AnyHitKHR, SPV_EM_ClosestHitKHR, SPV_EM_MissKHR, SPV_EM_CallableKHR
     ]>;
 
-def SPV_FC_None         : BitEnumAttrCase<"None", 0x0000>;
-def SPV_FC_Inline       : BitEnumAttrCase<"Inline", 0x0001>;
-def SPV_FC_DontInline   : BitEnumAttrCase<"DontInline", 0x0002>;
-def SPV_FC_Pure         : BitEnumAttrCase<"Pure", 0x0004>;
-def SPV_FC_Const        : BitEnumAttrCase<"Const", 0x0008>;
-def SPV_FC_OptNoneINTEL : BitEnumAttrCase<"OptNoneINTEL", 0x10000> {
+def SPV_FC_None         : BitEnumAttrCaseNone<"None">;
+def SPV_FC_Inline       : BitEnumAttrCaseBit<"Inline", 0>;
+def SPV_FC_DontInline   : BitEnumAttrCaseBit<"DontInline", 1>;
+def SPV_FC_Pure         : BitEnumAttrCaseBit<"Pure", 2>;
+def SPV_FC_Const        : BitEnumAttrCaseBit<"Const", 3>;
+def SPV_FC_OptNoneINTEL : BitEnumAttrCaseBit<"OptNoneINTEL", 16> {
   list<Availability> availability = [
     Capability<[SPV_C_OptNoneINTEL]>
   ];
@@ -3366,62 +3367,62 @@ def SPV_ImageFormatAttr :
       SPV_IF_R8ui, SPV_IF_R64ui, SPV_IF_R64i
     ]>;
 
-def SPV_IO_None               : BitEnumAttrCase<"None", 0x0000>;
-def SPV_IO_Bias               : BitEnumAttrCase<"Bias", 0x0001> {
+def SPV_IO_None               : BitEnumAttrCaseNone<"None">;
+def SPV_IO_Bias               : BitEnumAttrCaseBit<"Bias", 0> {
   list<Availability> availability = [
     Capability<[SPV_C_Shader]>
   ];
 }
-def SPV_IO_Lod                : BitEnumAttrCase<"Lod", 0x0002>;
-def SPV_IO_Grad               : BitEnumAttrCase<"Grad", 0x0004>;
-def SPV_IO_ConstOffset        : BitEnumAttrCase<"ConstOffset", 0x0008>;
-def SPV_IO_Offset             : BitEnumAttrCase<"Offset", 0x0010> {
+def SPV_IO_Lod                : BitEnumAttrCaseBit<"Lod", 1>;
+def SPV_IO_Grad               : BitEnumAttrCaseBit<"Grad", 2>;
+def SPV_IO_ConstOffset        : BitEnumAttrCaseBit<"ConstOffset", 3>;
+def SPV_IO_Offset             : BitEnumAttrCaseBit<"Offset", 4> {
   list<Availability> availability = [
     Capability<[SPV_C_ImageGatherExtended]>
   ];
 }
-def SPV_IO_ConstOffsets       : BitEnumAttrCase<"ConstOffsets", 0x0020> {
+def SPV_IO_ConstOffsets       : BitEnumAttrCaseBit<"ConstOffsets", 5> {
   list<Availability> availability = [
     Capability<[SPV_C_ImageGatherExtended]>
   ];
 }
-def SPV_IO_Sample             : BitEnumAttrCase<"Sample", 0x0040>;
-def SPV_IO_MinLod             : BitEnumAttrCase<"MinLod", 0x0080> {
+def SPV_IO_Sample             : BitEnumAttrCaseBit<"Sample", 6>;
+def SPV_IO_MinLod             : BitEnumAttrCaseBit<"MinLod", 7> {
   list<Availability> availability = [
     Capability<[SPV_C_MinLod]>
   ];
 }
-def SPV_IO_MakeTexelAvailable : BitEnumAttrCase<"MakeTexelAvailable", 0x0100> {
+def SPV_IO_MakeTexelAvailable : BitEnumAttrCaseBit<"MakeTexelAvailable", 8> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_5>,
     Capability<[SPV_C_VulkanMemoryModel]>
   ];
 }
-def SPV_IO_MakeTexelVisible   : BitEnumAttrCase<"MakeTexelVisible", 0x0200> {
+def SPV_IO_MakeTexelVisible   : BitEnumAttrCaseBit<"MakeTexelVisible", 9> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_5>,
     Capability<[SPV_C_VulkanMemoryModel]>
   ];
 }
-def SPV_IO_NonPrivateTexel    : BitEnumAttrCase<"NonPrivateTexel", 0x0400> {
+def SPV_IO_NonPrivateTexel    : BitEnumAttrCaseBit<"NonPrivateTexel", 10> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_5>,
     Capability<[SPV_C_VulkanMemoryModel]>
   ];
 }
-def SPV_IO_VolatileTexel      : BitEnumAttrCase<"VolatileTexel", 0x0800> {
+def SPV_IO_VolatileTexel      : BitEnumAttrCaseBit<"VolatileTexel", 11> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_5>,
     Capability<[SPV_C_VulkanMemoryModel]>
   ];
 }
-def SPV_IO_SignExtend         : BitEnumAttrCase<"SignExtend", 0x1000> {
+def SPV_IO_SignExtend         : BitEnumAttrCaseBit<"SignExtend", 12> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_4>
   ];
 }
-def SPV_IO_Offsets            : BitEnumAttrCase<"Offsets", 0x10000>;
-def SPV_IO_ZeroExtend         : BitEnumAttrCase<"ZeroExtend", 0x2000> {
+def SPV_IO_Offsets            : BitEnumAttrCaseBit<"Offsets", 16>;
+def SPV_IO_ZeroExtend         : BitEnumAttrCaseBit<"ZeroExtend", 13> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_4>
   ];
@@ -3457,87 +3458,87 @@ def SPV_LinkageTypeAttr :
       SPV_LT_Export, SPV_LT_Import, SPV_LT_LinkOnceODR
     ]>;
 
-def SPV_LC_None                      : BitEnumAttrCase<"None", 0x0000>;
-def SPV_LC_Unroll                    : BitEnumAttrCase<"Unroll", 0x0001>;
-def SPV_LC_DontUnroll                : BitEnumAttrCase<"DontUnroll", 0x0002>;
-def SPV_LC_DependencyInfinite        : BitEnumAttrCase<"DependencyInfinite", 0x0004> {
+def SPV_LC_None                      : BitEnumAttrCaseNone<"None">;
+def SPV_LC_Unroll                    : BitEnumAttrCaseBit<"Unroll", 0>;
+def SPV_LC_DontUnroll                : BitEnumAttrCaseBit<"DontUnroll", 1>;
+def SPV_LC_DependencyInfinite        : BitEnumAttrCaseBit<"DependencyInfinite", 2> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_1>
   ];
 }
-def SPV_LC_DependencyLength          : BitEnumAttrCase<"DependencyLength", 0x0008> {
+def SPV_LC_DependencyLength          : BitEnumAttrCaseBit<"DependencyLength", 3> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_1>
   ];
 }
-def SPV_LC_MinIterations             : BitEnumAttrCase<"MinIterations", 0x0010> {
+def SPV_LC_MinIterations             : BitEnumAttrCaseBit<"MinIterations", 4> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_4>
   ];
 }
-def SPV_LC_MaxIterations             : BitEnumAttrCase<"MaxIterations", 0x0020> {
+def SPV_LC_MaxIterations             : BitEnumAttrCaseBit<"MaxIterations", 5> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_4>
   ];
 }
-def SPV_LC_IterationMultiple         : BitEnumAttrCase<"IterationMultiple", 0x0040> {
+def SPV_LC_IterationMultiple         : BitEnumAttrCaseBit<"IterationMultiple", 6> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_4>
   ];
 }
-def SPV_LC_PeelCount                 : BitEnumAttrCase<"PeelCount", 0x0080> {
+def SPV_LC_PeelCount                 : BitEnumAttrCaseBit<"PeelCount", 7> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_4>
   ];
 }
-def SPV_LC_PartialCount              : BitEnumAttrCase<"PartialCount", 0x0100> {
+def SPV_LC_PartialCount              : BitEnumAttrCaseBit<"PartialCount", 8> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_4>
   ];
 }
-def SPV_LC_InitiationIntervalINTEL   : BitEnumAttrCase<"InitiationIntervalINTEL", 0x10000> {
+def SPV_LC_InitiationIntervalINTEL   : BitEnumAttrCaseBit<"InitiationIntervalINTEL", 16> {
   list<Availability> availability = [
     Extension<[SPV_INTEL_fpga_loop_controls]>,
     Capability<[SPV_C_FPGALoopControlsINTEL]>
   ];
 }
-def SPV_LC_LoopCoalesceINTEL         : BitEnumAttrCase<"LoopCoalesceINTEL", 0x100000> {
+def SPV_LC_LoopCoalesceINTEL         : BitEnumAttrCaseBit<"LoopCoalesceINTEL", 20> {
   list<Availability> availability = [
     Extension<[SPV_INTEL_fpga_loop_controls]>,
     Capability<[SPV_C_FPGALoopControlsINTEL]>
   ];
 }
-def SPV_LC_MaxConcurrencyINTEL       : BitEnumAttrCase<"MaxConcurrencyINTEL", 0x20000> {
+def SPV_LC_MaxConcurrencyINTEL       : BitEnumAttrCaseBit<"MaxConcurrencyINTEL", 17> {
   list<Availability> availability = [
     Extension<[SPV_INTEL_fpga_loop_controls]>,
     Capability<[SPV_C_FPGALoopControlsINTEL]>
   ];
 }
-def SPV_LC_MaxInterleavingINTEL      : BitEnumAttrCase<"MaxInterleavingINTEL", 0x200000> {
+def SPV_LC_MaxInterleavingINTEL      : BitEnumAttrCaseBit<"MaxInterleavingINTEL", 21> {
   list<Availability> availability = [
     Extension<[SPV_INTEL_fpga_loop_controls]>,
     Capability<[SPV_C_FPGALoopControlsINTEL]>
   ];
 }
-def SPV_LC_DependencyArrayINTEL      : BitEnumAttrCase<"DependencyArrayINTEL", 0x40000> {
+def SPV_LC_DependencyArrayINTEL      : BitEnumAttrCaseBit<"DependencyArrayINTEL", 18> {
   list<Availability> availability = [
     Extension<[SPV_INTEL_fpga_loop_controls]>,
     Capability<[SPV_C_FPGALoopControlsINTEL]>
   ];
 }
-def SPV_LC_SpeculatedIterationsINTEL : BitEnumAttrCase<"SpeculatedIterationsINTEL", 0x400000> {
+def SPV_LC_SpeculatedIterationsINTEL : BitEnumAttrCaseBit<"SpeculatedIterationsINTEL", 22> {
   list<Availability> availability = [
     Extension<[SPV_INTEL_fpga_loop_controls]>,
     Capability<[SPV_C_FPGALoopControlsINTEL]>
   ];
 }
-def SPV_LC_PipelineEnableINTEL       : BitEnumAttrCase<"PipelineEnableINTEL", 0x80000> {
+def SPV_LC_PipelineEnableINTEL       : BitEnumAttrCaseBit<"PipelineEnableINTEL", 19> {
   list<Availability> availability = [
     Extension<[SPV_INTEL_fpga_loop_controls]>,
     Capability<[SPV_C_FPGALoopControlsINTEL]>
   ];
 }
-def SPV_LC_NoFusionINTEL             : BitEnumAttrCase<"NoFusionINTEL", 0x800000> {
+def SPV_LC_NoFusionINTEL             : BitEnumAttrCaseBit<"NoFusionINTEL", 23> {
   list<Availability> availability = [
     Extension<[SPV_INTEL_fpga_loop_controls]>,
     Capability<[SPV_C_FPGALoopControlsINTEL]>
@@ -3555,23 +3556,23 @@ def SPV_LoopControlAttr :
       SPV_LC_PipelineEnableINTEL, SPV_LC_NoFusionINTEL
     ]>;
 
-def SPV_MA_None                 : BitEnumAttrCase<"None", 0x0000>;
-def SPV_MA_Volatile             : BitEnumAttrCase<"Volatile", 0x0001>;
-def SPV_MA_Aligned              : BitEnumAttrCase<"Aligned", 0x0002>;
-def SPV_MA_Nontemporal          : BitEnumAttrCase<"Nontemporal", 0x0004>;
-def SPV_MA_MakePointerAvailable : BitEnumAttrCase<"MakePointerAvailable", 0x0008> {
+def SPV_MA_None                 : BitEnumAttrCaseNone<"None">;
+def SPV_MA_Volatile             : BitEnumAttrCaseBit<"Volatile", 0>;
+def SPV_MA_Aligned              : BitEnumAttrCaseBit<"Aligned", 1>;
+def SPV_MA_Nontemporal          : BitEnumAttrCaseBit<"Nontemporal", 2>;
+def SPV_MA_MakePointerAvailable : BitEnumAttrCaseBit<"MakePointerAvailable", 3> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_5>,
     Capability<[SPV_C_VulkanMemoryModel]>
   ];
 }
-def SPV_MA_MakePointerVisible   : BitEnumAttrCase<"MakePointerVisible", 0x0010> {
+def SPV_MA_MakePointerVisible   : BitEnumAttrCaseBit<"MakePointerVisible", 4> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_5>,
     Capability<[SPV_C_VulkanMemoryModel]>
   ];
 }
-def SPV_MA_NonPrivatePointer    : BitEnumAttrCase<"NonPrivatePointer", 0x0020> {
+def SPV_MA_NonPrivatePointer    : BitEnumAttrCaseBit<"NonPrivatePointer", 5> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_5>,
     Capability<[SPV_C_VulkanMemoryModel]>
@@ -3612,44 +3613,44 @@ def SPV_MemoryModelAttr :
       SPV_MM_Simple, SPV_MM_GLSL450, SPV_MM_OpenCL, SPV_MM_Vulkan
     ]>;
 
-def SPV_MS_None                   : BitEnumAttrCase<"None", 0x0000>;
-def SPV_MS_Acquire                : BitEnumAttrCase<"Acquire", 0x0002>;
-def SPV_MS_Release                : BitEnumAttrCase<"Release", 0x0004>;
-def SPV_MS_AcquireRelease         : BitEnumAttrCase<"AcquireRelease", 0x0008>;
-def SPV_MS_SequentiallyConsistent : BitEnumAttrCase<"SequentiallyConsistent", 0x0010>;
-def SPV_MS_UniformMemory          : BitEnumAttrCase<"UniformMemory", 0x0040> {
+def SPV_MS_None                   : BitEnumAttrCaseNone<"None">;
+def SPV_MS_Acquire                : BitEnumAttrCaseBit<"Acquire", 1>;
+def SPV_MS_Release                : BitEnumAttrCaseBit<"Release", 2>;
+def SPV_MS_AcquireRelease         : BitEnumAttrCaseBit<"AcquireRelease", 3>;
+def SPV_MS_SequentiallyConsistent : BitEnumAttrCaseBit<"SequentiallyConsistent", 4>;
+def SPV_MS_UniformMemory          : BitEnumAttrCaseBit<"UniformMemory", 6> {
   list<Availability> availability = [
     Capability<[SPV_C_Shader]>
   ];
 }
-def SPV_MS_SubgroupMemory         : BitEnumAttrCase<"SubgroupMemory", 0x0080>;
-def SPV_MS_WorkgroupMemory        : BitEnumAttrCase<"WorkgroupMemory", 0x0100>;
-def SPV_MS_CrossWorkgroupMemory   : BitEnumAttrCase<"CrossWorkgroupMemory", 0x0200>;
-def SPV_MS_AtomicCounterMemory    : BitEnumAttrCase<"AtomicCounterMemory", 0x0400> {
+def SPV_MS_SubgroupMemory         : BitEnumAttrCaseBit<"SubgroupMemory", 7>;
+def SPV_MS_WorkgroupMemory        : BitEnumAttrCaseBit<"WorkgroupMemory", 8>;
+def SPV_MS_CrossWorkgroupMemory   : BitEnumAttrCaseBit<"CrossWorkgroupMemory", 9>;
+def SPV_MS_AtomicCounterMemory    : BitEnumAttrCaseBit<"AtomicCounterMemory", 10> {
   list<Availability> availability = [
     Capability<[SPV_C_AtomicStorage]>
   ];
 }
-def SPV_MS_ImageMemory            : BitEnumAttrCase<"ImageMemory", 0x0800>;
-def SPV_MS_OutputMemory           : BitEnumAttrCase<"OutputMemory", 0x1000> {
+def SPV_MS_ImageMemory            : BitEnumAttrCaseBit<"ImageMemory", 11>;
+def SPV_MS_OutputMemory           : BitEnumAttrCaseBit<"OutputMemory", 12> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_5>,
     Capability<[SPV_C_VulkanMemoryModel]>
   ];
 }
-def SPV_MS_MakeAvailable          : BitEnumAttrCase<"MakeAvailable", 0x2000> {
+def SPV_MS_MakeAvailable          : BitEnumAttrCaseBit<"MakeAvailable", 13> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_5>,
     Capability<[SPV_C_VulkanMemoryModel]>
   ];
 }
-def SPV_MS_MakeVisible            : BitEnumAttrCase<"MakeVisible", 0x4000> {
+def SPV_MS_MakeVisible            : BitEnumAttrCaseBit<"MakeVisible", 14> {
   list<Availability> availability = [
     MinVersion<SPV_V_1_5>,
     Capability<[SPV_C_VulkanMemoryModel]>
   ];
 }
-def SPV_MS_Volatile               : BitEnumAttrCase<"Volatile", 0x8000> {
+def SPV_MS_Volatile               : BitEnumAttrCaseBit<"Volatile", 15> {
   list<Availability> availability = [
     Extension<[SPV_KHR_vulkan_memory_model]>,
     Capability<[SPV_C_VulkanMemoryModel]>
@@ -3688,9 +3689,9 @@ def SPV_ScopeAttr :
       SPV_S_Invocation, SPV_S_QueueFamily, SPV_S_ShaderCallKHR
     ]>;
 
-def SPV_SC_None        : BitEnumAttrCase<"None", 0x0000>;
-def SPV_SC_Flatten     : BitEnumAttrCase<"Flatten", 0x0001>;
-def SPV_SC_DontFlatten : BitEnumAttrCase<"DontFlatten", 0x0002>;
+def SPV_SC_None        : BitEnumAttrCaseNone<"None">;
+def SPV_SC_Flatten     : BitEnumAttrCaseBit<"Flatten", 0>;
+def SPV_SC_DontFlatten : BitEnumAttrCaseBit<"DontFlatten", 1>;
 
 def SPV_SelectionControlAttr :
     SPV_BitEnumAttr<"SelectionControl", "valid SPIR-V SelectionControl", [
@@ -4078,6 +4079,7 @@ def SPV_OC_OpSRem                      : I32EnumAttrCase<"OpSRem", 138>;
 def SPV_OC_OpSMod                      : I32EnumAttrCase<"OpSMod", 139>;
 def SPV_OC_OpFRem                      : I32EnumAttrCase<"OpFRem", 140>;
 def SPV_OC_OpFMod                      : I32EnumAttrCase<"OpFMod", 141>;
+def SPV_OC_OpVectorTimesScalar         : I32EnumAttrCase<"OpVectorTimesScalar", 142>;
 def SPV_OC_OpMatrixTimesScalar         : I32EnumAttrCase<"OpMatrixTimesScalar", 143>;
 def SPV_OC_OpMatrixTimesMatrix         : I32EnumAttrCase<"OpMatrixTimesMatrix", 146>;
 def SPV_OC_OpIsNan                     : I32EnumAttrCase<"OpIsNan", 156>;
@@ -4173,6 +4175,7 @@ def SPV_OC_OpCooperativeMatrixMulAddNV : I32EnumAttrCase<"OpCooperativeMatrixMul
 def SPV_OC_OpCooperativeMatrixLengthNV : I32EnumAttrCase<"OpCooperativeMatrixLengthNV", 5362>;
 def SPV_OC_OpSubgroupBlockReadINTEL    : I32EnumAttrCase<"OpSubgroupBlockReadINTEL", 5575>;
 def SPV_OC_OpSubgroupBlockWriteINTEL   : I32EnumAttrCase<"OpSubgroupBlockWriteINTEL", 5576>;
+def SPV_OC_OpAssumeTrueKHR             : I32EnumAttrCase<"OpAssumeTrueKHR", 5630>;
 def SPV_OC_OpAtomicFAddEXT             : I32EnumAttrCase<"OpAtomicFAddEXT", 6035>;
 
 def SPV_OpcodeAttr :
@@ -4202,32 +4205,33 @@ def SPV_OpcodeAttr :
       SPV_OC_OpSNegate, SPV_OC_OpFNegate, SPV_OC_OpIAdd, SPV_OC_OpFAdd,
       SPV_OC_OpISub, SPV_OC_OpFSub, SPV_OC_OpIMul, SPV_OC_OpFMul, SPV_OC_OpUDiv,
       SPV_OC_OpSDiv, SPV_OC_OpFDiv, SPV_OC_OpUMod, SPV_OC_OpSRem, SPV_OC_OpSMod,
-      SPV_OC_OpFRem, SPV_OC_OpFMod, SPV_OC_OpMatrixTimesScalar,
-      SPV_OC_OpMatrixTimesMatrix, SPV_OC_OpIsNan, SPV_OC_OpIsInf, SPV_OC_OpOrdered,
-      SPV_OC_OpUnordered, SPV_OC_OpLogicalEqual, SPV_OC_OpLogicalNotEqual,
-      SPV_OC_OpLogicalOr, SPV_OC_OpLogicalAnd, SPV_OC_OpLogicalNot, SPV_OC_OpSelect,
-      SPV_OC_OpIEqual, SPV_OC_OpINotEqual, SPV_OC_OpUGreaterThan,
-      SPV_OC_OpSGreaterThan, SPV_OC_OpUGreaterThanEqual, SPV_OC_OpSGreaterThanEqual,
-      SPV_OC_OpULessThan, SPV_OC_OpSLessThan, SPV_OC_OpULessThanEqual,
-      SPV_OC_OpSLessThanEqual, SPV_OC_OpFOrdEqual, SPV_OC_OpFUnordEqual,
-      SPV_OC_OpFOrdNotEqual, SPV_OC_OpFUnordNotEqual, SPV_OC_OpFOrdLessThan,
-      SPV_OC_OpFUnordLessThan, SPV_OC_OpFOrdGreaterThan, SPV_OC_OpFUnordGreaterThan,
-      SPV_OC_OpFOrdLessThanEqual, SPV_OC_OpFUnordLessThanEqual,
-      SPV_OC_OpFOrdGreaterThanEqual, SPV_OC_OpFUnordGreaterThanEqual,
-      SPV_OC_OpShiftRightLogical, SPV_OC_OpShiftRightArithmetic,
-      SPV_OC_OpShiftLeftLogical, SPV_OC_OpBitwiseOr, SPV_OC_OpBitwiseXor,
-      SPV_OC_OpBitwiseAnd, SPV_OC_OpNot, SPV_OC_OpBitFieldInsert,
-      SPV_OC_OpBitFieldSExtract, SPV_OC_OpBitFieldUExtract, SPV_OC_OpBitReverse,
-      SPV_OC_OpBitCount, SPV_OC_OpControlBarrier, SPV_OC_OpMemoryBarrier,
-      SPV_OC_OpAtomicExchange, SPV_OC_OpAtomicCompareExchange,
-      SPV_OC_OpAtomicCompareExchangeWeak, SPV_OC_OpAtomicIIncrement,
-      SPV_OC_OpAtomicIDecrement, SPV_OC_OpAtomicIAdd, SPV_OC_OpAtomicISub,
-      SPV_OC_OpAtomicSMin, SPV_OC_OpAtomicUMin, SPV_OC_OpAtomicSMax,
-      SPV_OC_OpAtomicUMax, SPV_OC_OpAtomicAnd, SPV_OC_OpAtomicOr, SPV_OC_OpAtomicXor,
-      SPV_OC_OpPhi, SPV_OC_OpLoopMerge, SPV_OC_OpSelectionMerge, SPV_OC_OpLabel,
-      SPV_OC_OpBranch, SPV_OC_OpBranchConditional, SPV_OC_OpReturn,
-      SPV_OC_OpReturnValue, SPV_OC_OpUnreachable, SPV_OC_OpGroupBroadcast,
-      SPV_OC_OpNoLine, SPV_OC_OpModuleProcessed, SPV_OC_OpGroupNonUniformElect,
+      SPV_OC_OpFRem, SPV_OC_OpFMod, SPV_OC_OpVectorTimesScalar,
+      SPV_OC_OpMatrixTimesScalar, SPV_OC_OpMatrixTimesMatrix, SPV_OC_OpIsNan,
+      SPV_OC_OpIsInf, SPV_OC_OpOrdered, SPV_OC_OpUnordered, SPV_OC_OpLogicalEqual,
+      SPV_OC_OpLogicalNotEqual, SPV_OC_OpLogicalOr, SPV_OC_OpLogicalAnd,
+      SPV_OC_OpLogicalNot, SPV_OC_OpSelect, SPV_OC_OpIEqual, SPV_OC_OpINotEqual,
+      SPV_OC_OpUGreaterThan, SPV_OC_OpSGreaterThan, SPV_OC_OpUGreaterThanEqual,
+      SPV_OC_OpSGreaterThanEqual, SPV_OC_OpULessThan, SPV_OC_OpSLessThan,
+      SPV_OC_OpULessThanEqual, SPV_OC_OpSLessThanEqual, SPV_OC_OpFOrdEqual,
+      SPV_OC_OpFUnordEqual, SPV_OC_OpFOrdNotEqual, SPV_OC_OpFUnordNotEqual,
+      SPV_OC_OpFOrdLessThan, SPV_OC_OpFUnordLessThan, SPV_OC_OpFOrdGreaterThan,
+      SPV_OC_OpFUnordGreaterThan, SPV_OC_OpFOrdLessThanEqual,
+      SPV_OC_OpFUnordLessThanEqual, SPV_OC_OpFOrdGreaterThanEqual,
+      SPV_OC_OpFUnordGreaterThanEqual, SPV_OC_OpShiftRightLogical,
+      SPV_OC_OpShiftRightArithmetic, SPV_OC_OpShiftLeftLogical, SPV_OC_OpBitwiseOr,
+      SPV_OC_OpBitwiseXor, SPV_OC_OpBitwiseAnd, SPV_OC_OpNot,
+      SPV_OC_OpBitFieldInsert, SPV_OC_OpBitFieldSExtract, SPV_OC_OpBitFieldUExtract,
+      SPV_OC_OpBitReverse, SPV_OC_OpBitCount, SPV_OC_OpControlBarrier,
+      SPV_OC_OpMemoryBarrier, SPV_OC_OpAtomicExchange,
+      SPV_OC_OpAtomicCompareExchange, SPV_OC_OpAtomicCompareExchangeWeak,
+      SPV_OC_OpAtomicIIncrement, SPV_OC_OpAtomicIDecrement, SPV_OC_OpAtomicIAdd,
+      SPV_OC_OpAtomicISub, SPV_OC_OpAtomicSMin, SPV_OC_OpAtomicUMin,
+      SPV_OC_OpAtomicSMax, SPV_OC_OpAtomicUMax, SPV_OC_OpAtomicAnd,
+      SPV_OC_OpAtomicOr, SPV_OC_OpAtomicXor, SPV_OC_OpPhi, SPV_OC_OpLoopMerge,
+      SPV_OC_OpSelectionMerge, SPV_OC_OpLabel, SPV_OC_OpBranch,
+      SPV_OC_OpBranchConditional, SPV_OC_OpReturn, SPV_OC_OpReturnValue,
+      SPV_OC_OpUnreachable, SPV_OC_OpGroupBroadcast, SPV_OC_OpNoLine,
+      SPV_OC_OpModuleProcessed, SPV_OC_OpGroupNonUniformElect,
       SPV_OC_OpGroupNonUniformBroadcast, SPV_OC_OpGroupNonUniformBallot,
       SPV_OC_OpGroupNonUniformIAdd, SPV_OC_OpGroupNonUniformFAdd,
       SPV_OC_OpGroupNonUniformIMul, SPV_OC_OpGroupNonUniformFMul,
@@ -4238,7 +4242,7 @@ def SPV_OpcodeAttr :
       SPV_OC_OpCooperativeMatrixLoadNV, SPV_OC_OpCooperativeMatrixStoreNV,
       SPV_OC_OpCooperativeMatrixMulAddNV, SPV_OC_OpCooperativeMatrixLengthNV,
       SPV_OC_OpSubgroupBlockReadINTEL, SPV_OC_OpSubgroupBlockWriteINTEL,
-      SPV_OC_OpAtomicFAddEXT
+      SPV_OC_OpAssumeTrueKHR, SPV_OC_OpAtomicFAddEXT
     ]>;
 
 // End opcode section. Generated from SPIR-V spec; DO NOT MODIFY!
@@ -4248,7 +4252,7 @@ def SPV_OpcodeAttr :
 //===----------------------------------------------------------------------===//
 
 // Base class for all SPIR-V ops.
-class SPV_Op<string mnemonic, list<OpTrait> traits = []> :
+class SPV_Op<string mnemonic, list<Trait> traits = []> :
     Op<SPIRV_Dialect, mnemonic, !listconcat(traits, [
          // TODO: We don't need all of the following traits for every op; only
          // the suitable ones should be added automatically after ODS supports
@@ -4269,13 +4273,12 @@ class SPV_Op<string mnemonic, list<OpTrait> traits = []> :
   // For each SPIR-V op, the following static functions need to be defined
   // in SPVOps.cpp:
   //
-  // * static ParseResult parse<op-c++-class-name>(OpAsmParser &parser,
-  //                                               OperationState &result)
-  // * static void print(OpAsmPrinter &p, <op-c++-class-name> op)
-  // * static LogicalResult verify(<op-c++-class-name> op)
-  let parser = [{ return ::parse$cppClass(parser, result); }];
-  let printer = [{ return ::print(*this, p); }];
-  let verifier = [{ return ::verify(*this); }];
+  // * ParseResult <op-c++-class-name>::parse(OpAsmParser &parser,
+  //                                          OperationState &result)
+  // * void <op-c++-class-name>::print(OpAsmPrinter &p)
+  // * LogicalResult <op-c++-class-name>::verify()
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 
   // Specifies whether this op has a direct corresponding SPIR-V binary
   // instruction opcode. The (de)serializer use this field to determine whether
@@ -4310,7 +4313,7 @@ class SPV_Op<string mnemonic, list<OpTrait> traits = []> :
 }
 
 class SPV_UnaryOp<string mnemonic, Type resultType, Type operandType,
-                  list<OpTrait> traits = []> :
+                  list<Trait> traits = []> :
       SPV_Op<mnemonic, traits> {
   let arguments = (ins
     SPV_ScalarOrVectorOf<operandType>:$operand
@@ -4320,14 +4323,13 @@ class SPV_UnaryOp<string mnemonic, Type resultType, Type operandType,
     SPV_ScalarOrVectorOf<resultType>:$result
   );
 
-  let parser = [{ return ::parseUnaryOp(parser, result); }];
-  let printer = [{ return ::printUnaryOp(getOperation(), p); }];
+  let assemblyFormat = "$operand `:` type($operand) attr-dict";
   // No additional verification needed in addition to the ODS-generated ones.
-  let verifier = [{ return success(); }];
+  let hasVerifier = 0;
 }
 
 class SPV_BinaryOp<string mnemonic, Type resultType, Type operandsType,
-                   list<OpTrait> traits = []> :
+                   list<Trait> traits = []> :
       SPV_Op<mnemonic, traits> {
   let arguments = (ins
     SPV_ScalarOrVectorOf<operandsType>:$operand1,
@@ -4338,14 +4340,12 @@ class SPV_BinaryOp<string mnemonic, Type resultType, Type operandsType,
     SPV_ScalarOrVectorOf<resultType>:$result
   );
 
-  let parser = [{ return impl::parseOneResultSameOperandTypeOp(parser, result); }];
-  let printer = [{ return impl::printOneResultOp(getOperation(), p); }];
   // No additional verification needed in addition to the ODS-generated ones.
-  let verifier = [{ return success(); }];
+  let hasVerifier = 0;
 }
 
 class SPV_ExtInstOp<string mnemonic, string setPrefix, string setName,
-                    int opcode, list<OpTrait> traits = []> :
+                    int opcode, list<Trait> traits = []> :
   SPV_Op<setPrefix # "." # mnemonic, traits> {
 
   // Extended instruction sets have no direct opcode (they share the

@@ -103,6 +103,20 @@ public:
   void lowerUMulWithOverflow(IntrinsicInst *UMulIntrinsic);
   void buildUMulWithOverflowFunc(Function *UMulFunc);
 
+  // For some cases Clang emits VectorExtractDynamic as:
+  // void @_Z28__spirv_VectorExtractDynamic(<Ty>* sret(<Ty>), jointMatrix, idx);
+  // Instead of:
+  // <Ty> @_Z28__spirv_VectorExtractDynamic(JointMatrix, Idx);
+  // And VectorInsertDynamic as:
+  // @_Z27__spirv_VectorInsertDynamic(jointMatrix, <Ty>* byval(<Ty>), idx);
+  // Instead of:
+  // @_Z27__spirv_VectorInsertDynamic(jointMatrix, <Ty>, idx)
+  // Need to add additional GEP, store and load instructions and mutate called
+  // function to avoid translation failures
+  void expandSYCLTypeUsing(Module *M);
+  void expandVEDWithSYCLTypeSRetArg(Function *F);
+  void expandVIDWithSYCLTypeByValComp(Function *F);
+
   static std::string lowerLLVMIntrinsicName(IntrinsicInst *II);
   void adaptStructTypes(StructType *ST);
   static char ID;
@@ -320,6 +334,84 @@ void SPIRVRegularizeLLVMBase::lowerUMulWithOverflow(
   UMulIntrinsic->setCalledFunction(UMulFunc);
 }
 
+void SPIRVRegularizeLLVMBase::expandVEDWithSYCLTypeSRetArg(Function *F) {
+  auto Attrs = F->getAttributes();
+  Attrs = Attrs.removeParamAttribute(F->getContext(), 0, Attribute::StructRet);
+  std::string Name = F->getName().str();
+  CallInst *OldCall = nullptr;
+  mutateFunction(
+      F,
+      [=, &OldCall](CallInst *CI, std::vector<Value *> &Args, Type *&RetTy) {
+        Args.erase(Args.begin());
+        auto *SRetPtrTy = cast<PointerType>(CI->getOperand(0)->getType());
+        auto *ET = SRetPtrTy->getPointerElementType();
+        RetTy = cast<StructType>(ET)->getElementType(0);
+        OldCall = CI;
+        return Name;
+      },
+      [=, &OldCall](CallInst *NewCI) {
+        IRBuilder<> Builder(OldCall);
+        auto *SRetPtrTy = cast<PointerType>(OldCall->getOperand(0)->getType());
+        auto *ET = SRetPtrTy->getPointerElementType();
+        Value *Target = Builder.CreateStructGEP(ET, OldCall->getOperand(0), 0);
+        return Builder.CreateStore(NewCI, Target);
+      },
+      nullptr, &Attrs, true);
+}
+
+void SPIRVRegularizeLLVMBase::expandVIDWithSYCLTypeByValComp(Function *F) {
+  auto Attrs = F->getAttributes();
+  Attrs = Attrs.removeParamAttribute(F->getContext(), 1, Attribute::ByVal);
+  std::string Name = F->getName().str();
+  mutateFunction(
+      F,
+      [=](CallInst *CI, std::vector<Value *> &Args) {
+        auto *CompPtrTy = cast<PointerType>(CI->getOperand(1)->getType());
+        auto *ET = CompPtrTy->getPointerElementType();
+        Type *HalfTy = cast<StructType>(ET)->getElementType(0);
+        IRBuilder<> Builder(CI);
+        auto *Target = Builder.CreateStructGEP(ET, CI->getOperand(1), 0);
+        Args[1] = Builder.CreateLoad(HalfTy, Target);
+        return Name;
+      },
+      nullptr, &Attrs, true);
+}
+
+void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
+  std::vector<Function *> ToExpandVEDWithSYCLTypeSRetArg;
+  std::vector<Function *> ToExpandVIDWithSYCLTypeByValComp;
+
+  for (auto &F : *M) {
+    if (F.getName().startswith("_Z28__spirv_VectorExtractDynamic") &&
+        F.hasStructRetAttr()) {
+      auto *SRetPtrTy = cast<PointerType>(F.getArg(0)->getType());
+      if (isSYCLHalfType(SRetPtrTy->getPointerElementType()) ||
+          isSYCLBfloat16Type(SRetPtrTy->getPointerElementType()))
+        ToExpandVEDWithSYCLTypeSRetArg.push_back(&F);
+      else
+        llvm_unreachable("The return type of the VectorExtractDynamic "
+                         "instruction cannot be a structure other than SYCL "
+                         "half.");
+    }
+    if (F.getName().startswith("_Z27__spirv_VectorInsertDynamic") &&
+        F.getArg(1)->getType()->isPointerTy()) {
+      auto *CompPtrTy = cast<PointerType>(F.getArg(1)->getType());
+      auto *ET = CompPtrTy->getPointerElementType();
+      if (isSYCLHalfType(ET) || isSYCLBfloat16Type(ET))
+        ToExpandVIDWithSYCLTypeByValComp.push_back(&F);
+      else
+        llvm_unreachable("The component argument type of an "
+                         "VectorInsertDynamic instruction can't be a "
+                         "structure other than SYCL half.");
+    }
+  }
+
+  for (auto *F : ToExpandVEDWithSYCLTypeSRetArg)
+    expandVEDWithSYCLTypeSRetArg(F);
+  for (auto *F : ToExpandVIDWithSYCLTypeByValComp)
+    expandVIDWithSYCLTypeByValComp(F);
+}
+
 void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
   if (!ST->hasName())
     return;
@@ -349,16 +441,16 @@ void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
     assert(PtrTy &&
            "Expected a pointer to an array to represent joint matrix type");
     size_t TypeLayout[4] = {0, 0, 0, 0};
-    ArrayType *ArrayTy;
-    auto GetTypeLayout = [&](auto *Ty) -> size_t {
-      ArrayTy = dyn_cast<ArrayType>(Ty->getElementType());
+    ArrayType *ArrayTy = dyn_cast<ArrayType>(PtrTy->getPointerElementType());
+    assert(ArrayTy && "Expected a pointer element type of an array type to "
+                      "represent joint matrix type");
+    TypeLayout[0] = ArrayTy->getNumElements();
+    for (size_t I = 1; I != 4; ++I) {
+      ArrayTy = dyn_cast<ArrayType>(ArrayTy->getElementType());
       assert(ArrayTy &&
-             "Expected a pointer to an array to represent joint matrix type");
-      return ArrayTy->getNumElements();
-    };
-    TypeLayout[0] = GetTypeLayout(PtrTy);
-    for (size_t I = 1; I != 4; ++I)
-      TypeLayout[I] = GetTypeLayout(ArrayTy);
+             "Expected a element type to represent joint matrix type");
+      TypeLayout[I] = ArrayTy->getNumElements();
+    }
 
     auto *ElemTy = ArrayTy->getElementType();
     std::string ElemTyStr;
@@ -395,12 +487,10 @@ void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
       auto *STElemTy = dyn_cast<StructType>(ElemTy);
       if (!STElemTy && !STElemTy->hasName())
         llvm_unreachable("Unexpected type for matrix!");
-      StringRef STElemTyName = STElemTy->getName();
-      STElemTyName.consume_front("class.");
-      if ((STElemTyName.startswith("cl::sycl::") ||
-           STElemTyName.startswith("__sycl_internal::")) &&
-          STElemTyName.endswith("::half"))
+      if (isSYCLHalfType(ElemTy))
         ElemTyStr = "half";
+      if (isSYCLBfloat16Type(ElemTy))
+        ElemTyStr = "bfloat16";
       if (ElemTyStr.size() == 0)
         llvm_unreachable("Unexpected type for matrix!");
     }
@@ -437,6 +527,7 @@ bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
 bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
   lowerFuncPtr(M);
+  expandSYCLTypeUsing(M);
 
   for (auto I = M->begin(), E = M->end(); I != E;) {
     Function *F = &(*I++);

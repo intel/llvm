@@ -13,6 +13,7 @@
 #include "flang/Common/Fortran.h"
 #include "flang/Common/enum-set.h"
 #include "flang/Common/reference.h"
+#include "flang/Common/visit.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include <array>
 #include <functional>
@@ -94,6 +95,9 @@ public:
   void add_alternateReturn() { dummyArgs_.push_back(nullptr); }
   const MaybeExpr &stmtFunction() const { return stmtFunction_; }
   void set_stmtFunction(SomeExpr &&expr) { stmtFunction_ = std::move(expr); }
+  Symbol *moduleInterface() { return moduleInterface_; }
+  const Symbol *moduleInterface() const { return moduleInterface_; }
+  void set_moduleInterface(Symbol &);
 
 private:
   bool isInterface_{false}; // true if this represents an interface-body
@@ -102,6 +106,11 @@ private:
   Symbol *result_{nullptr};
   Scope *entryScope_{nullptr}; // if ENTRY, points to subprogram's scope
   MaybeExpr stmtFunction_;
+  // For MODULE FUNCTION or SUBROUTINE, this is the symbol of its declared
+  // interface.  For MODULE PROCEDURE, this is the declared interface if it
+  // appeared in an ancestor (sub)module.
+  Symbol *moduleInterface_{nullptr};
+
   friend llvm::raw_ostream &operator<<(
       llvm::raw_ostream &, const SubprogramDetails &);
 };
@@ -423,6 +432,7 @@ struct GenericKind {
   bool IsIntrinsicOperator() const;
   bool IsOperator() const;
   std::string ToString() const;
+  static SourceName AsFortran(DefinedIo);
   std::variant<OtherKind, common::NumericOperator, common::LogicalOperator,
       common::RelationalOperator, DefinedIo>
       u;
@@ -506,7 +516,10 @@ public:
       LocalityShared, // named in SHARED locality-spec
       InDataStmt, // initialized in a DATA statement, =>object, or /init/
       InNamelist, // in a Namelist group
-      CompilerCreated,
+      CompilerCreated, // A compiler created symbol
+      // For compiler created symbols that are constant but cannot legally have
+      // the PARAMETER attribute.
+      ReadOnly,
       // OpenACC data-sharing attribute
       AccPrivate, AccFirstPrivate, AccShared,
       // OpenACC data-mapping attribute
@@ -590,24 +603,24 @@ public:
   bool IsSubprogram() const;
   bool IsFromModFile() const;
   bool HasExplicitInterface() const {
-    return std::visit(common::visitors{
-                          [](const SubprogramDetails &) { return true; },
-                          [](const SubprogramNameDetails &) { return true; },
-                          [&](const ProcEntityDetails &x) {
-                            return attrs_.test(Attr::INTRINSIC) ||
-                                x.HasExplicitInterface();
-                          },
-                          [](const ProcBindingDetails &x) {
-                            return x.symbol().HasExplicitInterface();
-                          },
-                          [](const UseDetails &x) {
-                            return x.symbol().HasExplicitInterface();
-                          },
-                          [](const HostAssocDetails &x) {
-                            return x.symbol().HasExplicitInterface();
-                          },
-                          [](const auto &) { return false; },
-                      },
+    return common::visit(common::visitors{
+                             [](const SubprogramDetails &) { return true; },
+                             [](const SubprogramNameDetails &) { return true; },
+                             [&](const ProcEntityDetails &x) {
+                               return attrs_.test(Attr::INTRINSIC) ||
+                                   x.HasExplicitInterface();
+                             },
+                             [](const ProcBindingDetails &x) {
+                               return x.symbol().HasExplicitInterface();
+                             },
+                             [](const UseDetails &x) {
+                               return x.symbol().HasExplicitInterface();
+                             },
+                             [](const HostAssocDetails &x) {
+                               return x.symbol().HasExplicitInterface();
+                             },
+                             [](const auto &) { return false; },
+                         },
         details_);
   }
 
@@ -615,7 +628,7 @@ public:
   bool operator!=(const Symbol &that) const { return !(*this == that); }
 
   int Rank() const {
-    return std::visit(
+    return common::visit(
         common::visitors{
             [](const SubprogramDetails &sd) {
               return sd.isFunction() ? sd.result().Rank() : 0;
@@ -644,7 +657,7 @@ public:
   }
 
   int Corank() const {
-    return std::visit(
+    return common::visit(
         common::visitors{
             [](const SubprogramDetails &sd) {
               return sd.isFunction() ? sd.result().Corank() : 0;
@@ -664,6 +677,11 @@ public:
   // The Scope * argument defaults to this->scope_ but should be overridden
   // for a parameterized derived type instantiation with the instance's scope.
   const DerivedTypeSpec *GetParentTypeSpec(const Scope * = nullptr) const;
+
+  // If a derived type's symbol refers to an extended derived type,
+  // return the parent component's symbol.  The scope of the derived type
+  // can be overridden.
+  const Symbol *GetParentComponent(const Scope * = nullptr) const;
 
   SemanticsContext &GetSemanticsContext() const;
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
@@ -685,11 +703,6 @@ private:
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Symbol &);
   friend llvm::raw_ostream &DumpForUnparse(
       llvm::raw_ostream &, const Symbol &, bool);
-
-  // If a derived type's symbol refers to an extended derived type,
-  // return the parent component's symbol.  The scope of the derived type
-  // can be overridden.
-  const Symbol *GetParentComponent(const Scope * = nullptr) const;
 
   template <std::size_t> friend class Symbols;
   template <class, std::size_t> friend class std::array;
@@ -760,7 +773,7 @@ inline DeclTypeSpec *Symbol::GetType() {
       const_cast<const Symbol *>(this)->GetType());
 }
 inline const DeclTypeSpec *Symbol::GetType() const {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [](const EntityDetails &x) { return x.type(); },
           [](const ObjectEntityDetails &x) { return x.type(); },

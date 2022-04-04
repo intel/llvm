@@ -175,6 +175,22 @@ def programOutput(config, program, args=None):
     actualOut = actualOut.group(1) if actualOut else ""
     return actualOut
 
+@_memoizeExpensiveOperation(lambda c, p, args=None: (c.substitutions, c.environment, p, args))
+def programSucceeds(config, program, args=None):
+  """
+  Compiles a program for the test target, run it on the test target and return
+  whether it completed successfully.
+
+  Note that execution of the program is done through the %{exec} substitution,
+  which means that the program may be run on a remote host depending on what
+  %{exec} does.
+  """
+  try:
+    programOutput(config, program, args)
+  except ConfigurationRuntimeError:
+    return False
+  return True
+
 @_memoizeExpensiveOperation(lambda c, f: (c.substitutions, c.environment, f))
 def hasCompileFlag(config, flag):
   """
@@ -200,6 +216,21 @@ def runScriptExitCode(config, script):
   with _makeConfigTest(config) as test:
     _, _, exitCode, _ = _executeScriptInternal(test, script)
     return exitCode
+
+@_memoizeExpensiveOperation(lambda c, s: (c.substitutions, c.environment, s))
+def commandOutput(config, command):
+  """
+  Runs the given script as a Lit test, and returns the output.
+  If the exit code isn't 0 an exception is raised.
+
+  The script must be a list of commands, each of which being something that
+  could appear on the right-hand-side of a `RUN:` keyword.
+  """
+  with _makeConfigTest(config) as test:
+    out, _, exitCode, _ = _executeScriptInternal(test, command)
+    if exitCode != 0:
+     raise ConfigurationRuntimeError()
+    return out
 
 @_memoizeExpensiveOperation(lambda c, l: (c.substitutions, c.environment, l))
 def hasAnyLocale(config, locales):
@@ -229,11 +260,7 @@ def hasAnyLocale(config, locales):
       }
     #endif
   """
-  try:
-    programOutput(config, program, args=[pipes.quote(l) for l in locales])
-  except ConfigurationRuntimeError:
-    return False
-  return True
+  return programSucceeds(config, program, args=[pipes.quote(l) for l in locales])
 
 @_memoizeExpensiveOperation(lambda c, flags='': (c.substitutions, c.environment, flags))
 def compilerMacros(config, flags=''):

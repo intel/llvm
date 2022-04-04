@@ -31,16 +31,16 @@ static const Scope *FindScopeContaining(
     if (predicate(*scope)) {
       return scope;
     }
-    if (scope->IsGlobal()) {
+    if (scope->IsTopLevel()) {
       return nullptr;
     }
   }
 }
 
 const Scope &GetTopLevelUnitContaining(const Scope &start) {
-  CHECK(!start.IsGlobal());
+  CHECK(!start.IsTopLevel());
   return DEREF(FindScopeContaining(
-      start, [](const Scope &scope) { return scope.parent().IsGlobal(); }));
+      start, [](const Scope &scope) { return scope.parent().IsTopLevel(); }));
 }
 
 const Scope &GetTopLevelUnitContaining(const Symbol &symbol) {
@@ -58,7 +58,7 @@ const Scope *FindModuleFileContaining(const Scope &start) {
 }
 
 const Scope &GetProgramUnitContaining(const Scope &start) {
-  CHECK(!start.IsGlobal());
+  CHECK(!start.IsTopLevel());
   return DEREF(FindScopeContaining(start, [](const Scope &scope) {
     switch (scope.kind()) {
     case Scope::Kind::Module:
@@ -80,7 +80,7 @@ const Scope *FindPureProcedureContaining(const Scope &start) {
   // N.B. We only need to examine the innermost containing program unit
   // because an internal subprogram of a pure subprogram must also
   // be pure (C1592).
-  if (start.IsGlobal()) {
+  if (start.IsTopLevel()) {
     return nullptr;
   } else {
     const Scope &scope{GetProgramUnitContaining(start)};
@@ -102,6 +102,9 @@ Tristate IsDefinedAssignment(
     const std::optional<evaluate::DynamicType> &rhsType, int rhsRank) {
   if (!lhsType || !rhsType) {
     return Tristate::No; // error or rhs is untyped
+  }
+  if (lhsType->IsUnlimitedPolymorphic() || rhsType->IsUnlimitedPolymorphic()) {
+    return Tristate::No;
   }
   TypeCategory lhsCat{lhsType->category()};
   TypeCategory rhsCat{rhsType->category()};
@@ -203,7 +206,7 @@ bool IsUseAssociated(const Symbol &symbol, const Scope &scope) {
 
 bool DoesScopeContain(
     const Scope *maybeAncestor, const Scope &maybeDescendent) {
-  return maybeAncestor && !maybeDescendent.IsGlobal() &&
+  return maybeAncestor && !maybeDescendent.IsTopLevel() &&
       FindScopeContaining(maybeDescendent.parent(),
           [&](const Scope &scope) { return &scope == maybeAncestor; });
 }
@@ -423,7 +426,7 @@ const evaluate::Assignment *GetAssignment(
 }
 
 const Symbol *FindInterface(const Symbol &symbol) {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [](const ProcEntityDetails &details) {
             return details.interface().symbol();
@@ -435,7 +438,7 @@ const Symbol *FindInterface(const Symbol &symbol) {
 }
 
 const Symbol *FindSubprogram(const Symbol &symbol) {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const ProcEntityDetails &details) -> const Symbol * {
             if (const Symbol * interface{details.interface().symbol()}) {
@@ -558,10 +561,13 @@ bool HasDeclarationInitializer(const Symbol &symbol) {
   }
 }
 
-bool IsInitialized(const Symbol &symbol, bool ignoreDataStatements) {
-  if (IsAllocatable(symbol) ||
-      (!ignoreDataStatements && symbol.test(Symbol::Flag::InDataStmt)) ||
-      HasDeclarationInitializer(symbol)) {
+bool IsInitialized(
+    const Symbol &symbol, bool ignoreDataStatements, bool ignoreAllocatable) {
+  if (!ignoreAllocatable && IsAllocatable(symbol)) {
+    return true;
+  } else if (!ignoreDataStatements && symbol.test(Symbol::Flag::InDataStmt)) {
+    return true;
+  } else if (HasDeclarationInitializer(symbol)) {
     return true;
   } else if (IsNamedConstant(symbol) || IsFunctionResult(symbol) ||
       IsPointer(symbol)) {
@@ -569,12 +575,7 @@ bool IsInitialized(const Symbol &symbol, bool ignoreDataStatements) {
   } else if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()}) {
     if (!object->isDummy() && object->type()) {
       if (const auto *derived{object->type()->AsDerived()}) {
-        DirectComponentIterator directs{*derived};
-        return bool{std::find_if(
-            directs.begin(), directs.end(), [](const Symbol &component) {
-              return IsAllocatable(component) ||
-                  HasDeclarationInitializer(component);
-            })};
+        return derived->HasDefaultInitialization(ignoreAllocatable);
       }
     }
   }
@@ -915,7 +916,7 @@ public:
     return false;
   }
   bool operator()(const parser::Statement<parser::ActionStmt> &stmt) {
-    return std::visit(*this, stmt.statement.u);
+    return common::visit(*this, stmt.statement.u);
   }
 
 private:
@@ -926,14 +927,14 @@ private:
 };
 
 bool IsImageControlStmt(const parser::ExecutableConstruct &construct) {
-  return std::visit(ImageControlStmtHelper{}, construct.u);
+  return common::visit(ImageControlStmtHelper{}, construct.u);
 }
 
 std::optional<parser::MessageFixedText> GetImageControlStmtCoarrayMsg(
     const parser::ExecutableConstruct &construct) {
   if (const auto *actionStmt{
           std::get_if<parser::Statement<parser::ActionStmt>>(&construct.u)}) {
-    return std::visit(
+    return common::visit(
         common::visitors{
             [](const common::Indirection<parser::AllocateStmt> &)
                 -> std::optional<parser::MessageFixedText> {
@@ -961,7 +962,7 @@ std::optional<parser::MessageFixedText> GetImageControlStmtCoarrayMsg(
 
 parser::CharBlock GetImageControlStmtLocation(
     const parser::ExecutableConstruct &executableConstruct) {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [](const common::Indirection<parser::ChangeTeamConstruct>
                   &construct) {
@@ -1060,14 +1061,9 @@ const DeclTypeSpec &FindOrInstantiateDerivedType(
 
 const Symbol *FindSeparateModuleSubprogramInterface(const Symbol *proc) {
   if (proc) {
-    if (const Symbol * submodule{proc->owner().symbol()}) {
-      if (const auto *details{submodule->detailsIf<ModuleDetails>()}) {
-        if (const Scope * ancestor{details->ancestor()}) {
-          const Symbol *iface{ancestor->FindSymbol(proc->name())};
-          if (IsSeparateModuleProcedureInterface(iface)) {
-            return iface;
-          }
-        }
+    if (const auto *subprogram{proc->detailsIf<SubprogramDetails>()}) {
+      if (const Symbol * iface{subprogram->moduleInterface()}) {
+        return iface;
       }
     }
   }
@@ -1094,6 +1090,7 @@ ProcedureDefinitionClass ClassifyProcedure(const Symbol &symbol) { // 15.2.2
     }
     switch (ultimate.owner().kind()) {
     case Scope::Kind::Global:
+    case Scope::Kind::IntrinsicModules:
       return ProcedureDefinitionClass::External;
     case Scope::Kind::Module:
       return ProcedureDefinitionClass::Module;
@@ -1274,6 +1271,12 @@ UltimateComponentIterator::const_iterator FindAllocatableUltimateComponent(
   return std::find_if(ultimates.begin(), ultimates.end(), IsAllocatable);
 }
 
+DirectComponentIterator::const_iterator FindAllocatableOrPointerDirectComponent(
+    const DerivedTypeSpec &derived) {
+  DirectComponentIterator directs{derived};
+  return std::find_if(directs.begin(), directs.end(), IsAllocatableOrPointer);
+}
+
 UltimateComponentIterator::const_iterator
 FindPolymorphicAllocatableUltimateComponent(const DerivedTypeSpec &derived) {
   UltimateComponentIterator ultimates{derived};
@@ -1428,7 +1431,7 @@ bool InCommonBlock(const Symbol &symbol) {
 
 const std::optional<parser::Name> &MaybeGetNodeName(
     const ConstructNode &construct) {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const parser::BlockConstruct *blockConstruct)
               -> const std::optional<parser::Name> & {
@@ -1457,6 +1460,77 @@ std::optional<ArraySpec> ToArraySpec(
 std::optional<ArraySpec> ToArraySpec(evaluate::FoldingContext &context,
     const std::optional<evaluate::Shape> &shape) {
   return shape ? ToArraySpec(context, *shape) : std::nullopt;
+}
+
+bool HasDefinedIo(GenericKind::DefinedIo which, const DerivedTypeSpec &derived,
+    const Scope *scope) {
+  if (const Scope * dtScope{derived.scope()}) {
+    for (const auto &pair : *dtScope) {
+      const Symbol &symbol{*pair.second};
+      if (const auto *generic{symbol.detailsIf<GenericDetails>()}) {
+        GenericKind kind{generic->kind()};
+        if (const auto *io{std::get_if<GenericKind::DefinedIo>(&kind.u)}) {
+          if (*io == which) {
+            return true; // type-bound GENERIC exists
+          }
+        }
+      }
+    }
+  }
+  if (scope) {
+    SourceName name{GenericKind::AsFortran(which)};
+    evaluate::DynamicType dyDerived{derived};
+    for (; scope && !scope->IsGlobal(); scope = &scope->parent()) {
+      auto iter{scope->find(name)};
+      if (iter != scope->end()) {
+        const auto &generic{iter->second->GetUltimate().get<GenericDetails>()};
+        for (auto ref : generic.specificProcs()) {
+          const Symbol &procSym{ref->GetUltimate()};
+          if (const auto *subp{procSym.detailsIf<SubprogramDetails>()}) {
+            if (!subp->dummyArgs().empty()) {
+              if (const Symbol * first{subp->dummyArgs().at(0)}) {
+                if (const DeclTypeSpec * dtSpec{first->GetType()}) {
+                  if (auto dyDummy{evaluate::DynamicType::From(*dtSpec)}) {
+                    if (dyDummy->IsTkCompatibleWith(dyDerived)) {
+                      return true; // GENERIC or INTERFACE not in type
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+const Symbol *FindUnsafeIoDirectComponent(GenericKind::DefinedIo which,
+    const DerivedTypeSpec &derived, const Scope *scope) {
+  if (HasDefinedIo(which, derived, scope)) {
+    return nullptr;
+  }
+  if (const Scope * dtScope{derived.scope()}) {
+    for (const auto &pair : *dtScope) {
+      const Symbol &symbol{*pair.second};
+      if (IsAllocatableOrPointer(symbol)) {
+        return &symbol;
+      }
+      if (const auto *details{symbol.detailsIf<ObjectEntityDetails>()}) {
+        if (const DeclTypeSpec * type{details->type()}) {
+          if (type->category() == DeclTypeSpec::Category::TypeDerived) {
+            if (const Symbol *
+                bad{FindUnsafeIoDirectComponent(
+                    which, type->derivedTypeSpec(), scope)}) {
+              return bad;
+            }
+          }
+        }
+      }
+    }
+  }
+  return nullptr;
 }
 
 } // namespace Fortran::semantics

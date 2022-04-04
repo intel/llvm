@@ -25,7 +25,6 @@
 #include "llvm/CodeGen/LexicalScopes.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Support/Casting.h"
-#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <memory>
@@ -85,6 +84,9 @@ class DwarfCompileUnit final : public DwarfUnit {
 
   /// DWO ID for correlating skeleton and split units.
   uint64_t DWOId = 0;
+
+  const DIFile *LastFile = nullptr;
+  unsigned LastFileID;
 
   /// Construct a DIE for the given DbgVariable without initializing the
   /// DbgVariable's DIE reference.

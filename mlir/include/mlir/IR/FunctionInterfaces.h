@@ -14,8 +14,11 @@
 #ifndef MLIR_IR_FUNCTIONINTERFACES_H
 #define MLIR_IR_FUNCTIONINTERFACES_H
 
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/SymbolTable.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/SmallString.h"
 
 namespace mlir {
@@ -23,7 +26,7 @@ namespace mlir {
 namespace function_interface_impl {
 
 /// Return the name of the attribute used for function types.
-inline StringRef getTypeAttrName() { return "type"; }
+inline StringRef getTypeAttrName() { return "function_type"; }
 
 /// Return the name of the attribute used for function argument attributes.
 inline StringRef getArgDictAttrName() { return "arg_attrs"; }
@@ -82,12 +85,12 @@ void insertFunctionResults(Operation *op, ArrayRef<unsigned> resultIndices,
                            unsigned originalNumResults, Type newType);
 
 /// Erase the specified arguments and update the function type attribute.
-void eraseFunctionArguments(Operation *op, ArrayRef<unsigned> argIndices,
-                            unsigned originalNumArgs, Type newType);
+void eraseFunctionArguments(Operation *op, const BitVector &argIndices,
+                            Type newType);
 
 /// Erase the specified results and update the function type attribute.
-void eraseFunctionResults(Operation *op, ArrayRef<unsigned> resultIndices,
-                          unsigned originalNumResults, Type newType);
+void eraseFunctionResults(Operation *op, const BitVector &resultIndices,
+                          Type newType);
 
 /// Set a FunctionOpInterface operation's type signature.
 void setFunctionType(Operation *op, Type newType);
@@ -100,7 +103,7 @@ TypeRange insertTypesInto(TypeRange oldTypes, ArrayRef<unsigned> indices,
 
 /// Filters out any elements referenced by `indices`. If any types are removed,
 /// `storage` is used to hold the new type list. Returns the new type list.
-TypeRange filterTypesOut(TypeRange types, ArrayRef<unsigned> indices,
+TypeRange filterTypesOut(TypeRange types, const BitVector &indices,
                          SmallVectorImpl<Type> &storage);
 
 //===----------------------------------------------------------------------===//
@@ -204,9 +207,9 @@ Attribute removeResultAttr(ConcreteType op, unsigned index, StringAttr name) {
 /// method on FunctionOpInterface::Trait.
 template <typename ConcreteOp>
 LogicalResult verifyTrait(ConcreteOp op) {
-  if (!op.getTypeAttr())
+  if (!op.getFunctionTypeAttr())
     return op.emitOpError("requires a type attribute '")
-           << ConcreteOp::getTypeAttrName() << '\'';
+           << function_interface_impl::getTypeAttrName() << '\'';
 
   if (failed(op.verifyType()))
     return failure();

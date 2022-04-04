@@ -16,11 +16,12 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/FunctionInterfaces.h"
-#include "mlir/Parser.h"
+#include "mlir/Parser/Parser.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/InliningUtils.h"
 
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
@@ -62,16 +63,6 @@ struct LinalgInlinerInterface : public DialectInlinerInterface {
 constexpr const ::llvm::StringLiteral
     LinalgDialect::kMemoizedIndexingMapsAttrName;
 
-/// Attribute name used to mark the bufferization layout for region
-/// arguments during linalg comprehensive bufferization.
-constexpr const ::llvm::StringLiteral
-    bufferization::BufferizableOpInterface::kBufferLayoutAttrName;
-
-/// Attribute name used to mark region arguments that can be bufferized
-/// in-place during linalg comprehensive bufferization.
-constexpr const ::llvm::StringLiteral
-    bufferization::BufferizableOpInterface::kInplaceableAttrName;
-
 /// Trait to check if T provides a `regionBuilder` method.
 template <typename T, typename... Args>
 using has_region_builder = decltype(T::regionBuilder);
@@ -105,6 +96,10 @@ void addNamedOpBuilders(
 }
 
 void mlir::linalg::LinalgDialect::initialize() {
+  addAttributes<
+#define GET_ATTRDEF_LIST
+#include "mlir/Dialect/Linalg/IR/LinalgOpsAttrDefs.cpp.inc"
+      >();
   addOperations<
 #define GET_OP_LIST
 #include "mlir/Dialect/Linalg/IR/LinalgOps.cpp.inc"
@@ -154,3 +149,10 @@ LogicalResult LinalgDialect::verifyOperationAttribute(Operation *op,
   return op->emitError() << "attribute '" << attr.getName()
                          << "' not supported by the linalg dialect";
 }
+
+#include "mlir/Dialect/Linalg/IR/LinalgOpsEnums.cpp.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "mlir/Dialect/Linalg/IR/LinalgOpsAttrDefs.cpp.inc"
+
+#include "mlir/Dialect/Linalg/IR/LinalgOpsDialect.cpp.inc"

@@ -15,10 +15,13 @@
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/GlobalISel/LostDebugLocObserver.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
+#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
@@ -3314,7 +3317,7 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT LowerHintTy) {
     Observer.changingInstr(MI);
     const auto &TII = MIRBuilder.getTII();
     MI.setDesc(TII.get(TargetOpcode::G_MUL));
-    MI.RemoveOperand(1);
+    MI.removeOperand(1);
     Observer.changedInstr(MI);
 
     auto HiPart = MIRBuilder.buildInstr(Opcode, {Ty}, {LHS, RHS});
@@ -4096,13 +4099,14 @@ LegalizerHelper::reduceLoadStoreWidth(GLoadStore &LdStMI, unsigned TypeIdx,
   // is a load, return the new registers in ValRegs. For a store, each elements
   // of ValRegs should be PartTy. Returns the next offset that needs to be
   // handled.
+  bool isBigEndian = MIRBuilder.getDataLayout().isBigEndian();
   auto MMO = LdStMI.getMMO();
   auto splitTypePieces = [=](LLT PartTy, SmallVectorImpl<Register> &ValRegs,
-                             unsigned Offset) -> unsigned {
+                             unsigned NumParts, unsigned Offset) -> unsigned {
     MachineFunction &MF = MIRBuilder.getMF();
     unsigned PartSize = PartTy.getSizeInBits();
     for (unsigned Idx = 0, E = NumParts; Idx != E && Offset < TotalSize;
-         Offset += PartSize, ++Idx) {
+         ++Idx) {
       unsigned ByteOffset = Offset / 8;
       Register NewAddrReg;
 
@@ -4118,16 +4122,19 @@ LegalizerHelper::reduceLoadStoreWidth(GLoadStore &LdStMI, unsigned TypeIdx,
       } else {
         MIRBuilder.buildStore(ValRegs[Idx], NewAddrReg, *NewMMO);
       }
+      Offset = isBigEndian ? Offset - PartSize : Offset + PartSize;
     }
 
     return Offset;
   };
 
-  unsigned HandledOffset = splitTypePieces(NarrowTy, NarrowRegs, 0);
+  unsigned Offset = isBigEndian ? TotalSize - NarrowTy.getSizeInBits() : 0;
+  unsigned HandledOffset =
+      splitTypePieces(NarrowTy, NarrowRegs, NumParts, Offset);
 
   // Handle the rest of the register if this isn't an even type breakdown.
   if (LeftoverTy.isValid())
-    splitTypePieces(LeftoverTy, NarrowLeftoverRegs, HandledOffset);
+    splitTypePieces(LeftoverTy, NarrowLeftoverRegs, NumLeftover, HandledOffset);
 
   if (IsLoad) {
     insertParts(ValReg, ValTy, NarrowTy, NarrowRegs,

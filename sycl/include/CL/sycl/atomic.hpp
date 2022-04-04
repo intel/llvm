@@ -168,7 +168,8 @@ namespace sycl {
 
 template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
-class atomic {
+class __SYCL2020_DEPRECATED(
+    "sycl::atomic is deprecated since SYCL 2020") atomic {
   friend class atomic<T, access::address_space::global_space>;
   static_assert(detail::IsValidAtomicType<T>::value,
                 "Invalid SYCL atomic type. Valid types are: int, "

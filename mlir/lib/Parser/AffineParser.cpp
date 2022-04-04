@@ -17,7 +17,6 @@
 
 using namespace mlir;
 using namespace mlir::detail;
-using llvm::SMLoc;
 
 namespace {
 
@@ -49,7 +48,7 @@ public:
   AffineParser(ParserState &state, bool allowParsingSSAIds = false,
                function_ref<ParseResult(bool)> parseElement = nullptr)
       : Parser(state), allowParsingSSAIds(allowParsingSSAIds),
-        parseElement(parseElement), numDimOperands(0), numSymbolOperands(0) {}
+        parseElement(parseElement) {}
 
   AffineMap parseAffineMapRange(unsigned numDims, unsigned numSymbols);
   ParseResult parseAffineMapOrIntegerSetInline(AffineMap &map, IntegerSet &set);
@@ -81,20 +80,20 @@ private:
   AffineExpr parseSymbolSSAIdExpr();
 
   AffineExpr getAffineBinaryOpExpr(AffineHighPrecOp op, AffineExpr lhs,
-                                   AffineExpr rhs, llvm::SMLoc opLoc);
+                                   AffineExpr rhs, SMLoc opLoc);
   AffineExpr getAffineBinaryOpExpr(AffineLowPrecOp op, AffineExpr lhs,
                                    AffineExpr rhs);
   AffineExpr parseAffineOperandExpr(AffineExpr lhs);
   AffineExpr parseAffineLowPrecOpExpr(AffineExpr llhs, AffineLowPrecOp llhsOp);
   AffineExpr parseAffineHighPrecOpExpr(AffineExpr llhs, AffineHighPrecOp llhsOp,
-                                       llvm::SMLoc llhsOpLoc);
+                                       SMLoc llhsOpLoc);
   AffineExpr parseAffineConstraint(bool *isEq);
 
 private:
   bool allowParsingSSAIds;
   function_ref<ParseResult(bool)> parseElement;
-  unsigned numDimOperands;
-  unsigned numSymbolOperands;
+  unsigned numDimOperands = 0;
+  unsigned numSymbolOperands = 0;
   SmallVector<std::pair<StringRef, AffineExpr>, 4> dimsAndSymbols;
 };
 } // namespace
@@ -683,7 +682,7 @@ ParseResult Parser::parseAffineMapOrIntegerSetReference(AffineMap &map,
   return AffineParser(state).parseAffineMapOrIntegerSetInline(map, set);
 }
 ParseResult Parser::parseAffineMapReference(AffineMap &map) {
-  llvm::SMLoc curLoc = getToken().getLoc();
+  SMLoc curLoc = getToken().getLoc();
   IntegerSet set;
   if (parseAffineMapOrIntegerSetReference(map, set))
     return failure();
@@ -692,7 +691,7 @@ ParseResult Parser::parseAffineMapReference(AffineMap &map) {
   return success();
 }
 ParseResult Parser::parseIntegerSetReference(IntegerSet &set) {
-  llvm::SMLoc curLoc = getToken().getLoc();
+  SMLoc curLoc = getToken().getLoc();
   AffineMap map;
   if (parseAffineMapOrIntegerSetReference(map, set))
     return failure();

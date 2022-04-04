@@ -15,12 +15,8 @@
 #include "support/Logger.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Index/IndexSymbol.h"
-#include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/Format.h"
-#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1326,6 +1322,8 @@ llvm::json::Value toJSON(InlayHintKind K) {
     return "parameter";
   case InlayHintKind::TypeHint:
     return "type";
+  case InlayHintKind::DesignatorHint:
+    return "designator";
   }
   llvm_unreachable("Unknown clang.clangd.InlayHintKind");
 }

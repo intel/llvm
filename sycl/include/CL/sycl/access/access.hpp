@@ -72,7 +72,7 @@ template <access_mode mode, target trgt> struct mode_target_tag_t {
   explicit mode_target_tag_t() = default;
 };
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
 inline constexpr mode_tag_t<access_mode::read> read_only{};
 inline constexpr mode_tag_t<access_mode::read_write> read_write{};

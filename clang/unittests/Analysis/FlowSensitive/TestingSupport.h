@@ -23,6 +23,7 @@
 #include "clang/Analysis/FlowSensitive/ControlFlowContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowAnalysis.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
+#include "clang/Analysis/FlowSensitive/WatchedLiteralsSolver.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Serialization/PCHContainerOperations.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
@@ -104,7 +105,7 @@ llvm::Error checkDataflow(
   if (!CFCtx)
     return CFCtx.takeError();
 
-  DataflowAnalysisContext DACtx;
+  DataflowAnalysisContext DACtx(std::make_unique<WatchedLiteralsSolver>());
   Environment Env(DACtx, *F);
   auto Analysis = MakeAnalysis(Context, Env);
 
@@ -112,11 +113,13 @@ llvm::Error checkDataflow(
       StmtToAnnotations = buildStatementToAnnotationMapping(F, AnnotatedCode);
   if (!StmtToAnnotations)
     return StmtToAnnotations.takeError();
-
   auto &Annotations = *StmtToAnnotations;
 
-  std::vector<llvm::Optional<TypeErasedDataflowAnalysisState>> BlockStates =
-      runTypeErasedDataflowAnalysis(*CFCtx, Analysis, Env);
+  llvm::Expected<std::vector<llvm::Optional<TypeErasedDataflowAnalysisState>>>
+      MaybeBlockStates = runTypeErasedDataflowAnalysis(*CFCtx, Analysis, Env);
+  if (!MaybeBlockStates)
+    return MaybeBlockStates.takeError();
+  auto &BlockStates = *MaybeBlockStates;
 
   if (BlockStates.empty()) {
     Expectations({}, Context);
@@ -164,6 +167,13 @@ llvm::Error checkDataflow(
                        std::move(MakeAnalysis), std::move(Expectations), Args,
                        VirtualMappedFiles);
 }
+
+/// Returns the `ValueDecl` for the given identifier.
+///
+/// Requirements:
+///
+///  `Name` must be unique in `ASTCtx`.
+const ValueDecl *findValueDecl(ASTContext &ASTCtx, llvm::StringRef Name);
 
 } // namespace test
 } // namespace dataflow

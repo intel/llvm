@@ -46,7 +46,6 @@
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include <algorithm>
@@ -225,10 +224,6 @@ private:
           /*Imported=*/nullptr, Inc.FileKind);
       if (File)
         Delegate->FileSkipped(*File, SynthesizedFilenameTok, Inc.FileKind);
-      else {
-        llvm::SmallString<1> UnusedRecovery;
-        Delegate->FileNotFound(WrittenFilename, UnusedRecovery);
-      }
     }
   }
 
@@ -468,12 +463,11 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
           bool IsInsideMainFile =
               Info.hasSourceManager() &&
               isInsideMainFile(Info.getLocation(), Info.getSourceManager());
-          SmallVector<tidy::ClangTidyError, 1> TidySuppressedErrors;
-          if (IsInsideMainFile &&
-              tidy::shouldSuppressDiagnostic(DiagLevel, Info, *CTContext,
-                                             TidySuppressedErrors,
-                                             /*AllowIO=*/false,
-                                             /*EnableNolintBlocks=*/false)) {
+          SmallVector<tooling::Diagnostic, 1> TidySuppressedErrors;
+          if (IsInsideMainFile && CTContext->shouldSuppressDiagnostic(
+                                      DiagLevel, Info, TidySuppressedErrors,
+                                      /*AllowIO=*/false,
+                                      /*EnableNolintBlocks=*/true)) {
             // FIXME: should we expose the suppression error (invalid use of
             // NOLINT comments)?
             return DiagnosticsEngine::Ignored;

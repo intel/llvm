@@ -121,6 +121,17 @@ Diagnostic &Diagnostic::operator<<(OperationName val) {
   return *this;
 }
 
+/// Adjusts operation printing flags used in diagnostics for the given severity
+/// level.
+static OpPrintingFlags adjustPrintingFlags(OpPrintingFlags flags,
+                                           DiagnosticSeverity severity) {
+  flags.useLocalScope();
+  flags.elideLargeElementsAttrs();
+  if (severity == DiagnosticSeverity::Error)
+    flags.printGenericOpForm();
+  return flags;
+}
+
 /// Stream in an Operation.
 Diagnostic &Diagnostic::operator<<(Operation &val) {
   return appendOp(val, OpPrintingFlags());
@@ -128,8 +139,7 @@ Diagnostic &Diagnostic::operator<<(Operation &val) {
 Diagnostic &Diagnostic::appendOp(Operation &val, const OpPrintingFlags &flags) {
   std::string str;
   llvm::raw_string_ostream os(str);
-  val.print(os,
-            OpPrintingFlags(flags).useLocalScope().elideLargeElementsAttrs());
+  val.print(os, adjustPrintingFlags(flags, severity));
   return *this << os.str();
 }
 
@@ -137,7 +147,7 @@ Diagnostic &Diagnostic::appendOp(Operation &val, const OpPrintingFlags &flags) {
 Diagnostic &Diagnostic::operator<<(Value val) {
   std::string str;
   llvm::raw_string_ostream os(str);
-  val.print(os);
+  val.print(os, adjustPrintingFlags(OpPrintingFlags(), severity));
   return *this << os.str();
 }
 
@@ -364,7 +374,7 @@ struct SourceMgrDiagnosticHandlerImpl {
     // Otherwise, try to load the source file.
     std::string ignored;
     unsigned id =
-        mgr.AddIncludeFile(std::string(filename), llvm::SMLoc(), ignored);
+        mgr.AddIncludeFile(std::string(filename), SMLoc(), ignored);
     filenameToBufId[filename] = id;
     return id;
   }
@@ -449,7 +459,7 @@ void SourceMgrDiagnosticHandler::emitDiagnostic(Location loc, Twine message,
     if (!loc.isa<UnknownLoc>())
       strOS << loc << ": ";
     strOS << message;
-    return mgr.PrintMessage(os, llvm::SMLoc(), getDiagKind(kind), strOS.str());
+    return mgr.PrintMessage(os, SMLoc(), getDiagKind(kind), strOS.str());
   }
 
   // Otherwise if we are displaying the source line, try to convert the file
@@ -562,15 +572,15 @@ Optional<Location> SourceMgrDiagnosticHandler::findLocToShow(Location loc) {
 
 /// Get a memory buffer for the given file, or the main file of the source
 /// manager if one doesn't exist. This always returns non-null.
-llvm::SMLoc SourceMgrDiagnosticHandler::convertLocToSMLoc(FileLineColLoc loc) {
+SMLoc SourceMgrDiagnosticHandler::convertLocToSMLoc(FileLineColLoc loc) {
   // The column and line may be zero to represent unknown column and/or unknown
   /// line/column information.
   if (loc.getLine() == 0 || loc.getColumn() == 0)
-    return llvm::SMLoc();
+    return SMLoc();
 
   unsigned bufferId = impl->getSourceMgrBufferIDForFile(mgr, loc.getFilename());
   if (!bufferId)
-    return llvm::SMLoc();
+    return SMLoc();
   return mgr.FindLocForLineAndColumn(bufferId, loc.getLine(), loc.getColumn());
 }
 
@@ -586,7 +596,7 @@ struct ExpectedDiag {
   DiagnosticSeverity kind;
   unsigned lineNo;
   StringRef substring;
-  llvm::SMLoc fileLoc;
+  SMLoc fileLoc;
   bool matched;
 };
 
@@ -669,7 +679,7 @@ SourceMgrDiagnosticVerifierHandlerImpl::computeExpectedDiags(
     }
 
     // Point to the start of expected-*.
-    auto expectedStart = llvm::SMLoc::getFromPointer(matches[0].data());
+    auto expectedStart = SMLoc::getFromPointer(matches[0].data());
 
     DiagnosticSeverity kind;
     if (matches[1] == "error")
@@ -755,8 +765,8 @@ LogicalResult SourceMgrDiagnosticVerifierHandler::verify() {
     for (auto &err : expectedDiagsPair.second) {
       if (err.matched)
         continue;
-      llvm::SMRange range(err.fileLoc,
-                          llvm::SMLoc::getFromPointer(err.fileLoc.getPointer() +
+      SMRange range(err.fileLoc,
+                          SMLoc::getFromPointer(err.fileLoc.getPointer() +
                                                       err.substring.size()));
       mgr.PrintMessage(os, err.fileLoc, llvm::SourceMgr::DK_Error,
                        "expected " + getDiagKindStr(err.kind) + " \"" +
@@ -844,7 +854,7 @@ struct ParallelDiagnosticHandlerImpl : public llvm::PrettyStackTraceEntry {
     Diagnostic diag;
   };
 
-  ParallelDiagnosticHandlerImpl(MLIRContext *ctx) : handlerID(0), context(ctx) {
+  ParallelDiagnosticHandlerImpl(MLIRContext *ctx) : context(ctx) {
     handlerID = ctx->getDiagEngine().registerHandler([this](Diagnostic &diag) {
       uint64_t tid = llvm::get_threadid();
       llvm::sys::SmartScopedLock<true> lock(mutex);
@@ -942,7 +952,7 @@ struct ParallelDiagnosticHandlerImpl : public llvm::PrettyStackTraceEntry {
   mutable std::vector<ThreadDiagnostic> diagnostics;
 
   /// The unique id for the parallel handler.
-  DiagnosticEngine::HandlerID handlerID;
+  DiagnosticEngine::HandlerID handlerID = 0;
 
   /// The context to emit the diagnostics to.
   MLIRContext *context;

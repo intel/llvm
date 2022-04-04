@@ -21,11 +21,11 @@
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
-#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
@@ -68,8 +68,8 @@ class GlobalsAAResult::FunctionInfo {
   /// should provide this much alignment at least, but this makes it clear we
   /// specifically rely on this amount of alignment.
   struct alignas(8) AlignedMap {
-    AlignedMap() {}
-    AlignedMap(const AlignedMap &Arg) : Map(Arg.Map) {}
+    AlignedMap() = default;
+    AlignedMap(const AlignedMap &Arg) = default;
     GlobalInfoMapType Map;
   };
 
@@ -102,7 +102,7 @@ class GlobalsAAResult::FunctionInfo {
                 "Insufficient low bits to store our flag and ModRef info.");
 
 public:
-  FunctionInfo() {}
+  FunctionInfo() = default;
   ~FunctionInfo() {
     delete Info.getPointer();
   }
@@ -990,7 +990,7 @@ GlobalsAAResult::GlobalsAAResult(GlobalsAAResult &&Arg)
   }
 }
 
-GlobalsAAResult::~GlobalsAAResult() {}
+GlobalsAAResult::~GlobalsAAResult() = default;
 
 /*static*/ GlobalsAAResult GlobalsAAResult::analyzeModule(
     Module &M, std::function<const TargetLibraryInfo &(Function &F)> GetTLI,
@@ -1019,6 +1019,24 @@ GlobalsAAResult GlobalsAA::run(Module &M, ModuleAnalysisManager &AM) {
   };
   return GlobalsAAResult::analyzeModule(M, GetTLI,
                                         AM.getResult<CallGraphAnalysis>(M));
+}
+
+PreservedAnalyses RecomputeGlobalsAAPass::run(Module &M,
+                                              ModuleAnalysisManager &AM) {
+  if (auto *G = AM.getCachedResult<GlobalsAA>(M)) {
+    auto &CG = AM.getResult<CallGraphAnalysis>(M);
+    G->NonAddressTakenGlobals.clear();
+    G->UnknownFunctionsWithLocalLinkage = false;
+    G->IndirectGlobals.clear();
+    G->AllocsForIndirectGlobals.clear();
+    G->FunctionInfos.clear();
+    G->FunctionToSCCMap.clear();
+    G->Handles.clear();
+    G->CollectSCCMembership(CG);
+    G->AnalyzeGlobals(M);
+    G->AnalyzeCallGraph(CG, M);
+  }
+  return PreservedAnalyses::all();
 }
 
 char GlobalsAAWrapperPass::ID = 0;

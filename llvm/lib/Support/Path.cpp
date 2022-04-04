@@ -22,7 +22,6 @@
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Signals.h"
 #include <cctype>
-#include <cstring>
 
 #if !defined(_MSC_VER) && !defined(__MINGW32__)
 #include <unistd.h>
@@ -1254,7 +1253,8 @@ Error TempFile::keep(const Twine &Name) {
 #ifdef _WIN32
   // If we can't cancel the delete don't rename.
   auto H = reinterpret_cast<HANDLE>(_get_osfhandle(FD));
-  std::error_code RenameEC = setDeleteDisposition(H, false);
+  std::error_code RenameEC =
+      RemoveOnClose ? std::error_code() : setDeleteDisposition(H, false);
   bool ShouldDelete = false;
   if (!RenameEC) {
     RenameEC = rename_handle(H, Name);

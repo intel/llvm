@@ -19,7 +19,7 @@ static const char *CommonSectionName = "__common";
 namespace llvm {
 namespace jitlink {
 
-MachOLinkGraphBuilder::~MachOLinkGraphBuilder() {}
+MachOLinkGraphBuilder::~MachOLinkGraphBuilder() = default;
 
 Expected<std::unique_ptr<LinkGraph>> MachOLinkGraphBuilder::buildGraph() {
 
@@ -368,7 +368,7 @@ Error MachOLinkGraphBuilder::graphifyRegularSymbols() {
                                         Twine(KV.first));
       NSym.GraphSymbol = &G->addAbsoluteSymbol(
           *NSym.Name, orc::ExecutorAddr(NSym.Value), 0, Linkage::Strong,
-          Scope::Default, NSym.Desc & MachO::N_NO_DEAD_STRIP);
+          getScope(*NSym.Name, NSym.Type), NSym.Desc & MachO::N_NO_DEAD_STRIP);
       break;
     case MachO::N_SECT:
       SecIndexToSymbols[NSym.Sect - 1].push_back(&NSym);

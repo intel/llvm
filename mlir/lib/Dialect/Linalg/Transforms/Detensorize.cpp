@@ -7,9 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
-#include "mlir/Dialect/StandardOps/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -254,16 +255,12 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
                  DenseSet<BlockArgument> &blockArgsToDetensor) override {
       SmallVector<Value> workList;
 
-      func->walk([&](CondBranchOp condBr) {
-        for (auto operand : condBr.getOperands()) {
-          workList.push_back(operand);
-        }
+      func->walk([&](cf::CondBranchOp condBr) {
+        llvm::append_range(workList, condBr.getOperands());
       });
 
-      func->walk([&](BranchOp br) {
-        for (auto operand : br.getOperands()) {
-          workList.push_back(operand);
-        }
+      func->walk([&](cf::BranchOp br) {
+        llvm::append_range(workList, br.getOperands());
       });
 
       DenseSet<Value> visitedValues;
@@ -309,8 +306,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
         // detensorable and if so, their operands will be added to workList to
         // potentially discover other parts of the detensorable component.
         for (auto *user : currentItem.getUsers())
-          for (Value result : user->getResults())
-            workList.push_back(result);
+          llvm::append_range(workList, user->getResults());
 
         // 2   - Look backward:
         // 2.1 - The current item is defined by a block argument. If the owner
@@ -382,10 +378,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
           }
 
           opsToDetensor.insert(genericOp);
-
-          for (Value genericOpOperand : genericOp.inputs())
-            workList.push_back(genericOpOperand);
-
+          llvm::append_range(workList, genericOp.inputs());
           continue;
         }
 
@@ -404,8 +397,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
         if (llvm::all_of(
                 currentItemDefiningOp->getResultTypes(),
                 [&](Type resultType) { return resultType.isIntOrFloat(); }))
-          for (Value scalarOpOperand : currentItemDefiningOp->getOperands())
-            workList.push_back(scalarOpOperand);
+          llvm::append_range(workList, currentItemDefiningOp->getOperands());
       }
 
       // Since the cost model gives up on some ops (see the details of step 2.2
@@ -532,9 +524,9 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
       return false;
     });
 
-    patterns.insert<DetensorizeGenericOp>(typeConverter, context);
-    patterns.insert<FunctionNonEntryBlockConversion>(context, typeConverter,
-                                                     blockArgsToDetensor);
+    patterns.add<DetensorizeGenericOp>(typeConverter, context);
+    patterns.add<FunctionNonEntryBlockConversion>(context, typeConverter,
+                                                  blockArgsToDetensor);
     // Since non-entry block arguments get detensorized, we also need to
     // update the control flow inside the function to reflect the correct
     // types.

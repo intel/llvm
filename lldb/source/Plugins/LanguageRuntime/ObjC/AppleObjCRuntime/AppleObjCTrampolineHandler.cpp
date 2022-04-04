@@ -29,6 +29,7 @@
 #include "lldb/Target/ThreadPlanRunToAddress.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -280,8 +281,7 @@ extern \"C\" void * __lldb_objc_find_implementation_for_selector (void *object, 
 
 AppleObjCTrampolineHandler::AppleObjCVTables::VTableRegion::VTableRegion(
     AppleObjCVTables *owner, lldb::addr_t header_addr)
-    : m_valid(true), m_owner(owner), m_header_addr(header_addr),
-      m_code_start_addr(0), m_code_end_addr(0), m_next_region(0) {
+    : m_valid(true), m_owner(owner), m_header_addr(header_addr) {
   SetUpRegion();
 }
 
@@ -575,7 +575,7 @@ bool AppleObjCTrampolineHandler::AppleObjCVTables::ReadRegions(
   if (!process_sp)
     return false;
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
 
   // We aren't starting at the trampoline symbol.
   InitializeVTableSymbols();
@@ -794,7 +794,7 @@ AppleObjCTrampolineHandler::SetupDispatchFunction(Thread &thread,
                                                   ValueList &dispatch_values) {
   ThreadSP thread_sp(thread.shared_from_this());
   ExecutionContext exe_ctx(thread_sp);
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
 
   lldb::addr_t args_addr = LLDB_INVALID_ADDRESS;
   FunctionCaller *impl_function_caller = nullptr;
@@ -911,7 +911,7 @@ AppleObjCTrampolineHandler::GetStepThroughDispatchPlan(Thread &thread,
   }
 
   if (this_dispatch) {
-    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+    Log *log = GetLog(LLDBLog::Step);
 
     // We are decoding a method dispatch.  First job is to pull the
     // arguments out:

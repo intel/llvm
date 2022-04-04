@@ -35,8 +35,6 @@
 #ifndef LLVM_ANALYSIS_INSTRUCTIONSIMPLIFY_H
 #define LLVM_ANALYSIS_INSTRUCTIONSIMPLIFY_H
 
-#include "llvm/IR/Instruction.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
 
 namespace llvm {
@@ -49,6 +47,7 @@ class CallBase;
 class DataLayout;
 class DominatorTree;
 class Function;
+class Instruction;
 struct LoopStandardAnalysisResults;
 class MDNode;
 class OptimizationRemarkEmitter;
@@ -63,7 +62,7 @@ class Value;
 /// results if the users specified it is safe to use.
 struct InstrInfoQuery {
   InstrInfoQuery(bool UMD) : UseInstrInfo(UMD) {}
-  InstrInfoQuery() : UseInstrInfo(true) {}
+  InstrInfoQuery() = default;
   bool UseInstrInfo = true;
 
   MDNode *getMetadata(const Instruction *I, unsigned KindID) const {

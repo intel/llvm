@@ -27,6 +27,7 @@
 #include "llvm/ADT/Any.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/Error.h"
 
 namespace clang {
 namespace dataflow {
@@ -41,6 +42,11 @@ namespace dataflow {
 ///     initial state of a basic block;
 ///   * `void transfer(const Stmt *, LatticeT &, Environment &)` - applies the
 ///     analysis transfer function for a given statement and lattice element.
+///
+///  `Derived` can optionally override the following members:
+///   * `bool merge(QualType, const Value &, const Value &, Value &,
+///     Environment &)` -  joins distinct values. This could be a strict
+///     lattice join or a more general widening operation.
 ///
 ///  `LatticeT` is a bounded join-semilattice that is used by `Derived` and must
 ///  provide the following public members:
@@ -57,6 +63,8 @@ public:
   using Lattice = LatticeT;
 
   explicit DataflowAnalysis(ASTContext &Context) : Context(Context) {}
+  explicit DataflowAnalysis(ASTContext &Context, bool ApplyBuiltinTransfer)
+      : TypeErasedDataflowAnalysis(ApplyBuiltinTransfer), Context(Context) {}
 
   ASTContext &getASTContext() final { return Context; }
 
@@ -99,18 +107,24 @@ template <typename LatticeT> struct DataflowAnalysisState {
 
 /// Performs dataflow analysis and returns a mapping from basic block IDs to
 /// dataflow analysis states that model the respective basic blocks. Indices
-/// of the returned vector correspond to basic block IDs.
+/// of the returned vector correspond to basic block IDs. Returns an error if
+/// the dataflow analysis cannot be performed successfully.
 template <typename AnalysisT>
-std::vector<llvm::Optional<DataflowAnalysisState<typename AnalysisT::Lattice>>>
+llvm::Expected<std::vector<
+    llvm::Optional<DataflowAnalysisState<typename AnalysisT::Lattice>>>>
 runDataflowAnalysis(const ControlFlowContext &CFCtx, AnalysisT &Analysis,
                     const Environment &InitEnv) {
   auto TypeErasedBlockStates =
       runTypeErasedDataflowAnalysis(CFCtx, Analysis, InitEnv);
+  if (!TypeErasedBlockStates)
+    return TypeErasedBlockStates.takeError();
+
   std::vector<
       llvm::Optional<DataflowAnalysisState<typename AnalysisT::Lattice>>>
       BlockStates;
-  BlockStates.reserve(TypeErasedBlockStates.size());
-  llvm::transform(std::move(TypeErasedBlockStates),
+  BlockStates.reserve(TypeErasedBlockStates->size());
+
+  llvm::transform(std::move(*TypeErasedBlockStates),
                   std::back_inserter(BlockStates), [](auto &OptState) {
                     return std::move(OptState).map([](auto &&State) {
                       return DataflowAnalysisState<typename AnalysisT::Lattice>{
@@ -121,6 +135,15 @@ runDataflowAnalysis(const ControlFlowContext &CFCtx, AnalysisT &Analysis,
                   });
   return BlockStates;
 }
+
+/// Abstract base class for dataflow "models": reusable analysis components that
+/// model a particular aspect of program semantics in the `Environment`. For
+/// example, a model may capture a type and its related functions.
+class DataflowModel : public Environment::ValueModel {
+public:
+  /// Return value indicates whether the model processed the `Stmt`.
+  virtual bool transfer(const Stmt *Stmt, Environment &Env) = 0;
+};
 
 } // namespace dataflow
 } // namespace clang

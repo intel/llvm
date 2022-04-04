@@ -62,7 +62,24 @@ json::Value ModuleStats::ToJSON() const {
                      debug_info_index_loaded_from_cache);
   module.try_emplace("debugInfoIndexSavedToCache",
                      debug_info_index_saved_to_cache);
+  if (!symfile_path.empty())
+    module.try_emplace("symbolFilePath", symfile_path);
+
+  if (!symfile_modules.empty()) {
+    json::Array symfile_ids;
+    for (const auto symfile_id: symfile_modules)
+      symfile_ids.emplace_back(symfile_id);
+    module.try_emplace("symbolFileModuleIdentifiers", std::move(symfile_ids));
+  }
   return module;
+}
+
+llvm::json::Value ConstStringStats::ToJSON() const {
+  json::Object obj;
+  obj.try_emplace<int64_t>("bytesTotal", stats.GetBytesTotal());
+  obj.try_emplace<int64_t>("bytesUsed", stats.GetBytesUsed());
+  obj.try_emplace<int64_t>("bytesUnused", stats.GetBytesUnused());
+  return obj;
 }
 
 json::Value TargetStats::ToJSON(Target &target) {
@@ -192,6 +209,10 @@ llvm::json::Value DebuggerStats::ReportStatistics(Debugger &debugger,
     }
     SymbolFile *sym_file = module->GetSymbolFile();
     if (sym_file) {
+
+      if (sym_file->GetObjectFile() != module->GetObjectFile())
+        module_stat.symfile_path =
+            sym_file->GetObjectFile()->GetFileSpec().GetPath();
       module_stat.debug_index_time = sym_file->GetDebugInfoIndexTime().count();
       module_stat.debug_parse_time = sym_file->GetDebugInfoParseTime().count();
       module_stat.debug_info_size = sym_file->GetDebugInfoSize();
@@ -203,6 +224,9 @@ llvm::json::Value DebuggerStats::ReportStatistics(Debugger &debugger,
           sym_file->GetDebugInfoIndexWasSavedToCache();
       if (module_stat.debug_info_index_saved_to_cache)
         ++debug_index_saved;
+      ModuleList symbol_modules = sym_file->GetDebugInfoModules();
+      for (const auto &symbol_module: symbol_modules.Modules())
+        module_stat.symfile_modules.push_back((intptr_t)symbol_module.get());
     }
     symtab_parse_time += module_stat.symtab_parse_time;
     symtab_index_time += module_stat.symtab_index_time;
@@ -212,9 +236,15 @@ llvm::json::Value DebuggerStats::ReportStatistics(Debugger &debugger,
     json_modules.emplace_back(module_stat.ToJSON());
   }
 
+  ConstStringStats const_string_stats;
+  json::Object json_memory{
+      {"strings", const_string_stats.ToJSON()},
+  };
+
   json::Object global_stats{
       {"targets", std::move(json_targets)},
       {"modules", std::move(json_modules)},
+      {"memory", std::move(json_memory)},
       {"totalSymbolTableParseTime", symtab_parse_time},
       {"totalSymbolTableIndexTime", symtab_index_time},
       {"totalSymbolTablesLoadedFromCache", symtabs_loaded},

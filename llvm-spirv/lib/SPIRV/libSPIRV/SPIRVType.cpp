@@ -111,8 +111,12 @@ SPIRVWord SPIRVType::getVectorComponentCount() const {
 }
 
 SPIRVType *SPIRVType::getVectorComponentType() const {
-  assert(OpCode == OpTypeVector && "Not vector type");
-  return static_cast<const SPIRVTypeVector *>(this)->getComponentType();
+  if (OpCode == OpTypeVector)
+    return static_cast<const SPIRVTypeVector *>(this)->getComponentType();
+  if (OpCode == internal::OpTypeJointMatrixINTEL)
+    return static_cast<const SPIRVTypeJointMatrixINTEL *>(this)->getCompType();
+  assert(0 && "getVectorComponentType(): Not a vector or joint matrix type");
+  return nullptr;
 }
 
 SPIRVWord SPIRVType::getMatrixColumnCount() const {
@@ -262,12 +266,11 @@ SPIRVConstant *SPIRVTypeArray::getLength() const {
 _SPIRV_IMP_ENCDEC3(SPIRVTypeArray, Id, ElemType, Length)
 
 void SPIRVTypeForwardPointer::encode(spv_ostream &O) const {
-  getEncoder(O) << Pointer << SC;
+  getEncoder(O) << PointerId << SC;
 }
 
 void SPIRVTypeForwardPointer::decode(std::istream &I) {
   auto Decoder = getDecoder(I);
-  SPIRVId PointerId;
   Decoder >> PointerId >> SC;
 }
 

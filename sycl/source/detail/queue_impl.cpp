@@ -231,12 +231,12 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
       DevStr = "ACCELERATOR";
     else
       DevStr = "UNKNOWN";
-    xptiAddMetadata(WaitEvent, "sycl_device", DevStr.c_str());
+    xpti::addMetadata(WaitEvent, "sycl_device", DevStr);
     if (HasSourceInfo) {
-      xptiAddMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
-      xptiAddMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
-      xptiAddMetadata(WaitEvent, "sym_line_no",
-                      std::to_string(CodeLoc.lineNumber()).c_str());
+      xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
+      xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
+      xpti::addMetadata(WaitEvent, "sym_line_no",
+                        std::to_string(CodeLoc.lineNumber()));
     }
     xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
                           QWaitInstanceNo,

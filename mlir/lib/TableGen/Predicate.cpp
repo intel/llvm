@@ -14,6 +14,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
@@ -46,7 +47,7 @@ bool Pred::isCombined() const {
   return def && def->isSubClassOf("CombinedPred");
 }
 
-ArrayRef<llvm::SMLoc> Pred::getLoc() const { return def->getLoc(); }
+ArrayRef<SMLoc> Pred::getLoc() const { return def->getLoc(); }
 
 CPred::CPred(const llvm::Record *record) : Pred(record) {
   assert(def->isSubClassOf("CPred") &&

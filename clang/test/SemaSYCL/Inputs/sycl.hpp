@@ -33,7 +33,8 @@ enum class address_space : int {
   private_space = 0,
   global_space,
   constant_space,
-  local_space
+  local_space,
+  generic_space
 };
 } // namespace access
 
@@ -64,6 +65,18 @@ namespace ext {
 namespace oneapi {
 template <typename... properties>
 class accessor_property_list {};
+
+// device_global type decorated with attributes
+template <typename T>
+struct [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] device_global {
+public:
+  const T &get() const noexcept { return *Data; }
+  device_global() {}
+  operator T &() noexcept { return *Data; }
+
+private:
+  T *Data;
+};
 } // namespace oneapi
 } // namespace ext
 
@@ -327,6 +340,33 @@ public:
 private:
   cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write> Acc;
   int FlushBufferSize;
+};
+
+template <typename ElementType, access::address_space addressSpace>
+struct DecoratedType;
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::private_space> {
+  using type = __attribute__((opencl_private)) ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::generic_space> {
+  using type = ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::global_space> {
+  using type = __attribute__((opencl_global)) ElementType;
+};
+
+template <typename T, access::address_space AS> class multi_ptr {
+  using pointer_t = typename DecoratedType<T, AS>::type *;
+  pointer_t m_Pointer;
+
+public:
+  multi_ptr(T *Ptr) : m_Pointer((pointer_t)(Ptr)) {} // #MultiPtrConstructor
+  pointer_t get() { return m_Pointer; }
 };
 
 namespace ext {

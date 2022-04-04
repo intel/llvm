@@ -81,7 +81,6 @@ define dso_local spir_kernel void  @FUNC_30() {
 ; CHECK: define dso_local spir_kernel void  @FUNC_30()
   call spir_func void @_ZN2cl4sycl3ext5intel12experimental5esimd8slm_initEj(i32 1023)
   ret void
-; CHECK-NEXT: ret void
 }
 
 define dso_local spir_func <16 x i32>  @FUNC_32() {
@@ -327,6 +326,5 @@ attributes #0 = { "genx_byte_offset"="192" "genx_volatile" }
 !genx.kernels = !{!0}
 
 !0 = !{void ()* @"FUNC_30", !"FUNC_30", !1, i32 0, i32 0, !1, !2, i32 0, i32 0}
-; CHECK: !0 = !{void ()* @FUNC_30, !"FUNC_30", !1, i32 1023, i32 0, !1, !2, i32 0, i32 0}
 !1 = !{i32 0, i32 0}
 !2 = !{}

@@ -34,8 +34,6 @@
 
 #include "ConfigProvider.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SourceMgr.h"
 #include <string>
@@ -293,6 +291,8 @@ struct Fragment {
     llvm::Optional<Located<bool>> ParameterNames;
     /// Show deduced types for `auto`.
     llvm::Optional<Located<bool>> DeducedTypes;
+    /// Show designators in aggregate initialization.
+    llvm::Optional<Located<bool>> Designators;
   };
   InlayHintsBlock InlayHints;
 };

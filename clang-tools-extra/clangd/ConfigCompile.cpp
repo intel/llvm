@@ -38,10 +38,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Format.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
@@ -540,6 +537,10 @@ struct FragmentCompiler {
     if (F.DeducedTypes)
       Out.Apply.push_back([Value(**F.DeducedTypes)](const Params &, Config &C) {
         C.InlayHints.DeducedTypes = Value;
+      });
+    if (F.Designators)
+      Out.Apply.push_back([Value(**F.Designators)](const Params &, Config &C) {
+        C.InlayHints.Designators = Value;
       });
   }
 

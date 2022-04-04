@@ -11,17 +11,17 @@
 
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/LazyCallGraph.h"
-#include "llvm/Analysis/Utils/ImportedFunctionsInliningStatistics.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/PassManager.h"
 #include <memory>
-#include <unordered_set>
 
 namespace llvm {
 class BasicBlock;
 class CallBase;
 class Function;
 class Module;
+class OptimizationRemark;
+class ImportedFunctionsInliningStatistics;
 class OptimizationRemarkEmitter;
 struct ReplayInlinerSettings;
 
@@ -246,16 +246,12 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 
-#ifdef LLVM_HAVE_TF_AOT
 std::unique_ptr<InlineAdvisor>
 getReleaseModeAdvisor(Module &M, ModuleAnalysisManager &MAM);
-#endif
 
-#ifdef LLVM_HAVE_TF_API
 std::unique_ptr<InlineAdvisor>
 getDevelopmentModeAdvisor(Module &M, ModuleAnalysisManager &MAM,
                           std::function<bool(CallBase &)> GetDefaultAdvice);
-#endif
 
 // Default (manual policy) decision making helper APIs. Shared with the legacy
 // pass manager inliner.

@@ -18,18 +18,17 @@
 #include <memory>
 #include <mutex>
 #include <string>
-#include <utility>
 
 #if defined(_LIBCPP_MSVCRT_LIKE)
-# include <cstring>
 # include <__support/win32/locale_win32.h>
+# include <cstring>
 #elif defined(_AIX) || defined(__MVS__)
 # include <__support/ibm/xlocale.h>
 #elif defined(__ANDROID__)
 # include <__support/android/locale_bionic.h>
 #elif defined(__sun__)
-# include <xlocale.h>
 # include <__support/solaris/xlocale.h>
+# include <xlocale.h>
 #elif defined(_NEWLIB_VERSION)
 # include <__support/newlib/xlocale.h>
 #elif defined(__OpenBSD__)
@@ -47,7 +46,7 @@
 #endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
@@ -452,8 +451,9 @@ public:
     static const mask punct  = _PUNCT;
     static const mask xdigit = _HEX;
     static const mask blank  = _BLANK;
-    static const mask __regex_word = 0x80;
+    static const mask __regex_word = 0x4000; // 0x8000 and 0x0100 and 0x00ff are used
 # define _LIBCPP_CTYPE_MASK_IS_COMPOSITE_PRINT
+# define _LIBCPP_CTYPE_MASK_IS_COMPOSITE_ALPHA
 #elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__EMSCRIPTEN__) || defined(__NetBSD__)
 # ifdef __APPLE__
     typedef __uint32_t mask;
@@ -512,8 +512,7 @@ public:
 # define _LIBCPP_CTYPE_MASK_IS_COMPOSITE_ALPHA
 # define _LIBCPP_CTYPE_MASK_IS_COMPOSITE_XDIGIT
 #elif defined(__MVS__)
-    static const mask __regex_word = 0x8000;
-# if defined(__NATIVE_ASCII_F)`
+# if defined(__NATIVE_ASCII_F)
     typedef unsigned int mask;
     static const mask space  = _ISSPACE_A;
     static const mask print  = _ISPRINT_A;
@@ -538,6 +537,7 @@ public:
     static const mask xdigit = __ISXDIGIT;
     static const mask blank  = __ISBLANK;
 # endif
+    static const mask __regex_word = 0x8000;
 #else
 # error unknown rune table for this platform -- do you mean to define _LIBCPP_PROVIDES_DEFAULT_RUNE_TABLE?
 #endif
@@ -545,6 +545,12 @@ public:
     static const mask graph  = alnum | punct;
 
     _LIBCPP_INLINE_VISIBILITY ctype_base() {}
+
+// TODO: Remove the ifndef when the assert no longer fails on AIX.
+#ifndef _AIX
+    static_assert((__regex_word & ~(space | print | cntrl | upper | lower | alpha | digit | punct | xdigit | blank)) == __regex_word,
+                  "__regex_word can't overlap other bits");
+#endif
 };
 
 template <class _CharT> class _LIBCPP_TEMPLATE_VIS ctype;

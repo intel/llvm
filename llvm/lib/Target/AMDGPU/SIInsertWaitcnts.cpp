@@ -119,7 +119,7 @@ static const unsigned WaitEventMaskForInst[NUM_INST_CNTS] = {
 // special tokens like SCMEM_LDS (needed for buffer load to LDS).
 enum RegisterMapping {
   SQ_MAX_PGM_VGPRS = 512, // Maximum programmable VGPRs across all targets.
-  AGPR_OFFSET = 226, // Maximum programmable ArchVGPRs across all targets.
+  AGPR_OFFSET = 256,      // Maximum programmable ArchVGPRs across all targets.
   SQ_MAX_PGM_SGPRS = 256, // Maximum programmable SGPRs across all targets.
   NUM_EXTRA_VGPRS = 1,    // A reserved slot for DS.
   EXTRA_VGPR_LDS = 0,     // This is a placeholder the Shader algorithm uses.
@@ -863,7 +863,7 @@ bool SIInsertWaitcnts::applyPreexistingWaitcnt(WaitcntBrackets &ScoreBrackets,
       Wait.ExpCnt = ~0u;
 
       LLVM_DEBUG(dbgs() << "generateWaitcntInstBefore\n"
-                        << "Old Instr: " << MI << "New Instr: " << *WaitcntInstr
+                        << "Old Instr: " << *MI << "New Instr: " << *WaitcntInstr
                         << '\n');
     } else {
       WaitcntInstr->eraseFromParent();
@@ -886,7 +886,7 @@ bool SIInsertWaitcnts::applyPreexistingWaitcnt(WaitcntBrackets &ScoreBrackets,
       Wait.VsCnt = ~0u;
 
       LLVM_DEBUG(dbgs() << "generateWaitcntInstBefore\n"
-                        << "Old Instr: " << MI
+                        << "Old Instr: " << *MI
                         << "New Instr: " << *WaitcntVsCntInstr << '\n');
     } else {
       WaitcntVsCntInstr->eraseFromParent();
@@ -955,8 +955,8 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(
   // NOTE: this could be improved with knowledge of all call sites or
   //   with knowledge of the called routines.
   if (MI.getOpcode() == AMDGPU::SI_RETURN_TO_EPILOG ||
+      MI.getOpcode() == AMDGPU::SI_RETURN ||
       MI.getOpcode() == AMDGPU::S_SETPC_B64_return ||
-      MI.getOpcode() == AMDGPU::S_SETPC_B64_return_gfx ||
       (MI.isReturn() && MI.isCall() && !callWaitsOnFunctionEntry(MI))) {
     Wait = Wait.combined(AMDGPU::Waitcnt::allZero(ST->hasVscnt()));
   }
@@ -1040,7 +1040,7 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(
     if (MI.isCall() && callWaitsOnFunctionEntry(MI)) {
       // The function is going to insert a wait on everything in its prolog.
       // This still needs to be careful if the call target is a load (e.g. a GOT
-      // load). We also need to check WAW depenancy with saved PC.
+      // load). We also need to check WAW dependency with saved PC.
       Wait = AMDGPU::Waitcnt();
 
       int CallAddrOpIdx =
@@ -1135,12 +1135,12 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(
     }
   }
 
-  // Check to see if this is an S_BARRIER, and if an implicit S_WAITCNT 0
-  // occurs before the instruction. Doing it here prevents any additional
-  // S_WAITCNTs from being emitted if the instruction was marked as
-  // requiring a WAITCNT beforehand.
+  // The subtarget may have an implicit S_WAITCNT 0 before barriers. If it does
+  // not, we need to ensure the subtarget is capable of backing off barrier
+  // instructions in case there are any outstanding memory operations that may
+  // cause an exception. Otherwise, insert an explicit S_WAITCNT 0 here.
   if (MI.getOpcode() == AMDGPU::S_BARRIER &&
-      !ST->hasAutoWaitcntBeforeBarrier()) {
+      !ST->hasAutoWaitcntBeforeBarrier() && !ST->supportsBackOffBarrier()) {
     Wait = Wait.combined(AMDGPU::Waitcnt::allZero(ST->hasVscnt()));
   }
 

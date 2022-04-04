@@ -21,8 +21,10 @@
 #include "GISel/AArch64RegisterBankInfo.h"
 #include "MCTargetDesc/AArch64AddressingModes.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/IR/GlobalValue.h"
+#include "llvm/Support/AArch64TargetParser.h"
 #include "llvm/Support/TargetParser.h"
 
 using namespace llvm;
@@ -98,6 +100,7 @@ void AArch64Subtarget::initializeProperties() {
   case CortexA78C:
   case CortexR82:
   case CortexX1:
+  case CortexX1C:
     PrefFunctionLogAlignment = 4;
     break;
   case CortexA510:
@@ -350,6 +353,8 @@ bool AArch64Subtarget::supportsAddressTopByteIgnored() const {
   if (!UseAddressTopByteIgnored)
     return false;
 
+  if (TargetTriple.isDriverKit())
+    return true;
   if (TargetTriple.isiOS()) {
     return TargetTriple.getiOSVersion() >= VersionTuple(8);
   }
@@ -370,11 +375,6 @@ void AArch64Subtarget::mirFileLoaded(MachineFunction &MF) const {
   MachineFrameInfo &MFI = MF.getFrameInfo();
   if (!MFI.isMaxCallFrameSizeComputed())
     MFI.computeMaxCallFrameSize(MF);
-}
-
-bool AArch64Subtarget::useSVEForFixedLengthVectors() const {
-  // Prefer NEON unless larger SVE registers are available.
-  return hasSVE() && getMinSVEVectorSizeInBits() >= 256;
 }
 
 bool AArch64Subtarget::useAA() const { return UseAA; }

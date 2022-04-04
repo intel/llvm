@@ -204,7 +204,7 @@ Decl *Parser::ParseSingleDeclarationAfterTemplate(
     return nullptr;
   }
 
-  ParsedAttributesWithRange prefixAttrs(AttrFactory);
+  ParsedAttributes prefixAttrs(AttrFactory);
   MaybeParseCXX11Attributes(prefixAttrs);
 
   if (Tok.is(tok::kw_using)) {
@@ -1233,8 +1233,6 @@ bool Parser::ParseGreaterThanInTemplateList(SourceLocation LAngleLoc,
 /// token that forms the template-id. Otherwise, we will leave the
 /// last token in the stream (e.g., so that it can be replaced with an
 /// annotation token).
-///
-/// \param NameHint is not required, and merely affects code completion.
 bool Parser::ParseTemplateIdAfterTemplateName(bool ConsumeLastToken,
                                               SourceLocation &LAngleLoc,
                                               TemplateArgList &TemplateArgs,
