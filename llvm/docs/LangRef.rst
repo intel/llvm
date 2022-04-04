@@ -894,6 +894,11 @@ some can only be checked when producing an object file:
 * No global value in the expression can be a declaration, since that
   would require a relocation, which is not possible.
 
+* If either the alias or the aliasee may be replaced by a symbol outside the
+  module at link time or runtime, any optimization cannot replace the alias with
+  the aliasee, since the behavior may be different. The alias may be used as a
+  name guaranteed to point to the content in the current module.
+
 .. _langref_ifunc:
 
 IFuncs
@@ -2423,9 +2428,6 @@ An assume operand bundle has the form:
 
 If there are no arguments the attribute is a property of the call location.
 
-If the represented attribute expects a constant argument, the argument provided
-to the operand bundle should be a constant as well.
-
 For example:
 
 .. code-block:: llvm
@@ -2444,6 +2446,20 @@ call location is cold and that ``%val`` may not be null.
 
 Just like for the argument of :ref:`llvm.assume <int_assume>`, if any of the
 provided guarantees are violated at runtime the behavior is undefined.
+
+While attributes expect constant arguments, assume operand bundles may be
+provided a dynamic value, for example:
+
+.. code-block:: llvm
+
+      call void @llvm.assume(i1 true) ["align"(i32* %val, i32 %align)]
+
+If the operand bundle value violates any requirements on the attribute value,
+the behavior is undefined, unless one of the following exceptions applies:
+
+* ``"assume"`` operand bundles may specify a non-power-of-two alignment
+  (including a zero alignment). If this is the case, then the pointer value
+  must be a null pointer, otherwise the behavior is undefined.
 
 Even if the assumed property can be encoded as a boolean value, like
 ``nonnull``, using operand bundles to express the property can still have
@@ -3957,7 +3973,7 @@ allowing the '``or``' to be folded to -1.
     Safe:
       %A = %X     (or %Y)
       %B = 42     (or %Y)
-      %C = %Y     (if %Y is probably not poison; unsafe otherwise)
+      %C = %Y     (if %Y is provably not poison; unsafe otherwise)
     Unsafe:
       %A = undef
       %B = undef
@@ -4083,7 +4099,7 @@ operations such as :ref:`add <i_add>` with the ``nsw`` flag can produce
 a poison value.
 
 Most instructions return '``poison``' when one of their arguments is
-'``poison``'. A notable expection is the :ref:`select instruction <i_select>`.
+'``poison``'. A notable exception is the :ref:`select instruction <i_select>`.
 Propagation of poison can be stopped with the
 :ref:`freeze instruction <i_freeze>`.
 
@@ -5062,8 +5078,10 @@ X86:
   the operand. (The behavior for relocatable symbol expressions is a
   target-specific behavior for this typically target-independent modifier)
 - ``H``: Print a memory reference with additional offset +8.
-- ``P``: Print a memory reference or operand for use as the argument of a call
-  instruction. (E.g. omit ``(rip)``, even though it's PC-relative.)
+- ``P``: Print a memory reference used as the argument of a call instruction or
+  used with explicit base reg and index reg as its offset. So it can not use
+  additional regs to present the memory reference. (E.g. omit ``(rip)``, even
+  though it's PC-relative.)
 
 XCore:
 
