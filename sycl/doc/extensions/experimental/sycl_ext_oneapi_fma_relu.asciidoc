@@ -107,7 +107,7 @@ If `fma_relu` is to be used with either the `bf16` or `bf16x2` datatypes, then
 an implementation must additionally predefine the macro 
 `SYCL_EXT_ONEAPI_BFLOAT16`, as detailed in 
 link:./sycl_ext_intel_bf16_conversion.asciidoc[
-  sycl_ext_*_bf16_conversion].
+  sycl_ext_oneapi_bfloat16].
 
 
 [%header,cols="1,5"]
