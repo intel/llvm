@@ -89,7 +89,7 @@ class queue {
 };
 
 } // namespace sycl
-```
+----
 
 
 The semantics of the new functions are: 
@@ -141,7 +141,4 @@ a|
 
 == Similar Work
 
-- `ext_oneapi_get_wait_list` is inspired by the the HIPSYCL extensions  link:https://github.com/illuhad/hipSYCL/blob/develop/doc/extensions.md#hipsycl_ext_queue_wait_list[queue_wait_list]. 
-
-
-
+- `ext_oneapi_get_wait_list` is inspired by the hipSYCL extension link:https://github.com/illuhad/hipSYCL/blob/develop/doc/extensions.md#hipsycl_ext_queue_wait_list[queue_wait_list]. 
