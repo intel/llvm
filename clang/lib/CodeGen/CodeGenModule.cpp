@@ -2157,6 +2157,16 @@ void CodeGenModule::SetCommonAttributes(GlobalDecl GD, llvm::GlobalValue *GV) {
         VD->getStorageDuration() == SD_Static)
       addUsedOrCompilerUsedGlobal(GV);
   }
+
+  if (getLangOpts().SYCLIsDevice) {
+    if (D && isa<VarDecl>(D)) {
+      const auto *VD = cast<VarDecl>(D);
+      const RecordDecl *RD = VD->getType()->getAsRecordDecl();
+      if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>() &&
+          VD->getFormalLinkage() == InternalLinkage)
+        addUsedOrCompilerUsedGlobal(GV);
+    }
+  }
 }
 
 bool CodeGenModule::GetCPUAndFeaturesAttributes(GlobalDecl GD,

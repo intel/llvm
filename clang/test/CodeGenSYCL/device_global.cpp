@@ -91,6 +91,9 @@ void bar() {
 
 // CHECK: @llvm.global_ctors = appending global [2 x { i32, void ()*, i8 addrspace(4)* }] [{ i32, void ()*, i8 addrspace(4)* } { i32 65535, void ()* @__cxx_global_var_init{{.*}}, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::ext::oneapi::device_global" addrspace(1)* @[[TEMPL_DEV_GLOB]] to i8 addrspace(1)*) to i8 addrspace(4)*) }, { i32, void ()*, i8 addrspace(4)* } { i32 65535, void ()* @_GLOBAL__sub_I_device_global.cpp, i8 addrspace(4)* null }]
 // CHECK: @llvm.used = appending global [1 x i8 addrspace(4)*] [i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::ext::oneapi::device_global" addrspace(1)* @[[TEMPL_DEV_GLOB]] to i8 addrspace(1)*) to i8 addrspace(4)*)], section "llvm.metadata"
+// CHECK: @llvm.compiler.used = appending global [2 x i8 addrspace(4)*]
+// CHECK-SAME: @_ZL1B
+// CHECK-SAME: @_ZN12_GLOBAL__N_19same_nameE
 
 // CHECK: attributes #[[A_ATTRS]] = { "sycl-unique-id"="_Z1A" }
 // CHECK: attributes #[[B_ATTRS]] = { "sycl-unique-id"="THE_PREFIX____ZL1B" }
