@@ -74,9 +74,11 @@ this happens.
 == Overview
 
 This extension introduces the `fma_relu` function for datatypes `sycl::half`,
-`bfloat16` and `bfloat16x2`. `bfloat16` and `bfloat16x2` refer to the bfloat16
-class from the `sycl_ext_*_bf16_conversion` extension, and currently use 
-`uint16_t` and `uint32_t`, respectively, as storage types. 
+`bfloat16` and `bfloat16x2`. `bfloat16` refers to the bfloat16 class from 
+the `sycl_ext_oneapi_bfloat16` extension. `bfloat16x2` has not yet been 
+implemented as a class so this `fma_relu` extension uses `uint32_t` as a
+storage type for `bfloat16x2`. This will be changed once the `bfloat16x2` 
+class has been implemented. 
 
 == Specification
 
@@ -103,7 +105,7 @@ supports.
 
 If `fma_relu` is to be used with either the `bf16` or `bf16x2` datatypes, then
 an implementation must additionally predefine the macro 
-`SYCL_EXT_INTEL_BF16_CONVERSION`, as detailed in 
+`SYCL_EXT_ONEAPI_BFLOAT16`, as detailed in 
 link:./sycl_ext_intel_bf16_conversion.asciidoc[
   sycl_ext_*_bf16_conversion].
 
