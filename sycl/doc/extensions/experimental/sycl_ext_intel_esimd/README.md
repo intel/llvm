@@ -116,7 +116,7 @@ done via explicit APIs; e.g. `sycl::ext::intel::experimental::esimd::block_store
 
 ##### Other restrictions:
 
-- Only Intel GPU device is supported in default mode. In ESIMD
+- Only Intel GPU device is supported in native mode. In ESIMD
   emulation mode device code is executed on the CPU.
 - Interoperability between regular SYCL and ESIMD kernels is not yet supported.
   I.e., it's not possible to invoke an ESIMD kernel from SYCL kernel and vice-versa.
