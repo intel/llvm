@@ -240,19 +240,23 @@ simd_call_helper(const void *obj_ptr,
 //     return std::is_function_v<std::remove_reference_t<F>>;
 //   }
 // where F is a function type with __regcall.
-template <class F> struct is_regcall_function_ptr_or_ref_v : std::false_type {};
+template <class F> struct is_regcall_function_ptr_or_ref : std::false_type {};
 
 template <class Ret, class... Args>
-struct is_regcall_function_ptr_or_ref_v<Ret(__regcall &)(Args...)>
+struct is_regcall_function_ptr_or_ref<Ret(__regcall &)(Args...)>
     : std::true_type {};
 
 template <class Ret, class... Args>
-struct is_regcall_function_ptr_or_ref_v<Ret(__regcall *)(Args...)>
+struct is_regcall_function_ptr_or_ref<Ret(__regcall *)(Args...)>
+    : std::true_type {};
+
+template <class Ret, class... Args>
+struct is_regcall_function_ptr_or_ref<Ret(__regcall *&)(Args...)>
     : std::true_type {};
 
 template <class F>
 static constexpr bool is_regcall_function_ptr_or_ref_v =
-    is_regcall_function_ptr_or_ref_v<F>::value;
+    is_regcall_function_ptr_or_ref<F>::value;
 #endif // __INVOKE_SIMD_USE_STD_IS_FUNCTION_WA
 
 template <class Callable>

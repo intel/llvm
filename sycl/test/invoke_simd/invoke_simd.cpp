@@ -276,9 +276,9 @@ void ordinary_func();
 
 // clang-format off
 void check_f(
-  int(*func_ptr)(float*), int(__regcall* func_ptr_regcall)(float*),
-  int(&func_ref)(float*), int(__regcall& func_ref_regcall)(float*),
-  int(func)(float*), int(__regcall func_regcall)(float*)) {
+  int(*func_ptr)(float*), int(__regcall* func_ptr_regcall)(float*, int),
+  int(&func_ref)(), int(__regcall& func_ref_regcall)(int*),
+  int(func)(float), int(__regcall func_regcall)(int)) {
 
   assert_is_func(SIMD_CALLEE);
   assert_is_func(ordinary_func);
