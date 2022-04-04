@@ -5,6 +5,9 @@
 has the capability to somehow map addresses of a host objects to their
 counterparts in device programs.
 
+[sycl-2020-spec]: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html
+[device-global-ext-spec]: <../extensions/proposed/sycl_ext_oneapi_device_global.asciidoc>
+
 For example, in order to implement specialization constants on top of SPIR-V, we
 need to be able to map addresses of `specialization_id` variables to numeric
 IDs of corresponding specialization constants at SPIR-V level.
@@ -14,6 +17,8 @@ in order to communicate a value of `device_global` variable between host and
 device we need to map its host address to a symbolic name/identifier and some
 other info like the size of an underlying type of a device global, which is used
 at PI layer and below.
+
+[device-global-design]: <DeviceGlobal.md>
 
 This design document describes a generic way how to map the address of any SYCL
 object defined in a namespace scope to its unique symbolic ID. Please note that
@@ -319,9 +324,9 @@ name lookup.  Furthermore, the name of the shim function is globally unique, so
 it is guaranteed not to be shadowed by any other name in the translation unit.
 This problem with variable shadowing is also a problem for the integration
 footer we use for specialization constants.  See the [specialization constant
-design document][5] for more details on this topic.
+design document][spec-constants-design] for more details on this topic.
 
-[5]: <SpecializationConstants.md>
+[spec-constants-design]: <SYCL2020-SpecializationConstants.md>
 
 ## Custom host compiler approach
 
