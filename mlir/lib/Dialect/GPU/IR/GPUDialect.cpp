@@ -475,11 +475,11 @@ void LaunchOp::print(OpAsmPrinter &p) {
 // SSA value uses.
 static ParseResult
 parseSizeAssignment(OpAsmParser &parser,
-                    MutableArrayRef<OpAsmParser::OperandType> sizes,
-                    MutableArrayRef<OpAsmParser::OperandType> regionSizes,
-                    MutableArrayRef<OpAsmParser::OperandType> indices) {
+                    MutableArrayRef<OpAsmParser::UnresolvedOperand> sizes,
+                    MutableArrayRef<OpAsmParser::UnresolvedOperand> regionSizes,
+                    MutableArrayRef<OpAsmParser::UnresolvedOperand> indices) {
   assert(indices.size() == 3 && "space for three indices expected");
-  SmallVector<OpAsmParser::OperandType, 3> args;
+  SmallVector<OpAsmParser::UnresolvedOperand, 3> args;
   if (parser.parseRegionArgumentList(args, /*requiredOperandCount=*/3,
                                      OpAsmParser::Delimiter::Paren) ||
       parser.parseKeyword("in") || parser.parseLParen())
@@ -506,17 +506,17 @@ parseSizeAssignment(OpAsmParser &parser,
 /// ssa-reassignment ::= `(` ssa-id `=` ssa-use (`,` ssa-id `=` ssa-use)* `)`
 ParseResult LaunchOp::parse(OpAsmParser &parser, OperationState &result) {
   // Sizes of the grid and block.
-  SmallVector<OpAsmParser::OperandType, LaunchOp::kNumConfigOperands> sizes(
-      LaunchOp::kNumConfigOperands);
-  MutableArrayRef<OpAsmParser::OperandType> sizesRef(sizes);
+  SmallVector<OpAsmParser::UnresolvedOperand, LaunchOp::kNumConfigOperands>
+      sizes(LaunchOp::kNumConfigOperands);
+  MutableArrayRef<OpAsmParser::UnresolvedOperand> sizesRef(sizes);
 
   // Actual (data) operands passed to the kernel.
-  SmallVector<OpAsmParser::OperandType, 4> dataOperands;
+  SmallVector<OpAsmParser::UnresolvedOperand, 4> dataOperands;
 
   // Region arguments to be created.
-  SmallVector<OpAsmParser::OperandType, 16> regionArgs(
+  SmallVector<OpAsmParser::UnresolvedOperand, 16> regionArgs(
       LaunchOp::kNumConfigRegionAttributes);
-  MutableArrayRef<OpAsmParser::OperandType> regionArgsRef(regionArgs);
+  MutableArrayRef<OpAsmParser::UnresolvedOperand> regionArgsRef(regionArgs);
 
   // Parse the size assignment segments: the first segment assigns grid sizes
   // and defines values for block identifiers; the second segment assigns block
@@ -535,7 +535,7 @@ ParseResult LaunchOp::parse(OpAsmParser &parser, OperationState &result) {
                              result.operands))
     return failure();
 
-  OpAsmParser::OperandType dynamicSharedMemorySize;
+  OpAsmParser::UnresolvedOperand dynamicSharedMemorySize;
   if (!parser.parseOptionalKeyword(
           LaunchOp::getDynamicSharedMemorySizeKeyword()))
     if (parser.parseOperand(dynamicSharedMemorySize) ||
@@ -667,10 +667,10 @@ LogicalResult LaunchFuncOp::verify() {
   return success();
 }
 
-static ParseResult
-parseLaunchFuncOperands(OpAsmParser &parser,
-                        SmallVectorImpl<OpAsmParser::OperandType> &argNames,
-                        SmallVectorImpl<Type> &argTypes) {
+static ParseResult parseLaunchFuncOperands(
+    OpAsmParser &parser,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &argNames,
+    SmallVectorImpl<Type> &argTypes) {
   if (parser.parseOptionalKeyword("args"))
     return success();
   SmallVector<NamedAttrList> argAttrs;
@@ -769,7 +769,7 @@ void GPUFuncOp::build(OpBuilder &builder, OperationState &result,
 /// keyword provided as argument.
 static ParseResult
 parseAttributions(OpAsmParser &parser, StringRef keyword,
-                  SmallVectorImpl<OpAsmParser::OperandType> &args,
+                  SmallVectorImpl<OpAsmParser::UnresolvedOperand> &args,
                   SmallVectorImpl<Type> &argTypes) {
   // If we could not parse the keyword, just assume empty list and succeed.
   if (failed(parser.parseOptionalKeyword(keyword)))
@@ -783,7 +783,7 @@ parseAttributions(OpAsmParser &parser, StringRef keyword,
     return success();
 
   do {
-    OpAsmParser::OperandType arg;
+    OpAsmParser::UnresolvedOperand arg;
     Type type;
 
     if (parser.parseRegionArgument(arg) || parser.parseColonType(type))
@@ -802,7 +802,7 @@ parseAttributions(OpAsmParser &parser, StringRef keyword,
 ///                 (`->` function-result-list)? memory-attribution `kernel`?
 ///                 function-attributes? region
 ParseResult GPUFuncOp::parse(OpAsmParser &parser, OperationState &result) {
-  SmallVector<OpAsmParser::OperandType> entryArgs;
+  SmallVector<OpAsmParser::UnresolvedOperand> entryArgs;
   SmallVector<NamedAttrList> argAttrs;
   SmallVector<NamedAttrList> resultAttrs;
   SmallVector<Type> argTypes;
@@ -1041,7 +1041,7 @@ LogicalResult MemcpyOp::verify() {
 
 static ParseResult parseAsyncDependencies(
     OpAsmParser &parser, Type &asyncTokenType,
-    SmallVectorImpl<OpAsmParser::OperandType> &asyncDependencies) {
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &asyncDependencies) {
   auto loc = parser.getCurrentLocation();
   if (succeeded(parser.parseOptionalKeyword("async"))) {
     if (parser.getNumResults() == 0)
@@ -1068,6 +1068,17 @@ static void printAsyncDependencies(OpAsmPrinter &printer, Operation *op,
 // GPU_SubgroupMmaLoadMatrixOp
 //===----------------------------------------------------------------------===//
 
+/// Return true if the last dimension of the MemRefType has unit stride. Also
+/// return true for memrefs with no strides.
+static bool isLastMemrefDimUnitStride(MemRefType type) {
+  int64_t offset;
+  SmallVector<int64_t> strides;
+  if (failed(getStridesAndOffset(type, strides, offset))) {
+    return false;
+  }
+  return strides.back() == 1;
+}
+
 LogicalResult SubgroupMmaLoadMatrixOp::verify() {
   auto srcType = srcMemref().getType();
   auto resType = res().getType();
@@ -1076,8 +1087,9 @@ LogicalResult SubgroupMmaLoadMatrixOp::verify() {
   auto srcMemrefType = srcType.cast<MemRefType>();
   auto srcMemSpace = srcMemrefType.getMemorySpaceAsInt();
 
-  if (!srcMemrefType.getLayout().isIdentity())
-    return emitError("expected identity layout map for source memref");
+  if (!isLastMemrefDimUnitStride(srcMemrefType))
+    return emitError(
+        "expected source memref most minor dim must have unit stride");
 
   if (srcMemSpace != kGenericMemorySpace && srcMemSpace != kSharedMemorySpace &&
       srcMemSpace != kGlobalMemorySpace)
@@ -1102,8 +1114,10 @@ LogicalResult SubgroupMmaStoreMatrixOp::verify() {
   auto srcMatrixType = srcType.cast<gpu::MMAMatrixType>();
   auto dstMemrefType = dstType.cast<MemRefType>();
   auto dstMemSpace = dstMemrefType.getMemorySpaceAsInt();
-  if (!dstMemrefType.getLayout().isIdentity())
-    return emitError("expected identity layout map for destination memref");
+
+  if (!isLastMemrefDimUnitStride(dstMemrefType))
+    return emitError(
+        "expected destination memref most minor dim must have unit stride");
 
   if (dstMemSpace != kGenericMemorySpace && dstMemSpace != kSharedMemorySpace &&
       dstMemSpace != kGlobalMemorySpace)
@@ -1231,15 +1245,6 @@ void AllocOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 // GPU_DeviceAsyncCopyOp
 //===----------------------------------------------------------------------===//
-
-/// Return true if the last dimension of the MemRefType has unit stride. Also
-/// return true for memrefs with no strides.
-static bool isLastMemrefDimUnitStride(MemRefType type) {
-  int64_t offset;
-  SmallVector<int64_t> strides;
-  auto successStrides = getStridesAndOffset(type, strides, offset);
-  return succeeded(successStrides) && (strides.empty() || strides.back() == 1);
-}
 
 LogicalResult DeviceAsyncCopyOp::verify() {
   auto srcMemref = src().getType().cast<MemRefType>();
