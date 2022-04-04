@@ -18,14 +18,12 @@ library](https://github.com/intel/cm-cpu-emulation) for emulating GPU
 using software multi-threading. The library can be either provided as
 separate pre-installed library in host machine or built as part of
 open-source Intel DPC++ compiler. Required version for CM_EMU is
-[1.0.20]
-(https://github.com/intel/cm-cpu-emulation/releases/tag/v2022-02-11)
+[1.0.20](https://github.com/intel/cm-cpu-emulation/releases/tag/v2022-02-11)
 or later. In order to have CM_EMU library as part of Intel DPC++
 compiler for ESIMD_EMULATOR backend, the library needs to be built
 during ESIMD_EMULATOR plug-in software module generation. Details on
 building CM_EMU library for ESIMD_EMULATOR such as required packages
-are descirbed in [ESIMD CPU Emulation]
-(https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
+are descirbed in [ESIMD CPU Emulation](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
 
 ## Command line option / environment variable options
 
@@ -49,9 +47,7 @@ To compile using Intel(R) OneAPI Toolkit:
 To run under emulation through ESIMD_EMULATOR backend:
 > `$ SYCL_DEVICE_FILTER=ext_intel_esimd_emulator:gpu ./a.out`
 
-## Running ESIMD examples from [ESIMD test
-   suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD)
-   on github with ESIMD_EMULATOR backend
+## Running ESIMD examples from [ESIMD test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) on github with ESIMD_EMULATOR backend
 
 ```
 # Get sources
@@ -83,8 +79,7 @@ ninja check
 
 ```
 
-Note that only [ESIMD Kernels]
-(https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) are
+Note that only [ESIMD Kernels](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) are
 tested with above command examples due to ESIMD_EMULATOR's limiations
 below.
 
