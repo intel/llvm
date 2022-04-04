@@ -7630,8 +7630,9 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 /// @param ParamValue is the result
 /// @param ParamValueRet is how many bytes were written
 pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
-                                  pi_mem_alloc_info ParamName, size_t ParamValueSize,
-                                  void *ParamValue, size_t *ParamValueSizeRet) {
+                                  pi_mem_alloc_info ParamName,
+                                  size_t ParamValueSize, void *ParamValue,
+                                  size_t *ParamValueSizeRet) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
   ze_device_handle_t ZeDeviceHandle;

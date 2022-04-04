@@ -1882,8 +1882,8 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info, size_t,
-                                  void *, size_t *) {
+pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
+                                  size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
