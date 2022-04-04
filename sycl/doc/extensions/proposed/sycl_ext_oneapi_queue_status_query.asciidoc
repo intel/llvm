@@ -79,7 +79,8 @@ supports.
 
 This extension adds the following new member functions to the SYCL `queue` class.
 
-```
+[source,c++]
+----
 namespace sycl {
 
 class queue {
