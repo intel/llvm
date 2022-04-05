@@ -131,7 +131,9 @@ struct joint_matrix_load_impl<
   void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
                 T, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
             multi_ptr<T, Space> src, size_t stride) {
-    if constexpr (std::is_same<T, uint16_t>::value || std::is_same<T, sycl::ext::oneapi::experimental::bfloat16>::value) {
+    if constexpr (std::is_same<T, uint16_t>::value ||
+                  std::is_same<
+                      T, sycl::ext::oneapi::experimental::bfloat16>::value) {
       int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
       if constexpr (NumRows == 16 && NumCols == 16) {
         if constexpr (Use ==
@@ -460,7 +462,9 @@ struct joint_matrix_mad_impl<
                                       get_layout_pair_id<LayoutA, LayoutB>(),
                                       0);
         }
-      } else if constexpr (std::is_same<T1, uint16_t>::value || std::is_same<T1, sycl::ext::oneapi::experimental::bfloat16>::value) {
+      } else if constexpr (std::is_same<T1, uint16_t>::value ||
+                           std::is_same<T1, sycl::ext::oneapi::experimental::
+                                                bfloat16>::value) {
         __mma_bf16_m16n16k16_mma_f32(D.data, A.data, B.data, C.data,
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
@@ -479,7 +483,9 @@ struct joint_matrix_mad_impl<
           __hmma_m8n32k16_mma_f16f16(D.data, A.data, B.data, C.data,
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
-      } else if constexpr (std::is_same<T1, uint16_t>::value || std::is_same<T1, sycl::ext::oneapi::experimental::bfloat16>::value) {
+      } else if constexpr (std::is_same<T1, uint16_t>::value ||
+                           std::is_same<T1, sycl::ext::oneapi::experimental::
+                                                     bfloat16>::value) {
         __mma_bf16_m8n32k16_mma_f32(D.data, A.data, B.data, C.data,
                                     get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
@@ -490,7 +496,9 @@ struct joint_matrix_mad_impl<
       } else if constexpr (std::is_same<T1, uint8_t>::value) {
         __imma_m32n8k16_mma_u8(D.data, A.data, B.data, C.data,
                                get_layout_pair_id<LayoutA, LayoutB>(), 0);
-      } else if constexpr (std::is_same<T1, uint16_t>::value || std::is_same<T1, sycl::ext::oneapi::experimental::bfloat16>::value) {
+      } else if constexpr (std::is_same<T1, uint16_t>::value ||
+                           std::is_same<T1, sycl::ext::oneapi::experimental::
+                                                bfloat16>::value) {
         __mma_bf16_m32n8k16_mma_f32(D.data, A.data, B.data, C.data,
                                     get_layout_pair_id<LayoutA, LayoutB>(), 0);
       } else if constexpr (std::is_same<T1, half>::value) {
