@@ -2816,6 +2816,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
   else if (const auto *A =
                dyn_cast<SYCLAddIRAttributesGlobalVariableAttr>(Attr))
     NewAttr = S.MergeSYCLAddIRAttributesGlobalVariableAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLAddIRAnnotationsMemberAttr>(Attr))
+    NewAttr = S.MergeSYCLAddIRAnnotationsMemberAttr(D, *A);
   else if (const auto *A = dyn_cast<ReqdWorkGroupSizeAttr>(Attr))
     NewAttr = S.MergeReqdWorkGroupSizeAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))

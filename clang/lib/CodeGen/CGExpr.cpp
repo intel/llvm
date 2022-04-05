@@ -4524,6 +4524,9 @@ LValue CodeGenFunction::EmitLValueForField(LValue base,
 
   // Emit attribute annotation for a field.
   if (getLangOpts().SYCLIsDevice) {
+    if (field->hasAttr<SYCLAddIRAnnotationsMemberAttr>())
+      addr = EmitFieldSYCLAnnotations(field, addr);
+
     SmallString<256> AnnotStr;
     CGM.generateIntelFPGAAnnotation(field, AnnotStr);
     if (!AnnotStr.empty())
