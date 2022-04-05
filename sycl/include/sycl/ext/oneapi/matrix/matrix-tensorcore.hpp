@@ -485,7 +485,7 @@ struct joint_matrix_mad_impl<
         }
       } else if constexpr (std::is_same<T1, uint16_t>::value ||
                            std::is_same<T1, sycl::ext::oneapi::experimental::
-                                                     bfloat16>::value) {
+                                                bfloat16>::value) {
         __mma_bf16_m8n32k16_mma_f32(D.data, A.data, B.data, C.data,
                                     get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
