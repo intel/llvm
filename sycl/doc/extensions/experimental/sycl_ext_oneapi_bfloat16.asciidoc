@@ -1,4 +1,4 @@
-= SYCL_INTEL_bf16_conversion
+= sycl_ext_oneapi_bfloat16
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -24,7 +24,7 @@
 
 IMPORTANT: This specification is a draft.
 
-Copyright (c) 2021 Intel Corporation. All rights reserved.
+Copyright (c) 2021-2022 Intel Corporation. All rights reserved.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
@@ -32,7 +32,7 @@ used by permission by Khronos.
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 3.
+This extension is written against the SYCL 2020 specification, Revision 4.
 
 == Status
 
@@ -48,7 +48,7 @@ products.
 
 == Version
 
-Revision: 3
+Revision: 4
 
 == Introduction
 
@@ -57,7 +57,7 @@ floating-point type(`float`) to `bfloat16` type and vice versa. The extension
 doesn't add support for `bfloat16` type as such, instead it uses 16-bit integer
 type(`uint16_t`) as a storage for `bfloat16` values.
 
-The purpose of conversion from float to bfloat16 is to reduce ammount of memory
+The purpose of conversion from float to bfloat16 is to reduce the amount of memory
 required to store floating-point numbers. Computations are expected to be done with
 32-bit floating-point values.
 
@@ -73,7 +73,7 @@ command (e.g. from `parallel_for`).
 This extension provides a feature-test macro as described in the core SYCL
 specification section 6.3.3 "Feature test macros". Therefore, an implementation
 supporting this extension must predefine the macro
-`SYCL_EXT_INTEL_BF16_CONVERSION` to one of the values defined in the table
+`SYCL_EXT_ONEAPI_BFLOAT16` to one of the values defined in the table
 below. Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro’s
  value to determine which of the extension’s APIs the implementation supports.
@@ -91,19 +91,19 @@ the implementation supports this feature, or applications can test the macro’s
 namespace sycl {
 enum class aspect {
   ...
-  ext_intel_bf16_conversion
+  ext_oneapi_bfloat16
 }
 }
 ----
 
-If a SYCL device has the `ext_intel_bf16_conversion` aspect, then it natively
+If a SYCL device has the `ext_oneapi_bfloat16` aspect, then it natively
 supports conversion of values of `float` type to `bfloat16` and back.
 
 If the device doesn't have the aspect, objects of `bfloat16` class must not be
 used in the device code.
 
-**NOTE**: The `ext_intel_bf16_conversion` aspect is not yet supported.  The
-`bfloat16` class is currently supported only on Xe HP GPU.
+**NOTE**: The `ext_oneapi_bfloat16` aspect is not yet supported.  The
+`bfloat16` class is currently supported only on Xe HP GPU and Nvidia A100 GPU.
 
 == New `bfloat16` class
 
@@ -115,7 +115,7 @@ mode.
 ----
 namespace sycl {
 namespace ext {
-namespace intel {
+namespace oneapi {
 namespace experimental {
 
 class bfloat16 {
@@ -171,7 +171,7 @@ public:
 };
 
 } // namespace experimental
-} // namespace intel
+} // namespace oneapi
 } // namespace ext
 } // namespace sycl
 ----
@@ -277,9 +277,9 @@ OP is `==, !=, <, >, <=, >=`
 [source]
 ----
 #include <sycl/sycl.hpp>
-#include <sycl/ext/intel/experimental/bfloat16.hpp>
+#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
 
-using sycl::ext::intel::experimental::bfloat16;
+using sycl::ext::oneapi::experimental::bfloat16;
 
 bfloat16 operator+(const bfloat16 &lhs, const bfloat16 &rhs) {
   return static_cast<float>(lhs) + static_cast<float>(rhs);
@@ -304,7 +304,7 @@ int main (int argc, char *argv[]) {
   sycl::queue deviceQueue{dev};
   sycl::buffer<float, 1> buf {data, sycl::range<1> {3}};
 
-  if (dev.has(sycl::aspect::ext_intel_bf16_conversion)) {
+  if (dev.has(sycl::aspect::ext_oneapi_bfloat16)) {
     deviceQueue.submit ([&] (sycl::handler& cgh) {
       auto numbers = buf.get_access<sycl::access::mode::read_write> (cgh);
       cgh.single_task<class simple_kernel> ([=] () {
@@ -332,4 +332,5 @@ None.
                              Add operator overloadings +
                              Apply code review suggestions
 |3|2021-08-18|Alexey Sotkin |Remove `uint16_t` constructor
+|4|2022-03-07|Aidan Belton and Jack Kirk |Switch from Intel vendor specific to oneapi
 |========================================
