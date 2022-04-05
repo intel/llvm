@@ -946,7 +946,8 @@ using pi_image_desc = _pi_image_desc;
 
 typedef enum {
   PI_MEM_CONTEXT = CL_MEM_CONTEXT,
-  PI_MEM_SIZE = CL_MEM_SIZE
+  PI_MEM_SIZE = CL_MEM_SIZE,
+  PI_MEM_OWN_NATIVE_HANDLE = 0x30000
 } _pi_mem_info;
 
 using pi_mem_info = _pi_mem_info;

@@ -707,6 +707,26 @@ pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
   return ret_err;
 }
 
+pi_result piMemGetInfo(pi_mem mem, pi_mem_info paramName, size_t paramValueSize,
+                       void *paramValue, size_t *paramValueSizeRet) {
+  pi_result Res = PI_SUCCESS;
+  switch (paramName) {
+  case PI_MEM_OWN_NATIVE_HANDLE: {
+    pi_bool result = true;
+    std::memcpy(paramValue, &result, sizeof(pi_bool));
+    break;
+  }
+  default: {
+    cl_int clResult =
+        clGetMemObjectInfo(cast<cl_mem>(mem), cast<cl_mem_info>(paramName),
+                           paramValueSize, paramValue, paramValueSizeRet);
+    Res = static_cast<pi_result>(clResult);
+  }
+  }
+
+  return Res;
+}
+
 pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
                            const pi_image_format *image_format,
                            const pi_image_desc *image_desc, void *host_ptr,
@@ -1462,7 +1482,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Memory
   _PI_CL(piMemBufferCreate, piMemBufferCreate)
   _PI_CL(piMemImageCreate, piMemImageCreate)
-  _PI_CL(piMemGetInfo, clGetMemObjectInfo)
+  _PI_CL(piMemGetInfo, piMemGetInfo)
   _PI_CL(piMemImageGetInfo, clGetImageInfo)
   _PI_CL(piMemRetain, clRetainMemObject)
   _PI_CL(piMemRelease, clReleaseMemObject)
