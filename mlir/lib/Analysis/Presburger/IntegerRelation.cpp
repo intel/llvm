@@ -38,7 +38,7 @@ std::unique_ptr<IntegerPolyhedron> IntegerPolyhedron::clone() const {
 }
 
 void IntegerRelation::append(const IntegerRelation &other) {
-  assert(PresburgerLocalSpace::isEqual(other) && "Spaces must be equal.");
+  assert(isSpaceEqual(other) && "Spaces must be equal.");
 
   inequalities.reserveRows(inequalities.getNumRows() +
                            other.getNumInequalities());
@@ -52,13 +52,20 @@ void IntegerRelation::append(const IntegerRelation &other) {
   }
 }
 
+IntegerRelation IntegerRelation::intersect(IntegerRelation other) const {
+  IntegerRelation result = *this;
+  result.mergeLocalIds(other);
+  result.append(other);
+  return result;
+}
+
 bool IntegerRelation::isEqual(const IntegerRelation &other) const {
-  assert(PresburgerLocalSpace::isEqual(other) && "Spaces must be equal.");
+  assert(isSpaceEqual(other) && "Spaces must be equal.");
   return PresburgerRelation(*this).isEqual(PresburgerRelation(other));
 }
 
 bool IntegerRelation::isSubsetOf(const IntegerRelation &other) const {
-  assert(PresburgerLocalSpace::isEqual(other) && "Spaces must be equal.");
+  assert(isSpaceEqual(other) && "Spaces must be equal.");
   return PresburgerRelation(*this).isSubsetOf(PresburgerRelation(other));
 }
 
@@ -102,10 +109,46 @@ IntegerRelation::findIntegerLexMin() const {
   return maybeLexMin;
 }
 
+static bool rangeIsZero(ArrayRef<int64_t> range) {
+  return llvm::all_of(range, [](int64_t x) { return x == 0; });
+}
+
+void removeConstraintsInvolvingIdRange(IntegerRelation &poly, unsigned begin,
+                                       unsigned count) {
+  // We loop until i > 0 and index into i - 1 to avoid sign issues.
+  //
+  // We iterate backwards so that whether we remove constraint i - 1 or not, the
+  // next constraint to be tested is always i - 2.
+  for (unsigned i = poly.getNumEqualities(); i > 0; i--)
+    if (!rangeIsZero(poly.getEquality(i - 1).slice(begin, count)))
+      poly.removeEquality(i - 1);
+  for (unsigned i = poly.getNumInequalities(); i > 0; i--)
+    if (!rangeIsZero(poly.getInequality(i - 1).slice(begin, count)))
+      poly.removeInequality(i - 1);
+}
+
+IntegerRelation::CountsSnapshot IntegerRelation::getCounts() const {
+  return {PresburgerSpace(*this), getNumInequalities(), getNumEqualities()};
+}
+
+void IntegerRelation::truncateIdKind(IdKind kind,
+                                     const CountsSnapshot &counts) {
+  truncateIdKind(kind, counts.getSpace().getNumIdKind(kind));
+}
+
+void IntegerRelation::truncate(const CountsSnapshot &counts) {
+  truncateIdKind(IdKind::Domain, counts);
+  truncateIdKind(IdKind::Range, counts);
+  truncateIdKind(IdKind::Symbol, counts);
+  truncateIdKind(IdKind::Local, counts);
+  removeInequalityRange(counts.getNumIneqs(), getNumInequalities());
+  removeInequalityRange(counts.getNumEqs(), getNumEqualities());
+}
+
 unsigned IntegerRelation::insertId(IdKind kind, unsigned pos, unsigned num) {
   assert(pos <= getNumIdKind(kind));
 
-  unsigned insertPos = PresburgerLocalSpace::insertId(kind, pos, num);
+  unsigned insertPos = PresburgerSpace::insertId(kind, pos, num);
   inequalities.insertColumns(insertPos, num);
   equalities.insertColumns(insertPos, num);
   return insertPos;
@@ -149,7 +192,7 @@ void IntegerRelation::removeIdRange(IdKind kind, unsigned idStart,
   inequalities.removeColumns(offset + idStart, idLimit - idStart);
 
   // Remove eliminated identifiers from the space.
-  PresburgerLocalSpace::removeIdRange(kind, idStart, idLimit);
+  PresburgerSpace::removeIdRange(kind, idStart, idLimit);
 }
 
 void IntegerRelation::removeIdRange(unsigned idStart, unsigned idLimit) {
@@ -561,33 +604,6 @@ Matrix IntegerRelation::getBoundedDirections() const {
   return dirs;
 }
 
-bool eqInvolvesSuffixDims(const IntegerRelation &rel, unsigned eqIndex,
-                          unsigned numDims) {
-  for (unsigned e = rel.getNumIds(), j = e - numDims; j < e; ++j)
-    if (rel.atEq(eqIndex, j) != 0)
-      return true;
-  return false;
-}
-bool ineqInvolvesSuffixDims(const IntegerRelation &rel, unsigned ineqIndex,
-                            unsigned numDims) {
-  for (unsigned e = rel.getNumIds(), j = e - numDims; j < e; ++j)
-    if (rel.atIneq(ineqIndex, j) != 0)
-      return true;
-  return false;
-}
-
-void removeConstraintsInvolvingSuffixDims(IntegerRelation &rel,
-                                          unsigned unboundedDims) {
-  // We iterate backwards so that whether we remove constraint i - 1 or not, the
-  // next constraint to be tested is always i - 2.
-  for (unsigned i = rel.getNumEqualities(); i > 0; i--)
-    if (eqInvolvesSuffixDims(rel, i - 1, unboundedDims))
-      rel.removeEquality(i - 1);
-  for (unsigned i = rel.getNumInequalities(); i > 0; i--)
-    if (ineqInvolvesSuffixDims(rel, i - 1, unboundedDims))
-      rel.removeInequality(i - 1);
-}
-
 bool IntegerRelation::isIntegerEmpty() const {
   return !findIntegerSample().hasValue();
 }
@@ -671,7 +687,8 @@ Optional<SmallVector<int64_t, 8>> IntegerRelation::findIntegerSample() const {
   IntegerRelation boundedSet(transformedSet);
   unsigned numBoundedDims = result.first;
   unsigned numUnboundedDims = getNumIds() - numBoundedDims;
-  removeConstraintsInvolvingSuffixDims(boundedSet, numUnboundedDims);
+  removeConstraintsInvolvingIdRange(boundedSet, numBoundedDims,
+                                    numUnboundedDims);
   boundedSet.removeIdRange(numBoundedDims, boundedSet.getNumIds());
 
   // 3) Try to obtain a sample from the bounded set.
@@ -764,6 +781,25 @@ bool IntegerRelation::containsPoint(ArrayRef<int64_t> point) const {
       return false;
   }
   return true;
+}
+
+/// Just substitute the values given and check if an integer sample exists for
+/// the local ids.
+///
+/// TODO: this could be made more efficient by handling divisions separately.
+/// Instead of finding an integer sample over all the locals, we can first
+/// compute the values of the locals that have division representations and
+/// only use the integer emptiness check for the locals that don't have this.
+/// Handling this correctly requires ordering the divs, though.
+Optional<SmallVector<int64_t, 8>>
+IntegerRelation::containsPointNoLocal(ArrayRef<int64_t> point) const {
+  assert(point.size() == getNumIds() - getNumLocalIds() &&
+         "Point should contain all ids except locals!");
+  assert(getIdKindOffset(IdKind::Local) == getNumIds() - getNumLocalIds() &&
+         "This function depends on locals being stored last!");
+  IntegerRelation copy = *this;
+  copy.setAndEliminate(0, point);
+  return copy.findIntegerSample();
 }
 
 void IntegerRelation::getLocalReprs(std::vector<MaybeLocalRepr> &repr) const {
@@ -1031,7 +1067,7 @@ void IntegerRelation::eliminateRedundantLocalId(unsigned posA, unsigned posB) {
 /// division representation for some local id cannot be obtained, and thus these
 /// local ids are not considered for detecting duplicates.
 void IntegerRelation::mergeLocalIds(IntegerRelation &other) {
-  assert(PresburgerSpace::isEqual(other) && "Spaces should match.");
+  assert(isSpaceCompatible(other) && "Spaces should be compatible.");
 
   IntegerRelation &relA = *this;
   IntegerRelation &relB = other;
@@ -1119,23 +1155,31 @@ void IntegerRelation::removeRedundantLocalVars() {
   }
 }
 
-void IntegerRelation::convertDimToLocal(unsigned dimStart, unsigned dimLimit) {
-  assert(dimLimit <= getNumDimIds() && "Invalid dim pos range");
+void IntegerRelation::convertIdKind(IdKind srcKind, unsigned idStart,
+                                    unsigned idLimit, IdKind dstKind) {
+  assert(idLimit <= getNumIdKind(srcKind) && "Invalid id range");
 
-  if (dimStart >= dimLimit)
+  if (idStart >= idLimit)
     return;
 
   // Append new local variables corresponding to the dimensions to be converted.
-  unsigned convertCount = dimLimit - dimStart;
-  unsigned newLocalIdStart = getNumIds();
-  appendId(IdKind::Local, convertCount);
+  unsigned newIdsBegin = getIdKindEnd(dstKind);
+  unsigned convertCount = idLimit - idStart;
+  appendId(dstKind, convertCount);
 
   // Swap the new local variables with dimensions.
+  //
+  // Essentially, this moves the information corresponding to the specified ids
+  // of kind `srcKind` to the `convertCount` newly created ids of kind
+  // `dstKind`. In particular, this moves the columns in the constraint
+  // matrices, and zeros out the initially occupied columns (because the newly
+  // created ids we're swapping with were zero-initialized).
+  unsigned offset = getIdKindOffset(srcKind);
   for (unsigned i = 0; i < convertCount; ++i)
-    swapId(i + dimStart, i + newLocalIdStart);
+    swapId(offset + idStart + i, newIdsBegin + i);
 
-  // Remove dimensions converted to local variables.
-  removeIdRange(IdKind::SetDim, dimStart, dimLimit);
+  // Complete the move by deleting the initially occupied columns.
+  removeIdRange(srcKind, idStart, idLimit);
 }
 
 void IntegerRelation::addBound(BoundType type, unsigned pos, int64_t value) {
@@ -1847,7 +1891,7 @@ static void getCommonConstraints(const IntegerRelation &a,
 // lower bounds and the max of the upper bounds along each of the dimensions.
 LogicalResult
 IntegerRelation::unionBoundingBox(const IntegerRelation &otherCst) {
-  assert(PresburgerLocalSpace::isEqual(otherCst) && "Spaces should match.");
+  assert(isSpaceEqual(otherCst) && "Spaces should match.");
   assert(getNumLocalIds() == 0 && "local ids not supported yet here");
 
   // Get the constraints common to both systems; these will be added as is to
@@ -2011,7 +2055,7 @@ void IntegerRelation::removeIndependentConstraints(unsigned pos, unsigned num) {
 }
 
 void IntegerRelation::printSpace(raw_ostream &os) const {
-  PresburgerLocalSpace::print(os);
+  PresburgerSpace::print(os);
   os << getNumConstraints() << " constraints\n";
 }
 

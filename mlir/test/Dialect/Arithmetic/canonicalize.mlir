@@ -682,6 +682,22 @@ func @test_maxsi(%arg0 : i8) -> (i8, i8, i8, i8) {
   return %0, %1, %2, %3: i8, i8, i8, i8
 }
 
+// CHECK-LABEL: test_maxsi2
+// CHECK: %[[C0:.+]] = arith.constant 42
+// CHECK: %[[MAX_INT_CST:.+]] = arith.constant 127
+// CHECK: %[[X:.+]] = arith.maxsi %arg0, %[[C0]]
+// CHECK: return %arg0, %[[MAX_INT_CST]], %arg0, %[[X]]
+func @test_maxsi2(%arg0 : i8) -> (i8, i8, i8, i8) {
+  %maxIntCst = arith.constant 127 : i8
+  %minIntCst = arith.constant -128 : i8
+  %c0 = arith.constant 42 : i8
+  %0 = arith.maxsi %arg0, %arg0 : i8
+  %1 = arith.maxsi %maxIntCst, %arg0: i8
+  %2 = arith.maxsi %minIntCst, %arg0: i8
+  %3 = arith.maxsi %c0, %arg0 : i8
+  return %0, %1, %2, %3: i8, i8, i8, i8
+}
+
 // -----
 
 // CHECK-LABEL: test_maxui
@@ -697,6 +713,22 @@ func @test_maxui(%arg0 : i8) -> (i8, i8, i8, i8) {
   %1 = arith.maxui %arg0, %maxIntCst : i8
   %2 = arith.maxui %arg0, %minIntCst : i8
   %3 = arith.maxui %arg0, %c0 : i8
+  return %0, %1, %2, %3: i8, i8, i8, i8
+}
+
+// CHECK-LABEL: test_maxui
+// CHECK: %[[C0:.+]] = arith.constant 42
+// CHECK: %[[MAX_INT_CST:.+]] = arith.constant -1
+// CHECK: %[[X:.+]] = arith.maxui %arg0, %[[C0]]
+// CHECK: return %arg0, %[[MAX_INT_CST]], %arg0, %[[X]]
+func @test_maxui2(%arg0 : i8) -> (i8, i8, i8, i8) {
+  %maxIntCst = arith.constant 255 : i8
+  %minIntCst = arith.constant 0 : i8
+  %c0 = arith.constant 42 : i8
+  %0 = arith.maxui %arg0, %arg0 : i8
+  %1 = arith.maxui %maxIntCst, %arg0 : i8
+  %2 = arith.maxui %minIntCst, %arg0 : i8
+  %3 = arith.maxui %c0, %arg0 : i8
   return %0, %1, %2, %3: i8, i8, i8, i8
 }
 
@@ -718,6 +750,22 @@ func @test_minsi(%arg0 : i8) -> (i8, i8, i8, i8) {
   return %0, %1, %2, %3: i8, i8, i8, i8
 }
 
+// CHECK-LABEL: test_minsi
+// CHECK: %[[C0:.+]] = arith.constant 42
+// CHECK: %[[MIN_INT_CST:.+]] = arith.constant -128
+// CHECK: %[[X:.+]] = arith.minsi %arg0, %[[C0]]
+// CHECK: return %arg0, %arg0, %[[MIN_INT_CST]], %[[X]]
+func @test_minsi2(%arg0 : i8) -> (i8, i8, i8, i8) {
+  %maxIntCst = arith.constant 127 : i8
+  %minIntCst = arith.constant -128 : i8
+  %c0 = arith.constant 42 : i8
+  %0 = arith.minsi %arg0, %arg0 : i8
+  %1 = arith.minsi %maxIntCst, %arg0 : i8
+  %2 = arith.minsi %minIntCst, %arg0 : i8
+  %3 = arith.minsi %c0, %arg0 : i8
+  return %0, %1, %2, %3: i8, i8, i8, i8
+}
+
 // -----
 
 // CHECK-LABEL: test_minui
@@ -733,6 +781,22 @@ func @test_minui(%arg0 : i8) -> (i8, i8, i8, i8) {
   %1 = arith.minui %arg0, %maxIntCst : i8
   %2 = arith.minui %arg0, %minIntCst : i8
   %3 = arith.minui %arg0, %c0 : i8
+  return %0, %1, %2, %3: i8, i8, i8, i8
+}
+
+// CHECK-LABEL: test_minui
+// CHECK: %[[C0:.+]] = arith.constant 42
+// CHECK: %[[MIN_INT_CST:.+]] = arith.constant 0
+// CHECK: %[[X:.+]] = arith.minui %arg0, %[[C0]]
+// CHECK: return %arg0, %arg0, %[[MIN_INT_CST]], %[[X]]
+func @test_minui2(%arg0 : i8) -> (i8, i8, i8, i8) {
+  %maxIntCst = arith.constant 255 : i8
+  %minIntCst = arith.constant 0 : i8
+  %c0 = arith.constant 42 : i8
+  %0 = arith.minui %arg0, %arg0 : i8
+  %1 = arith.minui %maxIntCst, %arg0 : i8
+  %2 = arith.minui %minIntCst, %arg0 : i8
+  %3 = arith.minui %c0, %arg0 : i8
   return %0, %1, %2, %3: i8, i8, i8, i8
 }
 
@@ -1020,5 +1084,85 @@ func @nofoldShl2() -> i64 {
   %c1 = arith.constant 1 : i64
   %cm32 = arith.constant -32 : i64
   %r = arith.shli %c1, %cm32 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @foldShru(
+// CHECK: %[[res:.+]] = arith.constant 2 : i64
+// CHECK: return %[[res]]
+func @foldShru() -> i64 {
+  %c1 = arith.constant 8 : i64
+  %c32 = arith.constant 2 : i64
+  %r = arith.shrui %c1, %c32 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @foldShru2(
+// CHECK: %[[res:.+]] = arith.constant 9223372036854775807 : i64
+// CHECK: return %[[res]]
+func @foldShru2() -> i64 {
+  %c1 = arith.constant -2 : i64
+  %c32 = arith.constant 1 : i64
+  %r = arith.shrui %c1, %c32 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @nofoldShru(
+// CHECK: %[[res:.+]] = arith.shrui
+// CHECK: return %[[res]]
+func @nofoldShru() -> i64 {
+  %c1 = arith.constant 8 : i64
+  %c132 = arith.constant 132 : i64
+  %r = arith.shrui %c1, %c132 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @nofoldShru2(
+// CHECK: %[[res:.+]] = arith.shrui
+// CHECK: return %[[res]]
+func @nofoldShru2() -> i64 {
+  %c1 = arith.constant 8 : i64
+  %cm32 = arith.constant -32 : i64
+  %r = arith.shrui %c1, %cm32 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @foldShrs(
+// CHECK: %[[res:.+]] = arith.constant 2 : i64
+// CHECK: return %[[res]]
+func @foldShrs() -> i64 {
+  %c1 = arith.constant 8 : i64
+  %c32 = arith.constant 2 : i64
+  %r = arith.shrsi %c1, %c32 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @foldShrs2(
+// CHECK: %[[res:.+]] = arith.constant -1 : i64
+// CHECK: return %[[res]]
+func @foldShrs2() -> i64 {
+  %c1 = arith.constant -2 : i64
+  %c32 = arith.constant 1 : i64
+  %r = arith.shrsi %c1, %c32 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @nofoldShrs(
+// CHECK: %[[res:.+]] = arith.shrsi
+// CHECK: return %[[res]]
+func @nofoldShrs() -> i64 {
+  %c1 = arith.constant 8 : i64
+  %c132 = arith.constant 132 : i64
+  %r = arith.shrsi %c1, %c132 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @nofoldShrs2(
+// CHECK: %[[res:.+]] = arith.shrsi
+// CHECK: return %[[res]]
+func @nofoldShrs2() -> i64 {
+  %c1 = arith.constant 8 : i64
+  %cm32 = arith.constant -32 : i64
+  %r = arith.shrsi %c1, %cm32 : i64
   return %r : i64
 }

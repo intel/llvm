@@ -1200,10 +1200,6 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
         auto DeviceGlobals = Img->getDeviceGlobals();
         for (const pi_device_binary_property &DeviceGlobal : DeviceGlobals) {
-          auto Entry = m_DeviceGlobals.find(DeviceGlobal->Name);
-          assert(Entry != m_DeviceGlobals.end() &&
-                 "Device global has not been registered.");
-
           pi::ByteArray DeviceGlobalInfo =
               pi::DeviceBinaryProperty(DeviceGlobal).asByteArray();
 
@@ -1217,7 +1213,20 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
               *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[8]);
           const std::uint32_t DeviceImageScopeDecorated =
               *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[12]);
-          Entry->second.initialize(TypeSize, DeviceImageScopeDecorated);
+
+          auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
+          if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
+            // If it has already been registered we update the information.
+            ExistingDeviceGlobal->second->initialize(TypeSize,
+                                                     DeviceImageScopeDecorated);
+          } else {
+            // If it has not already been registered we create a new entry.
+            // Note: Pointer to the device global is not available here, so it
+            //       cannot be set until registration happens.
+            auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
+                DeviceGlobal->Name, TypeSize, DeviceImageScopeDecorated);
+            m_DeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
+          }
         }
       }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
@@ -1469,13 +1478,23 @@ kernel_id ProgramManager::getBuiltInKernelID(const std::string &KernelName) {
   return KernelID->second;
 }
 
-void ProgramManager::addDeviceGlobalEntry(void *DeviceGlobalPtr,
-                                          const char *UniqueId) {
+void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
+                                                const char *UniqueId) {
   std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
 
-  assert(m_DeviceGlobals.find(UniqueId) == m_DeviceGlobals.end() &&
-         "Device global has already been registered.");
-  m_DeviceGlobals.insert({UniqueId, DeviceGlobalMapEntry(DeviceGlobalPtr)});
+  auto ExistingDeviceGlobal = m_DeviceGlobals.find(UniqueId);
+  if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
+    // Update the existing information and add the entry to the pointer map.
+    ExistingDeviceGlobal->second->initialize(DeviceGlobalPtr);
+    m_Ptr2DeviceGlobal.insert(
+        {DeviceGlobalPtr, ExistingDeviceGlobal->second.get()});
+    return;
+  }
+
+  auto EntryUPtr =
+      std::make_unique<DeviceGlobalMapEntry>(UniqueId, DeviceGlobalPtr);
+  auto NewEntry = m_DeviceGlobals.emplace(UniqueId, std::move(EntryUPtr));
+  m_Ptr2DeviceGlobal.insert({DeviceGlobalPtr, NewEntry.first->second.get()});
 }
 
 std::vector<device_image_plain>
