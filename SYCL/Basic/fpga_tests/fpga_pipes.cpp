@@ -14,6 +14,7 @@
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <sycl/ext/intel/fpga_extensions.hpp>
+#include <type_traits>
 
 // Size of an array passing through a pipe
 constexpr size_t N = 10;
@@ -32,6 +33,8 @@ template <int N> class templ_nb_pipe;
 // For non-blocking multiple pipes
 template <int N>
 using PipeMulNb = cl::sycl::ext::intel::pipe<class templ_nb_pipe<N>, int>;
+static_assert(std::is_same_v<typename PipeMulNb<0>::value_type, int>);
+static_assert(PipeMulNb<0>::min_capacity == 0);
 
 // For simple blocking pipes with explicit type
 class some_bl_pipe;
@@ -47,6 +50,8 @@ template <int N> class templ_bl_pipe;
 // For blocking multiple pipes
 template <int N>
 using PipeMulBl = cl::sycl::ext::intel::pipe<class templ_bl_pipe<N>, int>;
+static_assert(std::is_same_v<typename PipeMulBl<0>::value_type, int>);
+static_assert(PipeMulBl<0>::min_capacity == 0);
 
 // Kernel names
 template <int TestNumber, int KernelNumber = 0> class writer;
@@ -58,6 +63,8 @@ int test_simple_nb_pipe(cl::sycl::queue Queue) {
   int data[] = {0};
 
   using Pipe = cl::sycl::ext::intel::pipe<PipeName, int>;
+  static_assert(std::is_same_v<typename Pipe::value_type, int>);
+  static_assert(Pipe::min_capacity == 0);
 
   cl::sycl::buffer<int, 1> readBuf(data, 1);
   Queue.submit([&](cl::sycl::handler &cgh) {
@@ -147,6 +154,8 @@ template <int TestNumber> int test_multiple_nb_pipe(cl::sycl::queue Queue) {
 template <int TestNumber> int test_array_th_nb_pipe(cl::sycl::queue Queue) {
   int data[N] = {0};
   using AnotherNbPipe = cl::sycl::ext::intel::pipe<class another_nb_pipe, int>;
+  static_assert(std::is_same_v<typename AnotherNbPipe::value_type, int>);
+  static_assert(AnotherNbPipe::min_capacity == 0);
 
   Queue.submit([&](cl::sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber>>([=]() {
@@ -189,6 +198,8 @@ int test_simple_bl_pipe(cl::sycl::queue Queue) {
   int data[] = {0};
 
   using Pipe = cl::sycl::ext::intel::pipe<PipeName, int>;
+  static_assert(std::is_same_v<typename Pipe::value_type, int>);
+  static_assert(Pipe::min_capacity == 0);
 
   cl::sycl::buffer<int, 1> readBuf(data, 1);
   Queue.submit([&](cl::sycl::handler &cgh) {
@@ -257,6 +268,8 @@ template <int TestNumber> int test_multiple_bl_pipe(cl::sycl::queue Queue) {
 template <int TestNumber> int test_array_th_bl_pipe(cl::sycl::queue Queue) {
   int data[N] = {0};
   using AnotherBlPipe = cl::sycl::ext::intel::pipe<class another_bl_pipe, int>;
+  static_assert(std::is_same_v<typename AnotherBlPipe::value_type, int>);
+  static_assert(AnotherBlPipe::min_capacity == 0);
 
   Queue.submit([&](cl::sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber>>([=]() {
