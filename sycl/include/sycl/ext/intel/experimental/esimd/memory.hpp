@@ -23,8 +23,9 @@ namespace __ESIMD_ENS {
 /// @addtogroup sycl_esimd_memory
 /// @{
 
-/// Generic work-group split barrier
-__ESIMD_API void split_barrier(split_barrier_action flag) {
+/// Generic work-group split barrier.
+/// @tparam flag  - split barrier action.
+template <split_barrier_action flag> __ESIMD_API void split_barrier() {
   __esimd_sbarrier(flag);
 }
 

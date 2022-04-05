@@ -769,6 +769,9 @@ enum fence_mask : uint8_t {
 /// esimd::fence sets the memory read/write order.
 /// @tparam cntl A bitmask composed from \c fence_mask bits.
 ///
+template <uint8_t cntl> __ESIMD_API void fence() { __esimd_fence(cntl); }
+
+__SYCL_DEPRECATED("use fence<fence_mask>()")
 __ESIMD_API void fence(fence_mask cntl) { __esimd_fence(cntl); }
 
 /// Generic work-group barrier.
@@ -790,6 +793,10 @@ __ESIMD_API void barrier() {
 /// @{
 
 /// Declare per-work-group slm size.
+/// @tparam size slm size
+template <uint32_t size> __ESIMD_API void slm_init() { __esimd_slm_init(size); }
+
+__SYCL_DEPRECATED("use slm_init<size>()")
 __ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 
 /// Gather operation over the Shared Local Memory.
