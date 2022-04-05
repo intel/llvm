@@ -105,11 +105,6 @@ public:
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
-    if (!Context->hasDevice(Device))
-      throw cl::sycl::invalid_object_error(
-          "Queue cannot be constructed with the given context and device "
-          "as the context does not contain the given device.",
-          PI_INVALID_DEVICE);
     if (!MHostQueue) {
       const QueueOrder QOrder =
           MPropList.has_property<property::queue::in_order>()
