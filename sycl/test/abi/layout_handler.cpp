@@ -1,4 +1,3 @@
-// RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s
 // RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
 // REQUIRES: linux
 // UNSUPPORTED: libcxx
@@ -173,19 +172,32 @@ void foo() {
 // CHECK: 472 |         std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > >::pointer _M_start
 // CHECK-NEXT: 480 |         std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > >::pointer _M_finish
 // CHECK-NEXT: 488 |         std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > >::pointer _M_end_of_storage
-// CHECK-NEXT: 496 |   _Bool MIsHost
-// CHECK-NEXT: 504 |   struct sycl::detail::code_location MCodeLoc
-// CHECK-NEXT: 504 |     const char * MFileName
-// CHECK-NEXT: 512 |     const char * MFunctionName
-// CHECK-NEXT: 520 |     unsigned long MLineNo
-// CHECK-NEXT: 528 |     unsigned long MColumnNo
-// CHECK-NEXT: 536 |   _Bool MIsFinalized
-// CHECK-NEXT: 544 |   class sycl::event MLastEvent
-// CHECK-NEXT: 544 |     class std::shared_ptr<class sycl::detail::event_impl> impl
-// CHECK-NEXT: 544 |       class std::__shared_ptr<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base)
-// CHECK-NEXT: 544 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic, false, false> (base) (empty)
-// CHECK-NEXT: 544 |         std::__shared_ptr<class sycl::detail::event_impl, __gnu_cxx::_S_atomic>::element_type * _M_ptr
-// CHECK-NEXT: 552 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
-// CHECK-NEXT: 552 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:     | [sizeof=560, dsize=560, align=8,
-// CHECK-NEXT:     |  nvsize=560, nvalign=8]
+// CHECK-NEXT: 496 |   class std::basic_string<char> HostPipeName
+// CHECK-NEXT: 496 |     struct std::basic_string<char>::_Alloc_hider _M_dataplus
+// CHECK-NEXT: 496 |       class std::allocator<char> (base) (empty)
+// CHECK-NEXT: 496 |         class __gnu_cxx::new_allocator<char> (base) (empty)
+// CHECK-NEXT: 496 |       std::basic_string<char>::pointer _M_p
+// CHECK-NEXT: 504 |     std::basic_string<char>::size_type _M_string_length
+// CHECK-NEXT: 512 |     union std::basic_string<char>::(anonymous at /usr/lib/gcc/x86_64-linux-gnu/9/../../../../include/c++/9/bits/basic_string.h:175:7) 
+// CHECK-NEXT: 512 |       char[16] _M_local_buf
+// CHECK-NEXT: 512 |       std::basic_string<char>::size_type _M_allocated_capacity
+// CHECK-NEXT: 528 |   void * HostPipePtr
+// CHECK-NEXT: 536 |   _Bool HostPipeBlocking
+// CHECK-NEXT: 544 |   size_t HostPipeTypeSize
+// CHECK-NEXT: 552 |   _Bool HostPipeRead
+// CHECK-NEXT: 553 |   _Bool MIsHost
+// CHECK-NEXT: 560 |   struct sycl::detail::code_location MCodeLoc
+// CHECK-NEXT: 560 |     const char * MFileName
+// CHECK-NEXT: 568 |     const char * MFunctionName
+// CHECK-NEXT: 576 |     unsigned long MLineNo
+// CHECK-NEXT: 584 |     unsigned long MColumnNo
+// CHECK-NEXT: 592 |   _Bool MIsFinalized
+// CHECK-NEXT: 600 |   class sycl::event MLastEvent
+// CHECK-NEXT: 600 |     class std::shared_ptr<class sycl::detail::event_impl> impl
+// CHECK-NEXT: 600 |       class std::__shared_ptr<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base)
+// CHECK-NEXT: 600 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic, false, false> (base) (empty)
+// CHECK-NEXT: 600 |         std::__shared_ptr<class sycl::detail::event_impl, __gnu_cxx::_S_atomic>::element_type * _M_ptr
+// CHECK-NEXT: 608 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
+// CHECK-NEXT: 608 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:     | [sizeof=616, dsize=616, align=8,
+// CHECK-NEXT:     |  nvsize=616, nvalign=8]
