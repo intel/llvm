@@ -92,6 +92,7 @@ public:
 };
 
 class __SYCL_EXPORT aspect_selector_t : public default_selector {
+protected:
   const std::vector<aspect> MRequireList;
   const std::vector<aspect> MDenyList;
 
