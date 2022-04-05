@@ -28,14 +28,28 @@ int funcWithStruct(int) {
   return s.a;
 }
 
-[[sycl::device_has(aspect::fp64)]] int checkStructUsesAspect(int a) {
-  return funcWithStruct(a);
+[[sycl::device_has(aspect::fp64)]] int checkStructUsesAspect(int) {
+  return funcWithStruct(1);
 }
 
+// Check that empty device_has() emits a warning.
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -emit-llvm %s -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-EMPTY
-// CHECK-EMPTY-NOT: checkEmptyDiveceHas
+// CHECK-EMPTY: warning: function 'checkEmptyDeviceHas()' uses aspect 'fp16' not listed in 'sycl::device_has()'
 [[sycl::device_has()]] int checkEmptyDeviceHas() {
-  return 0;
+  return funcWithStruct(1);
+}
+
+[[sycl::device_has(aspect::fp16)]] int func2() {
+  return funcWithStruct(1);
+}
+
+// Check that empty device_has() emits a warning despite the fact
+// that invoked function's device_has() attribute is conformant
+// with actual usage.
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -emit-llvm %s -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-EMPTY2
+// CHECK-EMPTY2: warning: function 'checkEmptyDeviceHas()' uses aspect 'fp16' not listed in 'sycl::device_has()'
+[[sycl::device_has()]] int checkEmptyDeviceHas2() {
+  return func2();
 }
 
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -emit-llvm %s -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-DOUBLE
