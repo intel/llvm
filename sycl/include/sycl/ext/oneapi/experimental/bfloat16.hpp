@@ -11,7 +11,9 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/half_type.hpp>
 
+#if !defined(__SYCL_DEVICE_ONLY__)
 #include <cmath>
+#endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
