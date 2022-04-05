@@ -32,6 +32,10 @@ public:
 protected:
   void SetUp() override {
 
+    if (Plt.is_host()) {
+      return;
+    }
+
     Mock = std::make_unique<sycl::unittest::PiMock>(Plt);
 
     Mock->redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
