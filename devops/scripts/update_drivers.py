@@ -10,12 +10,12 @@ def get_latest_release(repo):
     return json.loads(releases)[0]
 
 
-def uplift_linux_igfx_driver(config):
+def uplift_linux_igfx_driver(config, platform_tag):
     compute_runtime = get_latest_release('intel/compute-runtime')
 
-    config['linux_staging']['compute_runtime']['github_tag'] = compute_runtime['tag_name']
-    config['linux_staging']['compute_runtime']['version'] = compute_runtime['tag_name']
-    config['linux_staging']['compute_runtime']['url'] = 'https://github.com/intel/compute-runtime/releases/tag/' + compute_runtime['tag_name']
+    config[platform_tag]['compute_runtime']['github_tag'] = compute_runtime['tag_name']
+    config[platform_tag]['compute_runtime']['version'] = compute_runtime['tag_name']
+    config[platform_tag]['compute_runtime']['url'] = 'https://github.com/intel/compute-runtime/releases/tag/' + compute_runtime['tag_name']
 
     for a in compute_runtime['assets']:
         if a['name'].endswith('.sum'):
@@ -26,31 +26,32 @@ def uplift_linux_igfx_driver(config):
             if m is not None:
                 ver = m.group()
                 print("IGC MATCH")
-                config['linux_staging']['igc']['github_tag'] = 'igc-' + ver
-                config['linux_staging']['igc']['version'] = ver
-                config['linux_staging']['igc']['url'] = 'https://github.com/intel/intel-graphics-compiler/releases/tag/igc-' + ver
+                config[platform_tag]['igc']['github_tag'] = 'igc-' + ver
+                config[platform_tag]['igc']['version'] = ver
+                config[platform_tag]['igc']['url'] = 'https://github.com/intel/intel-graphics-compiler/releases/tag/igc-' + ver
                 break
 
     cm = get_latest_release('intel/cm-compiler')
-    config['linux_staging']['cm']['github_tag'] = cm['tag_name']
-    config['linux_staging']['cm']['version'] = cm['tag_name'].replace('cmclang-', '')
-    config['linux_staging']['cm']['url'] = 'https://github.com/intel/cm-compiler/releases/tag/' + cm['tag_name']
+    config[platform_tag]['cm']['github_tag'] = cm['tag_name']
+    config[platform_tag]['cm']['version'] = cm['tag_name'].replace('cmclang-', '')
+    config[platform_tag]['cm']['url'] = 'https://github.com/intel/cm-compiler/releases/tag/' + cm['tag_name']
 
     return config
 
 
-def main():
+def main(platform_tag):
     script = os.path.dirname(os.path.realpath(__file__))
     config_name = os.path.join(script, '..', 'dependencies.json')
     config = {}
 
     with open(config_name, "r") as f:
         config = json.loads(f.read())
-        config = uplift_linux_igfx_driver(config)
+        config = uplift_linux_igfx_driver(config, platform_tag)
 
     with open(config_name, "w") as f:
         json.dump(config, f, indent=2)
 
 
 if __name__ == '__main__':
-    main()
+    platform_tag = sys.argv[1] if len(sys.argv) > 1 else 'linux_staging'
+    main(platform_tag)
