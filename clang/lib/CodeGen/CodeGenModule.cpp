@@ -2159,6 +2159,9 @@ void CodeGenModule::SetCommonAttributes(GlobalDecl GD, llvm::GlobalValue *GV) {
   }
 
   if (getLangOpts().SYCLIsDevice) {
+    // Add internal device_global variables to llvm.compiler.used array to
+    // prevent early optimizations from removing these variables from the
+    // module.
     if (D && isa<VarDecl>(D)) {
       const auto *VD = cast<VarDecl>(D);
       const RecordDecl *RD = VD->getType()->getAsRecordDecl();
