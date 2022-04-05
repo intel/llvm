@@ -175,7 +175,7 @@ struct {
 <td>
 
 ``` C++
-/* not supported */
+void *
 ```
 </td>
 <td>
@@ -201,8 +201,31 @@ auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>
 ```
 It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```,
-```kernel_bundle```, and ```kernel``` classes.
+```kernel_bundle```, and ```kernel``` classes. 
 
+The ```sycl::get_native<backend::ext_oneapi_level_zero>```
+free-function is not supported for SYCL ```buffer``` class. The native backend object associated with the
+buffer can be obtained using interop_hande class as described in the core SYCL specification section
+4.10.2, "Class interop_handle". 
+The pointer returned by ```get_native_mem<backend::ext_oneapi_level_zero>``` method of the ```interop_handle```
+class is the value returned from a call to <code>zeMemAllocShared()</code>, <code>zeMemAllocDevice()</code>,
+or <code>zeMemAllocHost()</code> and not necessarily directly accessible from the host.  Users may need to copy
+data to the host to access the data. Users can get type of the allocation using ```type``` data member of the 
+```ze_memory_allocation_properties_t``` struct returned by ```zeMemGetAllocProperties```.
+
+``` C++
+    Queue.submit([&](handler &CGH) {
+        auto BufferAcc = BufferInterop.get_access<access::mode::write>(CGH);
+        CGH.host_task([=](const interop_handle &IH) {
+            void *DevicePtr =
+                IH.get_native_mem<backend::ext_oneapi_level_zero>(BufferAcc);
+            ze_memory_allocation_properties_t MemAllocProperties{};
+            ze_result_t Res = zeMemGetAllocProperties(
+                ZeContext, DevicePtr, &MemAllocProperties, nullptr);
+            ze_memory_type_t ZeMemType = MemAllocProperties.type;
+        });
+    }).wait();
+```
 ### 4.3 Construct a SYCL object from a Level-Zero handle
         
 The following free functions defined in the ```sycl``` namespace are specialized for Level-Zero backend to allow
