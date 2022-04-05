@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/Presburger/IntegerPolyhedron.h"
 #include "./Utils.h"
+#include "mlir/Analysis/Presburger/IntegerRelation.h"
 #include "mlir/Analysis/Presburger/Simplex.h"
-#include "mlir/IR/MLIRContext.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <numeric>
 
-namespace mlir {
-using namespace presburger_utils;
+using namespace mlir;
+using namespace presburger;
+
 using testing::ElementsAre;
 
 enum class TestFunction { Sample, Empty };
@@ -50,7 +50,7 @@ static void dump(ArrayRef<int64_t> vec) {
 ///   non-empty lexmin.
 ///
 ///   If hasSample is false, check that findIntegerSample returns None and
-///   getIntegerLexMin returns Empty.
+///   findIntegerLexMin returns Empty.
 ///
 /// If fn is TestFunction::Empty, check that isIntegerEmpty returns the
 /// opposite of hasSample.
@@ -72,7 +72,7 @@ static void checkSample(bool hasSample, const IntegerPolyhedron &poly,
 
       EXPECT_TRUE(maybeLexMin.isEmpty());
       if (maybeLexMin.isBounded()) {
-        llvm::errs() << "getIntegerLexMin gave sample: ";
+        llvm::errs() << "findIntegerLexMin gave sample: ";
         dump(*maybeLexMin);
       }
     } else {
@@ -80,10 +80,12 @@ static void checkSample(bool hasSample, const IntegerPolyhedron &poly,
       EXPECT_TRUE(poly.containsPoint(*maybeSample));
 
       ASSERT_FALSE(maybeLexMin.isEmpty());
-      if (maybeLexMin.isUnbounded())
+      if (maybeLexMin.isUnbounded()) {
         EXPECT_TRUE(Simplex(poly).isUnbounded());
-      if (maybeLexMin.isBounded())
+      }
+      if (maybeLexMin.isBounded()) {
         EXPECT_TRUE(poly.containsPoint(*maybeLexMin));
+      }
     }
     break;
   case TestFunction::Empty:
@@ -179,17 +181,17 @@ TEST(IntegerPolyhedronTest, removeIdRange) {
   IntegerPolyhedron set(3, 2, 1);
 
   set.addInequality({10, 11, 12, 20, 21, 30, 40});
-  set.removeId(IntegerPolyhedron::IdKind::Symbol, 1);
+  set.removeId(IdKind::Symbol, 1);
   EXPECT_THAT(set.getInequality(0),
               testing::ElementsAre(10, 11, 12, 20, 30, 40));
 
-  set.removeIdRange(IntegerPolyhedron::IdKind::SetDim, 0, 2);
+  set.removeIdRange(IdKind::SetDim, 0, 2);
   EXPECT_THAT(set.getInequality(0), testing::ElementsAre(12, 20, 30, 40));
 
-  set.removeIdRange(IntegerPolyhedron::IdKind::Local, 1, 1);
+  set.removeIdRange(IdKind::Local, 1, 1);
   EXPECT_THAT(set.getInequality(0), testing::ElementsAre(12, 20, 30, 40));
 
-  set.removeIdRange(IntegerPolyhedron::IdKind::Local, 0, 1);
+  set.removeIdRange(IdKind::Local, 0, 1);
   EXPECT_THAT(set.getInequality(0), testing::ElementsAre(12, 20, 40));
 }
 
@@ -705,7 +707,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprTightUpperBound) {
     IntegerPolyhedron poly =
         parsePoly("(i, j, q) : (4*q - i - j + 2 >= 0, -4*q + i + j >= 0)");
     // Convert `q` to a local variable.
-    poly.convertDimToLocal(2, 3);
+    poly.convertToLocal(IdKind::SetDim, 2, 3);
 
     std::vector<SmallVector<int64_t, 8>> divisions = {{1, 1, 0, 1}};
     SmallVector<unsigned, 8> denoms = {4};
@@ -719,7 +721,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprFromEquality) {
   {
     IntegerPolyhedron poly = parsePoly("(i, j, q) : (-4*q + i + j == 0)");
     // Convert `q` to a local variable.
-    poly.convertDimToLocal(2, 3);
+    poly.convertToLocal(IdKind::SetDim, 2, 3);
 
     std::vector<SmallVector<int64_t, 8>> divisions = {{-1, -1, 0, 0}};
     SmallVector<unsigned, 8> denoms = {4};
@@ -729,7 +731,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprFromEquality) {
   {
     IntegerPolyhedron poly = parsePoly("(i, j, q) : (4*q - i - j == 0)");
     // Convert `q` to a local variable.
-    poly.convertDimToLocal(2, 3);
+    poly.convertToLocal(IdKind::SetDim, 2, 3);
 
     std::vector<SmallVector<int64_t, 8>> divisions = {{-1, -1, 0, 0}};
     SmallVector<unsigned, 8> denoms = {4};
@@ -739,7 +741,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprFromEquality) {
   {
     IntegerPolyhedron poly = parsePoly("(i, j, q) : (3*q + i + j - 2 == 0)");
     // Convert `q` to a local variable.
-    poly.convertDimToLocal(2, 3);
+    poly.convertToLocal(IdKind::SetDim, 2, 3);
 
     std::vector<SmallVector<int64_t, 8>> divisions = {{1, 1, 0, -2}};
     SmallVector<unsigned, 8> denoms = {3};
@@ -754,7 +756,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprFromEqualityAndInequality) {
         parsePoly("(i, j, q, k) : (-3*k + i + j == 0, 4*q - "
                   "i - j + 2 >= 0, -4*q + i + j >= 0)");
     // Convert `q` and `k` to local variables.
-    poly.convertDimToLocal(2, 4);
+    poly.convertToLocal(IdKind::SetDim, 2, 4);
 
     std::vector<SmallVector<int64_t, 8>> divisions = {{1, 1, 0, 0, 1},
                                                       {-1, -1, 0, 0, 0}};
@@ -768,7 +770,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprNoRepr) {
   IntegerPolyhedron poly =
       parsePoly("(x, q) : (x - 3 * q >= 0, -x + 3 * q + 3 >= 0)");
   // Convert q to a local variable.
-  poly.convertDimToLocal(1, 2);
+  poly.convertToLocal(IdKind::SetDim, 1, 2);
 
   std::vector<SmallVector<int64_t, 8>> divisions = {{0, 0, 0}};
   SmallVector<unsigned, 8> denoms = {0};
@@ -781,7 +783,7 @@ TEST(IntegerPolyhedronTest, computeLocalReprNegConstNormalize) {
   IntegerPolyhedron poly =
       parsePoly("(x, q) : (-1 - 3*x - 6 * q >= 0, 6 + 3*x + 6*q >= 0)");
   // Convert q to a local variable.
-  poly.convertDimToLocal(1, 2);
+  poly.convertToLocal(IdKind::SetDim, 1, 2);
 
   // q = floor((-1/3 - x)/2)
   //   = floor((1/3) + (-1 - x)/2)
@@ -829,7 +831,7 @@ TEST(IntegerPolyhedronTest, mergeDivisionsSimple) {
     IntegerPolyhedron poly2(1);
     poly2.addLocalFloorDiv({1, 0}, 2); // y = [x / 2].
     poly2.addEquality({1, -5, 0});     // x = 5y.
-    poly2.appendLocalId();             // Add local id z.
+    poly2.appendId(IdKind::Local);     // Add local id z.
 
     poly1.mergeLocalIds(poly2);
 
@@ -877,7 +879,7 @@ TEST(IntegerPolyhedronTest, mergeDivisionsSimple) {
     IntegerPolyhedron poly2(1);
     poly2.addLocalFloorDiv({1, 0}, 2); // y = [x / 2].
     poly2.addEquality({1, -5, 0});     // x = 5y.
-    poly2.appendLocalId();             // Add local id z.
+    poly2.appendId(IdKind::Local);     // Add local id z.
 
     poly1.mergeLocalIds(poly2);
 
@@ -1049,7 +1051,7 @@ void expectNoRationalLexMin(OptimumKind kind, const IntegerPolyhedron &poly) {
   EXPECT_EQ(poly.findRationalLexMin().getKind(), kind);
 }
 
-TEST(IntegerPolyhedronTest, getRationalLexMin) {
+TEST(IntegerPolyhedronTest, findRationalLexMin) {
   expectRationalLexMin(
       parsePoly("(x, y, z) : (x + 10 >= 0, y + 40 >= 0, z + 30 >= 0)"),
       {{-10, 1}, {-40, 1}, {-30, 1}});
@@ -1121,7 +1123,7 @@ void expectNoIntegerLexMin(OptimumKind kind, const IntegerPolyhedron &poly) {
   EXPECT_EQ(poly.findRationalLexMin().getKind(), kind);
 }
 
-TEST(IntegerPolyhedronTest, getIntegerLexMin) {
+TEST(IntegerPolyhedronTest, findIntegerLexMin) {
   expectIntegerLexMin(parsePoly("(x, y, z) : (2*x + 13 >= 0, 4*y - 3*x - 2  >= "
                                 "0, 11*z + 5*y - 3*x + 7 >= 0)"),
                       {-6, -4, 0});
@@ -1186,4 +1188,17 @@ TEST(IntegerPolyhedronTest, computeVolume) {
       /*trueVolume=*/{}, /*resultBound=*/{});
 }
 
-} // namespace mlir
+TEST(IntegerPolyhedronTest, containsPointNoLocal) {
+  IntegerPolyhedron poly1 = parsePoly("(x) : ((x floordiv 2) - x == 0)");
+  EXPECT_TRUE(poly1.containsPointNoLocal({0}));
+  EXPECT_FALSE(poly1.containsPointNoLocal({1}));
+
+  IntegerPolyhedron poly2 = parsePoly(
+      "(x) : (x - 2*(x floordiv 2) == 0, x - 4*(x floordiv 4) - 2 == 0)");
+  EXPECT_TRUE(poly2.containsPointNoLocal({6}));
+  EXPECT_FALSE(poly2.containsPointNoLocal({4}));
+
+  IntegerPolyhedron poly3 = parsePoly("(x, y) : (2*x - y >= 0, y - 3*x >= 0)");
+  EXPECT_TRUE(poly3.containsPointNoLocal({0, 0}));
+  EXPECT_FALSE(poly3.containsPointNoLocal({1, 0}));
+}

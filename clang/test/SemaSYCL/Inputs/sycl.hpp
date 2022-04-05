@@ -65,6 +65,18 @@ namespace ext {
 namespace oneapi {
 template <typename... properties>
 class accessor_property_list {};
+
+// device_global type decorated with attributes
+template <typename T>
+struct [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] device_global {
+public:
+  const T &get() const noexcept { return *Data; }
+  device_global() {}
+  operator T &() noexcept { return *Data; }
+
+private:
+  T *Data;
+};
 } // namespace oneapi
 } // namespace ext
 
@@ -353,7 +365,7 @@ template <typename T, access::address_space AS> class multi_ptr {
   pointer_t m_Pointer;
 
 public:
-  multi_ptr(T *Ptr) : m_Pointer((pointer_t)(Ptr)) {}
+  multi_ptr(T *Ptr) : m_Pointer((pointer_t)(Ptr)) {} // #MultiPtrConstructor
   pointer_t get() { return m_Pointer; }
 };
 

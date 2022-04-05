@@ -45,7 +45,7 @@ func @static_size_divisible(%arg0: tensor<24x12xf32>,
 
 // -----
 
-// MATVEC-DAG: #[[MAP0:[0-9a-z]+]] = affine_map<(d0) -> (5, -d0 + 12)>
+// MATVEC-DAG: #[[MAP0:[0-9a-z]+]] = affine_map<(d0) -> (-d0 + 12, 5)>
 // MATVEC-DAG: #[[MAP1:[0-9a-z]+]] = affine_map<(d0) -> (-d0 + 5)>
 // MATVEC-DAG: #[[DIV5:[0-9a-z]+]] = affine_map<(d0) -> (d0 ceildiv 5)>
 #map0 = affine_map<(d0) -> (5, -d0 + 12)>
@@ -102,7 +102,7 @@ func @static_size_not_divisible(%arg0: tensor<24x12xf32>,
 
 // MATVEC-DAG: #[[SDIV4:[0-9a-z]+]] = affine_map<()[s0] -> (s0 ceildiv 4)>
 // MATVEC-DAG: #[[DDIV4:[0-9a-z]+]] = affine_map<(d0) -> (d0 ceildiv 4)>
-// MATVEC-DAG: #[[MAP0:[0-9a-z]+]] = affine_map<(d0)[s0] -> (4, -d0 + s0)>
+// MATVEC-DAG: #[[MAP0:[0-9a-z]+]] = affine_map<(d0)[s0] -> (-d0 + s0, 4)>
 // MATVEC-DAG: #[[MAP1:[0-9a-z]+]] = affine_map<(d0) -> (-d0 + 4)>
 #map0 = affine_map<(d0)[s0] -> (4, -d0 + s0)>
 #map1 = affine_map<(d0) -> (-d0 + 4)>
@@ -343,7 +343,7 @@ func @index_result_loop(%arg0: tensor<24x12xf32>,
 
 // -----
 
-#map0 = affine_map<(d0) -> (5, -d0 + 12)>
+#map0 = affine_map<(d0) -> (-d0 + 12, 5)>
 #map1 = affine_map<(d0) -> (-d0 + 5)>
 
 //      MATMUL:  tile_and_fuse
@@ -377,7 +377,7 @@ func @tile_and_fuse(%arg0: tensor<12x6xf32>,
     ^bb0(%arg5: index, %arg6: index):
       tensor.yield %cst : f32
     } : tensor<?x24xf32> to tensor<5x24xf32>
-    %5 = linalg.fill(%cst, %4) : f32, tensor<5x24xf32> -> tensor<5x24xf32>
+    %5 = linalg.fill ins(%cst : f32) outs(%4 : tensor<5x24xf32>) -> tensor<5x24xf32>
     %6 = tensor.extract_slice %5[0, 0] [%1, 24] [1, 1] : tensor<5x24xf32> to tensor<?x24xf32>
 
     // Check the first input operand is hoisted by one loop nest.
@@ -425,7 +425,7 @@ func @tile_and_fuse(%arg0: tensor<12x6xf32>,
 
 // -----
 
-#map0 = affine_map<(d0)[s0] -> (4, -d0 + s0)>
+#map0 = affine_map<(d0)[s0] -> (-d0 + s0, 4)>
 #map1 = affine_map<(d0) -> (-d0 + 4)>
 
 //      TRANSP:  transpose

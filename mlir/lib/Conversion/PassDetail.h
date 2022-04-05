@@ -15,7 +15,7 @@
 
 namespace mlir {
 class AffineDialect;
-class StandardOpsDialect;
+class FunctionOpInterface;
 
 // Forward declaration from Dialect.h
 template <typename ConcreteDialect>
@@ -41,6 +41,10 @@ namespace gpu {
 class GPUDialect;
 class GPUModuleOp;
 } // namespace gpu
+
+namespace func {
+class FuncDialect;
+} // namespace func
 
 namespace LLVM {
 class LLVMDialect;

@@ -35,7 +35,7 @@ Expr<Type<TypeCategory::Real, KIND>> FoldIntrinsicFunction(
           context, std::move(funcRef), *callable);
     } else {
       context.messages().Say(
-          "%s(real(kind=%d)) cannot be folded on host"_en_US, name, KIND);
+          "%s(real(kind=%d)) cannot be folded on host"_warn_en_US, name, KIND);
     }
   } else if (name == "amax0" || name == "amin0" || name == "amin1" ||
       name == "amax1" || name == "dmin1" || name == "dmax1") {
@@ -48,7 +48,7 @@ Expr<Type<TypeCategory::Real, KIND>> FoldIntrinsicFunction(
           context, std::move(funcRef), *callable);
     } else {
       context.messages().Say(
-          "%s(real(kind=%d), real(kind%d)) cannot be folded on host"_en_US,
+          "%s(real(kind=%d), real(kind%d)) cannot be folded on host"_warn_en_US,
           name, KIND, KIND);
     }
   } else if (name == "bessel_jn" || name == "bessel_yn") {
@@ -60,7 +60,7 @@ Expr<Type<TypeCategory::Real, KIND>> FoldIntrinsicFunction(
             context, std::move(funcRef), *callable);
       } else {
         context.messages().Say(
-            "%s(integer(kind=4), real(kind=%d)) cannot be folded on host"_en_US,
+            "%s(integer(kind=4), real(kind=%d)) cannot be folded on host"_warn_en_US,
             name, KIND);
       }
     }
@@ -90,7 +90,8 @@ Expr<Type<TypeCategory::Real, KIND>> FoldIntrinsicFunction(
                              const Scalar<T> &x) -> Scalar<T> {
           ValueWithRealFlags<Scalar<T>> y{x.ToWholeNumber(mode)};
           if (y.flags.test(RealFlag::Overflow)) {
-            context.messages().Say("%s intrinsic folding overflow"_en_US, name);
+            context.messages().Say(
+                "%s intrinsic folding overflow"_warn_en_US, name);
           }
           return y.value;
         }));
@@ -126,13 +127,13 @@ Expr<Type<TypeCategory::Real, KIND>> FoldIntrinsicFunction(
   } else if (name == "product") {
     auto one{Scalar<T>::FromInteger(value::Integer<8>{1}).value};
     return FoldProduct<T>(context, std::move(funcRef), one);
-  } else if (name == "real") {
+  } else if (name == "real" || name == "dble") {
     if (auto *expr{args[0].value().UnwrapExpr()}) {
       return ToReal<KIND>(context, std::move(*expr));
     }
   } else if (name == "scale") {
     if (const auto *byExpr{UnwrapExpr<Expr<SomeInteger>>(args[1])}) {
-      return std::visit(
+      return common::visit(
           [&](const auto &byVal) {
             using TBY = ResultType<decltype(byVal)>;
             return FoldElementalIntrinsic<T, T, TBY>(context,
@@ -148,7 +149,7 @@ Expr<Type<TypeCategory::Real, KIND>> FoldIntrinsicFunction(
                                                            SCALE(y)};
                       if (result.flags.test(RealFlag::Overflow)) {
                         context.messages().Say(
-                            "SCALE intrinsic folding overflow"_en_US);
+                            "SCALE intrinsic folding overflow"_warn_en_US);
                       }
                       return result.value;
                     }));

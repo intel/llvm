@@ -274,6 +274,29 @@ __SPIRV_ATOMICS(__SPIRV_ATOMIC_UNSIGNED, unsigned long long)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Min)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Max)
 
+#undef __SPIRV_ATOMICS
+#undef __SPIRV_ATOMIC_AND
+#undef __SPIRV_ATOMIC_BASE
+#undef __SPIRV_ATOMIC_CMP_EXCHANGE
+#undef __SPIRV_ATOMIC_EXCHANGE
+#undef __SPIRV_ATOMIC_FADD
+#undef __SPIRV_ATOMIC_FLOAT
+#undef __SPIRV_ATOMIC_FMAX
+#undef __SPIRV_ATOMIC_FMIN
+#undef __SPIRV_ATOMIC_IADD
+#undef __SPIRV_ATOMIC_ISUB
+#undef __SPIRV_ATOMIC_LOAD
+#undef __SPIRV_ATOMIC_MINMAX
+#undef __SPIRV_ATOMIC_OR
+#undef __SPIRV_ATOMIC_SIGNED
+#undef __SPIRV_ATOMIC_SMAX
+#undef __SPIRV_ATOMIC_SMIN
+#undef __SPIRV_ATOMIC_STORE
+#undef __SPIRV_ATOMIC_UMAX
+#undef __SPIRV_ATOMIC_UMIN
+#undef __SPIRV_ATOMIC_UNSIGNED
+#undef __SPIRV_ATOMIC_XOR
+
 extern SYCL_EXTERNAL __attribute__((opencl_global)) void *
 __spirv_GenericCastToPtrExplicit_ToGlobal(const void *Ptr,
                                           __spv::StorageClass::Flag S) noexcept;

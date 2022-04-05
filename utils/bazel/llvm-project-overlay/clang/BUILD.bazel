@@ -1713,6 +1713,7 @@ cc_library(
         ":codegen",
         ":config",
         ":driver",
+        ":extract_api",
         ":frontend",
         ":frontend_rewrite",
         ":static_analyzer_frontend",
@@ -2139,6 +2140,24 @@ cc_binary(
         ":frontend",
         ":tooling",
         ":tooling_dependency_scanning",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "extract_api",
+    srcs = glob([
+        "lib/ExtractAPI/**/*.cpp",
+        "lib/ExtractAPI/**/*.h",
+    ]),
+    hdrs = glob(["include/clang/ExtractAPI/**/*.h"]),
+    includes = ["include"],
+    deps = [
+        ":ast",
+        ":basic",
+        ":frontend",
+        ":index",
+        "//llvm:Option",
         "//llvm:Support",
     ],
 )
