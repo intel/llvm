@@ -1,9 +1,9 @@
 {
   "linux": {
     "compute_runtime": {
-      "github_tag": "22.10.22597",
-      "version": "22.10.22597",
-      "url": "https://github.com/intel/compute-runtime/releases/tag/22.10.22597",
+      "github_tag": "22.11.22682",
+      "version": "22.11.22682",
+      "url": "https://github.com/intel/compute-runtime/releases/tag/22.11.22682",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "igc": {
@@ -13,9 +13,9 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "cm": {
-      "github_tag": "cmclang-1.0.120",
-      "version": "1.0.120",
-      "url": "https://github.com/intel/cm-compiler/releases/tag/cmclang-1.0.120",
+      "github_tag": "cmclang-1.0.126",
+      "version": "1.0.126",
+      "url": "https://github.com/intel/cm-compiler/releases/tag/cmclang-1.0.126",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {
