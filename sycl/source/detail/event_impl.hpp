@@ -248,6 +248,7 @@ private:
   bool MNeedsCleanupAfterWait = false;
 
   std::mutex MMutex;
+  friend class DepIter;
 };
 
 } // namespace detail

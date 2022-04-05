@@ -45,7 +45,62 @@ cl_event event_impl::get() const {
   return pi::cast<cl_event>(MEvent);
 }
 
+// Iterator through prepared dependencies
+class DepIter {
+public:
+  explicit DepIter(event_impl *event) : CurrentEvent(event), Idx(0) {
+    DepsSize = CurrentEvent->MPreparedDepsEvents.size() +
+               CurrentEvent->MPreparedHostDepsEvents.size();
+  }
+
+  void operator++() { ++Idx; }
+  std::shared_ptr<event_impl> &operator*() {
+    assert(Idx < DepsSize);
+    auto size = CurrentEvent->MPreparedDepsEvents.size();
+    if (Idx < size)
+      return CurrentEvent->MPreparedDepsEvents[Idx];
+    return CurrentEvent->MPreparedHostDepsEvents[Idx - size];
+  }
+
+  bool is_end() { return Idx >= DepsSize; }
+
+private:
+  event_impl *CurrentEvent;
+  size_t Idx, DepsSize;
+};
+
 event_impl::~event_impl() {
+  // Clean dependencies by DFS
+  {
+    std::deque<DepIter> DepDeque;
+
+    if (MPreparedDepsEvents.size() > 0 || MPreparedHostDepsEvents.size() > 0) {
+      DepDeque.emplace_back(this);
+    }
+
+    while (DepDeque.size() > 0) {
+      while (!DepDeque.back().is_end()) {
+        if (*DepDeque.back()) {
+          event_impl* Dependency = (*DepDeque.back()).get();
+          DepDeque.emplace_back(Dependency);
+        } else {
+          ++DepDeque.back();
+        }
+      }
+
+      DepDeque.pop_back();
+      if (DepDeque.size() > 0) {
+        std::shared_ptr<event_impl> &CurrentEvent = *(DepDeque.back());
+        CurrentEvent.get()->MPreparedDepsEvents.clear();
+        CurrentEvent.get()->MPreparedHostDepsEvents.clear();
+        CurrentEvent.reset();
+        ++DepDeque.back();
+      }
+    }
+    MPreparedDepsEvents.clear();
+    MPreparedHostDepsEvents.clear();
+  }
+
   if (MEvent)
     getPlugin().call<PiApiKind::piEventRelease>(MEvent);
 }

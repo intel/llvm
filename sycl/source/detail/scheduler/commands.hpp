@@ -189,7 +189,7 @@ public:
     return nullptr;
   }
 
-  virtual ~Command() { MEvent->cleanDepEventsThroughOneLevel(); }
+  virtual ~Command() = default;
 
   const char *getBlockReason() const;
 
