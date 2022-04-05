@@ -10,12 +10,14 @@ using namespace cl::sycl;
 queue q;
 
 device_global<int> A;
+SYCL_EXTERNAL device_global<int> AExt;
 static device_global<int> B;
 
 struct Foo {
   static device_global<int> C;
 };
 device_global<int> Foo::C;
+// CHECK: @AExt = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[AEXT_ATTRS:[0-9]+]]
 // CHECK: @A = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[A_ATTRS:[0-9]+]]
 // CHECK: @_ZL1B = internal addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[B_ATTRS:[0-9]+]]
 // CHECK: @_ZN3Foo1CE = addrspace(1) global %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 8 #[[C_ATTRS:[0-9]+]]
@@ -92,6 +94,7 @@ void bar() {
 // CHECK: @llvm.global_ctors = appending global [2 x { i32, void ()*, i8 addrspace(4)* }] [{ i32, void ()*, i8 addrspace(4)* } { i32 65535, void ()* @__cxx_global_var_init{{.*}}, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::ext::oneapi::device_global" addrspace(1)* @[[TEMPL_DEV_GLOB]] to i8 addrspace(1)*) to i8 addrspace(4)*) }, { i32, void ()*, i8 addrspace(4)* } { i32 65535, void ()* @_GLOBAL__sub_I_device_global.cpp, i8 addrspace(4)* null }]
 // CHECK: @llvm.used = appending global [1 x i8 addrspace(4)*] [i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::ext::oneapi::device_global" addrspace(1)* @[[TEMPL_DEV_GLOB]] to i8 addrspace(1)*) to i8 addrspace(4)*)], section "llvm.metadata"
 
+// CHECK: attributes #[[AEXT_ATTRS]] = { "sycl-unique-id"="_Z4AExt" }
 // CHECK: attributes #[[A_ATTRS]] = { "sycl-unique-id"="_Z1A" }
 // CHECK: attributes #[[B_ATTRS]] = { "sycl-unique-id"="THE_PREFIX____ZL1B" }
 // CHECK: attributes #[[C_ATTRS]] = { "sycl-unique-id"="_ZN3Foo1CE" }

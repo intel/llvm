@@ -1727,6 +1727,11 @@ public:
               << Sema::KernelConstStaticVariable;
           return;
         }
+        if (!VD->hasInit() &&
+            S.isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
+                VD->getType()) &&
+            !VD->hasAttr<SYCLDeviceAttr>())
+          S.Diag(Loc, diag::err_sycl_external_global);
       }
     }
     if (isa<VarDecl>(D))
