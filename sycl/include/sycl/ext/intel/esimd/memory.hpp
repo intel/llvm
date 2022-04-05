@@ -134,16 +134,19 @@ gather(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
   addrs = addrs + offsets_i;
 
   if constexpr (sizeof(T) == 1) {
-    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<4>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<1>(), mask.data());
+    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<4>(),
+                                  detail::ElemsPerAddrEncoding<1>()>(
+        addrs.data(), mask.data());
     return __esimd_rdregion<T, N * 4, N, /*VS*/ 0, N, 4>(Ret, 0);
   } else if constexpr (sizeof(T) == 2) {
-    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<2>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<2>(), mask.data());
+    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<2>(),
+                                  detail::ElemsPerAddrEncoding<2>()>(
+        addrs.data(), mask.data());
     return __esimd_rdregion<T, N * 2, N, /*VS*/ 0, N, 2>(Ret, 0);
   } else
-    return __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<1>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<1>(), mask.data());
+    return __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<1>(),
+                              detail::ElemsPerAddrEncoding<1>()>(addrs.data(),
+                                                                 mask.data());
 }
 
 /// Writes ("scatters") elements of the input vector to different memory
@@ -169,17 +172,19 @@ scatter(Tx *p, simd<uint32_t, N> offsets, simd<Tx, N> vals,
   if constexpr (sizeof(T) == 1) {
     simd<T, N * 4> D;
     D = __esimd_wrregion<T, N * 4, N, /*VS*/ 0, N, 4>(D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<4>()>(
-        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<1>(), mask.data());
+    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<4>(),
+                        detail::ElemsPerAddrEncoding<1>()>(
+        addrs.data(), D.data(), mask.data());
   } else if constexpr (sizeof(T) == 2) {
     simd<T, N * 2> D;
     D = __esimd_wrregion<T, N * 2, N, /*VS*/ 0, N, 2>(D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<2>()>(
-        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<2>(), mask.data());
+    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<2>(),
+                        detail::ElemsPerAddrEncoding<2>()>(
+        addrs.data(), D.data(), mask.data());
   } else
-    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<1>()>(
-        addrs.data(), vals.data(), detail::ElemsPerAddrEncoding<1>(),
-        mask.data());
+    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<1>(),
+                        detail::ElemsPerAddrEncoding<1>()>(
+        addrs.data(), vals.data(), mask.data());
 }
 
 /// Loads a contiguous block of memory from given memory address and returns
