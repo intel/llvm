@@ -16,10 +16,10 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
-namespace intel {
+namespace oneapi {
 namespace experimental {
 
-class [[sycl_detail::uses_aspects(ext_intel_bf16_conversion)]] bfloat16 {
+class bfloat16 {
   using storage_t = uint16_t;
   storage_t value;
 
@@ -31,7 +31,11 @@ public:
   // Explicit conversion functions
   static storage_t from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+    return __nvvm_f2bf16_rn(a);
+#else
     return __spirv_ConvertFToBF16INTEL(a);
+#endif
 #else
     // In case if float value is nan - propagate bfloat16's qnan
     if (std::isnan(a))
@@ -48,7 +52,14 @@ public:
   }
   static float to_float(const storage_t &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+    uint32_t y = a;
+    y = y << 16;
+    float *res = reinterpret_cast<float *>(&y);
+    return *res;
+#else
     return __spirv_ConvertBF16ToFINTEL(a);
+#endif
 #else
     // Shift temporary variable to silence the warning
     uint32_t bits = a;
@@ -83,7 +94,16 @@ public:
 
   // Unary minus operator overloading
   friend bfloat16 operator-(bfloat16 &lhs) {
-    return bfloat16{-to_float(lhs.value)};
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+    return from_bits(__nvvm_neg_bf16(lhs.value));
+#else
+    return bfloat16{-__spirv_ConvertBF16ToFINTEL(lhs.value)};
+#endif
+#else
+    throw exception{errc::feature_not_supported,
+                    "Bfloat16 unary minus is not supported on host device"};
+#endif
   }
 
 // Increment and decrement operators overloading
@@ -156,7 +176,7 @@ public:
 };
 
 } // namespace experimental
-} // namespace intel
+} // namespace oneapi
 } // namespace ext
 
 } // namespace sycl

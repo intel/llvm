@@ -410,6 +410,10 @@ private:
   /// Used for uniquing of annotation arguments.
   llvm::DenseMap<unsigned, llvm::Constant *> AnnotationArgs;
 
+  /// Used for uniquing of SYCL annotation arguments. SYCL annotations are
+  /// handled differently than regular annotations so they cannot share map.
+  llvm::DenseMap<unsigned, llvm::Constant *> SYCLAnnotationArgs;
+
   llvm::StringMap<llvm::GlobalVariable *> CFConstantStringMap;
 
   llvm::DenseMap<llvm::Constant *, llvm::GlobalVariable *> ConstantStringMap;
@@ -1309,6 +1313,10 @@ public:
   /// Add global annotations that are set on D, for the global GV. Those
   /// annotations are emitted during finalization of the LLVM code.
   void AddGlobalAnnotations(const ValueDecl *D, llvm::GlobalValue *GV);
+
+  /// Emit additional args of the annotation.
+  llvm::Constant *
+  EmitSYCLAnnotationArgs(const SYCLAddIRAnnotationsMemberAttr *Attr);
 
   /// Add attributes from add_ir_attributes_global_variable on TND to GV.
   void AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,

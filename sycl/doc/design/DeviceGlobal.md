@@ -357,7 +357,7 @@ This problem with variable shadowing is also a problem for the integration
 footer we use for specialization constants.  See the [specialization constant
 design document][5] for more details on this topic.
 
-[5]: <SpecializationConstants.md>
+[5]: <SYCL2020-SpecializationConstants.md>
 
 ### Changes to the DPC++ driver
 
