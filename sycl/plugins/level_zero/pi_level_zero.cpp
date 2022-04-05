@@ -1560,7 +1560,8 @@ pi_command_list_ptr_t &
 _pi_queue::pi_queue_group_t::getImmCmdList(bool UseCopyEngine) {
 
   uint32_t QueueIndex, QueueOrdinal;
-  auto Index = getQueueIndex(&QueueOrdinal, &QueueIndex);
+  auto Index = Queue->getQueueGroup(UseCopyEngine)
+                   .getQueueIndex(&QueueOrdinal, &QueueIndex);
 
   if (ImmCmdLists[Index] != Queue->CommandListMap.end())
     return ImmCmdLists[Index];
