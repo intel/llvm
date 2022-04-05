@@ -48,6 +48,21 @@ make check-sycl-all
 
 ```
 
+To run test with single backend:
+
+```
+# Configure
+cmake \
+ -DCMAKE_CXX_COMPILER=clang++ \
+ -DTEST_SUITE_SUBDIRS=SYCL \
+ -DSYCL_BE="opencl" \
+ -DSYCL_TARGET_DEVICES="host" \
+ ..
+
+# Build and Run
+make check
+```
+
 To use ninja build run as:
 
 ```
