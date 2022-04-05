@@ -1477,8 +1477,8 @@ bool _pi_queue::isBatchingAllowed(bool IsCopy) const {
 
 // Return the index of the next queue to use based on a
 // round robin strategy and the queue group ordinal.
-uint32_t
-_pi_queue::pi_queue_group_t::getQueueIndex(uint32_t *QueueGroupOrdinal) {
+uint32_t _pi_queue::pi_queue_group_t::getQueueIndex(uint32_t *QueueGroupOrdinal,
+                                                    uint32_t *QueueIndex) {
 
   auto CurrentIndex = NextIndex;
   ++NextIndex;
@@ -1501,6 +1501,7 @@ _pi_queue::pi_queue_group_t::getQueueIndex(uint32_t *QueueGroupOrdinal) {
   if (QueueType == queue_type::LinkCopy && Queue->Device->hasMainCopyEngine()) {
     ZeCommandQueueIndex -= 1;
   }
+  *QueueIndex = ZeCommandQueueIndex;
 
   return CurrentIndex;
 }
@@ -1530,14 +1531,18 @@ void _pi_queue::pi_queue_group_t::createQueueDesc(
 ze_command_queue_handle_t &
 _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
 
-  auto Index = getQueueIndex(QueueGroupOrdinal);
+  // QueueIndex is the proper L0 index.
+  // Index is the plugins concept of index, with main and link copy engines in
+  // one range.
+  uint32_t QueueIndex;
+  auto Index = getQueueIndex(QueueGroupOrdinal, &QueueIndex);
 
   ze_command_queue_handle_t &ZeQueue = ZeQueues[Index];
   if (ZeQueue)
     return ZeQueue;
 
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  createQueueDesc(Index, *QueueGroupOrdinal, ZeCommandQueueDesc);
+  createQueueDesc(QueueIndex, *QueueGroupOrdinal, ZeCommandQueueDesc);
 
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -1554,14 +1559,14 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
 pi_command_list_ptr_t &
 _pi_queue::pi_queue_group_t::getImmCmdList(bool UseCopyEngine) {
 
-  uint32_t Ordinal;
-  auto Index = getQueueIndex(&Ordinal);
+  uint32_t QueueIndex, QueueOrdinal;
+  auto Index = getQueueIndex(&QueueOrdinal, &QueueIndex);
 
   if (ImmCmdLists[Index] != Queue->CommandListMap.end())
     return ImmCmdLists[Index];
 
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  createQueueDesc(Index, Ordinal, ZeCommandQueueDesc);
+  createQueueDesc(QueueIndex, QueueOrdinal, ZeCommandQueueDesc);
 
   ze_command_list_handle_t ZeCommandList;
   ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
@@ -1570,7 +1575,7 @@ _pi_queue::pi_queue_group_t::getImmCmdList(bool UseCopyEngine) {
   ImmCmdLists[Index] =
       Queue->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
-              ZeCommandList, {nullptr, false, ZeQueues[Index], Ordinal}})
+              ZeCommandList, {nullptr, false, nullptr, QueueOrdinal}})
           .first;
   // Add this commandlist to the cache so it can be destroyed as part of
   // QueueRelease

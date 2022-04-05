@@ -734,7 +734,7 @@ struct _pi_queue : _pi_object {
 
     // Return the index of the next queue to use based on a
     // round robin strategy and the queue group ordinal.
-    uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal);
+    uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex);
 
     // Return a queue descriptor using the provided ordinal and index.
     void createQueueDesc(uint32_t Index, uint32_t Ordinal,
