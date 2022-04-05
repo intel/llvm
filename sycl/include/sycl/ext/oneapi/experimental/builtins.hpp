@@ -149,21 +149,18 @@ fabs(T x) {
   return __clc_fabs(x);
 #else
   (void)x;
-  throw runtime_error("bf16 is not supported on host device.",
+  throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
 template <typename T>
-std::enable_if_t<
-    std::is_same<T, bfloat16>::value, T>
-fabs(T x) {
+std::enable_if_t<std::is_same<T, bfloat16>::value, T> fabs(T x) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return bfloat16::from_bits(
-      __clc_fabs(x.raw()));
+  return bfloat16::from_bits(__clc_fabs(x.raw()));
 #else
   (void)x;
-  throw runtime_error("bf16 is not supported on host device.",
+  throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
@@ -176,22 +173,19 @@ fmin(T x, T y) {
 #else
   (void)x;
   (void)y;
-  throw runtime_error("bf16 is not supported on host device.",
+  throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
 template <typename T>
-std::enable_if_t<
-    std::is_same<T, bfloat16>::value, T>
-fmin(T x, T y) {
+std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmin(T x, T y) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return bfloat16::from_bits(
-      __clc_fmin(x.raw(), y.raw()));
+  return bfloat16::from_bits(__clc_fmin(x.raw(), y.raw()));
 #else
   (void)x;
   (void)y;
-  throw runtime_error("bf16 is not supported on host device.",
+  throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
@@ -204,22 +198,19 @@ fmax(T x, T y) {
 #else
   (void)x;
   (void)y;
-  throw runtime_error("bf16 is not supported on host device.",
+  throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
 template <typename T>
-std::enable_if_t<
-    std::is_same<T, bfloat16>::value, T>
-fmax(T x, T y) {
+std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmax(T x, T y) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return bfloat16::from_bits(
-      __clc_fmax(x.raw(), y.raw()));
+  return bfloat16::from_bits(__clc_fmax(x.raw(), y.raw()));
 #else
   (void)x;
   (void)y;
-  throw runtime_error("bf16 is not supported on host device.",
+  throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
@@ -233,23 +224,20 @@ fma(T x, T y, T z) {
   (void)x;
   (void)y;
   (void)z;
-  throw runtime_error("bf16 is not supported on host device.",
+  throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
 template <typename T>
-std::enable_if_t<
-    std::is_same<T, bfloat16>::value, T>
-fma(T x, T y, T z) {
+std::enable_if_t<std::is_same<T, bfloat16>::value, T> fma(T x, T y, T z) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return bfloat16::from_bits(
-      __clc_fma(x.raw(), y.raw(), z.raw()));
+  return bfloat16::from_bits(__clc_fma(x.raw(), y.raw(), z.raw()));
 #else
   (void)x;
   (void)y;
   (void)z;
-  throw runtime_error("bf16 is not supported on host device.",
+  throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
