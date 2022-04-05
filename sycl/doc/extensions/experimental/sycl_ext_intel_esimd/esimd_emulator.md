@@ -1,4 +1,4 @@
-# ESIMD_EMULATOR backend for ESIMD kernels
+# ESIMD kernel execution emulation on host.
 
 ## Introduction
 
