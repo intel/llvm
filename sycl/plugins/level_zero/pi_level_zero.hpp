@@ -261,6 +261,8 @@ struct _pi_object {
   //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
   //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
   pi_shared_mutex Mutex;
+
+  void retain() { ++RefCount; }
 };
 
 // Record for a memory allocation. This structure is used to keep information
@@ -1386,6 +1388,12 @@ struct _pi_kernel : _pi_object {
     return true;
   }
 
+  void retain() {
+    ++RefCount;
+    // When retaining a kernel, you are also retaining the program it is part
+    // of.
+    Program->retain();
+  }
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
 
