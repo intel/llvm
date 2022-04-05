@@ -695,7 +695,7 @@ The SYCL host device executes the SYCL application directly in the host,
 without using any low-level API.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
-if clang was built with the cmake option `SYCL_BUILD_PI_CUDA=ON`.
+if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
 
 **Linux & Windows (64-bit)**:
 

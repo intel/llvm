@@ -87,6 +87,8 @@ __CLC_NVVM_ATOMIC_CAS(int, i, int, i, cas, CompareExchange)
 __CLC_NVVM_ATOMIC_CAS(long, l, long, l, cas, CompareExchange)
 __CLC_NVVM_ATOMIC_CAS(unsigned int, j, int, i, cas, CompareExchange)
 __CLC_NVVM_ATOMIC_CAS(unsigned long, m, long, l, cas, CompareExchange)
+__CLC_NVVM_ATOMIC_CAS(float, f, float, f, cas, CompareExchange)
+__CLC_NVVM_ATOMIC_CAS(double, d, double, d, cas, CompareExchange)
 
 #undef __CLC_NVVM_ATOMIC_CAS_IMPL_ORDER
 #undef __CLC_NVVM_ATOMIC_CAS
