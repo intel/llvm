@@ -914,42 +914,6 @@ private:
   Sema &SemaRef;
 };
 
-// Searches for a call to PFWG lambda function and captures it.
-class FindPFWGLambdaFnVisitor
-    : public RecursiveASTVisitor<FindPFWGLambdaFnVisitor> {
-public:
-  // LambdaObjTy - lambda type of the PFWG lambda object
-  FindPFWGLambdaFnVisitor(const CXXRecordDecl *LambdaObjTy)
-      : LambdaFn(nullptr), LambdaObjTy(LambdaObjTy) {}
-
-  bool VisitCallExpr(CallExpr *Call) {
-    auto *M = dyn_cast<CXXMethodDecl>(Call->getDirectCallee());
-    if (!M || (M->getOverloadedOperator() != OO_Call))
-      return true;
-
-    unsigned int NumPFWGLambdaArgs =
-        M->getNumParams() + 1; // group, optional kernel_handler and lambda obj
-    if (Call->getNumArgs() != NumPFWGLambdaArgs)
-      return true;
-    if (!Util::isSyclType(Call->getArg(1)->getType(), "group", true /*Tmpl*/))
-      return true;
-    if ((Call->getNumArgs() > 2) &&
-        !Util::isSyclKernelHandlerType(Call->getArg(2)->getType()))
-      return true;
-    if (Call->getArg(0)->getType()->getAsCXXRecordDecl() != LambdaObjTy)
-      return true;
-    LambdaFn = M; // call to PFWG lambda found - record the lambda
-    return false; // ... and stop searching
-  }
-
-  // Returns the captured lambda function or nullptr;
-  CXXMethodDecl *getLambdaFn() const { return LambdaFn; }
-
-private:
-  CXXMethodDecl *LambdaFn;
-  const CXXRecordDecl *LambdaObjTy;
-};
-
 class MarkWIScopeFnVisitor : public RecursiveASTVisitor<MarkWIScopeFnVisitor> {
 public:
   MarkWIScopeFnVisitor(ASTContext &Ctx) : Ctx(Ctx) {}
@@ -2541,10 +2505,16 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   void markParallelWorkItemCalls() {
     if (getKernelInvocationKind(KernelCallerFunc) ==
         InvokeParallelForWorkGroup) {
-      FindPFWGLambdaFnVisitor V(KernelObj);
-      V.TraverseStmt(KernelCallerFunc->getBody());
-      CXXMethodDecl *WGLambdaFn = V.getLambdaFn();
-      assert(WGLambdaFn && "PFWG lambda not found");
+      // Fetch the kernel object and the associated call operator
+      // (of either the lambda or the function object).
+      CXXRecordDecl *KernelObj =
+          GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
+      CXXMethodDecl *WGLambdaFn = nullptr;
+      if (KernelObj->isLambda())
+        WGLambdaFn = KernelObj->getLambdaCallOperator();
+      else
+        WGLambdaFn = getOperatorParens(KernelObj);
+      assert(WGLambdaFn && "non callable object is passed as kernel obj");
       // Mark the function that it "works" in a work group scope:
       // NOTE: In case of parallel_for_work_item the marker call itself is
       // marked with work item scope attribute, here  the '()' operator of the
@@ -3124,8 +3094,13 @@ public:
                              FunctionDecl *KernelFunc)
       : SyclKernelFieldHandler(S), Header(H) {
     bool IsSIMDKernel = isESIMDKernelType(KernelObj);
+    // The header needs to access the kernel object size.
+    int64_t ObjSize = SemaRef.getASTContext()
+                          .getTypeSizeInChars(KernelObj->getTypeForDecl())
+                          .getQuantity();
     Header.startKernel(KernelFunc, NameType, KernelObj->getLocation(),
-                       IsSIMDKernel, IsSYCLUnnamedKernel(S, KernelFunc));
+                       IsSIMDKernel, IsSYCLUnnamedKernel(S, KernelFunc),
+                       ObjSize);
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *RD,
@@ -4653,7 +4628,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // whose sole purpose is to run its constructor before the application's
   // main() function.
 
-  if (S.getSyclIntegrationFooter().isDeviceGlobalsEmitted()) {
+  if (NeedToEmitDeviceGlobalRegistration) {
     O << "namespace {\n";
 
     O << "class __sycl_device_global_registration {\n";
@@ -4777,6 +4752,14 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "    return 0;\n";
     O << "#endif\n";
     O << "  }\n";
+    StringRef ReturnType =
+        (S.Context.getTargetInfo().getInt64Type() == TargetInfo::SignedLong)
+            ? "long"
+            : "long long";
+    O << "  // Returns the size of the kernel object in bytes.\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr " << ReturnType << " getKernelSize() { return "
+      << K.ObjSize << "; }\n";
     O << "};\n";
     CurStart += N;
   }
@@ -4807,9 +4790,9 @@ void SYCLIntegrationHeader::startKernel(const FunctionDecl *SyclKernel,
                                         QualType KernelNameType,
                                         SourceLocation KernelLocation,
                                         bool IsESIMDKernel,
-                                        bool IsUnnamedKernel) {
+                                        bool IsUnnamedKernel, int64_t ObjSize) {
   KernelDescs.emplace_back(SyclKernel, KernelNameType, KernelLocation,
-                           IsESIMDKernel, IsUnnamedKernel);
+                           IsESIMDKernel, IsUnnamedKernel, ObjSize);
 }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
@@ -5017,6 +5000,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
   llvm::SmallSet<const VarDecl *, 8> Visited;
   bool EmittedFirstSpecConstant = false;
+  bool DeviceGlobalsEmitted = false;
 
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
@@ -5100,6 +5084,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "}\n";
     OS << "} // namespace (unnamed)\n";
     OS << "} // namespace sycl::detail\n";
+
+    S.getSyclIntegrationHeader().addDeviceGlobalRegistration();
   }
   return true;
 }

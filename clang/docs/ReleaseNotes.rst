@@ -61,15 +61,54 @@ Bug Fixes
   size expression. This was fixed and ``::getArraySize()`` will now always
   either return ``None`` or a ``llvm::Optional`` wrapping a valid ``Expr*``.
   This fixes `Issue 53742 <https://github.com/llvm/llvm-project/issues/53742>`_.
+- We now ignore full expressions when traversing cast subexpressions. This
+  fixes `Issue 53044 <https://github.com/llvm/llvm-project/issues/53044>`_.
+- Allow `-Wno-gnu` to silence GNU extension diagnostics for pointer arithmetic
+  diagnostics. Fixes `Issue 54444 <https://github.com/llvm/llvm-project/issues/54444>`_.
+- Placeholder constraints, as in `Concept auto x = f();`, were not checked when modifiers
+  like ``auto&`` or ``auto**`` were added. These constraints are now checked.
+  This fixes  `Issue 53911 <https://github.com/llvm/llvm-project/issues/53911>`_
+  and  `Issue 54443 <https://github.com/llvm/llvm-project/issues/54443>`_.
+- Previously invalid member variables with template parameters would crash clang.
+  Now fixed by setting identifiers for them.
+  This fixes `Issue 28475 (PR28101) <https://github.com/llvm/llvm-project/issues/28475>`_.
+- Now allow the `restrict` and `_Atomic` qualifiers to be used in conjunction
+  with `__auto_type` to match the behavior in GCC. This fixes
+  `Issue 53652 <https://github.com/llvm/llvm-project/issues/53652>`_.
+- No longer crash when specifying a variably-modified parameter type in a
+  function with the ``naked`` attribute. This fixes
+  `Issue 50541 <https://github.com/llvm/llvm-project/issues/50541>`_.
+- Allow multiple ``#pragma weak`` directives to name the same undeclared (if an
+  alias, target) identifier instead of only processing one such ``#pragma weak``
+  per identifier.
+  Fixes `Issue 28985 <https://github.com/llvm/llvm-project/issues/28985>`_.
+
+- Unevaluated lambdas in dependant contexts no longer result in clang crashing.
+  This fixes Issues `50376 <https://github.com/llvm/llvm-project/issues/50376>`_,
+  `51414 <https://github.com/llvm/llvm-project/issues/51414>`_,
+  `51416 <https://github.com/llvm/llvm-project/issues/51416>`_,
+  and `51641 <https://github.com/llvm/llvm-project/issues/51641>`_.
+
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 - ``-Wliteral-range`` will warn on floating-point equality comparisons with
   constants that are not representable in a casted value. For example,
   ``(float) f == 0.1`` is always false.
+- ``-Winline-namespace-reopened-noninline`` now takes into account that the
+  ``inline`` keyword must appear on the original but not necessarily all
+  extension definitions of an inline namespace and therefore points its note
+  at the original definition. This fixes `Issue 50794 (PR51452)
+  <https://github.com/llvm/llvm-project/issues/50794>`_.
+- ``-Wunused-but-set-variable`` now also warns if the variable is only used
+  by unary operators.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
+- The builtin function __builtin_dump_struct would crash clang when the target 
+  struct have bitfield. Now it fixed, and __builtin_dump_struct support dump
+  the bitwidth of bitfields.
+  This fixes `Issue 54462 <https://github.com/llvm/llvm-project/issues/54462>`_.
 
 New Compiler Flags
 ------------------
@@ -121,6 +160,17 @@ Attribute Changes in Clang
 - Statement attributes ``[[clang::noinline]]`` and  ``[[clang::always_inline]]``
   can be used to control inlining decisions at callsites.
 
+- ``#pragma clang attribute push`` now supports multiple attributes within a single directive.
+
+- The ``__declspec(naked)`` attribute can no longer be written on a member
+  function in Microsoft compatibility mode, matching the behavior of cl.exe.
+
+- Improve __builtin_dump_struct:
+
+  - Support bitfields in struct and union.
+  
+  - Improve the dump format, dump both bitwidth(if its a bitfield) and field value.
+
 Windows Support
 ---------------
 
@@ -140,6 +190,8 @@ C2x Feature Support
 - Implemented `WG14 N2935 Make false and true first-class language features <http://www.open-std.org/jtc1/sc22/wg14/www/docs/n2935.pdf>`_.
 - Implemented `WG14 N2763 Adding a fundamental type for N-bit integers <http://www.open-std.org/jtc1/sc22/wg14/www/docs/n2763.pdf>`_.
 - Implemented `WG14 N2775 Literal suffixes for bit-precise integers <http://www.open-std.org/jtc1/sc22/wg14/www/docs/n2775.pdf>`_.
+- Implemented the `*_WIDTH` macros to complete support for
+  `WG14 N2412 Two's complement sign representation for C2x <https://www9.open-std.org/jtc1/sc22/wg14/www/docs/n2412.pdf>`_.
 
 C++ Language Changes in Clang
 -----------------------------
@@ -156,6 +208,7 @@ C++2b Feature Support
 
 - Implemented `P2128R6: Multidimensional subscript operator <https://wg21.link/P2128R6>`_.
 - Implemented `P0849R8: auto(x): decay-copy in the language <https://wg21.link/P0849R8>`_.
+- Implemented `P2242R3: Non-literal variables (and labels and gotos) in constexpr functions	<https://wg21.link/P2242R3>`_.
 
 CUDA Language Changes in Clang
 ------------------------------
@@ -200,6 +253,11 @@ DWARF Support in Clang
 
 Arm and AArch64 Support in Clang
 --------------------------------
+
+- When using ``-mbranch-protection=bti`` with AArch64, calls to setjmp will
+  now be followed by a BTI instruction. This is done to be compatible with
+  setjmp implementations that return with a br instead of a ret. You can
+  disable this behaviour using the ``-mno-bti-at-return-twice`` option.
 
 Floating Point Support in Clang
 -------------------------------
