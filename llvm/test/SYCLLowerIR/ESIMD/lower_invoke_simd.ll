@@ -6,7 +6,7 @@ target triple = "spir64-unknown-unknown"
 declare dso_local spir_func <16 x float> @__dummy_read(i64) #4
 
 ; Function Attrs: convergent
-declare dso_local spir_func float @_Z21__builtin_invoke_simdXX(<16 x float> (float addrspace(4)*, <16 x float>, i32)*, float addrspace(4)*, float, i32) local_unnamed_addr #3
+declare dso_local spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<16 x float> (float addrspace(4)*, <16 x float>, i32)*, float addrspace(4)*, float, i32) local_unnamed_addr #3
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
 define dso_local x86_regcallcc <16 x float> @_SIMD_CALLEE(float addrspace(4)* %A, <16 x float> %non_uni_val, i32 %uni_val) #0 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !0 {
@@ -49,16 +49,16 @@ entry:
   %param_non_uni_val = load float, float addrspace(4)* %param_A, align 4
 
 ;------------- The invoke_simd calls.
-  %res1 = call spir_func float @_Z21__builtin_invoke_simdXX(<16 x float> (float addrspace(4)*, <16 x float>, i32)* %FUNC_PTR, float addrspace(4)* %param_A, float %param_non_uni_val, i32 10)
+  %res1 = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<16 x float> (float addrspace(4)*, <16 x float>, i32)* %FUNC_PTR, float addrspace(4)* %param_A, float %param_non_uni_val, i32 10)
 ; Verify that %FUNC_PTR is replaced with @_SIMD_CALLEE:
-; CHECK: %{{.*}} = call spir_func float @_Z21__builtin_invoke_simdXX(<16 x float> (float addrspace(4)*, <16 x float>, i32)* @_SIMD_CALLEE, float addrspace(4)* %param_A, float %param_non_uni_val, i32 10)
+; CHECK: %{{.*}} = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<16 x float> (float addrspace(4)*, <16 x float>, i32)* @_SIMD_CALLEE, float addrspace(4)* %param_A, float %param_non_uni_val, i32 10)
 
-  %res2 = call spir_func float @_Z21__builtin_invoke_simdXX(<16 x float> (float addrspace(4)*, <16 x float>, i32)* @_ANOTHER_SIMD_CALLEE, float addrspace(4)* %param_A, float %param_non_uni_val, i32 10)
+  %res2 = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<16 x float> (float addrspace(4)*, <16 x float>, i32)* @_ANOTHER_SIMD_CALLEE, float addrspace(4)* %param_A, float %param_non_uni_val, i32 10)
 ; Verify that function address link-time constant is accepted by the pass and left as is:
-; CHECK: = call spir_func float @_Z21__builtin_invoke_simdXX(<16 x float> (float addrspace(4)*, <16 x float>, i32)* @_ANOTHER_SIMD_CALLEE, float addrspace(4)* %param_A, float %param_non_uni_val, i32 10)
+; CHECK: = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<16 x float> (float addrspace(4)*, <16 x float>, i32)* @_ANOTHER_SIMD_CALLEE, float addrspace(4)* %param_A, float %param_non_uni_val, i32 10)
 
 ; TODO: enable in the test and LowerInvokeSimd when BE is ready, crash for now:
-  ;%res3 %{{.*}} = call spir_func float @_Z21__builtin_invoke_simdXX(<16 x float> (float addrspace(4)*, <16 x float>, i32)* %raw_fptr, float addrspace(4)* %param_A, float %param_non_uni_val, i32 10)
+  ;%res3 %{{.*}} = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<16 x float> (float addrspace(4)*, <16 x float>, i32)* %raw_fptr, float addrspace(4)* %param_A, float %param_non_uni_val, i32 10)
   %res = fadd float %res1, %res2
   ret float %res
 }

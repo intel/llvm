@@ -62,7 +62,11 @@ ModulePass *llvm::createSYCLLowerInvokeSimdPass() {
 }
 
 namespace {
-constexpr char INVOKE_SIMD_PREF[] = "_Z21__builtin_invoke_simd";
+// TODO support lambda and functor overloads
+// This is the prefixes of the names generated from
+// sycl/ext/oneapi/experimental/invoke_simd.hpp::__builtin_invoke_simd
+// overloads instantiations:
+constexpr char INVOKE_SIMD_PREF[] = "_Z33__regcall3____builtin_invoke_simd";
 
 bool isCast(const Value *V) {
   int Opc = Operator::getOpcode(V);
@@ -170,8 +174,9 @@ void getPossibleStoredVals(Value *Addr, ValueSetImpl &Vals) {
   }
 }
 
-// Example1 (function is direct argument to _Z21__builtin_invoke_simd):
-// %call6.i = call spir_func float @_Z21__builtin_invoke_simd...(
+// Example1 (function is direct argument to
+// _Z33__regcall3____builtin_invoke_simd):
+// %call6.i = call spir_func float @_Z33__regcall3____builtin_invoke_simd...(
 //   <16 x float> (float addrspace(4)*, <16 x float>, i32)* %28, <== function
 //   pointer float addrspace(4)* %arg1, float %arg2, i32 %arg3)
 //
@@ -186,7 +191,7 @@ void getPossibleStoredVals(Value *Addr, ValueSetImpl &Vals) {
 // ...
 // %f = load %fptr_t, %fptr_t addrspace(4)* %fa
 // ...
-// %res = call spir_func float @_Z21__builtin_invoke_simd...(
+// %res = call spir_func float @_Z33__regcall3____builtin_invoke_simd...(
 //   %fptr_t %f, <== function pointer
 //  float addrspace(4)* %arg1,
 //  float %arg2,
@@ -213,8 +218,8 @@ bool processInvokeSimdCall(CallInst *CI) {
     if (Vals.size() != 1 || !(SimdF = dyn_cast<Function>(*Vals.begin()))) {
       llvm_unreachable("unsupported data flow pattern for invoke_simd 1");
     }
-    // _Z21__builtin_invoke_simd invokee is an SSA value, replace it with the
-    // link-time constant SimdF as computed by getPossibleStoredVals
+    // _Z33__regcall3____builtin_invoke_simd invokee is an SSA value, replace it
+    // with the link-time constant SimdF as computed by getPossibleStoredVals
     auto *CI1 = cast<CallInst>(CI->clone());
     constexpr int SimdInvokeInvokeeArgIndex = 0;
     CI1->setOperand(SimdInvokeInvokeeArgIndex, SimdF);
