@@ -74,9 +74,7 @@ To compile using Intel(R) OneAPI Toolkit:
 To run under emulation through ESIMD_EMULATOR backend:
 > `$ SYCL_DEVICE_FILTER=ext_intel_esimd_emulator:gpu ./a.out`
 
-## Running ESIMD examples from [ESIMD test
-   suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD)
-   with ESIMD_EMULATOR backend
+## Running ESIMD examples from [ESIMD test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) with ESIMD_EMULATOR backend
 
 ```
 # Get sources
