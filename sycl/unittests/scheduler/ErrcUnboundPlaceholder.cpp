@@ -44,8 +44,14 @@ protected:
 };
 
 // placeholder accessor exception  // SYCL2020 4.7.6.9
-TEST_F(SchedulerErrcTestClass, SchedulerErrcTest) {
+TEST_F(SchedulerErrcTestClass,
+       SchedulerErrcTest) { // mocking doesn't support host device
+  if (Plt.is_host()) {
+    GTEST_SKIP() << "unit tests with mocks not supported on host device\n";
+    return;
+  }
   sycl::queue q;
+  // even if in the future mocks are supported on host,
   // host device executes kernels via a different method and there
   // is no good way to throw an exception at this time.
   if (!q.is_host()) {
