@@ -2,14 +2,33 @@
 
 ## Introduction
 
-ESIMD_EMULATOR is emulator mode for running ESIMD kernels. Under Linux
-environment, programmers can run ESIMD kernels on CPU without actual
-Intel GPU hardware using ESIMD_EMULATOR backend. This backend is a
-virtual GPU plug-in device that runs ESIMD kernels as if they are
-running on GPU hardware. The backend emulates GPU hardware using
-software multi-threading supported by Linux host machine. This means
-that the executable file can be run and debugged like normal x86_64
-Linux application.
+ESIMD implementation provides a feature to execute ESIMD kernels on the host
+CPU without having actual Intel GPU device in the system - this is ESIMD emulator.
+It's main purpose is to provide users with a way to conveniently debug ESIMD code
+in their favorite debuggers. Performance is not a priority for now and it will like be quite
+low. Since the emulator tries to model massively parallel GPU kernel execution on CPU
+hardware, some differences in execution profile may happen, and this must be taken
+into account when debugging. Redirecting execution to ESIMD emulator is as simple as
+setting an environment variable, no program recompilation is needed. When running a
+kernel via the emulator, SYCL runtime will see the emulator as normal GPU device - i.e.
+`is_gpu()` test will return true for it.
+
+Due to specifics of ESIMD programming model, usual SYCL host device can't execute
+ESIMD kernels. For example, it needs some supporting libraries to emulate various kinds
+of barriers, GPU execution threads. It would be impractical for host part of a SYCL ESIMD
+app to include or link to all the necessary infrastructure components, as it is not needed
+in most cases, when there is no ESIMD code or no debugging is wanted. It would also be
+inconvenient or even not possible for users to recompile the app with some switch to
+execute ESIMD part on CPU. The environment variable plus a separate back-end solve
+both problems. 
+
+ESIMD emulator encompasses a the following main components:
+1) The ESIMD emulator plugin which is a SYCL runtime back-end similar to OpenCL or
+LevelZero.
+2) Host implementations of low-level ESIMD intrinsics such as `__esimd_scatter_scaled`.
+3) The supporting infrastructure linked dynamically to the plugin - the `libCM` library.
+
+See a specific section below for main ESIMD emulator limitations.
 
 ## Requirements
 
@@ -84,7 +103,7 @@ tested with above command examples due to ESIMD_EMULATOR's limiations
 below.
 
 ## Limitation
-
+- The emulator is available only on Linux for now. Windows support is WIP.
 - ESIMD_EMULATOR has limitation on number of threads under Linux. As
 software multi-threading is used for emulating hardware threads,
 number of threads being launched for kernel execution is limited by
