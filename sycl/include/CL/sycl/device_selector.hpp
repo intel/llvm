@@ -12,6 +12,8 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/export.hpp>
 
+#include <vector>
+
 // 4.6.1 Device selection class
 
 __SYCL_INLINE_NAMESPACE(cl) {

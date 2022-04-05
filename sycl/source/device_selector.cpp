@@ -188,15 +188,15 @@ int host_selector::operator()(const device &dev) const {
 }
 
 int aspect_selector_t::operator()(const device &Dev) const {
+  auto DevHas = [&](const aspect &Asp) -> bool { return Dev.has(Asp); };
+
   // neither aspect from deny list is allowed
-  for (const aspect &Asp : MDenyList)
-    if (Dev.has(Asp))
-      return -1;
+  if (std::any_of(MDenyList.begin(), MDenyList.end(), DevHas))
+    return -1;
 
   // all aspects from require list are required
-  for (const aspect &Asp : MRequireList)
-    if (!Dev.has(Asp))
-      return -1;
+  if (!std::all_of(MRequireList.begin(), MRequireList.end(), DevHas))
+    return -1;
 
   // SYCL 2020 spec says:
   // > In places where only one device has to be picked and the high score is

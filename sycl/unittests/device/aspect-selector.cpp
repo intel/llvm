@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <CL/sycl/device_selector.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
 #include <gtest/gtest.h>
+
+#include <vector>
 
 using namespace sycl;
 
