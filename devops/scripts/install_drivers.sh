@@ -21,6 +21,7 @@ fi;
 
 InstallTBB () {
   if [ "$TBB_INSTALLED" = false ]; then
+    mkdir -p $INSTALL_LOCATION
     cd $INSTALL_LOCATION
     echo "Installing TBB..."
     echo "TBB version $TBB_TAG"
@@ -54,6 +55,7 @@ InstallIGFX () {
 InstallCPURT () {
   echo "Installing Intel OpenCL CPU Runtime..."
   echo "CPU Runtime version $CPU_TAG"
+  mkdir -p $INSTALL_LOCATION
   cd $INSTALL_LOCATION
   if [ -d "$INSTALL_LOCATION/oclcpu" ]; then
     echo "$INSTALL_LOCATION/oclcpu exists and will be removed!"
@@ -73,12 +75,13 @@ InstallCPURT () {
 InstallFPGAEmu () {
   echo "Installing Intel FPGA Fast Emulator..."
   echo "FPGA Emulator version $FPGA_TAG"
+  mkdir -p $INSTALL_LOCATION
   cd $INSTALL_LOCATION
   if [ -d "$INSTALL_LOCATION/fpgaemu" ]; then
     echo "$INSTALL_LOCATION/fpgaemu exists and will be removed!"
     rm -Rf $INSTALL_LOCATION/oclcpu;
   fi
-  python3 /get_release.py intel/llvm $FPGA_TAG \
+  python3 $LOCATION/get_release.py intel/llvm $FPGA_TAG \
     | grep -E ".*fpgaemu.*tar.gz" \
     | wget -qi - && \
     mkdir fpgaemu && tar -xf *.tar.gz -C fpgaemu && rm *.tar.gz
