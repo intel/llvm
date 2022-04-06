@@ -1115,10 +1115,10 @@ pi_result
 _pi_context::getAvailableCommandList(pi_queue Queue,
                                      pi_command_list_ptr_t &CommandList,
                                      bool UseCopyEngine, bool AllowBatching) {
+
   // Immediate commandlists have been pre-allocated and are always available.
   if (UseImmediateCommandLists) {
-    CommandList =
-        Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
+    CommandList = Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
     return PI_SUCCESS;
   }
 
@@ -1535,9 +1535,9 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
   }
 
   zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
-    "(round robin in [%d, %d])\n",
-    ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
-    UpperIndex);
+          "(round robin in [%d, %d])\n",
+          ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+          UpperIndex);
 
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -1570,9 +1570,9 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
   }
 
   zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
-    "(round robin in [%d, %d])\n",
-    ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
-    UpperIndex);
+          "(round robin in [%d, %d])\n",
+          ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+          UpperIndex);
 
   ze_command_list_handle_t ZeCommandList;
   ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
