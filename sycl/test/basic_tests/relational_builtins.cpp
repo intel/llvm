@@ -69,7 +69,7 @@ void foo() {
   using doublem = marray<double, 2>;
 
   // isequal
-  CHECK(int16_t, bool, isequal, half, half);
+  CHECK(int32_t, bool, isequal, half, half);
   CHECK(int16v, int16v, isequal, halfv, halfv);
   CHECK2020(_, boolm, isequal, halfm, halfm);
 
@@ -82,7 +82,7 @@ void foo() {
   CHECK2020(_, boolm, isequal, doublem, doublem);
 
   // isnotequal
-  CHECK(int16_t, bool, isnotequal, half, half);
+  CHECK(int32_t, bool, isnotequal, half, half);
   CHECK(int16v, int16v, isnotequal, halfv, halfv);
   CHECK2020(_, boolm, isnotequal, halfm, halfm);
 
@@ -95,7 +95,7 @@ void foo() {
   CHECK2020(_, boolm, isnotequal, doublem, doublem);
 
   // isgreater
-  CHECK(int16_t, bool, isgreater, half, half);
+  CHECK(int32_t, bool, isgreater, half, half);
   CHECK(int16v, int16v, isgreater, halfv, halfv);
   CHECK2020(_, boolm, isgreater, halfm, halfm);
 
@@ -108,7 +108,7 @@ void foo() {
   CHECK2020(_, boolm, isgreater, doublem, doublem);
 
   // isgreaterequal
-  CHECK(int16_t, bool, isgreaterequal, half, half);
+  CHECK(int32_t, bool, isgreaterequal, half, half);
   CHECK(int16v, int16v, isgreaterequal, halfv, halfv);
   CHECK2020(_, boolm, isgreaterequal, halfm, halfm);
 
@@ -121,7 +121,7 @@ void foo() {
   CHECK2020(_, boolm, isgreaterequal, doublem, doublem);
 
   // isless
-  CHECK(int16_t, bool, isless, half, half);
+  CHECK(int32_t, bool, isless, half, half);
   CHECK(int16v, int16v, isless, halfv, halfv);
   CHECK2020(_, boolm, isless, halfm, halfm);
 
@@ -134,7 +134,7 @@ void foo() {
   CHECK2020(_, boolm, isless, doublem, doublem);
 
   // islessequal
-  CHECK(int16_t, bool, islessequal, half, half);
+  CHECK(int32_t, bool, islessequal, half, half);
   CHECK(int16v, int16v, islessequal, halfv, halfv);
   CHECK2020(_, boolm, islessequal, halfm, halfm);
 
@@ -147,7 +147,7 @@ void foo() {
   CHECK2020(_, boolm, islessequal, doublem, doublem);
 
   // islessgreater
-  CHECK(int16_t, bool, islessgreater, half, half);
+  CHECK(int32_t, bool, islessgreater, half, half);
   CHECK(int16v, int16v, islessgreater, halfv, halfv);
   CHECK2020(_, boolm, islessgreater, halfm, halfm);
 
@@ -160,7 +160,7 @@ void foo() {
   CHECK2020(_, boolm, islessgreater, doublem, doublem);
 
   // isfinite
-  CHECK(int16_t, bool, isfinite, half);
+  CHECK(int32_t, bool, isfinite, half);
   CHECK(int16v, int16v, isfinite, halfv);
   CHECK2020(_, boolm, isfinite, halfm);
 
@@ -173,7 +173,7 @@ void foo() {
   CHECK2020(_, boolm, isfinite, doublem);
 
   // isinf
-  CHECK(int16_t, bool, isinf, half);
+  CHECK(int32_t, bool, isinf, half);
   CHECK(int16v, int16v, isinf, halfv);
   CHECK2020(_, boolm, isinf, halfm);
 
@@ -186,7 +186,7 @@ void foo() {
   CHECK2020(_, boolm, isinf, doublem);
 
   // isnan
-  CHECK(int16_t, bool, isnan, half);
+  CHECK(int32_t, bool, isnan, half);
   CHECK(int16v, int16v, isnan, halfv);
   CHECK2020(_, boolm, isnan, halfm);
 
@@ -199,7 +199,7 @@ void foo() {
   CHECK2020(_, boolm, isnan, doublem);
 
   // isnormal
-  CHECK(int16_t, bool, isnormal, half);
+  CHECK(int32_t, bool, isnormal, half);
   CHECK(int16v, int16v, isnormal, halfv);
   CHECK2020(_, boolm, isnormal, halfm);
 
@@ -212,7 +212,7 @@ void foo() {
   CHECK2020(_, boolm, isnormal, doublem);
 
   // isordered
-  CHECK(int16_t, bool, isordered, half, half);
+  CHECK(int32_t, bool, isordered, half, half);
   CHECK(int16v, int16v, isordered, halfv, halfv);
   CHECK2020(_, boolm, isordered, halfm, halfm);
 
@@ -225,7 +225,7 @@ void foo() {
   CHECK2020(_, boolm, isordered, doublem, doublem);
 
   // isunordered
-  CHECK(int16_t, bool, isunordered, half, half);
+  CHECK(int32_t, bool, isunordered, half, half);
   CHECK(int16v, int16v, isunordered, halfv, halfv);
   CHECK2020(_, boolm, isunordered, halfm, halfm);
 
@@ -238,7 +238,7 @@ void foo() {
   CHECK2020(_, boolm, isunordered, doublem, doublem);
 
   // signbit
-  CHECK(int16_t, bool, signbit, half);
+  CHECK(int32_t, bool, signbit, half);
   CHECK(int16v, int16v, signbit, halfv);
   CHECK2020(_, boolm, signbit, halfm);
 
