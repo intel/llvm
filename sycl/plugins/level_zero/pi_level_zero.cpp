@@ -3578,8 +3578,6 @@ pi_result piMemGetInfo(pi_mem Mem, pi_mem_info ParamName, size_t ParamValueSize,
 
     return ReturnValue(Size);
   }
-  case PI_MEM_OWN_NATIVE_HANDLE:
-    return ReturnValue(pi_bool{Mem->OwnZeMemHandle});
   default:
     die("piMemGetInfo: Parameter is not implemented");
   }

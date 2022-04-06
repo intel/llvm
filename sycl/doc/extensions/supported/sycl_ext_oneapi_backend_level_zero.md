@@ -427,8 +427,7 @@ A SYCL buffer that is constructed with this interop API uses the Level Zero memo
 
 The behavior of the SYCL buffer destructor depends on the Ownership flag. As with other SYCL buffers, this behavior is triggered only when the last reference count to the buffer is dropped, as described in the core SYCL specification section 4.7.2.3, "Buffer synchronization rules".
 
-* If the ownership is keep (i.e. the application retains ownership of the Level Zero memory allocation), then the SYCL buffer destructor blocks until all work in queues on the buffer have completed. The buffer's contents are written to the Level Zero memory allocation by the time the destructor completes.
-
+* If the ownership is keep (i.e. the application retains ownership of the Level Zero memory allocation), then the SYCL buffer destructor blocks until all work in queues on the buffer have completed.
 * If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory allocation), then the SYCL buffer destructor does not need to block even if work on the buffer has not completed. The SYCL runtime frees the Level Zero memory allocation asynchronously when it is no longer in use in queues.
 
 ## 5 Level-Zero additional functionality

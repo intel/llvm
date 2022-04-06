@@ -17,7 +17,6 @@ piKernelGetGroupInfo
 piKernelGetSubGroupInfo
 piKernelSetExecInfo
 piMemBufferCreate
-piMemGetInfo
 piMemBufferPartition
 piMemImageCreate
 piPlatformsGet

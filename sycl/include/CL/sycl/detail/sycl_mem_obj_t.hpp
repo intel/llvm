@@ -91,7 +91,7 @@ public:
                     std::move(Allocator)) {}
 
   SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
-              bool OwnNativeHandle, event AvailableEvent,
+              bool OwmNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
   virtual ~SYCLMemObjT() = default;
@@ -207,12 +207,6 @@ public:
   }
 
 protected:
-  // Update memory object passed by user to interoperability constructor.
-  // Such update is required if user wants to keep ownership of the native
-  // memory handle and if buffer is used in multiple contexts meaning that the
-  // latest data needs to be copied back to the memory passed by user.
-  void updateInteropMemory();
-
   void updateHostMemory(void *const Ptr);
 
   // Update host with the latest data + notify scheduler that the memory object

@@ -182,12 +182,6 @@ public:
 
   ~buffer_impl() {
     try {
-      // If buffer is created using interoperability constructor we may need to
-      // copy the latest data back to the original location if user preferred to
-      // keep ownership of the native memory handle. Such copy back is needed if
-      // buffer is used in multiple contexts.
-      if (MOpenCLInterop)
-        BaseT::updateInteropMemory();
       BaseT::updateHostMemory();
     } catch (...) {
     }

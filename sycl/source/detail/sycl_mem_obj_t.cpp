@@ -71,39 +71,6 @@ void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
   return MemoryManager::releaseMemObj(Context, this, MemAllocation, Ptr);
 }
 
-void SYCLMemObjT::updateInteropMemory() {
-  const plugin &Plugin = getPlugin();
-
-  // Control of the native memory handle ownership is available only for the
-  // Level Zero backend. Do nothing if backend is not Level Zero.
-  if (Plugin.getBackend() != backend::level_zero)
-    return;
-
-  pi_bool OwnNativeHandle;
-  Plugin.call<PiApiKind::piMemGetInfo>(
-      MInteropMemObject, PI_MEM_OWN_NATIVE_HANDLE, sizeof(pi_bool),
-      &OwnNativeHandle, nullptr);
-
-  // Don't copy if runtime owns native handle.
-  if (OwnNativeHandle)
-    return;
-
-  const id<3> Offset{0, 0, 0};
-  const range<3> AccessRange{MSizeInBytes, 1, 1};
-  const range<3> MemoryRange{MSizeInBytes, 1, 1};
-  const access::mode AccessMode = access::mode::read;
-  SYCLMemObjI *SYCLMemObject = this;
-  const int Dims = 1;
-  const int ElemSize = 1;
-
-  Requirement Req(Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject,
-                  Dims, ElemSize);
-
-  EventImplPtr Event = Scheduler::getInstance().updateInteropMemory(&Req);
-  if (Event)
-    Event->wait(Event);
-}
-
 void SYCLMemObjT::updateHostMemory(void *const Ptr) {
   const id<3> Offset{0, 0, 0};
   const range<3> AccessRange{MSizeInBytes, 1, 1};
@@ -133,7 +100,8 @@ void SYCLMemObjT::updateHostMemory() {
   releaseHostMem(MShadowCopy);
 
   if (MOpenCLInterop) {
-    getPlugin().call<PiApiKind::piMemRelease>(
+    const plugin &Plugin = getPlugin();
+    Plugin.call<PiApiKind::piMemRelease>(
         pi::cast<RT::PiMem>(MInteropMemObject));
   }
 }
