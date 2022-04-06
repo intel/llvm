@@ -215,7 +215,7 @@ data to the host to access the data. Users can get type of the allocation using 
 
 ``` C++
     Queue.submit([&](handler &CGH) {
-        auto BufferAcc = BufferInterop.get_access<access::mode::write>(CGH);
+        auto BufferAcc = Buffer.get_access<access::mode::write>(CGH);
         CGH.host_task([=](const interop_handle &IH) {
             void *DevicePtr =
                 IH.get_native_mem<backend::ext_oneapi_level_zero>(BufferAcc);
