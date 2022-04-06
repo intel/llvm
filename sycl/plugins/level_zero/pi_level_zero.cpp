@@ -5247,7 +5247,8 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
     // NOTE: that this needs to be done only once for an event so
     // this is guarded with the CleanedUp flag.
     //
-    PI_CALL(EventRelease(this, LockedQueue));
+    if (RefCount > 0)
+      PI_CALL(EventRelease(this, LockedQueue));
   }
 
   // Make a list of all the dependent events that must have signalled
