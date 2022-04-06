@@ -106,7 +106,7 @@ Parser::ParseStatementOrDeclaration(StmtVector &Stmts,
   // at the start of the statement. Thus, we're not using MaybeParseAttributes
   // here because we don't want to allow arbitrary orderings.
   ParsedAttributesWithRange Attrs(AttrFactory);
-  MaybeParseCXX11Attributes(Attrs, nullptr, /*MightBeObjCMessageSend*/ true);
+  MaybeParseCXX11Attributes(Attrs, /*MightBeObjCMessageSend*/ true);
   if (getLangOpts().OpenCL)
     MaybeParseGNUAttributes(Attrs);
 
@@ -1119,8 +1119,7 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
         ConsumeToken();
 
       ParsedAttributesWithRange attrs(AttrFactory);
-      MaybeParseCXX11Attributes(attrs, nullptr,
-                                /*MightBeObjCMessageSend*/ true);
+      MaybeParseCXX11Attributes(attrs, /*MightBeObjCMessageSend*/ true);
 
       // If this is the start of a declaration, parse it as such.
       if (isDeclarationStatement()) {
@@ -1153,6 +1152,16 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
     if (R.isUsable())
       Stmts.push_back(R.get());
   }
+  // Warn the user that using option `-ffp-eval-method=source` on a
+  // 32-bit target and feature `sse` disabled, or using
+  // `pragma clang fp eval_method=source` and feature `sse` disabled, is not
+  // supported.
+  if (!PP.getTargetInfo().supportSourceEvalMethod() &&
+      (PP.getLastFPEvalPragmaLocation().isValid() ||
+       PP.getCurrentFPEvalMethod() ==
+           LangOptions::FPEvalMethodKind::FEM_Source))
+    Diag(Tok.getLocation(),
+         diag::warn_no_support_for_eval_method_source_on_m32);
 
   SourceLocation CloseLoc = Tok.getLocation();
 

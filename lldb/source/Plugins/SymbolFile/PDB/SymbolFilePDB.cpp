@@ -28,6 +28,7 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegularExpression.h"
 
+#include "llvm/DebugInfo/PDB/ConcreteSymbolEnumerator.h"
 #include "llvm/DebugInfo/PDB/GenericError.h"
 #include "llvm/DebugInfo/PDB/IPDBDataStream.h"
 #include "llvm/DebugInfo/PDB/IPDBEnumChildren.h"
@@ -45,7 +46,9 @@
 #include "llvm/DebugInfo/PDB/PDBSymbolFuncDebugEnd.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolFuncDebugStart.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolPublicSymbol.h"
+#include "llvm/DebugInfo/PDB/PDBSymbolTypeBuiltin.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeEnum.h"
+#include "llvm/DebugInfo/PDB/PDBSymbolTypeFunctionSig.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeTypedef.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeUDT.h"
 
@@ -74,6 +77,8 @@ lldb::LanguageType TranslateLanguage(PDB_Lang lang) {
     return lldb::LanguageType::eLanguageTypeC;
   case PDB_Lang::Swift:
     return lldb::LanguageType::eLanguageTypeSwift;
+  case PDB_Lang::Rust:
+    return lldb::LanguageType::eLanguageTypeRust;
   default:
     return lldb::LanguageType::eLanguageTypeUnknown;
   }

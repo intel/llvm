@@ -420,6 +420,15 @@ template <class To, class From> inline To cast(From value) {
   return (To)(value);
 }
 
+// Cast for std::vector<cl_event>, according to the spec, make_event
+// should create one(?) event from a vector of cl_event
+template <class To> inline To cast(std::vector<cl_event> value) {
+  RT::assertion(value.size() == 1,
+                "Temporary workaround requires that the "
+                "size of the input vector for make_event be equal to one.");
+  return (To)(value[0]);
+}
+
 // These conversions should use PI interop API.
 template <> inline pi::PiProgram cast(cl_program) {
   RT::assertion(false, "pi::cast -> use piextCreateProgramWithNativeHandle");

@@ -6,22 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 #include "Annotations.h"
-#include "Compiler.h"
-#include "Matchers.h"
+#include "AST.h"
 #include "ParsedAST.h"
 #include "Protocol.h"
 #include "SourceCode.h"
 #include "SyncAPI.h"
 #include "TestFS.h"
-#include "TestIndex.h"
 #include "TestTU.h"
 #include "XRefs.h"
-#include "index/FileIndex.h"
 #include "index/MemIndex.h"
-#include "index/SymbolCollector.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/SourceLocation.h"
-#include "clang/Index/IndexingAction.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
@@ -813,6 +808,12 @@ TEST(LocateSymbol, All) {
           static Bar x;
           return x;
         }
+      )cpp",
+
+      R"cpp(// auto lambda param where there's a single instantiation
+        struct [[Bar]] {};
+        auto Lambda = [](^auto){ return 0; };
+        int x = Lambda(Bar{});
       )cpp",
 
       R"cpp(// decltype(auto) in function return

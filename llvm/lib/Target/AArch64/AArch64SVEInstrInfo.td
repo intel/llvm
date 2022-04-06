@@ -244,6 +244,14 @@ def AArch64fmul_m1 : EitherVSelectOrPassthruPatFrags<int_aarch64_sve_fmul, AArch
 def AArch64fadd_m1 : EitherVSelectOrPassthruPatFrags<int_aarch64_sve_fadd, AArch64fadd_p>;
 def AArch64fsub_m1 : EitherVSelectOrPassthruPatFrags<int_aarch64_sve_fsub, AArch64fsub_p>;
 
+def AArch64saba : PatFrags<(ops node:$op1, node:$op2, node:$op3),
+                           [(int_aarch64_sve_saba node:$op1, node:$op2, node:$op3),
+                            (add node:$op1, (AArch64sabd_p (SVEAllActive), node:$op2, node:$op3))]>;
+
+def AArch64uaba : PatFrags<(ops node:$op1, node:$op2, node:$op3),
+                           [(int_aarch64_sve_uaba node:$op1, node:$op2, node:$op3),
+                            (add node:$op1, (AArch64uabd_p (SVEAllActive), node:$op2, node:$op3))]>;
+
 def SDT_AArch64FCVT : SDTypeProfile<1, 3, [
   SDTCisVec<0>, SDTCisVec<1>, SDTCisVec<2>, SDTCisVec<3>,
   SDTCVecEltisVT<1,i1>
@@ -283,6 +291,11 @@ def AArch64mul_p_oneuse : PatFrag<(ops node:$pred, node:$src1, node:$src2),
 
 def AArch64fabd_p : PatFrag<(ops node:$pg, node:$op1, node:$op2),
                             (AArch64fabs_mt node:$pg, (AArch64fsub_p node:$pg, node:$op1, node:$op2), undef)>;
+
+// FMAs with a negated multiplication operand can be commuted.
+def AArch64fmls_p : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
+                          [(AArch64fma_p node:$pred, (AArch64fneg_mt node:$pred, node:$op1, (undef)), node:$op2, node:$op3),
+                           (AArch64fma_p node:$pred, node:$op2, (AArch64fneg_mt node:$pred, node:$op1, (undef)), node:$op3)]>;
 
 def AArch64fneg_mt_nsz : PatFrag<(ops node:$pred, node:$op, node:$pt),
                                  (AArch64fneg_mt node:$pred, node:$op, node:$pt), [{
@@ -544,7 +557,7 @@ let Predicates = [HasSVEorStreamingSVE] in {
               (!cast<Instruction>("FMLA_ZPZZZ_UNDEF_"#Suffix) $P, ZPR:$Za, ZPR:$Zn, ZPR:$Zm)>;
 
     // Zd = Za + -Zn * Zm
-    def : Pat<(Ty (AArch64fma_p PredTy:$P, (AArch64fneg_mt PredTy:$P, Ty:$Zn, (Ty (undef))), Ty:$Zm, Ty:$Za)),
+    def : Pat<(Ty (AArch64fmls_p PredTy:$P, Ty:$Zn, Ty:$Zm, Ty:$Za)),
               (!cast<Instruction>("FMLS_ZPZZZ_UNDEF_"#Suffix) $P, ZPR:$Za, ZPR:$Zn, ZPR:$Zm)>;
 
     // Zd = -Za + Zn * Zm
@@ -634,6 +647,10 @@ let Predicates = [HasSVEorStreamingSVE] in {
             (DUP_ZZI_D (INSERT_SUBREG (IMPLICIT_DEF), FPR64:$src, dsub), 0)>;
   def : Pat<(nxv8bf16 (AArch64dup (bf16 FPR16:$src))),
             (DUP_ZZI_H (INSERT_SUBREG (IMPLICIT_DEF), FPR16:$src, hsub), 0)>;
+  def : Pat<(nxv4bf16 (AArch64dup (bf16 FPR16:$src))),
+            (DUP_ZZI_H (INSERT_SUBREG (IMPLICIT_DEF), FPR16:$src, hsub), 0)>;
+  def : Pat<(nxv2bf16 (AArch64dup (bf16 FPR16:$src))),
+            (DUP_ZZI_H (INSERT_SUBREG (IMPLICIT_DEF), FPR16:$src, hsub), 0)>;
 
   // Duplicate +0.0 into all vector elements
   def : Pat<(nxv8f16 (AArch64dup (f16 fpimm0))), (DUP_ZI_H 0, 0)>;
@@ -643,15 +660,17 @@ let Predicates = [HasSVEorStreamingSVE] in {
   def : Pat<(nxv2f32 (AArch64dup (f32 fpimm0))), (DUP_ZI_S 0, 0)>;
   def : Pat<(nxv2f64 (AArch64dup (f64 fpimm0))), (DUP_ZI_D 0, 0)>;
   def : Pat<(nxv8bf16 (AArch64dup (bf16 fpimm0))), (DUP_ZI_H 0, 0)>;
+  def : Pat<(nxv4bf16 (AArch64dup (bf16 fpimm0))), (DUP_ZI_H 0, 0)>;
+  def : Pat<(nxv2bf16 (AArch64dup (bf16 fpimm0))), (DUP_ZI_H 0, 0)>;
 
   // Duplicate Int immediate into all vector elements
-  def : Pat<(nxv16i8 (AArch64dup (i32 (SVE8BitLslImm32 i32:$a, i32:$b)))),
+  def : Pat<(nxv16i8 (AArch64dup (i32 (SVECpyDupImm8Pat i32:$a, i32:$b)))),
             (DUP_ZI_B $a, $b)>;
-  def : Pat<(nxv8i16 (AArch64dup (i32 (SVE8BitLslImm32 i32:$a, i32:$b)))),
+  def : Pat<(nxv8i16 (AArch64dup (i32 (SVECpyDupImm16Pat i32:$a, i32:$b)))),
             (DUP_ZI_H $a, $b)>;
-  def : Pat<(nxv4i32 (AArch64dup (i32 (SVE8BitLslImm32 i32:$a, i32:$b)))),
+  def : Pat<(nxv4i32 (AArch64dup (i32 (SVECpyDupImm32Pat i32:$a, i32:$b)))),
             (DUP_ZI_S $a, $b)>;
-  def : Pat<(nxv2i64 (AArch64dup (i64 (SVE8BitLslImm64 i32:$a, i32:$b)))),
+  def : Pat<(nxv2i64 (AArch64dup (i64 (SVECpyDupImm64Pat i32:$a, i32:$b)))),
             (DUP_ZI_D $a, $b)>;
 
   // Duplicate immediate FP into all vector elements.
@@ -2970,8 +2989,8 @@ let Predicates = [HasSVE2orStreamingSVE] in {
   defm SQCADD_ZZI : sve2_int_cadd<0b1, "sqcadd", int_aarch64_sve_sqcadd_x>;
 
   // SVE2 integer absolute difference and accumulate
-  defm SABA_ZZZ : sve2_int_absdiff_accum<0b0, "saba", int_aarch64_sve_saba>;
-  defm UABA_ZZZ : sve2_int_absdiff_accum<0b1, "uaba", int_aarch64_sve_uaba>;
+  defm SABA_ZZZ : sve2_int_absdiff_accum<0b0, "saba", AArch64saba>;
+  defm UABA_ZZZ : sve2_int_absdiff_accum<0b1, "uaba", AArch64uaba>;
 
   // SVE2 integer absolute difference and accumulate long
   defm SABALB_ZZZ : sve2_int_absdiff_accum_long<0b00, "sabalb", int_aarch64_sve_sabalb>;

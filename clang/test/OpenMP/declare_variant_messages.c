@@ -1,6 +1,5 @@
-// RUN: %clang_cc1 -triple=x86_64-pc-win32 -verify -fopenmp -x c -std=c99 -fms-extensions -Wno-pragma-pack %s
-
-// RUN: %clang_cc1 -triple=x86_64-pc-win32 -verify -fopenmp-simd -x c -std=c99 -fms-extensions -Wno-pragma-pack %s
+// RUN: %clang_cc1 -triple=x86_64-pc-win32 -verify -fopenmp -std=c99 -fms-extensions -Wno-pragma-pack -Wno-strict-prototypes %s
+// RUN: %clang_cc1 -triple=x86_64-pc-win32 -verify -fopenmp-simd -std=c99 -fms-extensions -Wno-pragma-pack -Wno-strict-prototypes %s
 
 
 #pragma omp declare // expected-error {{expected an OpenMP directive}}
@@ -113,6 +112,15 @@ int bar(void) {
   return after_use();
 }
 
+// expected-error@+1 {{variant in '#pragma omp declare variant' is the same as the base function}}
+#pragma omp declare variant (self) \
+  match(construct={dispatch}, device={arch(arm)})
+void self(int n);
+
+void self_test(int n, int d_no) {
+  #pragma omp dispatch device(d_no) nowait
+  self(n);
+}
 
 #pragma omp declare variant(after_use_variant) match(xxx={}) // expected-warning {{'xxx' is not a valid context set in a `declare variant`; set ignored}} expected-warning {{'#pragma omp declare variant' cannot be applied for function after first usage; the original function might be used}} expected-note {{context set options are: 'construct' 'device' 'implementation' 'user'}} expected-note {{the ignored set spans until here}}
 int after_use(void);

@@ -230,7 +230,9 @@ func @test_string_with_shape(%len: index, %nelems: index) {
 // CHECK-LABEL: llvm.func @test_string_with_shape
 // CHECK-SAME: %[[LEN:.*]]: i64, %[[NELEMS:.*]]: i64)
 // CHECK:   %[[ONE:.*]] = llvm.mlir.constant(1 : i64) : i64
-// CHECK:   %[[LEN_SIZE:.*]] = llvm.mul %[[ONE]], %[[LEN]]  : i64
+// CHECK:   %[[ONE2:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK:   %[[MUL1:.*]] = llvm.mul %[[ONE]], %[[ONE2]]  : i64
+// CHECK:   %[[LEN_SIZE:.*]] = llvm.mul %[[MUL1]], %[[LEN]]  : i64
 // CHECK:   %[[TOTAL_SIZE:.*]] = llvm.mul %[[LEN_SIZE]], %[[NELEMS]]  : i64
 // CHECK:   %[[MEM:.*]] = llvm.call @malloc(%[[TOTAL_SIZE]])
 // CHECK:   %[[B1:.*]] = llvm.bitcast %[[MEM]] : !llvm.ptr<i8> to !llvm.ptr<i8>
@@ -1286,7 +1288,8 @@ func @select_case_logical(%arg0: !fir.ref<!fir.logical<4>>) {
 // CHECK-LABEL: llvm.func @select_case_logical(
 // CHECK-SAME:                                 %[[ARG0:.*]]: !llvm.ptr<i32>
 // CHECK:         %[[LOAD_ARG0:.*]] = llvm.load %[[ARG0]] : !llvm.ptr<i32>
-// CHECK:         %[[SELECT_VALUE:.*]] = llvm.trunc %[[LOAD_ARG0]] : i32 to i1
+// CHECK:         %[[CST_ZERO:.*]] = llvm.mlir.constant(0 : i64) : i32
+// CHECK:         %[[SELECT_VALUE:.*]] = llvm.icmp "ne" %[[LOAD_ARG0]], %[[CST_ZERO]] : i32
 // CHECK:         %[[CST_FALSE:.*]] = llvm.mlir.constant(false) : i1
 // CHECK:         %[[CST_TRUE:.*]] = llvm.mlir.constant(true) : i1
 // CHECK:         %[[CMPEQ:.*]] = llvm.icmp "eq" %[[SELECT_VALUE]], %[[CST_FALSE]] : i1
@@ -1616,12 +1619,14 @@ func @embox_typecode4(%arg0: !fir.ref<!fir.logical<1>>) {
 // to 1 meaning the addendum is present (true) and the addendum values are
 // inserted.
 
+fir.global linkonce @_QMtest_dinitE.dt.tseq constant : i8
+
 func @embox1(%arg0: !fir.ref<!fir.type<_QMtest_dinitTtseq{i:i32}>>) {
   %0 = fir.embox %arg0() : (!fir.ref<!fir.type<_QMtest_dinitTtseq{i:i32}>>) -> !fir.box<!fir.type<_QMtest_dinitTtseq{i:i32}>>
   return
 }
 
-// CHECK: llvm.mlir.global extern_weak @_QMtest_dinitE.dt.tseq() : i8
+// CHECK: llvm.mlir.global linkonce constant @_QMtest_dinitE.dt.tseq() : i8
 // CHECK-LABEL: llvm.func @embox1
 // CHECK:         %[[TYPE_CODE:.*]] = llvm.mlir.constant(42 : i32) : i32
 // CHECK:         %[[TYPE_CODE_I8:.*]] = llvm.trunc %[[TYPE_CODE]] : i32 to i8

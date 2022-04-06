@@ -1703,7 +1703,7 @@ bool ARMBaseInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   // or some other super-register.
   int ImpDefIdx = MI.findRegisterDefOperandIdx(DstRegD);
   if (ImpDefIdx != -1)
-    MI.RemoveOperand(ImpDefIdx);
+    MI.removeOperand(ImpDefIdx);
 
   // Change the opcode and operands.
   MI.setDesc(get(ARM::VMOVD));
@@ -2598,7 +2598,7 @@ bool llvm::tryFoldSPUpdateIntoPushPop(const ARMSubtarget &Subtarget,
   // ahead: strip all existing registers off and add them back again
   // in the right order.
   for (int i = MI->getNumOperands() - 1; i >= RegListIdx; --i)
-    MI->RemoveOperand(i);
+    MI->removeOperand(i);
 
   // Add the complete list back in.
   MachineInstrBuilder MIB(MF, &*MI);
@@ -2626,7 +2626,7 @@ bool llvm::rewriteARMFrameIndex(MachineInstr &MI, unsigned FrameRegIdx,
       // Turn it into a move.
       MI.setDesc(TII.get(ARM::MOVr));
       MI.getOperand(FrameRegIdx).ChangeToRegister(FrameReg, false);
-      MI.RemoveOperand(FrameRegIdx+1);
+      MI.removeOperand(FrameRegIdx+1);
       Offset = 0;
       return true;
     } else if (Offset < 0) {
@@ -5103,7 +5103,7 @@ void ARMBaseInstrInfo::setExecutionDomain(MachineInstr &MI,
     SrcReg = MI.getOperand(1).getReg();
 
     for (unsigned i = MI.getDesc().getNumOperands(); i; --i)
-      MI.RemoveOperand(i - 1);
+      MI.removeOperand(i - 1);
 
     // Change to a %DDst = VORRd %DSrc, %DSrc, 14, %noreg (; implicits)
     MI.setDesc(get(ARM::VORRd));
@@ -5122,7 +5122,7 @@ void ARMBaseInstrInfo::setExecutionDomain(MachineInstr &MI,
     SrcReg = MI.getOperand(1).getReg();
 
     for (unsigned i = MI.getDesc().getNumOperands(); i; --i)
-      MI.RemoveOperand(i - 1);
+      MI.removeOperand(i - 1);
 
     DReg = getCorrespondingDRegAndLane(TRI, SrcReg, Lane);
 
@@ -5155,7 +5155,7 @@ void ARMBaseInstrInfo::setExecutionDomain(MachineInstr &MI,
       break;
 
     for (unsigned i = MI.getDesc().getNumOperands(); i; --i)
-      MI.RemoveOperand(i - 1);
+      MI.removeOperand(i - 1);
 
     // Convert to %DDst = VSETLNi32 %DDst, %RSrc, Lane, 14, %noreg (; imps)
     // Again DDst may be undefined at the beginning of this instruction.
@@ -5190,7 +5190,7 @@ void ARMBaseInstrInfo::setExecutionDomain(MachineInstr &MI,
         break;
 
       for (unsigned i = MI.getDesc().getNumOperands(); i; --i)
-        MI.RemoveOperand(i - 1);
+        MI.removeOperand(i - 1);
 
       if (DSrc == DDst) {
         // Destination can be:
@@ -5766,26 +5766,25 @@ struct OutlinerCosts {
         SaveRestoreLROnStack(target.isThumb() ? 8 : 8) {}
 };
 
-unsigned
-ARMBaseInstrInfo::findRegisterToSaveLRTo(const outliner::Candidate &C) const {
-  assert(C.LRUWasSet && "LRU wasn't set?");
+Register
+ARMBaseInstrInfo::findRegisterToSaveLRTo(outliner::Candidate &C) const {
   MachineFunction *MF = C.getMF();
-  const ARMBaseRegisterInfo *ARI = static_cast<const ARMBaseRegisterInfo *>(
-      MF->getSubtarget().getRegisterInfo());
+  const TargetRegisterInfo &TRI = *MF->getSubtarget().getRegisterInfo();
+  const ARMBaseRegisterInfo *ARI =
+      static_cast<const ARMBaseRegisterInfo *>(&TRI);
 
   BitVector regsReserved = ARI->getReservedRegs(*MF);
   // Check if there is an available register across the sequence that we can
   // use.
-  for (unsigned Reg : ARM::rGPRRegClass) {
+  for (Register Reg : ARM::rGPRRegClass) {
     if (!(Reg < regsReserved.size() && regsReserved.test(Reg)) &&
         Reg != ARM::LR &&  // LR is not reserved, but don't use it.
         Reg != ARM::R12 && // R12 is not guaranteed to be preserved.
-        C.LRU.available(Reg) && C.UsedInSequence.available(Reg))
+        C.isAvailableAcrossAndOutOfSeq(Reg, TRI) &&
+        C.isAvailableInsideSeq(Reg, TRI))
       return Reg;
   }
-
-  // No suitable register. Return 0.
-  return 0u;
+  return Register();
 }
 
 // Compute liveness of LR at the point after the interval [I, E), which
@@ -5854,9 +5853,7 @@ outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
     // to compute liveness here.
     if (C.Flags & UnsafeRegsDead)
       return false;
-    C.initLRU(TRI);
-    LiveRegUnits LRU = C.LRU;
-    return (!LRU.available(ARM::R12) || !LRU.available(ARM::CPSR));
+    return C.isAnyUnavailableAcrossOrOutOfSeq({ARM::R12, ARM::CPSR}, TRI);
   };
 
   // Are there any candidates where those registers are live?
@@ -5969,7 +5966,6 @@ outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
     std::vector<outliner::Candidate> CandidatesWithoutStackFixups;
 
     for (outliner::Candidate &C : RepeatedSequenceLocs) {
-      C.initLRU(TRI);
       // LR liveness is overestimated in return blocks, unless they end with a
       // tail call.
       const auto Last = C.getMBB()->rbegin();
@@ -5977,7 +5973,7 @@ outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
           C.getMBB()->isReturnBlock() && !Last->isCall()
               ? isLRAvailable(TRI, Last,
                               (MachineBasicBlock::reverse_iterator)C.front())
-              : C.LRU.available(ARM::LR);
+              : C.isAvailableAcrossAndOutOfSeq(ARM::LR, TRI);
       if (LRIsAvailable) {
         FrameID = MachineOutlinerNoLRSave;
         NumBytesNoStackCalls += Costs.CallNoLRSave;
@@ -5996,7 +5992,7 @@ outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
 
       // Is SP used in the sequence at all? If not, we don't have to modify
       // the stack, so we are guaranteed to get the same frame.
-      else if (C.UsedInSequence.available(ARM::SP)) {
+      else if (C.isAvailableInsideSeq(ARM::SP, TRI)) {
         NumBytesNoStackCalls += Costs.CallDefault;
         C.setCallInfo(MachineOutlinerDefault, Costs.CallDefault);
         CandidatesWithoutStackFixups.push_back(C);
@@ -6635,7 +6631,7 @@ void ARMBaseInstrInfo::buildOutlinedFrame(
 
 MachineBasicBlock::iterator ARMBaseInstrInfo::insertOutlinedCall(
     Module &M, MachineBasicBlock &MBB, MachineBasicBlock::iterator &It,
-    MachineFunction &MF, const outliner::Candidate &C) const {
+    MachineFunction &MF, outliner::Candidate &C) const {
   MachineInstrBuilder MIB;
   MachineBasicBlock::iterator CallPt;
   unsigned Opc;
@@ -6725,4 +6721,3 @@ unsigned llvm::getBLXpredOpcode(const MachineFunction &MF) {
   return (MF.getSubtarget<ARMSubtarget>().hardenSlsBlr()) ? ARM::BLX_pred_noip
                                                           : ARM::BLX_pred;
 }
-

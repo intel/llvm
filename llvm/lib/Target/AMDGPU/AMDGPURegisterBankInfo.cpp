@@ -76,10 +76,11 @@
 #include "GCNSubtarget.h"
 #include "SIMachineFunctionInfo.h"
 #include "SIRegisterInfo.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBank.h"
+#include "llvm/CodeGen/RegisterBank.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 
 #define GET_TARGET_REGBANK_IMPL
@@ -1789,7 +1790,7 @@ bool AMDGPURegisterBankInfo::buildVCopy(MachineIRBuilder &B, Register DstReg,
 }
 
 /// Utility function for pushing dynamic vector indexes with a constant offset
-/// into waterwall loops.
+/// into waterfall loops.
 static void reinsertVectorIndexAdd(MachineIRBuilder &B,
                                    MachineInstr &IdxUseInstr,
                                    unsigned OpIdx,
@@ -4339,6 +4340,8 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_flat_atomic_fadd:
     case Intrinsic::amdgcn_flat_atomic_fmin:
     case Intrinsic::amdgcn_flat_atomic_fmax:
+    case Intrinsic::amdgcn_global_atomic_fadd_v2bf16:
+    case Intrinsic::amdgcn_flat_atomic_fadd_v2bf16:
       return getDefaultMappingAllVGPR(MI);
     case Intrinsic::amdgcn_ds_ordered_add:
     case Intrinsic::amdgcn_ds_ordered_swap: {
@@ -4570,6 +4573,9 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     OpdsMapping[0] = AMDGPU::getValueMapping(Bank, 1);
     break;
   }
+  case AMDGPU::G_FPTRUNC_ROUND_UPWARD:
+  case AMDGPU::G_FPTRUNC_ROUND_DOWNWARD:
+    return getDefaultMappingVOP(MI);
   }
 
   return getInstructionMapping(/*ID*/1, /*Cost*/1,

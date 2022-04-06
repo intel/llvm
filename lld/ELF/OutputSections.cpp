@@ -8,6 +8,7 @@
 
 #include "OutputSections.h"
 #include "Config.h"
+#include "InputFiles.h"
 #include "LinkerScript.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
@@ -67,8 +68,7 @@ void OutputSection::writeHeaderTo(typename ELFT::Shdr *shdr) {
 }
 
 OutputSection::OutputSection(StringRef name, uint32_t type, uint64_t flags)
-    : SectionCommand(OutputSectionKind),
-      SectionBase(Output, name, flags, /*Entsize*/ 0, /*Alignment*/ 1, type,
+    : SectionBase(Output, name, flags, /*Entsize*/ 0, /*Alignment*/ 1, type,
                   /*Info*/ 0, /*Link*/ 0) {}
 
 // We allow sections of types listed below to merged into a
@@ -108,32 +108,39 @@ void OutputSection::recordSection(InputSectionBase *isec) {
 // isec. Also check whether the InputSection flags and type are consistent with
 // other InputSections.
 void OutputSection::commitSection(InputSection *isec) {
+  if (LLVM_UNLIKELY(type != isec->type)) {
+    if (hasInputSections || typeIsSet) {
+      if (typeIsSet || !canMergeToProgbits(type) ||
+          !canMergeToProgbits(isec->type)) {
+        // Changing the type of a (NOLOAD) section is fishy, but some projects
+        // (e.g. https://github.com/ClangBuiltLinux/linux/issues/1597)
+        // traditionally rely on the behavior. Issue a warning to not break
+        // them. Other types get an error.
+        auto diagnose = type == SHT_NOBITS ? warn : errorOrWarn;
+        diagnose("section type mismatch for " + isec->name + "\n>>> " +
+                 toString(isec) + ": " +
+                 getELFSectionTypeName(config->emachine, isec->type) +
+                 "\n>>> output section " + name + ": " +
+                 getELFSectionTypeName(config->emachine, type));
+      }
+      type = SHT_PROGBITS;
+    } else {
+      type = isec->type;
+    }
+  }
   if (!hasInputSections) {
     // If IS is the first section to be added to this section,
     // initialize type, entsize and flags from isec.
     hasInputSections = true;
-    type = isec->type;
     entsize = isec->entsize;
     flags = isec->flags;
   } else {
     // Otherwise, check if new type or flags are compatible with existing ones.
     if ((flags ^ isec->flags) & SHF_TLS)
-      error("incompatible section flags for " + name + "\n>>> " + toString(isec) +
-            ": 0x" + utohexstr(isec->flags) + "\n>>> output section " + name +
-            ": 0x" + utohexstr(flags));
-
-    if (type != isec->type) {
-      if (!canMergeToProgbits(type) || !canMergeToProgbits(isec->type))
-        error("section type mismatch for " + isec->name + "\n>>> " +
-              toString(isec) + ": " +
-              getELFSectionTypeName(config->emachine, isec->type) +
-              "\n>>> output section " + name + ": " +
-              getELFSectionTypeName(config->emachine, type));
-      type = SHT_PROGBITS;
-    }
+      error("incompatible section flags for " + name + "\n>>> " +
+            toString(isec) + ": 0x" + utohexstr(isec->flags) +
+            "\n>>> output section " + name + ": 0x" + utohexstr(flags));
   }
-  if (noload)
-    type = SHT_NOBITS;
 
   isec->parent = this;
   uint64_t andMask =
@@ -241,10 +248,6 @@ uint64_t elf::getHeaderSize() {
   if (config->oFormatBinary)
     return 0;
   return Out::elfHeader->size + Out::programHeaders->size;
-}
-
-bool OutputSection::classof(const SectionCommand *c) {
-  return c->kind == OutputSectionKind;
 }
 
 void OutputSection::sort(llvm::function_ref<int(InputSectionBase *s)> order) {
@@ -423,7 +426,10 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *buf) {
 
   parallelForEachN(0, sections.size(), [&](size_t i) {
     InputSection *isec = sections[i];
-    isec->writeTo<ELFT>(buf + isec->outSecOff);
+    if (auto *s = dyn_cast<SyntheticSection>(isec))
+      s->writeTo(buf + isec->outSecOff);
+    else
+      isec->writeTo<ELFT>(buf + isec->outSecOff);
 
     // Fill gaps between sections.
     if (nonZeroFiller) {
@@ -448,13 +454,13 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *buf) {
       writeInt(buf + data->offset, data->expression().getValue(), data->size);
 }
 
-static void finalizeShtGroup(OutputSection *os,
-                             InputSection *section) {
-  assert(config->relocatable);
-
+static void finalizeShtGroup(OutputSection *os, InputSection *section) {
   // sh_link field for SHT_GROUP sections should contain the section index of
   // the symbol table.
   os->link = in.symTab->getParent()->sectionIndex;
+
+  if (!section)
+    return;
 
   // sh_info then contain index of an entry in symbol table section which
   // provides signature of the section group.

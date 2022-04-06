@@ -19,7 +19,9 @@
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/CodeGen/LiveIntervals.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineDominators.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 
 using namespace llvm;
@@ -357,7 +359,7 @@ SIRegisterInfo::SIRegisterInfo(const GCNSubtarget &ST)
   static auto InitializeSubRegFromChannelTableOnce = [this]() {
     for (auto &Row : SubRegFromChannelTable)
       Row.fill(AMDGPU::NoSubRegister);
-    for (uint16_t Idx = 1; Idx < getNumSubRegIndices(); ++Idx) {
+    for (unsigned Idx = 1; Idx < getNumSubRegIndices(); ++Idx) {
       unsigned Width = AMDGPUSubRegIdxRanges[Idx].Size / 32;
       unsigned Offset = AMDGPUSubRegIdxRanges[Idx].Offset / 32;
       assert(Width < SubRegFromChannelTableWidthMap.size());
@@ -392,13 +394,11 @@ const MCPhysReg *SIRegisterInfo::getCalleeSavedRegs(
   case CallingConv::C:
   case CallingConv::Fast:
   case CallingConv::Cold:
-    return MF->getSubtarget<GCNSubtarget>().hasGFX90AInsts()
-        ? CSR_AMDGPU_HighRegs_With_AGPRs_SaveList
-        : CSR_AMDGPU_HighRegs_SaveList;
+    return ST.hasGFX90AInsts() ? CSR_AMDGPU_HighRegs_With_AGPRs_SaveList
+                               : CSR_AMDGPU_HighRegs_SaveList;
   case CallingConv::AMDGPU_Gfx:
-    return MF->getSubtarget<GCNSubtarget>().hasGFX90AInsts()
-               ? CSR_AMDGPU_SI_Gfx_With_AGPRs_SaveList
-               : CSR_AMDGPU_SI_Gfx_SaveList;
+    return ST.hasGFX90AInsts() ? CSR_AMDGPU_SI_Gfx_With_AGPRs_SaveList
+                               : CSR_AMDGPU_SI_Gfx_SaveList;
   default: {
     // Dummy to not crash RegisterClassInfo.
     static const MCPhysReg NoCalleeSavedReg = AMDGPU::NoRegister;
@@ -418,13 +418,11 @@ const uint32_t *SIRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
   case CallingConv::C:
   case CallingConv::Fast:
   case CallingConv::Cold:
-    return MF.getSubtarget<GCNSubtarget>().hasGFX90AInsts()
-        ? CSR_AMDGPU_HighRegs_With_AGPRs_RegMask
-        : CSR_AMDGPU_HighRegs_RegMask;
+    return ST.hasGFX90AInsts() ? CSR_AMDGPU_HighRegs_With_AGPRs_RegMask
+                               : CSR_AMDGPU_HighRegs_RegMask;
   case CallingConv::AMDGPU_Gfx:
-    return MF.getSubtarget<GCNSubtarget>().hasGFX90AInsts()
-               ? CSR_AMDGPU_SI_Gfx_With_AGPRs_RegMask
-               : CSR_AMDGPU_SI_Gfx_RegMask;
+    return ST.hasGFX90AInsts() ? CSR_AMDGPU_SI_Gfx_With_AGPRs_RegMask
+                               : CSR_AMDGPU_SI_Gfx_RegMask;
   default:
     return nullptr;
   }
@@ -441,8 +439,7 @@ SIRegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
   // equivalent AV class. If used one, the verifier will crash after
   // RegBankSelect in the GISel flow. The aligned regclasses are not fully given
   // until Instruction selection.
-  if (MF.getSubtarget<GCNSubtarget>().hasMAIInsts() &&
-      (isVGPRClass(RC) || isAGPRClass(RC))) {
+  if (ST.hasMAIInsts() && (isVGPRClass(RC) || isAGPRClass(RC))) {
     if (RC == &AMDGPU::VGPR_32RegClass || RC == &AMDGPU::AGPR_32RegClass)
       return &AMDGPU::AV_32RegClass;
     if (RC == &AMDGPU::VReg_64RegClass || RC == &AMDGPU::AReg_64RegClass)
@@ -491,8 +488,7 @@ SIRegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
 }
 
 Register SIRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
-  const SIFrameLowering *TFI =
-      MF.getSubtarget<GCNSubtarget>().getFrameLowering();
+  const SIFrameLowering *TFI = ST.getFrameLowering();
   const SIMachineFunctionInfo *FuncInfo = MF.getInfo<SIMachineFunctionInfo>();
   // During ISel lowering we always reserve the stack pointer in entry
   // functions, but never actually want to reference it when accessing our own
@@ -628,7 +624,7 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
       } else
         MaxNumAGPRs = 0;
     }
-  } else if (ST.hasMAIInsts() && MFI->usesAGPRs(MF)) {
+  } else if (ST.hasMAIInsts()) {
     // In order to guarantee copying between AGPRs, we need a scratch VGPR
     // available at all times.
     reserveRegisterTuples(Reserved, AMDGPU::VGPR32);
@@ -2149,18 +2145,23 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
             Offset = 0;
           }
 
-          assert(!TII->getNamedOperand(*MI, AMDGPU::OpName::vaddr) &&
-                 "Unexpected vaddr for flat scratch with a FI operand");
-
-          // On GFX10 we have ST mode to use no registers for an address.
-          // Otherwise we need to materialize 0 into an SGPR.
-          if (!Offset && ST.hasFlatScratchSTMode()) {
+          if (!Offset) {
             unsigned Opc = MI->getOpcode();
-            unsigned NewOpc = AMDGPU::getFlatScratchInstSTfromSS(Opc);
-            MI->RemoveOperand(
-                AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::saddr));
-            MI->setDesc(TII->get(NewOpc));
-            return;
+            int NewOpc = -1;
+            if (AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::vaddr) != -1) {
+              NewOpc = AMDGPU::getFlatScratchInstSVfromSVS(Opc);
+            } else if (ST.hasFlatScratchSTMode()) {
+              // On GFX10 we have ST mode to use no registers for an address.
+              // Otherwise we need to materialize 0 into an SGPR.
+              NewOpc = AMDGPU::getFlatScratchInstSTfromSS(Opc);
+            }
+
+            if (NewOpc != -1) {
+              MI->removeOperand(
+                  AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::saddr));
+              MI->setDesc(TII->get(NewOpc));
+              return;
+            }
           }
         }
 
@@ -3018,6 +3019,25 @@ bool SIRegisterInfo::isProperlyAlignedRC(const TargetRegisterClass &RC) const {
         getVectorSuperClassForBitWidth(getRegSizeInBits(RC)));
 
   return true;
+}
+
+const TargetRegisterClass *
+SIRegisterInfo::getProperlyAlignedRC(const TargetRegisterClass *RC) const {
+  if (!RC || !ST.needsAlignedVGPRs())
+    return RC;
+
+  unsigned Size = getRegSizeInBits(*RC);
+  if (Size <= 32)
+    return RC;
+
+  if (isVGPRClass(RC))
+    return getAlignedVGPRClassForBitWidth(Size);
+  if (isAGPRClass(RC))
+    return getAlignedAGPRClassForBitWidth(Size);
+  if (isVectorSuperClass(RC))
+    return getAlignedVectorSuperClassForBitWidth(Size);
+
+  return RC;
 }
 
 bool SIRegisterInfo::isConstantPhysReg(MCRegister PhysReg) const {

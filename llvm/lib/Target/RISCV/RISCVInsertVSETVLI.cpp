@@ -334,6 +334,10 @@ public:
     return false;
   }
 
+  bool operator!=(const VSETVLIInfo &Other) const {
+    return !(*this == Other);
+  }
+
   // Calculate the VSETVLIInfo visible to a block assuming this and Other are
   // both predecessors.
   VSETVLIInfo intersect(const VSETVLIInfo &Other) const {
@@ -442,6 +446,12 @@ char RISCVInsertVSETVLI::ID = 0;
 
 INITIALIZE_PASS(RISCVInsertVSETVLI, DEBUG_TYPE, RISCV_INSERT_VSETVLI_NAME,
                 false, false)
+
+static bool isVectorConfigInstr(const MachineInstr &MI) {
+  return MI.getOpcode() == RISCV::PseudoVSETVLI ||
+         MI.getOpcode() == RISCV::PseudoVSETVLIX0 ||
+         MI.getOpcode() == RISCV::PseudoVSETIVLI;
+}
 
 static MachineInstr *elideCopies(MachineInstr *MI,
                                  const MachineRegisterInfo *MRI) {
@@ -651,9 +661,7 @@ bool RISCVInsertVSETVLI::needVSETVLI(const VSETVLIInfo &Require,
       Require.getAVLReg().isVirtual() && !CurInfo.hasSEWLMULRatioOnly() &&
       CurInfo.hasCompatibleVTYPE(Require, /*Strict*/ false)) {
     if (MachineInstr *DefMI = MRI->getVRegDef(Require.getAVLReg())) {
-      if (DefMI->getOpcode() == RISCV::PseudoVSETVLI ||
-          DefMI->getOpcode() == RISCV::PseudoVSETVLIX0 ||
-          DefMI->getOpcode() == RISCV::PseudoVSETIVLI) {
+      if (isVectorConfigInstr(*DefMI)) {
         VSETVLIInfo DefInfo = getInfoForVSETVLI(*DefMI);
         if (DefInfo.hasSameAVL(CurInfo) && DefInfo.hasSameVTYPE(CurInfo))
           return false;
@@ -866,9 +874,7 @@ bool RISCVInsertVSETVLI::computeVLVTYPEChanges(const MachineBasicBlock &MBB) {
   BlockData &BBInfo = BlockInfo[MBB.getNumber()];
   for (const MachineInstr &MI : MBB) {
     // If this is an explicit VSETVLI or VSETIVLI, update our state.
-    if (MI.getOpcode() == RISCV::PseudoVSETVLI ||
-        MI.getOpcode() == RISCV::PseudoVSETVLIX0 ||
-        MI.getOpcode() == RISCV::PseudoVSETIVLI) {
+    if (isVectorConfigInstr(MI)) {
       HadVectorOp = true;
       BBInfo.Change = getInfoForVSETVLI(MI);
       continue;
@@ -979,9 +985,7 @@ bool RISCVInsertVSETVLI::needVSETVLIPHI(const VSETVLIInfo &Require,
 
     // We need the PHI input to the be the output of a VSET(I)VLI.
     MachineInstr *DefMI = MRI->getVRegDef(InReg);
-    if (!DefMI || (DefMI->getOpcode() != RISCV::PseudoVSETVLI &&
-                   DefMI->getOpcode() != RISCV::PseudoVSETVLIX0 &&
-                   DefMI->getOpcode() != RISCV::PseudoVSETIVLI))
+    if (!DefMI || !isVectorConfigInstr(*DefMI))
       return true;
 
     // We found a VSET(I)VLI make sure it matches the output of the
@@ -999,20 +1003,12 @@ bool RISCVInsertVSETVLI::needVSETVLIPHI(const VSETVLIInfo &Require,
 
 void RISCVInsertVSETVLI::emitVSETVLIs(MachineBasicBlock &MBB) {
   VSETVLIInfo CurInfo;
-  // BBLocalInfo tracks the VL/VTYPE state the same way BBInfo.Change was
-  // calculated in computeIncomingVLVTYPE. We need this to apply
-  // canSkipVSETVLIForLoadStore the same way computeIncomingVLVTYPE did. We
-  // can't include predecessor information in that decision to avoid disagreeing
-  // with the global analysis.
-  VSETVLIInfo BBLocalInfo;
   // Only be set if current VSETVLIInfo is from an explicit VSET(I)VLI.
   MachineInstr *PrevVSETVLIMI = nullptr;
 
   for (MachineInstr &MI : MBB) {
     // If this is an explicit VSETVLI or VSETIVLI, update our state.
-    if (MI.getOpcode() == RISCV::PseudoVSETVLI ||
-        MI.getOpcode() == RISCV::PseudoVSETVLIX0 ||
-        MI.getOpcode() == RISCV::PseudoVSETIVLI) {
+    if (isVectorConfigInstr(MI)) {
       // Conservatively, mark the VL and VTYPE as live.
       assert(MI.getOperand(3).getReg() == RISCV::VL &&
              MI.getOperand(4).getReg() == RISCV::VTYPE &&
@@ -1020,7 +1016,6 @@ void RISCVInsertVSETVLI::emitVSETVLIs(MachineBasicBlock &MBB) {
       MI.getOperand(3).setIsDead(false);
       MI.getOperand(4).setIsDead(false);
       CurInfo = getInfoForVSETVLI(MI);
-      BBLocalInfo = getInfoForVSETVLI(MI);
       PrevVSETVLIMI = &MI;
       continue;
     }
@@ -1050,22 +1045,12 @@ void RISCVInsertVSETVLI::emitVSETVLIs(MachineBasicBlock &MBB) {
         // use the predecessor information.
         assert(BlockInfo[MBB.getNumber()].Pred.isValid() &&
                "Expected a valid predecessor state.");
-        // Don't use predecessor information if there was an earlier instruction
-        // in this block that allowed a vsetvli to be skipped for load/store.
-        if (!(BBLocalInfo.isValid() &&
-              canSkipVSETVLIForLoadStore(MI, NewInfo, BBLocalInfo)) &&
-            needVSETVLI(NewInfo, BlockInfo[MBB.getNumber()].Pred) &&
+        if (needVSETVLI(NewInfo, BlockInfo[MBB.getNumber()].Pred) &&
             needVSETVLIPHI(NewInfo, MBB)) {
           insertVSETVLI(MBB, MI, NewInfo, BlockInfo[MBB.getNumber()].Pred);
           CurInfo = NewInfo;
-          BBLocalInfo = NewInfo;
         }
-
-        // We must update BBLocalInfo for every vector instruction.
-        if (!BBLocalInfo.isValid())
-          BBLocalInfo = NewInfo;
       } else {
-        assert(BBLocalInfo.isValid());
         // If this instruction isn't compatible with the previous VL/VTYPE
         // we need to insert a VSETVLI.
         // If this is a unit-stride or strided load/store, we may be able to use
@@ -1101,7 +1086,6 @@ void RISCVInsertVSETVLI::emitVSETVLIs(MachineBasicBlock &MBB) {
           if (NeedInsertVSETVLI)
             insertVSETVLI(MBB, MI, NewInfo, CurInfo);
           CurInfo = NewInfo;
-          BBLocalInfo = NewInfo;
         }
       }
       PrevVSETVLIMI = nullptr;
@@ -1112,8 +1096,18 @@ void RISCVInsertVSETVLI::emitVSETVLIs(MachineBasicBlock &MBB) {
     if (MI.isCall() || MI.isInlineAsm() || MI.modifiesRegister(RISCV::VL) ||
         MI.modifiesRegister(RISCV::VTYPE)) {
       CurInfo = VSETVLIInfo::getUnknown();
-      BBLocalInfo = VSETVLIInfo::getUnknown();
       PrevVSETVLIMI = nullptr;
+    }
+
+    // If we reach the end of the block and our current info doesn't match the
+    // expected info, insert a vsetvli to correct.
+    if (MI.isTerminator()) {
+      const VSETVLIInfo &ExitInfo = BlockInfo[MBB.getNumber()].Exit;
+      if (CurInfo.isValid() && ExitInfo.isValid() && !ExitInfo.isUnknown() &&
+          CurInfo != ExitInfo) {
+        insertVSETVLI(MBB, MI, ExitInfo, CurInfo);
+        CurInfo = ExitInfo;
+      }
     }
   }
 }

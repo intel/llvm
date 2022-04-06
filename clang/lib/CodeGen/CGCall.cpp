@@ -1023,7 +1023,7 @@ static void forConstantArrayExpansion(CodeGenFunction &CGF,
   for (int i = 0, n = CAE->NumElts; i < n; i++) {
     llvm::Value *EltAddr = CGF.Builder.CreateConstGEP2_32(
         BaseAddr.getElementType(), BaseAddr.getPointer(), 0, i);
-    Fn(Address(EltAddr, EltAlign));
+    Fn(Address::deprecated(EltAddr, EltAlign));
   }
 }
 
@@ -2300,7 +2300,7 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
                      getLangOpts().Sanitize.has(SanitizerKind::Return);
 
   // Determine if the return type could be partially undef
-  if (!CodeGenOpts.DisableNoundefAttrs && HasStrictReturn) {
+  if (CodeGenOpts.EnableNoundefAttrs && HasStrictReturn) {
     if (!RetTy->isVoidType() && RetAI.getKind() != ABIArgInfo::Indirect &&
         DetermineNoUndef(RetTy, getTypes(), DL, RetAI))
       RetAttrs.addAttribute(llvm::Attribute::NoUndef);
@@ -2434,7 +2434,7 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     }
 
     // Decide whether the argument we're handling could be partially undef
-    if (!CodeGenOpts.DisableNoundefAttrs &&
+    if (CodeGenOpts.EnableNoundefAttrs &&
         DetermineNoUndef(ParamType, getTypes(), DL, AI)) {
       Attrs.addAttribute(llvm::Attribute::NoUndef);
     }
@@ -2692,8 +2692,9 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
   // parameter, which is a pointer to the complete memory area.
   Address ArgStruct = Address::invalid();
   if (IRFunctionArgs.hasInallocaArg()) {
-    ArgStruct = Address(Fn->getArg(IRFunctionArgs.getInallocaArgNo()),
-                        FI.getArgStructAlignment());
+    ArgStruct = Address::deprecated(
+        Fn->getArg(IRFunctionArgs.getInallocaArgNo()),
+        FI.getArgStructAlignment());
 
     assert(ArgStruct.getType() == FI.getArgStruct()->getPointerTo());
   }
@@ -2739,6 +2740,18 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
     if (Arg->hasAttr<SYCLAccessorReadonlyAttr>())
       Fn->getArg(FirstIRArg)->addAttr(llvm::Attribute::ReadOnly);
 
+    if (const auto *AddIRAttr =
+            Arg->getAttr<SYCLAddIRAttributesKernelParameterAttr>()) {
+      SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+          AddIRAttr->getFilteredAttributeNameValuePairs(CGM.getContext());
+
+      llvm::AttrBuilder KernelParamAttrBuilder(Fn->getContext());
+      for (const auto &NameValuePair : NameValuePairs)
+        KernelParamAttrBuilder.addAttribute(NameValuePair.first,
+                                            NameValuePair.second);
+      Fn->addParamAttrs(ArgNo, KernelParamAttrBuilder);
+    }
+
     switch (ArgI.getKind()) {
     case ABIArgInfo::InAlloca: {
       assert(NumIRArgs == 0);
@@ -2746,8 +2759,8 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
       Address V =
           Builder.CreateStructGEP(ArgStruct, FieldIndex, Arg->getName());
       if (ArgI.getInAllocaIndirect())
-        V = Address(Builder.CreateLoad(V),
-                    getContext().getTypeAlignInChars(Ty));
+        V = Address::deprecated(Builder.CreateLoad(V),
+                                getContext().getTypeAlignInChars(Ty));
       ArgVals.push_back(ParamValue::forIndirect(V));
       break;
     }
@@ -2899,7 +2912,8 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
           assert(pointeeTy->isPointerType());
           Address temp =
             CreateMemTemp(pointeeTy, getPointerAlign(), "swifterror.temp");
-          Address arg = Address(V, getContext().getTypeAlignInChars(pointeeTy));
+          Address arg = Address::deprecated(
+              V, getContext().getTypeAlignInChars(pointeeTy));
           llvm::Value *incomingErrorValue = Builder.CreateLoad(arg);
           Builder.CreateStore(incomingErrorValue, temp);
           V = temp.getPointer();
@@ -3525,8 +3539,7 @@ void CodeGenFunction::EmitFunctionEpilog(const CGFunctionInfo &FI,
       --EI;
       llvm::Value *ArgStruct = &*EI;
       llvm::Value *SRet = Builder.CreateStructGEP(
-          EI->getType()->getPointerElementType(), ArgStruct,
-          RetAI.getInAllocaFieldIndex());
+          FI.getArgStruct(), ArgStruct, RetAI.getInAllocaFieldIndex());
       llvm::Type *Ty =
           cast<llvm::GetElementPtrInst>(SRet)->getResultElementType();
       RV = Builder.CreateAlignedLoad(Ty, SRet, getPointerAlign(), "sret");
@@ -3765,7 +3778,7 @@ static AggValueSlot createPlaceholderSlot(CodeGenFunction &CGF,
   CharUnits Align = CharUnits::fromQuantity(4);
   Placeholder = CGF.Builder.CreateAlignedLoad(IRPtrTy, Placeholder, Align);
 
-  return AggValueSlot::forAddr(Address(Placeholder, Align),
+  return AggValueSlot::forAddr(Address(Placeholder, IRTy, Align),
                                Ty.getQualifiers(),
                                AggValueSlot::IsNotDestructed,
                                AggValueSlot::DoesNotNeedGCBarriers,
@@ -3948,7 +3961,9 @@ static void emitWritebackArg(CodeGenFunction &CGF, CallArgList &args,
   // because of the crazy ObjC compatibility rules.
 
   llvm::PointerType *destType =
-    cast<llvm::PointerType>(CGF.ConvertType(CRE->getType()));
+      cast<llvm::PointerType>(CGF.ConvertType(CRE->getType()));
+  llvm::Type *destElemType =
+      CGF.ConvertTypeForMem(CRE->getType()->getPointeeType());
 
   // If the address is a constant null, just pass the appropriate null.
   if (isProvablyNull(srcAddr.getPointer())) {
@@ -3958,8 +3973,8 @@ static void emitWritebackArg(CodeGenFunction &CGF, CallArgList &args,
   }
 
   // Create the temporary.
-  Address temp = CGF.CreateTempAlloca(destType->getPointerElementType(),
-                                      CGF.getPointerAlign(), "icr.temp");
+  Address temp =
+      CGF.CreateTempAlloca(destElemType, CGF.getPointerAlign(), "icr.temp");
   // Loading an l-value can introduce a cleanup if the l-value is __weak,
   // and that cleanup will be conditional if we can't prove that the l-value
   // isn't null, so we need to register a dominating point so that the cleanups
@@ -3969,8 +3984,8 @@ static void emitWritebackArg(CodeGenFunction &CGF, CallArgList &args,
   // Zero-initialize it if we're not doing a copy-initialization.
   bool shouldCopy = CRE->shouldCopy();
   if (!shouldCopy) {
-    llvm::Value *null = llvm::ConstantPointerNull::get(
-        cast<llvm::PointerType>(destType->getPointerElementType()));
+    llvm::Value *null =
+        llvm::ConstantPointerNull::get(cast<llvm::PointerType>(destElemType));
     CGF.Builder.CreateStore(null, temp);
   }
 
@@ -4012,8 +4027,7 @@ static void emitWritebackArg(CodeGenFunction &CGF, CallArgList &args,
     assert(srcRV.isScalar());
 
     llvm::Value *src = srcRV.getScalarVal();
-    src = CGF.Builder.CreateBitCast(src, destType->getPointerElementType(),
-                                    "icr.cast");
+    src = CGF.Builder.CreateBitCast(src, destElemType, "icr.cast");
 
     // Use an ordinary store, not a store-to-lvalue.
     CGF.Builder.CreateStore(src, temp);
@@ -4755,7 +4769,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     AI->setAlignment(Align.getAsAlign());
     AI->setUsedWithInAlloca(true);
     assert(AI->isUsedWithInAlloca() && !AI->isStaticAlloca());
-    ArgMemory = Address(AI, Align);
+    ArgMemory = Address(AI, ArgStruct, Align);
   }
 
   ClangToLLVMArgMapping IRFunctionArgs(CGM.getContext(), CallInfo);
@@ -4853,13 +4867,10 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         // Store the RValue into the argument struct.
         Address Addr =
             Builder.CreateStructGEP(ArgMemory, ArgInfo.getInAllocaFieldIndex());
-        unsigned AS = Addr.getType()->getPointerAddressSpace();
-        llvm::Type *MemType = ConvertTypeForMem(I->Ty)->getPointerTo(AS);
         // There are some cases where a trivial bitcast is not avoidable.  The
         // definition of a type later in a translation unit may change it's type
         // from {}* to (%struct.foo*)*.
-        if (Addr.getType() != MemType)
-          Addr = Builder.CreateBitCast(Addr, MemType);
+        Addr = Builder.CreateElementBitCast(Addr, ConvertTypeForMem(I->Ty));
         I->copyInto(*this, Addr);
       }
       break;
@@ -4983,7 +4994,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
           QualType pointeeTy = I->Ty->getPointeeType();
           swiftErrorArg =
-            Address(V, getContext().getTypeAlignInChars(pointeeTy));
+            Address::deprecated(V, getContext().getTypeAlignInChars(pointeeTy));
 
           swiftErrorTemp =
             CreateMemTemp(pointeeTy, getPointerAlign(), "swifterror.temp");
@@ -5156,14 +5167,16 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 #ifndef NDEBUG
         // Assert that these structs have equivalent element types.
         llvm::StructType *FullTy = CallInfo.getArgStruct();
-        llvm::StructType *DeclaredTy =
-            cast<llvm::StructType>(LastParamTy->getPointerElementType());
-        assert(DeclaredTy->getNumElements() == FullTy->getNumElements());
-        for (llvm::StructType::element_iterator DI = DeclaredTy->element_begin(),
-                                                DE = DeclaredTy->element_end(),
-                                                FI = FullTy->element_begin();
-             DI != DE; ++DI, ++FI)
-          assert(*DI == *FI);
+        if (!LastParamTy->isOpaquePointerTy()) {
+          llvm::StructType *DeclaredTy = cast<llvm::StructType>(
+              LastParamTy->getNonOpaquePointerElementType());
+          assert(DeclaredTy->getNumElements() == FullTy->getNumElements());
+          for (auto DI = DeclaredTy->element_begin(),
+                    DE = DeclaredTy->element_end(),
+                    FI = FullTy->element_begin();
+               DI != DE; ++DI, ++FI)
+            assert(*DI == *FI);
+        }
 #endif
         Arg = Builder.CreateBitCast(Arg, LastParamTy);
       }
@@ -5264,12 +5277,22 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   if (InNoMergeAttributedStmt)
     Attrs = Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::NoMerge);
 
+  // Add call-site noinline attribute if exists.
+  if (InNoInlineAttributedStmt)
+    Attrs = Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::NoInline);
+
+  // Add call-site always_inline attribute if exists.
+  if (InAlwaysInlineAttributedStmt)
+    Attrs =
+        Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::AlwaysInline);
+
   // Apply some call-site-specific attributes.
   // TODO: work this into building the attribute set.
 
   // Apply always_inline to all calls within flatten functions.
   // FIXME: should this really take priority over __try, below?
   if (CurCodeDecl && CurCodeDecl->hasAttr<FlattenAttr>() &&
+      !InNoInlineAttributedStmt &&
       !(TargetDecl && TargetDecl->hasAttr<NoInlineAttr>())) {
     Attrs =
         Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::AlwaysInline);

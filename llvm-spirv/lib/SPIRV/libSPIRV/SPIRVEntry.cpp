@@ -275,8 +275,8 @@ void SPIRVEntry::addDecorate(Decoration Kind) {
 
 void SPIRVEntry::addDecorate(Decoration Kind, SPIRVWord Literal) {
   switch (static_cast<int>(Kind)) {
-  case internal::DecorationAliasScopeINTEL:
-  case internal::DecorationNoAliasINTEL:
+  case DecorationAliasScopeINTEL:
+  case DecorationNoAliasINTEL:
     addDecorate(new SPIRVDecorateId(Kind, this, Literal));
     return;
   default:

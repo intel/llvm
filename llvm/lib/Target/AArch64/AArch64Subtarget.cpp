@@ -21,6 +21,7 @@
 #include "GISel/AArch64RegisterBankInfo.h"
 #include "MCTargetDesc/AArch64AddressingModes.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/Support/AArch64TargetParser.h"
@@ -352,6 +353,8 @@ bool AArch64Subtarget::supportsAddressTopByteIgnored() const {
   if (!UseAddressTopByteIgnored)
     return false;
 
+  if (TargetTriple.isDriverKit())
+    return true;
   if (TargetTriple.isiOS()) {
     return TargetTriple.getiOSVersion() >= VersionTuple(8);
   }

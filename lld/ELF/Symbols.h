@@ -13,31 +13,31 @@
 #ifndef LLD_ELF_SYMBOLS_H
 #define LLD_ELF_SYMBOLS_H
 
-#include "InputFiles.h"
+#include "Config.h"
 #include "lld/Common/LLVM.h"
 #include "lld/Common/Memory.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/Object/Archive.h"
 #include "llvm/Object/ELF.h"
 #include <tuple>
 
 namespace lld {
+namespace elf {
+class Symbol;
+}
 // Returns a string representation for a symbol for diagnostics.
 std::string toString(const elf::Symbol &);
-
-// There are two different ways to convert an Archive::Symbol to a string:
-// One for Microsoft name mangling and one for Itanium name mangling.
-// Call the functions toCOFFString and toELFString, not just toString.
-std::string toELFString(const llvm::object::Archive::Symbol &);
 
 namespace elf {
 class CommonSymbol;
 class Defined;
 class OutputSection;
 class SectionBase;
+class InputSectionBase;
 class SharedSymbol;
 class Symbol;
 class Undefined;
+class LazyObject;
+class InputFile;
 
 // Some index properties of a symbol are stored separately in this auxiliary
 // struct to decrease sizeof(SymbolUnion) in the majority of cases.
@@ -59,7 +59,6 @@ public:
     CommonKind,
     SharedKind,
     UndefinedKind,
-    LazyArchiveKind,
     LazyObjectKind,
   };
 
@@ -142,6 +141,7 @@ public:
 
   bool includeInDynsym() const;
   uint8_t computeBinding() const;
+  bool isGlobal() const { return binding == llvm::ELF::STB_GLOBAL; }
   bool isWeak() const { return binding == llvm::ELF::STB_WEAK; }
 
   bool isUndefined() const { return symbolKind == UndefinedKind; }
@@ -152,9 +152,7 @@ public:
 
   bool isLocal() const { return binding == llvm::ELF::STB_LOCAL; }
 
-  bool isLazy() const {
-    return symbolKind == LazyArchiveKind || symbolKind == LazyObjectKind;
-  }
+  bool isLazy() const { return symbolKind == LazyObjectKind; }
 
   // True if this is an undefined weak symbol. This only works once
   // all input files have been added.
@@ -222,14 +220,16 @@ public:
   // non-lazy object causes a runtime error.
   void extract() const;
 
+  void checkDuplicate(const Defined &other) const;
+
 private:
   void resolveUndefined(const Undefined &other);
   void resolveCommon(const CommonSymbol &other);
   void resolveDefined(const Defined &other);
-  template <class LazyT> void resolveLazy(const LazyT &other);
+  void resolveLazy(const LazyObject &other);
   void resolveShared(const SharedSymbol &other);
 
-  int compare(const Symbol *other) const;
+  bool shouldReplace(const Defined &other) const;
 
   inline size_t getSymbolSize() const;
 
@@ -239,12 +239,11 @@ protected:
       : file(file), nameData(name.data()), nameSize(name.size()),
         binding(binding), type(type), stOther(stOther), symbolKind(k),
         visibility(stOther & 3), isPreemptible(false),
-        isUsedInRegularObj(!file || file->kind() == InputFile::ObjKind),
-        used(false), exportDynamic(false), inDynamicList(false),
-        referenced(false), traced(false), hasVersionSuffix(false),
-        isInIplt(false), gotInIgot(false), folded(false),
-        needsTocRestore(false), scriptDefined(false), needsCopy(false),
-        needsGot(false), needsPlt(false), needsTlsDesc(false),
+        isUsedInRegularObj(false), used(false), exportDynamic(false),
+        inDynamicList(false), referenced(false), traced(false),
+        hasVersionSuffix(false), isInIplt(false), gotInIgot(false),
+        folded(false), needsTocRestore(false), scriptDefined(false),
+        needsCopy(false), needsGot(false), needsPlt(false), needsTlsDesc(false),
         needsTlsGd(false), needsTlsGdToIe(false), needsGotDtprel(false),
         needsTlsIe(false), hasDirectReloc(false) {}
 
@@ -321,7 +320,7 @@ public:
           uint8_t type, uint64_t value, uint64_t size, SectionBase *section)
       : Symbol(DefinedKind, file, name, binding, stOther, type), value(value),
         size(size), section(section) {
-    exportDynamic = config->shared || config->exportDynamic;
+    exportDynamic = config->exportDynamic;
   }
 
   static bool classof(const Symbol *s) { return s->isDefined(); }
@@ -358,7 +357,7 @@ public:
                uint8_t stOther, uint8_t type, uint64_t alignment, uint64_t size)
       : Symbol(CommonKind, file, name, binding, stOther, type),
         alignment(alignment), size(size) {
-    exportDynamic = config->shared || config->exportDynamic;
+    exportDynamic = config->exportDynamic;
   }
 
   static bool classof(const Symbol *s) { return s->isCommon(); }
@@ -378,6 +377,7 @@ public:
 
   // The section index if in a discarded section, 0 otherwise.
   uint32_t discardedSecIdx;
+  bool nonPrevailing = false;
 };
 
 class SharedSymbol : public Symbol {
@@ -410,50 +410,25 @@ public:
       this->type = llvm::ELF::STT_FUNC;
   }
 
-  SharedFile &getFile() const { return *cast<SharedFile>(file); }
-
   uint64_t value; // st_value
   uint64_t size;  // st_size
   uint32_t alignment;
 };
 
-// LazyArchive and LazyObject represent a symbols that is not yet in the link,
-// but we know where to find it if needed. If the resolver finds both Undefined
-// and Lazy for the same name, it will ask the Lazy to load a file.
+// LazyObject symbols represent symbols in object files between --start-lib and
+// --end-lib options. LLD also handles traditional archives as if all the files
+// in the archive are surrounded by --start-lib and --end-lib.
 //
 // A special complication is the handling of weak undefined symbols. They should
 // not load a file, but we have to remember we have seen both the weak undefined
 // and the lazy. We represent that with a lazy symbol with a weak binding. This
 // means that code looking for undefined symbols normally also has to take lazy
 // symbols into consideration.
-
-// This class represents a symbol defined in an archive file. It is
-// created from an archive file header, and it knows how to load an
-// object file from an archive to replace itself with a defined
-// symbol.
-class LazyArchive : public Symbol {
-public:
-  LazyArchive(InputFile &file, const llvm::object::Archive::Symbol s)
-      : Symbol(LazyArchiveKind, &file, s.getName(), llvm::ELF::STB_GLOBAL,
-               llvm::ELF::STV_DEFAULT, llvm::ELF::STT_NOTYPE),
-        sym(s) {}
-
-  static bool classof(const Symbol *s) { return s->kind() == LazyArchiveKind; }
-
-  MemoryBufferRef getMemberBuffer();
-
-  const llvm::object::Archive::Symbol sym;
-};
-
-// LazyObject symbols represents symbols in object files between
-// --start-lib and --end-lib options.
 class LazyObject : public Symbol {
 public:
   LazyObject(InputFile &file)
       : Symbol(LazyObjectKind, &file, {}, llvm::ELF::STB_GLOBAL,
-               llvm::ELF::STV_DEFAULT, llvm::ELF::STT_NOTYPE) {
-    isUsedInRegularObj = false;
-  }
+               llvm::ELF::STV_DEFAULT, llvm::ELF::STT_NOTYPE) {}
 
   static bool classof(const Symbol *s) { return s->kind() == LazyObjectKind; }
 };
@@ -505,8 +480,7 @@ union SymbolUnion {
   alignas(CommonSymbol) char b[sizeof(CommonSymbol)];
   alignas(Undefined) char c[sizeof(Undefined)];
   alignas(SharedSymbol) char d[sizeof(SharedSymbol)];
-  alignas(LazyArchive) char e[sizeof(LazyArchive)];
-  alignas(LazyObject) char f[sizeof(LazyObject)];
+  alignas(LazyObject) char e[sizeof(LazyObject)];
 };
 
 // It is important to keep the size of SymbolUnion small for performance and
@@ -527,7 +501,6 @@ static inline void assertSymbols() {
   AssertSymbol<CommonSymbol>();
   AssertSymbol<Undefined>();
   AssertSymbol<SharedSymbol>();
-  AssertSymbol<LazyArchive>();
   AssertSymbol<LazyObject>();
 }
 
@@ -539,8 +512,6 @@ size_t Symbol::getSymbolSize() const {
     return sizeof(CommonSymbol);
   case DefinedKind:
     return sizeof(Defined);
-  case LazyArchiveKind:
-    return sizeof(LazyArchive);
   case LazyObjectKind:
     return sizeof(LazyObject);
   case SharedKind:
@@ -557,21 +528,6 @@ size_t Symbol::getSymbolSize() const {
 // it over to "this". This function is called as a result of name
 // resolution, e.g. to replace an undefind symbol with a defined symbol.
 void Symbol::replace(const Symbol &other) {
-  using llvm::ELF::STT_TLS;
-
-  // st_value of STT_TLS represents the assigned offset, not the actual address
-  // which is used by STT_FUNC and STT_OBJECT. STT_TLS symbols can only be
-  // referenced by special TLS relocations. It is usually an error if a STT_TLS
-  // symbol is replaced by a non-STT_TLS symbol, vice versa. There are two
-  // exceptions: (a) a STT_NOTYPE lazy/undefined symbol can be replaced by a
-  // STT_TLS symbol, (b) a STT_TLS undefined symbol can be replaced by a
-  // STT_NOTYPE lazy symbol.
-  if (symbolKind != PlaceholderKind && !other.isLazy() &&
-      (type == STT_TLS) != (other.type == STT_TLS) &&
-      type != llvm::ELF::STT_NOTYPE)
-    error("TLS attribute mismatch: " + toString(*this) + "\n>>> defined in " +
-          toString(other.file) + "\n>>> defined in " + toString(file));
-
   Symbol old = *this;
   memcpy(this, &other, other.getSymbolSize());
 
@@ -603,20 +559,11 @@ template <typename... T> Defined *makeDefined(T &&...args) {
       Defined(std::forward<T>(args)...);
 }
 
+void reportDuplicate(const Symbol &sym, const InputFile *newFile,
+                     InputSectionBase *errSec, uint64_t errOffset);
 void maybeWarnUnorderableSymbol(const Symbol *sym);
 bool computeIsPreemptible(const Symbol &sym);
 void reportBackrefs();
-
-// A mapping from a symbol to an InputFile referencing it backward. Used by
-// --warn-backrefs.
-extern llvm::DenseMap<const Symbol *,
-                      std::pair<const InputFile *, const InputFile *>>
-    backwardReferences;
-
-// A tuple of (reference, extractedFile, sym). Used by --why-extract=.
-extern SmallVector<std::tuple<std::string, const InputFile *, const Symbol &>,
-                   0>
-    whyExtract;
 
 } // namespace elf
 } // namespace lld

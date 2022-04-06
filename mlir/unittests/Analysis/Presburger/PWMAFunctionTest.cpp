@@ -13,13 +13,15 @@
 #include "./Utils.h"
 
 #include "mlir/Analysis/Presburger/PWMAFunction.h"
-#include "mlir/Analysis/Presburger/PresburgerSet.h"
+#include "mlir/Analysis/Presburger/PresburgerRelation.h"
 #include "mlir/IR/MLIRContext.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-namespace mlir {
+using namespace mlir;
+using namespace presburger;
+
 using testing::ElementsAre;
 
 static Matrix makeMatrix(unsigned numRow, unsigned numColumns,
@@ -43,11 +45,9 @@ static PWMAFunction parsePWMAF(
     ArrayRef<std::pair<StringRef, SmallVector<SmallVector<int64_t, 8>, 8>>>
         data,
     unsigned numSymbols = 0) {
-  static MLIRContext context;
-
   PWMAFunction result(numInputs - numSymbols, numSymbols, numOutputs);
   for (const auto &pair : data) {
-    IntegerPolyhedron domain = parsePoly(pair.first, &context);
+    IntegerPolyhedron domain = parsePoly(pair.first);
     result.addPiece(
         domain, makeMatrix(numOutputs, domain.getNumIds() + 1, pair.second));
   }
@@ -55,8 +55,6 @@ static PWMAFunction parsePWMAF(
 }
 
 TEST(PWAFunctionTest, isEqual) {
-  MLIRContext context;
-
   // The output expressions are different but it doesn't matter because they are
   // equal in this domain.
   PWMAFunction idAtZeros = parsePWMAF(
@@ -172,5 +170,3 @@ TEST(PWMAFunction, valueAt) {
   EXPECT_THAT(*nonNegPWAF.valueAt({2, -3}), ElementsAre(-1, -1));
   EXPECT_FALSE(nonNegPWAF.valueAt({-2, -3}).hasValue());
 }
-
-} // namespace mlir

@@ -71,6 +71,10 @@ end
   In common with some other compilers, the clock is in milliseconds
   for kinds <= 4 and nanoseconds otherwise where the target system
   supports these rates.
+* If a dimension of a descriptor has zero extent in a call to
+  `CFI_section`, `CFI_setpointer` or `CFI_allocate`, the lower
+  bound on that dimension will be set to 1 for consistency with
+  the `LBOUND()` intrinsic function.
 
 ## Extensions, deletions, and legacy features supported by default
 
@@ -141,7 +145,9 @@ end
   not be known (e.g., `IAND(X'1',X'2')`).
 * BOZ literals can also be used as REAL values in some contexts where the
   type is unambiguous, such as initializations of REAL parameters.
-* EQUIVALENCE of numeric and character sequences (a ubiquitous extension)
+* EQUIVALENCE of numeric and character sequences (a ubiquitous extension),
+  as well as of sequences of non-default kinds of numeric types
+  with each other.
 * Values for whole anonymous parent components in structure constructors
   (e.g., `EXTENDEDTYPE(PARENTTYPE(1,2,3))` rather than `EXTENDEDTYPE(1,2,3)`
    or `EXTENDEDTYPE(PARENTTYPE=PARENTTYPE(1,2,3))`).
@@ -215,6 +221,8 @@ end
 * At runtime, `NAMELIST` input will skip over `NAMELIST` groups
   with other names, and will treat text before and between groups
   as if they were comment lines, even if not begun with `!`.
+* Commas are required in FORMAT statements and character variables
+  only when they prevent ambiguity.
 
 ### Extensions supported when enabled by options
 

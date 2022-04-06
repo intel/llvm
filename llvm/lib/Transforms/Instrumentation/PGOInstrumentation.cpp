@@ -52,7 +52,6 @@
 #include "ValueProfileCollector.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -940,7 +939,7 @@ static void instrumentOneFunc(
     bool IsCS) {
   // Split indirectbr critical edges here before computing the MST rather than
   // later in getInstrBB() to avoid invalidating it.
-  SplitIndirectBrCriticalEdges(F, BPI, BFI);
+  SplitIndirectBrCriticalEdges(F, /*IgnoreBlocksWithoutPHI=*/false, BPI, BFI);
 
   FuncPGOInstrumentation<PGOEdge, BBInfo> FuncInfo(
       F, TLI, ComdatMembers, true, BPI, BFI, IsCS, PGOInstrumentEntry);
@@ -1929,7 +1928,7 @@ static bool annotateAllFunctions(
     auto *BFI = LookupBFI(F);
     // Split indirectbr critical edges here before computing the MST rather than
     // later in getInstrBB() to avoid invalidating it.
-    SplitIndirectBrCriticalEdges(F, BPI, BFI);
+    SplitIndirectBrCriticalEdges(F, /*IgnoreBlocksWithoutPHI=*/false, BPI, BFI);
     PGOUseFunc Func(F, &M, TLI, ComdatMembers, BPI, BFI, PSI, IsCS,
                     InstrumentFuncEntry);
     // When AllMinusOnes is true, it means the profile for the function

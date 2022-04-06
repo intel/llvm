@@ -122,10 +122,6 @@ private:
   void emitCheckedCustomBuilder(const AttrOrTypeBuilder &builder);
 
   //===--------------------------------------------------------------------===//
-  // Parser and Printer Emission
-  void emitParserPrinterBody(MethodBody &parser, MethodBody &printer);
-
-  //===--------------------------------------------------------------------===//
   // Interface Method Emission
 
   /// Emit methods for a trait.
@@ -179,6 +175,11 @@ DefGen::DefGen(const AttrOrTypeDef &def)
     : def(def), params(def.getParameters()), defCls(def.getCppClassName()),
       valueType(isa<AttrDef>(def) ? "Attribute" : "Type"),
       defType(isa<AttrDef>(def) ? "Attr" : "Type") {
+  // Check that all parameters have names.
+  for (const AttrOrTypeParameter &param : def.getParameters())
+    if (param.isAnonymous())
+      llvm::PrintFatalError("all parameters must have a name");
+
   // If a storage class is needed, create one.
   if (def.getNumParameters() > 0)
     storageCls.emplace(def.getStorageClassName(), /*isStruct=*/true);
@@ -259,9 +260,10 @@ void DefGen::emitParserPrinter() {
   auto *mnemonic = defCls.addStaticMethod<Method::Constexpr>(
       "::llvm::StringLiteral", "getMnemonic");
   mnemonic->body().indent() << strfmt("return {\"{0}\"};", *def.getMnemonic());
+
   // Declare the parser and printer, if needed.
-  if (!def.needsParserPrinter() && !def.hasGeneratedParser() &&
-      !def.hasGeneratedPrinter())
+  bool hasAssemblyFormat = def.getAssemblyFormat().hasValue();
+  if (!def.hasCustomAssemblyFormat() && !hasAssemblyFormat)
     return;
 
   // Declare the parser.
@@ -269,18 +271,18 @@ void DefGen::emitParserPrinter() {
   parserParams.emplace_back("::mlir::AsmParser &", "odsParser");
   if (isa<AttrDef>(&def))
     parserParams.emplace_back("::mlir::Type", "odsType");
-  auto *parser = defCls.addMethod(
-      strfmt("::mlir::{0}", valueType), "parse",
-      def.hasGeneratedParser() ? Method::Static : Method::StaticDeclaration,
-      std::move(parserParams));
+  auto *parser = defCls.addMethod(strfmt("::mlir::{0}", valueType), "parse",
+                                  hasAssemblyFormat ? Method::Static
+                                                    : Method::StaticDeclaration,
+                                  std::move(parserParams));
   // Declare the printer.
-  auto props =
-      def.hasGeneratedPrinter() ? Method::Const : Method::ConstDeclaration;
+  auto props = hasAssemblyFormat ? Method::Const : Method::ConstDeclaration;
   Method *printer =
       defCls.addMethod("void", "print", props,
                        MethodParameter("::mlir::AsmPrinter &", "odsPrinter"));
-  // Emit the bodies.
-  emitParserPrinterBody(parser->body(), printer->body());
+  // Emit the bodies if we are using the declarative format.
+  if (hasAssemblyFormat)
+    return generateAttrOrTypeFormat(def, parser->body(), printer->body());
 }
 
 void DefGen::emitAccessors() {
@@ -402,50 +404,6 @@ void DefGen::emitCheckedCustomBuilder(const AttrOrTypeBuilder &builder) {
 }
 
 //===----------------------------------------------------------------------===//
-// Parser and Printer Emission
-
-void DefGen::emitParserPrinterBody(MethodBody &parser, MethodBody &printer) {
-  Optional<StringRef> parserCode = def.getParserCode();
-  Optional<StringRef> printerCode = def.getPrinterCode();
-  Optional<StringRef> asmFormat = def.getAssemblyFormat();
-  // Verify the parser-printer specification first.
-  if (asmFormat && (parserCode || printerCode)) {
-    PrintFatalError(def.getLoc(),
-                    def.getName() + ": assembly format cannot be specified at "
-                                    "the same time as printer or parser code");
-  }
-  // Specified code cannot be empty.
-  if (parserCode && parserCode->empty())
-    PrintFatalError(def.getLoc(), def.getName() + ": parser cannot be empty");
-  if (printerCode && printerCode->empty())
-    PrintFatalError(def.getLoc(), def.getName() + ": printer cannot be empty");
-  // Assembly format requires accessors to be generated.
-  if (asmFormat && !def.genAccessors()) {
-    PrintFatalError(def.getLoc(),
-                    def.getName() +
-                        ": the generated printer from 'assemblyFormat' "
-                        "requires 'genAccessors' to be true");
-  }
-
-  // Generate the parser and printer bodies.
-  if (asmFormat)
-    return generateAttrOrTypeFormat(def, parser, printer);
-
-  FmtContext ctx = FmtContext({{"_parser", "odsParser"},
-                               {"_printer", "odsPrinter"},
-                               {"_type", "odsType"}});
-  if (parserCode) {
-    ctx.addSubst("_ctxt", "odsParser.getContext()");
-    parser.indent().getStream().printReindented(tgfmt(*parserCode, &ctx).str());
-  }
-  if (printerCode) {
-    ctx.addSubst("_ctxt", "odsPrinter.getContext()");
-    printer.indent().getStream().printReindented(
-        tgfmt(*printerCode, &ctx).str());
-  }
-}
-
-//===----------------------------------------------------------------------===//
 // Interface Method Emission
 
 void DefGen::emitTraitMethods(const InterfaceTrait &trait) {
@@ -535,8 +493,7 @@ void DefGen::emitEquals() {
                                  ? "getType()"
                                  : it.value().getName()},
                     {"_rhs", strfmt("std::get<{0}>(tblgenKey)", it.index())}});
-    Optional<StringRef> comparator = it.value().getComparator();
-    body << tgfmt(comparator ? *comparator : "$_lhs == $_rhs", &ctx);
+    body << tgfmt(it.value().getComparator(), &ctx);
   };
   llvm::interleave(llvm::enumerate(params), body, eachFn, ") && (");
 }
@@ -648,8 +605,8 @@ protected:
 /// A specialized generator for AttrDefs.
 struct AttrDefGenerator : public DefGenerator {
   AttrDefGenerator(const llvm::RecordKeeper &records, raw_ostream &os)
-      : DefGenerator(records.getAllDerivedDefinitions("AttrDef"), os, "Attr",
-                     "Attribute",
+      : DefGenerator(records.getAllDerivedDefinitionsIfDefined("AttrDef"), os,
+                     "Attr", "Attribute",
                      /*isAttrGenerator=*/true,
                      /*needsDialectParserPrinter=*/
                      !records.getAllDerivedDefinitions("DialectAttr").empty()) {
@@ -658,8 +615,9 @@ struct AttrDefGenerator : public DefGenerator {
 /// A specialized generator for TypeDefs.
 struct TypeDefGenerator : public DefGenerator {
   TypeDefGenerator(const llvm::RecordKeeper &records, raw_ostream &os)
-      : DefGenerator(records.getAllDerivedDefinitions("TypeDef"), os, "Type",
-                     "Type", /*isAttrGenerator=*/false,
+      : DefGenerator(records.getAllDerivedDefinitionsIfDefined("TypeDef"), os,
+                     "Type", "Type",
+                     /*isAttrGenerator=*/false,
                      /*needsDialectParserPrinter=*/
                      !records.getAllDerivedDefinitions("DialectType").empty()) {
   }
@@ -824,18 +782,21 @@ void DefGenerator::emitParsePrintDispatch(ArrayRef<AttrOrTypeDef> defs) {
   for (auto &def : defs) {
     if (!def.getMnemonic())
       continue;
+    bool hasParserPrinterDecl =
+        def.hasCustomAssemblyFormat() || def.getAssemblyFormat();
     std::string defClass = strfmt(
         "{0}::{1}", def.getDialect().getCppNamespace(), def.getCppClassName());
+
     // If the def has no parameters or parser code, invoke a normal `get`.
     std::string parseOrGet =
-        def.needsParserPrinter() || def.hasGeneratedParser()
+        hasParserPrinterDecl
             ? strfmt("parse(parser{0})", isAttrGenerator ? ", type" : "")
             : "get(parser.getContext())";
     parse.body() << llvm::formatv(getValueForMnemonic, defClass, parseOrGet);
 
     // If the def has no parameters and no printer, just print the mnemonic.
     StringRef printDef = "";
-    if (def.needsParserPrinter() || def.hasGeneratedPrinter())
+    if (hasParserPrinterDecl)
       printDef = "\nt.print(printer);";
     printer.body() << llvm::formatv(printValue, defClass, printDef);
   }

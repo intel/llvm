@@ -170,11 +170,11 @@ class SymbolRef : public BasicSymbolRef {
 public:
   enum Type {
     ST_Unknown, // Type not specified
+    ST_Other,
     ST_Data,
     ST_Debug,
     ST_File,
     ST_Function,
-    ST_Other
   };
 
   SymbolRef() = default;
@@ -349,6 +349,11 @@ public:
 
   /// True if this is a relocatable object (.o/.obj).
   virtual bool isRelocatableObject() const = 0;
+
+  /// True if the reflection section can be stripped by the linker.
+  bool isReflectionSectionStrippable(
+      llvm::binaryformat::Swift5ReflectionSectionKind ReflectionSectionKind)
+      const;
 
   /// @returns Pointer to ObjectFile subclass to handle this type of object.
   /// @param ObjectPath The path to the object file. ObjectPath.isObject must

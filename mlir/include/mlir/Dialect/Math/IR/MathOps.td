@@ -684,6 +684,7 @@ def Math_PowFOp : Math_FloatBinaryOp<"powf"> {
     %x = math.powf %y, %z : tensor<4x?xbf16>
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -732,12 +733,6 @@ def Math_SqrtOp : Math_FloatUnaryOp<"sqrt"> {
 def Math_TanhOp : Math_FloatUnaryOp<"tanh"> {
   let summary = "hyperbolic tangent of the specified value";
   let description = [{
-    Syntax:
-
-    ```
-    operation ::= ssa-id `=` `std.tanh` ssa-use `:` type
-    ```
-
     The `tanh` operation computes the hyperbolic tangent. It takes one operand
     and returns one result of the same type. This type may be a float scalar
     type, a vector whose element type is float, or a tensor of floats. It has

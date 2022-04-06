@@ -1178,6 +1178,13 @@ def fpimm32XForm : SDNodeXForm<fpimm, [{
       return CurDAG->getTargetConstant(enc, SDLoc(N), MVT::i32);
     }]>;
 
+def fpimm32SIMDModImmType4XForm : SDNodeXForm<fpimm, [{
+      uint32_t enc = AArch64_AM::encodeAdvSIMDModImmType4(N->getValueAPF()
+                                                          .bitcastToAPInt()
+                                                          .getZExtValue());
+      return CurDAG->getTargetConstant(enc, SDLoc(N), MVT::i32);
+    }]>;
+
 def fpimm64XForm : SDNodeXForm<fpimm, [{
       APFloat InVal = N->getValueAPF();
       uint32_t enc = AArch64_AM::getFP64Imm(InVal);
@@ -1199,6 +1206,13 @@ def fpimm32 : Operand<f32>,
   let ParserMatchClass = FPImmOperand;
   let PrintMethod = "printFPImmOperand";
 }
+
+def fpimm32SIMDModImmType4 : FPImmLeaf<f32, [{
+      uint64_t Enc = Imm.bitcastToAPInt().getZExtValue();
+      return Enc != 0 && AArch64_AM::isAdvSIMDModImmType4(Enc << 32 | Enc);
+    }], fpimm32SIMDModImmType4XForm> {
+}
+
 def fpimm64 : Operand<f64>,
               FPImmLeaf<f64, [{
       return AArch64_AM::getFP64Imm(Imm) != -1;
@@ -4963,15 +4977,15 @@ multiclass FPConversion<string asm> {
 
   // Half-precision to Double-precision
   def DHr : BaseFPConversion<0b11, 0b01, FPR64, FPR16, asm,
-                             [(set FPR64:$Rd, (fpextend (f16 FPR16:$Rn)))]>;
+                             [(set FPR64:$Rd, (any_fpextend (f16 FPR16:$Rn)))]>;
 
   // Half-precision to Single-precision
   def SHr : BaseFPConversion<0b11, 0b00, FPR32, FPR16, asm,
-                             [(set FPR32:$Rd, (fpextend (f16 FPR16:$Rn)))]>;
+                             [(set FPR32:$Rd, (any_fpextend (f16 FPR16:$Rn)))]>;
 
   // Single-precision to Double-precision
   def DSr : BaseFPConversion<0b00, 0b01, FPR64, FPR32, asm,
-                             [(set FPR64:$Rd, (fpextend FPR32:$Rn))]>;
+                             [(set FPR64:$Rd, (any_fpextend FPR32:$Rn))]>;
 
   // Single-precision to Half-precision
   def HSr : BaseFPConversion<0b00, 0b11, FPR16, FPR32, asm,
@@ -5075,7 +5089,8 @@ multiclass TwoOperandFPData<bits<4> opcode, string asm,
   }
 }
 
-multiclass TwoOperandFPDataNeg<bits<4> opcode, string asm, SDNode node> {
+multiclass TwoOperandFPDataNeg<bits<4> opcode, string asm,
+                               SDPatternOperator node> {
   def Hrr : BaseTwoOperandFPData<opcode, FPR16, asm,
                   [(set (f16 FPR16:$Rd), (fneg (node (f16 FPR16:$Rn), (f16 FPR16:$Rm))))]> {
     let Inst{23-22} = 0b11; // 16-bit size flag

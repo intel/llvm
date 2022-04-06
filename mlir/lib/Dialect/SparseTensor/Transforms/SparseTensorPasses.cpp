@@ -7,11 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/SparseTensor/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/Transforms/FuncConversions.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 using namespace mlir;
@@ -82,13 +83,15 @@ struct SparseTensorConversionPass
     // All dynamic rules below accept new function, call, return, and tensor
     // dim and cast operations as legal output of the rewriting provided that
     // all sparse tensor types have been fully rewritten.
-    target.addDynamicallyLegalOp<FuncOp>(
-        [&](FuncOp op) { return converter.isSignatureLegal(op.getType()); });
-    target.addDynamicallyLegalOp<CallOp>([&](CallOp op) {
+    target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
+      return converter.isSignatureLegal(op.getFunctionType());
+    });
+    target.addDynamicallyLegalOp<func::CallOp>([&](func::CallOp op) {
       return converter.isSignatureLegal(op.getCalleeType());
     });
-    target.addDynamicallyLegalOp<ReturnOp>(
-        [&](ReturnOp op) { return converter.isLegal(op.getOperandTypes()); });
+    target.addDynamicallyLegalOp<func::ReturnOp>([&](func::ReturnOp op) {
+      return converter.isLegal(op.getOperandTypes());
+    });
     target.addDynamicallyLegalOp<tensor::DimOp>([&](tensor::DimOp op) {
       return converter.isLegal(op.getOperandTypes());
     });

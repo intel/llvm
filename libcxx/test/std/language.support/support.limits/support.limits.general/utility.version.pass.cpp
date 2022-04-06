@@ -188,17 +188,11 @@
 #   error "__cpp_lib_exchange_function should have the value 201304L in c++20"
 # endif
 
-# if defined(__cpp_concepts) && __cpp_concepts >= 201907L
-#   ifndef __cpp_lib_integer_comparison_functions
-#     error "__cpp_lib_integer_comparison_functions should be defined in c++20"
-#   endif
-#   if __cpp_lib_integer_comparison_functions != 202002L
-#     error "__cpp_lib_integer_comparison_functions should have the value 202002L in c++20"
-#   endif
-# else
-#   ifdef __cpp_lib_integer_comparison_functions
-#     error "__cpp_lib_integer_comparison_functions should not be defined when defined(__cpp_concepts) && __cpp_concepts >= 201907L is not defined!"
-#   endif
+# ifndef __cpp_lib_integer_comparison_functions
+#   error "__cpp_lib_integer_comparison_functions should be defined in c++20"
+# endif
+# if __cpp_lib_integer_comparison_functions != 202002L
+#   error "__cpp_lib_integer_comparison_functions should have the value 202002L in c++20"
 # endif
 
 # ifndef __cpp_lib_integer_sequence
@@ -250,17 +244,11 @@
 #   error "__cpp_lib_exchange_function should have the value 201304L in c++2b"
 # endif
 
-# if defined(__cpp_concepts) && __cpp_concepts >= 201907L
-#   ifndef __cpp_lib_integer_comparison_functions
-#     error "__cpp_lib_integer_comparison_functions should be defined in c++2b"
-#   endif
-#   if __cpp_lib_integer_comparison_functions != 202002L
-#     error "__cpp_lib_integer_comparison_functions should have the value 202002L in c++2b"
-#   endif
-# else
-#   ifdef __cpp_lib_integer_comparison_functions
-#     error "__cpp_lib_integer_comparison_functions should not be defined when defined(__cpp_concepts) && __cpp_concepts >= 201907L is not defined!"
-#   endif
+# ifndef __cpp_lib_integer_comparison_functions
+#   error "__cpp_lib_integer_comparison_functions should be defined in c++2b"
+# endif
+# if __cpp_lib_integer_comparison_functions != 202002L
+#   error "__cpp_lib_integer_comparison_functions should have the value 202002L in c++2b"
 # endif
 
 # ifndef __cpp_lib_integer_sequence
@@ -297,17 +285,11 @@
 #   error "__cpp_lib_tuples_by_type should have the value 201304L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_unreachable
-#     error "__cpp_lib_unreachable should be defined in c++2b"
-#   endif
-#   if __cpp_lib_unreachable != 202202L
-#     error "__cpp_lib_unreachable should have the value 202202L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_unreachable
-#     error "__cpp_lib_unreachable should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_unreachable
+#   error "__cpp_lib_unreachable should be defined in c++2b"
+# endif
+# if __cpp_lib_unreachable != 202202L
+#   error "__cpp_lib_unreachable should have the value 202202L in c++2b"
 # endif
 
 #endif // TEST_STD_VER > 20

@@ -21,21 +21,6 @@
 namespace llvm {
 namespace jitlink {
 
-/// A LinkGraph pass that splits blocks in an eh-frame section into sub-blocks
-/// representing individual eh-frames.
-/// EHFrameSplitter should not be run without EHFrameEdgeFixer, which is
-/// responsible for adding FDE-to-CIE edges.
-class EHFrameSplitter {
-public:
-  EHFrameSplitter(StringRef EHFrameSectionName);
-  Error operator()(LinkGraph &G);
-
-private:
-  Error processBlock(LinkGraph &G, Block &B, LinkGraph::SplitBlockCache &Cache);
-
-  StringRef EHFrameSectionName;
-};
-
 /// A LinkGraph pass that adds missing FDE-to-CIE, FDE-to-PC and FDE-to-LSDA
 /// edges.
 class EHFrameEdgeFixer {

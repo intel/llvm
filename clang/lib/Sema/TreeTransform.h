@@ -6895,6 +6895,13 @@ QualType TreeTransform<Derived>::TransformAttributedType(
   return result;
 }
 
+template <typename Derived>
+QualType TreeTransform<Derived>::TransformBTFTagAttributedType(
+    TypeLocBuilder &TLB, BTFTagAttributedTypeLoc TL) {
+  // The BTFTagAttributedType is available for C only.
+  llvm_unreachable("Unexpected TreeTransform for BTFTagAttributedType");
+}
+
 template<typename Derived>
 QualType
 TreeTransform<Derived>::TransformParenType(TypeLocBuilder &TLB,
@@ -7935,12 +7942,6 @@ TreeTransform<Derived>::TransformCoroutineBodyStmt(CoroutineBodyStmt *S) {
     if (DeallocRes.isInvalid())
       return StmtError();
     Builder.Deallocate = DeallocRes.get();
-
-    assert(S->getResultDecl() && "ResultDecl must already be built");
-    StmtResult ResultDecl = getDerived().TransformStmt(S->getResultDecl());
-    if (ResultDecl.isInvalid())
-      return StmtError();
-    Builder.ResultDecl = ResultDecl.get();
 
     if (auto *ReturnStmt = S->getReturnStmt()) {
       StmtResult Res = getDerived().TransformStmt(ReturnStmt);
@@ -9275,6 +9276,17 @@ StmtResult TreeTransform<Derived>::TransformOMPGenericLoopDirective(
     OMPGenericLoopDirective *D) {
   DeclarationNameInfo DirName;
   getDerived().getSema().StartOpenMPDSABlock(OMPD_loop, DirName, nullptr,
+                                             D->getBeginLoc());
+  StmtResult Res = getDerived().TransformOMPExecutableDirective(D);
+  getDerived().getSema().EndOpenMPDSABlock(Res.get());
+  return Res;
+}
+
+template <typename Derived>
+StmtResult TreeTransform<Derived>::TransformOMPTeamsGenericLoopDirective(
+    OMPTeamsGenericLoopDirective *D) {
+  DeclarationNameInfo DirName;
+  getDerived().getSema().StartOpenMPDSABlock(OMPD_teams_loop, DirName, nullptr,
                                              D->getBeginLoc());
   StmtResult Res = getDerived().TransformOMPExecutableDirective(D);
   getDerived().getSema().EndOpenMPDSABlock(Res.get());
@@ -12033,9 +12045,9 @@ TreeTransform<Derived>::TransformCXXNewExpr(CXXNewExpr *E) {
 
   // Transform the size of the array we're allocating (if any).
   Optional<Expr *> ArraySize;
-  if (Optional<Expr *> OldArraySize = E->getArraySize()) {
+  if (E->isArray()) {
     ExprResult NewArraySize;
-    if (*OldArraySize) {
+    if (Optional<Expr *> OldArraySize = E->getArraySize()) {
       NewArraySize = getDerived().TransformExpr(*OldArraySize);
       if (NewArraySize.isInvalid())
         return ExprError();
@@ -12869,6 +12881,9 @@ ExprResult TreeTransform<Derived>::TransformCXXInheritedCtorInitExpr(
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
+  if (auto *Dtor = E->getTemporary()->getDestructor())
+    SemaRef.MarkFunctionReferenced(E->getBeginLoc(),
+                                   const_cast<CXXDestructorDecl *>(Dtor));
   return getDerived().TransformExpr(E->getSubExpr());
 }
 

@@ -177,6 +177,9 @@ the system, refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
 or
 [NVIDIA CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html)
+An installation of at least
+[CUDA 11.0](https://developer.nvidia.com/cuda-11.0-download-archive)
+is required for fully utilize Turing (SM 75) devices.
 
 Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
 a Titan RTX GPU (SM 71). The CUDA backend should work on Windows or Linux 

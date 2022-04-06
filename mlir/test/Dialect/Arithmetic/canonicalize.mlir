@@ -1,5 +1,82 @@
 // RUN: mlir-opt %s -canonicalize --split-input-file | FileCheck %s
 
+// CHECK-LABEL: @select_same_val
+//       CHECK:   return %arg1
+func @select_same_val(%arg0: i1, %arg1: i64) -> i64 {
+  %0 = arith.select %arg0, %arg1, %arg1 : i64
+  return %0 : i64
+}
+
+// CHECK-LABEL: @select_cmp_eq_select
+//       CHECK:   return %arg1
+func @select_cmp_eq_select(%arg0: i64, %arg1: i64) -> i64 {
+  %0 = arith.cmpi eq, %arg0, %arg1 : i64
+  %1 = arith.select %0, %arg0, %arg1 : i64
+  return %1 : i64
+}
+
+// CHECK-LABEL: @select_cmp_ne_select
+//       CHECK:   return %arg0
+func @select_cmp_ne_select(%arg0: i64, %arg1: i64) -> i64 {
+  %0 = arith.cmpi ne, %arg0, %arg1 : i64
+  %1 = arith.select %0, %arg0, %arg1 : i64
+  return %1 : i64
+}
+
+// CHECK-LABEL: @select_extui
+//       CHECK:   %[[res:.+]] = arith.extui %arg0 : i1 to i64
+//       CHECK:   return %[[res]]
+func @select_extui(%arg0: i1) -> i64 {
+  %c0_i64 = arith.constant 0 : i64
+  %c1_i64 = arith.constant 1 : i64
+  %res = arith.select %arg0, %c1_i64, %c0_i64 : i64
+  return %res : i64
+}
+
+// CHECK-LABEL: @select_extui2
+// CHECK-DAG:  %true = arith.constant true
+// CHECK-DAG:  %[[xor:.+]] = arith.xori %arg0, %true : i1
+// CHECK-DAG:  %[[res:.+]] = arith.extui %[[xor]] : i1 to i64
+//       CHECK:   return %[[res]]
+func @select_extui2(%arg0: i1) -> i64 {
+  %c0_i64 = arith.constant 0 : i64
+  %c1_i64 = arith.constant 1 : i64
+  %res = arith.select %arg0, %c0_i64, %c1_i64 : i64
+  return %res : i64
+}
+
+// CHECK-LABEL: @select_extui_i1
+//  CHECK-NEXT:   return %arg0
+func @select_extui_i1(%arg0: i1) -> i1 {
+  %c0_i1 = arith.constant false
+  %c1_i1 = arith.constant true
+  %res = arith.select %arg0, %c1_i1, %c0_i1 : i1
+  return %res : i1
+}
+
+// CHECK-LABEL: @selToNot
+//       CHECK:       %[[trueval:.+]] = arith.constant true
+//       CHECK:       %[[res:.+]] = arith.xori %arg0, %[[trueval]] : i1
+//       CHECK:   return %[[res]]
+func @selToNot(%arg0: i1) -> i1 {
+  %true = arith.constant true
+  %false = arith.constant false
+  %res = arith.select %arg0, %false, %true : i1
+  return %res : i1
+}
+
+// CHECK-LABEL: @selToArith
+//       CHECK-NEXT:       %[[trueval:.+]] = arith.constant true
+//       CHECK-NEXT:       %[[notcmp:.+]] = arith.xori %arg0, %[[trueval]] : i1
+//       CHECK-NEXT:       %[[condtrue:.+]] = arith.andi %arg0, %arg1 : i1
+//       CHECK-NEXT:       %[[condfalse:.+]] = arith.andi %[[notcmp]], %arg2 : i1
+//       CHECK-NEXT:       %[[res:.+]] = arith.ori %[[condtrue]], %[[condfalse]] : i1
+//       CHECK:   return %[[res]]
+func @selToArith(%arg0: i1, %arg1 : i1, %arg2 : i1) -> i1 {
+  %res = arith.select %arg0, %arg1, %arg2 : i1
+  return %res : i1
+}
+
 // Test case: Folding of comparisons with equal operands.
 // CHECK-LABEL: @cmpi_equal_operands
 //   CHECK-DAG:   %[[T:.*]] = arith.constant true
@@ -95,6 +172,48 @@ func @extSIOfExtSI(%arg0: i1) -> i64 {
   %ext1 = arith.extsi %arg0 : i1 to i8
   %ext2 = arith.extsi %ext1 : i8 to i64
   return %ext2 : i64
+}
+
+// -----
+
+// CHECK-LABEL: @cmpIExtSINE
+//       CHECK:  %[[comb:.+]] = arith.cmpi ne, %arg0, %arg1 : i8
+//       CHECK:   return %[[comb]]
+func @cmpIExtSINE(%arg0: i8, %arg1: i8) -> i1 {
+  %ext0 = arith.extsi %arg0 : i8 to i64
+  %ext1 = arith.extsi %arg1 : i8 to i64
+  %res = arith.cmpi ne, %ext0, %ext1 : i64
+  return %res : i1
+}
+
+// CHECK-LABEL: @cmpIExtSIEQ
+//       CHECK:  %[[comb:.+]] = arith.cmpi eq, %arg0, %arg1 : i8
+//       CHECK:   return %[[comb]]
+func @cmpIExtSIEQ(%arg0: i8, %arg1: i8) -> i1 {
+  %ext0 = arith.extsi %arg0 : i8 to i64
+  %ext1 = arith.extsi %arg1 : i8 to i64
+  %res = arith.cmpi eq, %ext0, %ext1 : i64
+  return %res : i1
+}
+
+// CHECK-LABEL: @cmpIExtUINE
+//       CHECK:  %[[comb:.+]] = arith.cmpi ne, %arg0, %arg1 : i8
+//       CHECK:   return %[[comb]]
+func @cmpIExtUINE(%arg0: i8, %arg1: i8) -> i1 {
+  %ext0 = arith.extui %arg0 : i8 to i64
+  %ext1 = arith.extui %arg1 : i8 to i64
+  %res = arith.cmpi ne, %ext0, %ext1 : i64
+  return %res : i1
+}
+
+// CHECK-LABEL: @cmpIExtUIEQ
+//       CHECK:  %[[comb:.+]] = arith.cmpi eq, %arg0, %arg1 : i8
+//       CHECK:   return %[[comb]]
+func @cmpIExtUIEQ(%arg0: i8, %arg1: i8) -> i1 {
+  %ext0 = arith.extui %arg0 : i8 to i64
+  %ext1 = arith.extui %arg1 : i8 to i64
+  %res = arith.cmpi eq, %ext0, %ext1 : i64
+  return %res : i1
 }
 
 // -----
@@ -787,4 +906,119 @@ func @constant_UItoFP() -> f32 {
   %c0 = arith.constant 2 : i32
   %res = arith.sitofp %c0 : i32 to f32
   return %res : f32
+}
+
+// -----
+
+// Tests rewritten from https://github.com/llvm/llvm-project/blob/main/llvm/test/Transforms/InstCombine/2008-11-08-FCmp.ll
+// When inst combining an FCMP with the LHS coming from a arith.uitofp instruction, we
+// can lower it to signed ICMP instructions.
+
+// CHECK-LABEL: @test1(
+// CHECK-SAME: %[[arg0:.+]]:
+func @test1(%arg0: i32) -> i1 {
+  %cst = arith.constant 0.000000e+00 : f64
+  %1 = arith.uitofp %arg0: i32 to f64
+  %2 = arith.cmpf ole, %1, %cst : f64
+  // CHECK: %[[c0:.+]] = arith.constant 0 : i32
+  // CHECK: arith.cmpi ule, %[[arg0]], %[[c0]] : i32
+  return %2 : i1
+}
+
+// CHECK-LABEL: @test2(
+// CHECK-SAME: %[[arg0:.+]]:
+func @test2(%arg0: i32) -> i1 {
+  %cst = arith.constant 0.000000e+00 : f64
+  %1 = arith.uitofp %arg0: i32 to f64
+  %2 = arith.cmpf olt, %1, %cst : f64
+  return %2 : i1
+  // CHECK: %[[c0:.+]] = arith.constant 0 : i32
+  // CHECK: arith.cmpi ult, %[[arg0]], %[[c0]] : i32
+}
+
+// CHECK-LABEL: @test3(
+// CHECK-SAME: %[[arg0:.+]]:
+func @test3(%arg0: i32) -> i1 {
+  %cst = arith.constant 0.000000e+00 : f64
+  %1 = arith.uitofp %arg0: i32 to f64
+  %2 = arith.cmpf oge, %1, %cst : f64
+  return %2 : i1
+  // CHECK: %[[c0:.+]] = arith.constant 0 : i32
+  // CHECK: arith.cmpi uge, %[[arg0]], %[[c0]] : i32
+}
+
+// CHECK-LABEL: @test4(
+// CHECK-SAME: %[[arg0:.+]]:
+func @test4(%arg0: i32) -> i1 {
+  %cst = arith.constant 0.000000e+00 : f64
+  %1 = arith.uitofp %arg0: i32 to f64
+  %2 = arith.cmpf ogt, %1, %cst : f64
+  // CHECK: %[[c0:.+]] = arith.constant 0 : i32
+  // CHECK: arith.cmpi ugt, %[[arg0]], %[[c0]] : i32
+  return %2 : i1
+}
+
+// CHECK-LABEL: @test5(
+func @test5(%arg0: i32) -> i1 {
+  %cst = arith.constant -4.400000e+00 : f64
+  %1 = arith.uitofp %arg0: i32 to f64
+  %2 = arith.cmpf ogt, %1, %cst : f64
+  return %2 : i1
+  // CHECK: %[[true:.+]] = arith.constant true
+  // CHECK: return %[[true]] : i1
+}
+
+// CHECK-LABEL: @test6(
+func @test6(%arg0: i32) -> i1 {
+  %cst = arith.constant -4.400000e+00 : f64
+  %1 = arith.uitofp %arg0: i32 to f64
+  %2 = arith.cmpf olt, %1, %cst : f64
+  return %2 : i1
+  // CHECK: %[[false:.+]] = arith.constant false
+  // CHECK: return %[[false]] : i1
+}
+
+// Check that optimizing unsigned >= comparisons correctly distinguishes
+// positive and negative constants.
+// CHECK-LABEL: @test7(
+// CHECK-SAME: %[[arg0:.+]]:
+func @test7(%arg0: i32) -> i1 {
+  %cst = arith.constant 3.200000e+00 : f64
+  %1 = arith.uitofp %arg0: i32 to f64
+  %2 = arith.cmpf oge, %1, %cst : f64
+  return %2 : i1
+  // CHECK: %[[c3:.+]] = arith.constant 3 : i32
+  // CHECK: arith.cmpi ugt, %[[arg0]], %[[c3]] : i32
+}
+
+// -----
+
+// CHECK-LABEL: @foldShl(
+// CHECK: %[[res:.+]] = arith.constant 4294967296 : i64
+// CHECK: return %[[res]]
+func @foldShl() -> i64 {
+  %c1 = arith.constant 1 : i64
+  %c32 = arith.constant 32 : i64
+  %r = arith.shli %c1, %c32 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @nofoldShl(
+// CHECK: %[[res:.+]] = arith.shli
+// CHECK: return %[[res]]
+func @nofoldShl() -> i64 {
+  %c1 = arith.constant 1 : i64
+  %c132 = arith.constant 132 : i64
+  %r = arith.shli %c1, %c132 : i64
+  return %r : i64
+}
+
+// CHECK-LABEL: @nofoldShl2(
+// CHECK: %[[res:.+]] = arith.shli
+// CHECK: return %[[res]]
+func @nofoldShl2() -> i64 {
+  %c1 = arith.constant 1 : i64
+  %cm32 = arith.constant -32 : i64
+  %r = arith.shli %c1, %cm32 : i64
+  return %r : i64
 }

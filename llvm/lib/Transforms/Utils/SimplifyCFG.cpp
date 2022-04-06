@@ -27,7 +27,7 @@
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/ConstantFolding.h"
-#include "llvm/Analysis/EHPersonalities.h"
+#include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/GuardUtils.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/MemorySSA.h"
@@ -50,7 +50,6 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
@@ -58,7 +57,6 @@
 #include "llvm/IR/NoFolder.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
-#include "llvm/IR/PseudoProbe.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
@@ -74,7 +72,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
-#include "llvm/Transforms/Utils/SSAUpdater.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <algorithm>
 #include <cassert>
@@ -166,6 +163,10 @@ static cl::opt<unsigned> BranchFoldToCommonDestVectorMultiplier(
     cl::desc("Multiplier to apply to threshold when determining whether or not "
              "to fold branch to common destination when vector operations are "
              "present"));
+
+static cl::opt<bool> EnableMergeCompatibleInvokes(
+    "simplifycfg-merge-compatible-invokes", cl::Hidden, cl::init(true),
+    cl::desc("Allow SimplifyCFG to merge invokes together when appropriate"));
 
 STATISTIC(NumBitMaps, "Number of switch instructions turned into bitmaps");
 STATISTIC(NumLinearMaps,
@@ -2528,6 +2529,9 @@ static void MergeCompatibleInvokesImpl(ArrayRef<InvokeInst *> Invokes,
 /// edges invoke0->cont0 and invoke1->cont1 are "compatible",
 /// and the invoked functions are "compatible".
 static bool MergeCompatibleInvokes(BasicBlock *BB, DomTreeUpdater *DTU) {
+  if (!EnableMergeCompatibleInvokes)
+    return false;
+
   bool Changed = false;
 
   // FIXME: generalize to all exception handling blocks?
@@ -3725,7 +3729,9 @@ static bool mergeConditionalStoreToAddress(
     return false;
 
   // Now check the stores are compatible.
-  if (!QStore->isUnordered() || !PStore->isUnordered())
+  if (!QStore->isUnordered() || !PStore->isUnordered() ||
+      PStore->getValueOperand()->getType() !=
+          QStore->getValueOperand()->getType())
     return false;
 
   // Check that sinking the store won't cause program behavior changes. Sinking
@@ -6552,7 +6558,9 @@ bool SimplifyCFGOpt::simplifySwitch(SwitchInst *SI, IRBuilder<> &Builder) {
   }
 
   // Try to transform the switch into an icmp and a branch.
-  if (TurnSwitchRangeIntoICmp(SI, Builder))
+  // The conversion from switch to comparison may lose information on
+  // impossible switch values, so disable it early in the pipeline.
+  if (Options.ConvertSwitchRangeToICmp && TurnSwitchRangeIntoICmp(SI, Builder))
     return requestResimplify();
 
   // Remove unreachable cases.

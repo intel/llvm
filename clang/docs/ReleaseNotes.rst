@@ -47,10 +47,26 @@ sections with improvements to Clang's support for those languages.
 Major New Features
 ------------------
 
--  ...
+- Clang now supports the ``-fzero-call-used-regs`` feature for x86. The purpose
+  of this feature is to limit Return-Oriented Programming (ROP) exploits and
+  information leakage. It works by zeroing out a selected class of registers
+  before function return --- e.g., all GPRs that are used within the function.
+  There is an analogous ``zero_call_used_regs`` attribute to allow for finer
+  control of this feature.
+
+Bug Fixes
+------------------
+- ``CXXNewExpr::getArraySize()`` previously returned a ``llvm::Optional``
+  wrapping a ``nullptr`` when the ``CXXNewExpr`` did not have an array
+  size expression. This was fixed and ``::getArraySize()`` will now always
+  either return ``None`` or a ``llvm::Optional`` wrapping a valid ``Expr*``.
+  This fixes `Issue 53742 <https://github.com/llvm/llvm-project/issues/53742>`_.
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+- ``-Wliteral-range`` will warn on floating-point equality comparisons with
+  constants that are not representable in a casted value. For example,
+  ``(float) f == 0.1`` is always false.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
@@ -92,6 +108,19 @@ Attribute Changes in Clang
 
 - Added support for parameter pack expansion in `clang::annotate`.
 
+- The ``overloadable`` attribute can now be written in all of the syntactic
+  locations a declaration attribute may appear.
+  This fixes `Issue 53805 <https://github.com/llvm/llvm-project/issues/53805>`_.
+
+- Improved namespace attributes handling:
+
+  - Handle GNU attributes before a namespace identifier and subsequent
+    attributes of different kinds.
+  - Emit error on GNU attributes for a nested namespace definition.
+
+- Statement attributes ``[[clang::noinline]]`` and  ``[[clang::always_inline]]``
+  can be used to control inlining decisions at callsites.
+
 Windows Support
 ---------------
 
@@ -104,6 +133,14 @@ Windows Support
 C Language Changes in Clang
 ---------------------------
 
+C2x Feature Support
+-------------------
+
+- Implemented `WG14 N2674 The noreturn attribute <http://www.open-std.org/jtc1/sc22/wg14/www/docs/n2764.pdf>`_.
+- Implemented `WG14 N2935 Make false and true first-class language features <http://www.open-std.org/jtc1/sc22/wg14/www/docs/n2935.pdf>`_.
+- Implemented `WG14 N2763 Adding a fundamental type for N-bit integers <http://www.open-std.org/jtc1/sc22/wg14/www/docs/n2763.pdf>`_.
+- Implemented `WG14 N2775 Literal suffixes for bit-precise integers <http://www.open-std.org/jtc1/sc22/wg14/www/docs/n2775.pdf>`_.
+
 C++ Language Changes in Clang
 -----------------------------
 
@@ -111,11 +148,14 @@ C++ Language Changes in Clang
 
 C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
+- Diagnose consteval and constexpr issues that happen at namespace scope. This
+  partially addresses `Issue 51593 <https://github.com/llvm/llvm-project/issues/51593>`_.
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
 
 - Implemented `P2128R6: Multidimensional subscript operator <https://wg21.link/P2128R6>`_.
+- Implemented `P0849R8: auto(x): decay-copy in the language <https://wg21.link/P0849R8>`_.
 
 CUDA Language Changes in Clang
 ------------------------------
@@ -183,8 +223,21 @@ Build System Changes
 AST Matchers
 ------------
 
+- Expanded ``isInline`` narrowing matcher to support c++17 inline variables.
+
 clang-format
 ------------
+
+- **Important change**: Renamed ``IndentRequires`` to ``IndentRequiresClause``
+  and changed the default for all styles from ``false`` to ``true``.
+
+- Reworked and improved handling of concepts and requires. Added the
+  ``RequiresClausePosition`` option as part of that.
+
+- Changed ``BreakBeforeConceptDeclarations`` from ``Boolean`` to an enum.
+
+- Option ``InsertBraces`` has been added to insert optional braces after control
+  statements.
 
 libclang
 --------

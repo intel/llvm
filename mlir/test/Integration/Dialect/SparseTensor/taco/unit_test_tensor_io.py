@@ -12,16 +12,12 @@ sys.path.append(_SCRIPT_PATH)
 from tools import mlir_pytaco
 from tools import mlir_pytaco_io
 from tools import mlir_pytaco_utils as pytaco_utils
+from tools import testing_utils as testing_utils
+
 
 # Define the aliases to shorten the code.
 _COMPRESSED = mlir_pytaco.ModeFormat.COMPRESSED
 _DENSE = mlir_pytaco.ModeFormat.DENSE
-
-
-def _run(f):
-  print(f.__name__)
-  f()
-  return f
 
 
 _FORMAT = mlir_pytaco.Format([_COMPRESSED, _COMPRESSED])
@@ -40,7 +36,7 @@ def _get_mtx_data(value):
 
 
 # CHECK-LABEL: test_read_mtx_matrix_general
-@_run
+@testing_utils.run_test
 def test_read_mtx_matrix_general():
   with tempfile.TemporaryDirectory() as test_dir:
     file_name = os.path.join(test_dir, "data.mtx")
@@ -53,14 +49,14 @@ def test_read_mtx_matrix_general():
   a.unpack()
   passed += (a.is_unpacked())
   coords, values = a.get_coordinates_and_values()
-  passed += np.allclose(coords, [[0, 1], [2, 0], [2, 1]])
+  passed += np.array_equal(coords, [[0, 1], [2, 0], [2, 1]])
   passed += np.allclose(values, [2.0, 3.0, 4.0])
   # CHECK: 4
   print(passed)
 
 
 # CHECK-LABEL: test_read_mtx_matrix_symmetry
-@_run
+@testing_utils.run_test
 def test_read_mtx_matrix_symmetry():
   with tempfile.TemporaryDirectory() as test_dir:
     file_name = os.path.join(test_dir, "data.mtx")
@@ -75,8 +71,8 @@ def test_read_mtx_matrix_symmetry():
   coords, values = a.get_coordinates_and_values()
   print(coords)
   print(values)
-  passed += np.allclose(coords,
-                        [[0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1]])
+  passed += np.array_equal(coords,
+                           [[0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1]])
   passed += np.allclose(values, [2.0, 3.0, 2.0, 4.0, 3.0, 4.0])
   # CHECK: 4
   print(passed)
@@ -91,7 +87,7 @@ _TNS_DATA = """2 3
 
 
 # CHECK-LABEL: test_read_tns
-@_run
+@testing_utils.run_test
 def test_read_tns():
   with tempfile.TemporaryDirectory() as test_dir:
     file_name = os.path.join(test_dir, "data.tns")
@@ -104,14 +100,14 @@ def test_read_tns():
   a.unpack()
   passed += (a.is_unpacked())
   coords, values = a.get_coordinates_and_values()
-  passed += np.allclose(coords, [[0, 1], [2, 0], [2, 1]])
+  passed += np.array_equal(coords, [[0, 1], [2, 0], [2, 1]])
   passed += np.allclose(values, [2.0, 3.0, 4.0])
   # CHECK: 4
   print(passed)
 
 
 # CHECK-LABEL: test_write_unpacked_tns
-@_run
+@testing_utils.run_test
 def test_write_unpacked_tns():
   a = mlir_pytaco.Tensor([2, 3])
   a.insert([0, 1], 10)
@@ -119,19 +115,15 @@ def test_write_unpacked_tns():
   a.insert([0, 0], 20)
   with tempfile.TemporaryDirectory() as test_dir:
     file_name = os.path.join(test_dir, "data.tns")
-    mlir_pytaco_io.write(file_name, a)
-    with open(file_name, "r") as file:
-      lines = file.readlines()
-  passed = 0
-  # Skip the comment line in the output.
-  if lines[1:] == ["2 3\n", "2 3\n", "1 2 10.0\n", "2 3 40.0\n", "1 1 20.0\n"]:
-    passed = 1
-  # CHECK: 1
-  print(passed)
+    try:
+      mlir_pytaco_io.write(file_name, a)
+    except ValueError as e:
+      # CHECK: Writing unpacked sparse tensors to file is not supported
+      print(e)
 
 
 # CHECK-LABEL: test_write_packed_tns
-@_run
+@testing_utils.run_test
 def test_write_packed_tns():
   a = mlir_pytaco.Tensor([2, 3])
   a.insert([0, 1], 10)

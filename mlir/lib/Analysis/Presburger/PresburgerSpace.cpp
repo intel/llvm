@@ -11,25 +11,30 @@
 #include <cassert>
 
 using namespace mlir;
+using namespace presburger;
 
 unsigned PresburgerSpace::getNumIdKind(IdKind kind) const {
-  if (kind == IdKind::Dimension)
-    return getNumDimIds();
+  if (kind == IdKind::Domain)
+    return getNumDomainIds();
+  if (kind == IdKind::Range)
+    return getNumRangeIds();
   if (kind == IdKind::Symbol)
     return getNumSymbolIds();
   if (kind == IdKind::Local)
     return numLocals;
-  llvm_unreachable("IdKind does not exit!");
+  llvm_unreachable("IdKind does not exist!");
 }
 
 unsigned PresburgerSpace::getIdKindOffset(IdKind kind) const {
-  if (kind == IdKind::Dimension)
+  if (kind == IdKind::Domain)
     return 0;
+  if (kind == IdKind::Range)
+    return getNumDomainIds();
   if (kind == IdKind::Symbol)
     return getNumDimIds();
   if (kind == IdKind::Local)
     return getNumDimAndSymbolIds();
-  llvm_unreachable("IdKind does not exit!");
+  llvm_unreachable("IdKind does not exist!");
 }
 
 unsigned PresburgerSpace::getIdKindEnd(IdKind kind) const {
@@ -56,34 +61,34 @@ unsigned PresburgerSpace::insertId(IdKind kind, unsigned pos, unsigned num) {
 
   unsigned absolutePos = getIdKindOffset(kind) + pos;
 
-  if (kind == IdKind::Dimension)
-    numDims += num;
+  if (kind == IdKind::Domain)
+    numDomain += num;
+  else if (kind == IdKind::Range)
+    numRange += num;
   else if (kind == IdKind::Symbol)
     numSymbols += num;
   else
-    llvm_unreachable(
-        "PresburgerSpace only supports Dimensions and Symbol identifiers!");
+    llvm_unreachable("PresburgerSpace does not support local identifiers!");
 
   return absolutePos;
 }
 
-void PresburgerSpace::removeIdRange(unsigned idStart, unsigned idLimit) {
-  assert(idLimit <= getNumIds() && "invalid id limit");
+void PresburgerSpace::removeIdRange(IdKind kind, unsigned idStart,
+                                    unsigned idLimit) {
+  assert(idLimit <= getNumIdKind(kind) && "invalid id limit");
 
   if (idStart >= idLimit)
     return;
 
-  // We are going to be removing one or more identifiers from the range.
-  assert(idStart < getNumIds() && "invalid idStart position");
-
-  // Update members numDims, numSymbols and numIds.
-  unsigned numDimsEliminated =
-      getIdKindOverlap(IdKind::Dimension, idStart, idLimit);
-  unsigned numSymbolsEliminated =
-      getIdKindOverlap(IdKind::Symbol, idStart, idLimit);
-
-  numDims -= numDimsEliminated;
-  numSymbols -= numSymbolsEliminated;
+  unsigned numIdsEliminated = idLimit - idStart;
+  if (kind == IdKind::Domain)
+    numDomain -= numIdsEliminated;
+  else if (kind == IdKind::Range)
+    numRange -= numIdsEliminated;
+  else if (kind == IdKind::Symbol)
+    numSymbols -= numIdsEliminated;
+  else
+    llvm_unreachable("PresburgerSpace does not support local identifiers!");
 }
 
 unsigned PresburgerLocalSpace::insertId(IdKind kind, unsigned pos,
@@ -95,29 +100,48 @@ unsigned PresburgerLocalSpace::insertId(IdKind kind, unsigned pos,
   return PresburgerSpace::insertId(kind, pos, num);
 }
 
-void PresburgerLocalSpace::removeIdRange(unsigned idStart, unsigned idLimit) {
-  assert(idLimit <= getNumIds() && "invalid id limit");
+void PresburgerLocalSpace::removeIdRange(IdKind kind, unsigned idStart,
+                                         unsigned idLimit) {
+  assert(idLimit <= getNumIdKind(kind) && "invalid id limit");
 
   if (idStart >= idLimit)
     return;
 
-  // We are going to be removing one or more identifiers from the range.
-  assert(idStart < getNumIds() && "invalid idStart position");
+  if (kind == IdKind::Local)
+    numLocals -= idLimit - idStart;
+  else
+    PresburgerSpace::removeIdRange(kind, idStart, idLimit);
+}
 
-  unsigned numLocalsEliminated =
-      getIdKindOverlap(IdKind::Local, idStart, idLimit);
+bool PresburgerSpace::isEqual(const PresburgerSpace &other) const {
+  return getNumDomainIds() == other.getNumDomainIds() &&
+         getNumRangeIds() == other.getNumRangeIds() &&
+         getNumSymbolIds() == other.getNumSymbolIds();
+}
 
-  // Update space parameters.
-  PresburgerSpace::removeIdRange(
-      idStart, std::min(idLimit, PresburgerSpace::getNumIds()));
-
-  // Update local ids.
-  numLocals -= numLocalsEliminated;
+bool PresburgerLocalSpace::isEqual(const PresburgerLocalSpace &other) const {
+  return PresburgerSpace::isEqual(other) &&
+         getNumLocalIds() == other.getNumLocalIds();
 }
 
 void PresburgerSpace::setDimSymbolSeparation(unsigned newSymbolCount) {
   assert(newSymbolCount <= getNumDimAndSymbolIds() &&
          "invalid separation position");
-  numDims = numDims + numSymbols - newSymbolCount;
+  numRange = numRange + numSymbols - newSymbolCount;
   numSymbols = newSymbolCount;
 }
+
+void PresburgerSpace::print(llvm::raw_ostream &os) const {
+  os << "Domain: " << getNumDomainIds() << ", "
+     << "Range: " << getNumRangeIds() << ", "
+     << "Symbols: " << getNumSymbolIds() << "\n";
+}
+
+void PresburgerSpace::dump() const { print(llvm::errs()); }
+
+void PresburgerLocalSpace::print(llvm::raw_ostream &os) const {
+  PresburgerSpace::print(os);
+  os << "Locals: " << getNumLocalIds() << "\n";
+}
+
+void PresburgerLocalSpace::dump() const { print(llvm::errs()); }

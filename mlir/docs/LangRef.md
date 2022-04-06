@@ -256,10 +256,10 @@ between, and within, different dialects.
 A few of the dialects supported by MLIR:
 
 *   [Affine dialect](Dialects/Affine.md)
+*   [Func dialect](Dialects/Func.md)
 *   [GPU dialect](Dialects/GPU.md)
 *   [LLVM dialect](Dialects/LLVM.md)
 *   [SPIR-V dialect](Dialects/SPIR-V.md)
-*   [Standard dialect](Dialects/Standard.md)
 *   [Vector dialect](Dialects/Vector.md)
 
 ### Target specific operations
@@ -305,7 +305,7 @@ MLIR introduces a uniform concept called *operations* to enable describing many
 different levels of abstractions and computations. Operations in MLIR are fully
 extensible (there is no fixed list of operations) and have application-specific
 semantics. For example, MLIR supports
-[target-independent operations](Dialects/Standard.md#memory-operations),
+[target-independent operations](Dialects/MemRef.md),
 [affine operations](Dialects/Affine.md), and
 [target-specific machine operations](#target-specific-operations).
 
@@ -443,7 +443,8 @@ entry block cannot be listed as a successor of any other block. The syntax for a
 region is as follows:
 
 ```
-region ::= `{` block* `}`
+region      ::= `{` entry-block? block* `}`
+entry-block ::= operation+
 ```
 
 A function body is an example of a region: it consists of a CFG of blocks and
@@ -453,6 +454,11 @@ different block, or return from a function where the types of the `return`
 arguments must match the result types of the function signature. Similarly, the
 function arguments must match the types and count of the region arguments. In
 general, operations with regions can define these correspondences arbitrarily.
+
+An *entry block* is a block with no label and no arguments that may occur at
+the beginning of a region. It enables a common pattern of using a region to
+open a new scope.
+
 
 ### Value Scoping
 
@@ -726,8 +732,7 @@ the lighter syntax: `!foo.something<a%%123^^^>>>` because it contains characters
 that are not allowed in the lighter syntax, as well as unbalanced `<>`
 characters.
 
-See [here](Tutorials/DefiningAttributesAndTypes.md) to learn how to define
-dialect types.
+See [here](AttributesAndTypes.md) to learn how to define dialect types.
 
 ### Builtin Types
 
@@ -746,7 +751,7 @@ attribute-value ::= attribute-alias | dialect-attribute | builtin-attribute
 
 Attributes are the mechanism for specifying constant data on operations in
 places where a variable is never allowed - e.g. the comparison predicate of a
-[`cmpi` operation](Dialects/Standard.md#stdcmpi-cmpiop). Each operation has an
+[`cmpi` operation](Dialects/ArithmeticOps.md#arithcmpi-mlirarithcmpiop). Each operation has an
 attribute dictionary, which associates a set of attribute names to attribute
 values. MLIR's builtin dialect provides a rich set of
 [builtin attribute values](#builtin-attribute-values) out of the box (such as
@@ -834,8 +839,7 @@ valid in the lighter syntax: `#foo.something<a%%123^^^>>>` because it contains
 characters that are not allowed in the lighter syntax, as well as unbalanced
 `<>` characters.
 
-See [here](Tutorials/DefiningAttributesAndTypes.md) on how to define dialect
-attribute values.
+See [here](AttributesAndTypes.md) on how to define dialect attribute values.
 
 ### Builtin Attribute Values
 

@@ -576,7 +576,7 @@ pi_result _pi_program::build_program(const char *build_options) {
 ///       query to PI and use cuModuleGetFunction to check for a kernel.
 /// Note: Another alternative is to add kernel names as metadata, like with
 ///       reqd_work_group_size.
-std::string getKernelNames(pi_program program) {
+std::string getKernelNames(pi_program) {
   cl::sycl::detail::pi::die("getKernelNames not implemented");
   return {};
 }
@@ -1731,6 +1731,15 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
       }
     }
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
+  case PI_DEVICE_INFO_BACKEND_VERSION: {
+    int major =
+        getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
+    int minor =
+        getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
+    std::string result = std::to_string(major) + "." + std::to_string(minor);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   result.c_str());
   }
 
     // TODO: Investigate if this information is available on CUDA.

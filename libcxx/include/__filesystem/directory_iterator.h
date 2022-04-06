@@ -10,9 +10,9 @@
 #ifndef _LIBCPP___FILESYSTEM_DIRECTORY_ITERATOR_H
 #define _LIBCPP___FILESYSTEM_DIRECTORY_ITERATOR_H
 
+#include <__assert>
 #include <__availability>
 #include <__config>
-#include <__debug>
 #include <__filesystem/directory_entry.h>
 #include <__filesystem/directory_options.h>
 #include <__filesystem/path.h>
@@ -137,7 +137,7 @@ _LIBCPP_AVAILABILITY_FILESYSTEM_POP
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
 
-#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#if _LIBCPP_STD_VER > 17
 
 template <>
 _LIBCPP_AVAILABILITY_FILESYSTEM
@@ -147,7 +147,7 @@ template <>
 _LIBCPP_AVAILABILITY_FILESYSTEM
 inline constexpr bool _VSTD::ranges::enable_view<_VSTD_FS::directory_iterator> = true;
 
-#endif
+#endif // _LIBCPP_STD_VER > 17
 
 #endif // _LIBCPP_CXX03_LANG
 

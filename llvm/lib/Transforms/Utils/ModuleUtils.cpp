@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/ModuleUtils.h"
-#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
@@ -271,9 +270,10 @@ void llvm::embedBufferInModule(Module &M, MemoryBufferRef Buf,
   Constant *ModuleConstant = ConstantDataArray::get(
       M.getContext(), makeArrayRef(Buf.getBufferStart(), Buf.getBufferSize()));
   GlobalVariable *GV = new GlobalVariable(
-      M, ModuleConstant->getType(), true, GlobalValue::PrivateLinkage,
-      ModuleConstant, "llvm.embedded.object");
+      M, ModuleConstant->getType(), true, GlobalValue::ExternalLinkage,
+      ModuleConstant, SectionName.drop_front());
   GV->setSection(SectionName);
+  GV->setVisibility(GlobalValue::HiddenVisibility);
 
   appendToCompilerUsed(M, GV);
 }

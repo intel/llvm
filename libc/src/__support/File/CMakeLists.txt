@@ -1,0 +1,11 @@
+add_object_library(
+  file
+  SRCS
+    file.cpp
+  HDRS
+    file.h
+  DEPENDS
+    libc.src.__support.threads.thread
+    libc.include.errno
+    libc.src.errno.errno
+)

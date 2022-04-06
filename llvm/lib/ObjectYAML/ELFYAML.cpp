@@ -29,6 +29,8 @@ namespace llvm {
 ELFYAML::Chunk::~Chunk() = default;
 
 namespace ELFYAML {
+ELF_ELFOSABI Object::getOSAbi() const { return Header.OSABI; }
+
 unsigned Object::getMachine() const {
   if (Header.Machine)
     return *Header.Machine;
@@ -175,6 +177,10 @@ void ScalarEnumerationTraits<ELFYAML::ELF_NT>::enumeration(
   ECase(NT_AMD_PAL_METADATA);
   // AMDGPU specific notes. (Code Object V3)
   ECase(NT_AMDGPU_METADATA);
+  // Android specific notes.
+  ECase(NT_ANDROID_TYPE_IDENT);
+  ECase(NT_ANDROID_TYPE_KUSER);
+  ECase(NT_ANDROID_TYPE_MEMTAG);
 #undef ECase
   IO.enumFallback<Hex32>(Value);
 }
@@ -561,6 +567,7 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX909, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX90A, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX90C, EF_AMDGPU_MACH);
+    BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX940, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1010, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1011, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1012, EF_AMDGPU_MACH);
@@ -571,6 +578,7 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1033, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1034, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1035, EF_AMDGPU_MACH);
+    BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1036, EF_AMDGPU_MACH);
     switch (Object->Header.ABIVersion) {
     default:
       // ELFOSABI_AMDGPU_PAL, ELFOSABI_AMDGPU_MESA3D support *_V3 flags.
@@ -706,7 +714,14 @@ void ScalarBitSetTraits<ELFYAML::ELF_SHF>::bitset(IO &IO,
   BCase(SHF_GROUP);
   BCase(SHF_TLS);
   BCase(SHF_COMPRESSED);
-  BCase(SHF_GNU_RETAIN);
+  switch (Object->getOSAbi()) {
+  case ELF::ELFOSABI_SOLARIS:
+    BCase(SHF_SUNW_NODISCARD);
+    break;
+  default:
+    BCase(SHF_GNU_RETAIN);
+    break;
+  }
   switch (Object->getMachine()) {
   case ELF::EM_ARM:
     BCase(SHF_ARM_PURECODE);

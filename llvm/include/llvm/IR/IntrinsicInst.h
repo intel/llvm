@@ -31,13 +31,14 @@
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 #include <cassert>
 #include <cstdint>
 
 namespace llvm {
+
+class Metadata;
 
 /// A wrapper class for inspecting calls to intrinsic functions.
 /// This allows the standard isa/dyncast/cast functionality to work with calls
@@ -465,6 +466,21 @@ public:
   /// @{
   static bool classof(const IntrinsicInst *I) {
     return VPReductionIntrinsic::isVPReduction(I->getIntrinsicID());
+  }
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+  /// @}
+};
+
+class VPCastIntrinsic : public VPIntrinsic {
+public:
+  static bool isVPCast(Intrinsic::ID ID);
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// @{
+  static bool classof(const IntrinsicInst *I) {
+    return VPCastIntrinsic::isVPCast(I->getIntrinsicID());
   }
   static bool classof(const Value *V) {
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));

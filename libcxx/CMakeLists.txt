@@ -137,12 +137,31 @@ option(LIBCXX_ENABLE_INCOMPLETE_FEATURES
     are new library features under development. These features don't guarantee
     ABI stability nor the quality of completed library features. Vendors
     shipping the library may want to disable this option." ON)
-set(LIBCXX_TEST_CONFIG "legacy.cfg.in" CACHE STRING
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  set(LIBCXX_DEFAULT_TEST_CONFIG "llvm-libc++-shared-gcc.cfg.in")
+elseif(MINGW)
+  set(LIBCXX_DEFAULT_TEST_CONFIG "llvm-libc++-mingw.cfg.in")
+elseif(WIN32) # clang-cl
+  if (LIBCXX_ENABLE_SHARED)
+    set(LIBCXX_DEFAULT_TEST_CONFIG "llvm-libc++-shared-clangcl.cfg.in")
+  else()
+    set(LIBCXX_DEFAULT_TEST_CONFIG "llvm-libc++-static-clangcl.cfg.in")
+  endif()
+else()
+  if (LIBCXX_ENABLE_SHARED)
+    set(LIBCXX_DEFAULT_TEST_CONFIG "llvm-libc++-shared.cfg.in")
+  else()
+    set(LIBCXX_DEFAULT_TEST_CONFIG "llvm-libc++-static.cfg.in")
+  endif()
+endif()
+set(LIBCXX_TEST_CONFIG "${LIBCXX_DEFAULT_TEST_CONFIG}" CACHE STRING
     "The path to the Lit testing configuration to use when running the tests.
      If a relative path is provided, it is assumed to be relative to '<monorepo>/libcxx/test/configs'.")
 if (NOT IS_ABSOLUTE "${LIBCXX_TEST_CONFIG}")
   set(LIBCXX_TEST_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/test/configs/${LIBCXX_TEST_CONFIG}")
 endif()
+message(STATUS "Using libc++ testing configuration: ${LIBCXX_TEST_CONFIG}")
 set(LIBCXX_TEST_PARAMS "" CACHE STRING
     "A list of parameters to run the Lit test suite with.")
 
@@ -282,14 +301,10 @@ if (LIBCXX_BUILD_32_BITS)
   message(FATAL_ERROR "LIBCXX_BUILD_32_BITS is not supported anymore when building the runtimes, please specify a full triple instead.")
 endif()
 
-if(CMAKE_CXX_COMPILER_TARGET)
-  set(LIBCXX_DEFAULT_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
-else()
-  set(LIBCXX_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
+# TODO: Remove this after branching for LLVM 15
+if(LIBCXX_SYSROOT OR LIBCXX_TARGET_TRIPLE OR LIBCXX_GCC_TOOLCHAIN)
+  message(WARNING "LIBCXX_SYSROOT, LIBCXX_TARGET_TRIPLE and LIBCXX_GCC_TOOLCHAIN are not supported anymore, please use the native CMake equivalents instead")
 endif()
-set(LIBCXX_TARGET_TRIPLE "${LIBCXX_DEFAULT_TARGET_TRIPLE}" CACHE STRING "Use alternate target triple.")
-set(LIBCXX_SYSROOT "${CMAKE_SYSROOT}" CACHE STRING "Use alternate sysroot.")
-set(LIBCXX_GCC_TOOLCHAIN "${CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN}" CACHE STRING "Use alternate GCC toolchain.")
 
 # Feature options -------------------------------------------------------------
 option(LIBCXX_ENABLE_EXCEPTIONS "Use exceptions." ON)
@@ -483,15 +498,6 @@ include(HandleLibcxxFlags)
 # 'LIBCXX_COMPILE_FLAGS' and 'LIBCXX_LINK_FLAGS'
 if(ZOS)
   add_target_flags_if_supported("-fzos-le-char-mode=ebcdic")
-endif()
-if(LIBCXX_TARGET_TRIPLE)
-  add_target_flags_if_supported("--target=${LIBCXX_TARGET_TRIPLE}")
-endif()
-if(LIBCXX_SYSROOT)
-  add_target_flags_if_supported("--sysroot=${LIBCXX_SYSROOT}")
-endif()
-if(LIBCXX_GCC_TOOLCHAIN)
-  add_target_flags_if_supported("--gcc-toolchain=${LIBCXX_GCC_TOOLCHAIN}")
 endif()
 
 # Configure compiler.
@@ -688,8 +694,6 @@ if (LIBCXX_BUILD_EXTERNAL_THREAD_LIBRARY AND LIBCXX_ENABLE_SHARED)
 endif()
 
 # Assertion flags =============================================================
-define_if(LIBCXX_ENABLE_ASSERTIONS -UNDEBUG)
-define_if_not(LIBCXX_ENABLE_ASSERTIONS -DNDEBUG)
 define_if(LIBCXX_ENABLE_ASSERTIONS -D_LIBCPP_DEBUG=0)
 define_if(LIBCXX_DEBUG_BUILD -D_DEBUG)
 if (LIBCXX_ENABLE_ASSERTIONS AND NOT LIBCXX_DEBUG_BUILD)

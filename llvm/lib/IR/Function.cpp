@@ -339,8 +339,9 @@ Function *Function::createWithDefaultAttr(FunctionType *Ty,
                                           Module *M) {
   auto *F = new Function(Ty, Linkage, AddrSpace, N, M);
   AttrBuilder B(F->getContext());
-  if (M->getUwtable())
-    B.addAttribute(Attribute::UWTable);
+  UWTableKind UWTable = M->getUwtable();
+  if (UWTable != UWTableKind::None)
+    B.addUWTableAttr(UWTable);
   switch (M->getFramePointer()) {
   case FramePointerKind::None:
     // 0 ("none") is the default.
@@ -1802,7 +1803,7 @@ bool Function::hasAddressTaken(const User **PutOffender,
         *PutOffender = FU;
       return true;
     }
-    if (!Call->isCallee(&U)) {
+    if (!Call->isCallee(&U) || Call->getFunctionType() != getFunctionType()) {
       if (IgnoreARCAttachedCall &&
           Call->isOperandBundleOfType(LLVMContext::OB_clang_arc_attachedcall,
                                       U.getOperandNo()))

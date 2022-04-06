@@ -44,11 +44,8 @@ def NullMacro : MacroDef<"NULL"> {
 
 def ErrnoMacro : MacroDef<"errno"> {
   let Defn = [{
-    #ifdef __cplusplus
-    extern "C"
-    #endif
-    int *__errno_location();
-    #define errno (*__errno_location())
+    extern _Thread_local int __llvmlibc_errno;
+    #define errno __llvmlibc_errno
   }];
 }
 
@@ -159,7 +156,8 @@ def StdlibAPI : PublicAPI<"stdlib.h"> {
     "lldiv_t",
     "size_t",
     "__bsearchcompare_t",
-    "__qsortcompare_t"
+    "__qsortcompare_t",
+    "__atexithandler_t",
   ];
 }
 
@@ -215,7 +213,7 @@ def SignalAPI : PublicAPI<"signal.h"> {
 
 def ThreadsAPI : PublicAPI<"threads.h"> {
   let Macros = [
-    SimpleMacroDef<"ONCE_FLAG_INIT", "0">,
+    SimpleMacroDef<"ONCE_FLAG_INIT", "{0}">,
   ];
 
   let Types = [
@@ -240,7 +238,7 @@ def ThreadsAPI : PublicAPI<"threads.h"> {
 }
 
 def UniStdAPI : PublicAPI<"unistd.h"> {
-  let Types = ["size_t", "ssize_t"];
+  let Types = ["off_t", "size_t", "ssize_t"];
 }
 
 def SysStatAPI : PublicAPI<"sys/stat.h"> {

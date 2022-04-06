@@ -443,9 +443,8 @@ lldb::ProcessSP PlatformPOSIX::DebugProcess(ProcessLaunchInfo &launch_info,
 
   // Now create the gdb-remote process.
   LLDB_LOG(log, "having target create process with gdb-remote plugin");
-  process_sp =
-      target.CreateProcess(launch_info.GetListener(), "gdb-remote", nullptr,
-                            true);
+  process_sp = target.CreateProcess(launch_info.GetListener(), "gdb-remote",
+                                    nullptr, true);
 
   if (!process_sp) {
     error.SetErrorString("CreateProcess() failed for gdb-remote process");
@@ -454,15 +453,8 @@ lldb::ProcessSP PlatformPOSIX::DebugProcess(ProcessLaunchInfo &launch_info,
   }
 
   LLDB_LOG(log, "successfully created process");
-  // Adjust launch for a hijacker.
-  ListenerSP listener_sp;
-  if (!launch_info.GetHijackListener()) {
-    LLDB_LOG(log, "setting up hijacker");
-    listener_sp =
-        Listener::MakeListener("lldb.PlatformLinux.DebugProcess.hijack");
-    launch_info.SetHijackListener(listener_sp);
-    process_sp->HijackProcessEvents(listener_sp);
-  }
+
+  process_sp->HijackProcessEvents(launch_info.GetHijackListener());
 
   // Log file actions.
   if (log) {
@@ -480,14 +472,6 @@ lldb::ProcessSP PlatformPOSIX::DebugProcess(ProcessLaunchInfo &launch_info,
   // Do the launch.
   error = process_sp->Launch(launch_info);
   if (error.Success()) {
-    // Handle the hijacking of process events.
-    if (listener_sp) {
-      const StateType state = process_sp->WaitForProcessToStop(
-          llvm::None, nullptr, false, listener_sp);
-
-      LLDB_LOG(log, "pid {0} state {0}", process_sp->GetID(), state);
-    }
-
     // Hook up process PTY if we have one (which we should for local debugging
     // with llgs).
     int pty_fd = launch_info.GetPTY().ReleasePrimaryFileDescriptor();
@@ -576,8 +560,8 @@ PlatformPOSIX::MakeLoadImageUtilityFunction(ExecutionContext &exe_ctx,
     const char *error_str;
   };
   
-  extern void *memcpy(void *, const void *, size_t size);
-  extern size_t strlen(const char *);
+  extern "C" void *memcpy(void *, const void *, size_t size);
+  extern "C" size_t strlen(const char *);
   
 
   void * __lldb_dlopen_wrapper (const char *name, 
@@ -624,7 +608,7 @@ PlatformPOSIX::MakeLoadImageUtilityFunction(ExecutionContext &exe_ctx,
   DiagnosticManager diagnostics;
 
   auto utility_fn_or_error = process->GetTarget().CreateUtilityFunction(
-      std::move(expr), dlopen_wrapper_name, eLanguageTypeObjC, exe_ctx);
+      std::move(expr), dlopen_wrapper_name, eLanguageTypeC_plus_plus, exe_ctx);
   if (!utility_fn_or_error) {
     std::string error_str = llvm::toString(utility_fn_or_error.takeError());
     error.SetErrorStringWithFormat("dlopen error: could not create utility"

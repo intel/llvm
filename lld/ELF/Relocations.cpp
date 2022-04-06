@@ -42,6 +42,7 @@
 
 #include "Relocations.h"
 #include "Config.h"
+#include "InputFiles.h"
 #include "LinkerScript.h"
 #include "OutputSections.h"
 #include "SymbolTable.h"
@@ -247,7 +248,7 @@ template <class ELFT> static bool isReadOnly(SharedSymbol &ss) {
   using Elf_Phdr = typename ELFT::Phdr;
 
   // Determine if the symbol is read-only by scanning the DSO's program headers.
-  const SharedFile &file = ss.getFile();
+  const auto &file = cast<SharedFile>(*ss.file);
   for (const Elf_Phdr &phdr :
        check(file.template getObj<ELFT>().program_headers()))
     if ((phdr.p_type == ELF::PT_LOAD || phdr.p_type == ELF::PT_GNU_RELRO) &&
@@ -266,7 +267,7 @@ template <class ELFT>
 static SmallSet<SharedSymbol *, 4> getSymbolsAt(SharedSymbol &ss) {
   using Elf_Sym = typename ELFT::Sym;
 
-  SharedFile &file = ss.getFile();
+  const auto &file = cast<SharedFile>(*ss.file);
 
   SmallSet<SharedSymbol *, 4> ret;
   for (const Elf_Sym &s : file.template getGlobalELFSyms<ELFT>()) {
@@ -350,7 +351,7 @@ static void replaceWithDefined(Symbol &sym, SectionBase &sec, uint64_t value,
 // to the variable in .bss. This kind of issue is sometimes very hard to
 // debug. What's a solution? Instead of exporting a variable V from a DSO,
 // define an accessor getV().
-template <class ELFT> static void addCopyRelSymbolImpl(SharedSymbol &ss) {
+template <class ELFT> static void addCopyRelSymbol(SharedSymbol &ss) {
   // Copy relocation against zero-sized symbol doesn't make sense.
   uint64_t symSize = ss.getSize();
   if (symSize == 0 || ss.alignment == 0)
@@ -379,26 +380,6 @@ template <class ELFT> static void addCopyRelSymbolImpl(SharedSymbol &ss) {
     replaceWithDefined(*sym, *sec, 0, sym->size);
 
   mainPart->relaDyn->addSymbolReloc(target->copyRel, *sec, 0, ss);
-}
-
-static void addCopyRelSymbol(SharedSymbol &ss) {
-  const SharedFile &file = ss.getFile();
-  switch (file.ekind) {
-  case ELF32LEKind:
-    addCopyRelSymbolImpl<ELF32LE>(ss);
-    break;
-  case ELF32BEKind:
-    addCopyRelSymbolImpl<ELF32BE>(ss);
-    break;
-  case ELF64LEKind:
-    addCopyRelSymbolImpl<ELF64LE>(ss);
-    break;
-  case ELF64BEKind:
-    addCopyRelSymbolImpl<ELF64BE>(ss);
-    break;
-  default:
-    llvm_unreachable("");
-  }
 }
 
 // .eh_frame sections are mergeable input sections, so their input
@@ -497,7 +478,7 @@ int64_t RelocationScanner::computeMipsAddend(const RelTy &rel, RelExpr expr,
   if (pairTy == R_MIPS_NONE)
     return 0;
 
-  const uint8_t *buf = sec.data().data();
+  const uint8_t *buf = sec.rawData.data();
   uint32_t symIndex = rel.getSymbol(config->isMips64EL);
 
   // To make things worse, paired relocations might not be contiguous in
@@ -524,7 +505,7 @@ int64_t RelocationScanner::computeAddend(const RelTy &rel, RelExpr expr,
   if (RelTy::IsRela) {
     addend = getAddend<ELFT>(rel);
   } else {
-    const uint8_t *buf = sec.data().data();
+    const uint8_t *buf = sec.rawData.data();
     addend = target.getImplicitAddend(buf + rel.r_offset, type);
   }
 
@@ -564,9 +545,16 @@ static std::string maybeReportDiscarded(Undefined &sym) {
   // If the discarded section is a COMDAT.
   StringRef signature = file->getShtGroupSignature(objSections, elfSec);
   if (const InputFile *prevailing =
-          symtab->comdatGroups.lookup(CachedHashStringRef(signature)))
+          symtab->comdatGroups.lookup(CachedHashStringRef(signature))) {
     msg += "\n>>> section group signature: " + signature.str() +
            "\n>>> prevailing definition is in " + toString(prevailing);
+    if (sym.nonPrevailing) {
+      msg += "\n>>> or the symbol in the prevailing group had STB_WEAK "
+             "binding and the symbol in a non-prevailing group had STB_GLOBAL "
+             "binding. Mixing groups with STB_WEAK and STB_GLOBAL binding "
+             "signature is not supported";
+    }
+  }
   return msg;
 }
 
@@ -1326,7 +1314,7 @@ template <class ELFT, class RelTy> void RelocationScanner::scanOne(RelTy *&i) {
       maybeReportUndefined(cast<Undefined>(sym), sec, offset))
     return;
 
-  const uint8_t *relocatedAddr = sec.data().begin() + offset;
+  const uint8_t *relocatedAddr = sec.rawData.begin() + offset;
   RelExpr expr = target.getRelExpr(type, sym, relocatedAddr);
 
   // Ignore R_*_NONE and other marker relocations.
@@ -1621,7 +1609,7 @@ void elf::postScanRelocations() {
       addPltEntry(*in.plt, *in.gotPlt, *in.relaPlt, target->pltRel, sym);
     if (sym.needsCopy) {
       if (sym.isObject()) {
-        addCopyRelSymbol(cast<SharedSymbol>(sym));
+        invokeELFT(addCopyRelSymbol, cast<SharedSymbol>(sym));
         // needsCopy is cleared for sym and its aliases so that in later
         // iterations aliases won't cause redundant copies.
         assert(!sym.needsCopy);

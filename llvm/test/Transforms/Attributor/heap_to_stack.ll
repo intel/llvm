@@ -218,6 +218,29 @@ define void @test3c(i64 %alignment) {
   ret void
 }
 
+; leave alone a constant-but-invalid alignment
+define void @test3d(i8* %p) {
+; IS________OPM-LABEL: define {{[^@]+}}@test3d
+; IS________OPM-SAME: (i8* nocapture [[P:%.*]]) {
+; IS________OPM-NEXT:    [[TMP1:%.*]] = tail call noalias i8* @aligned_alloc(i64 noundef 33, i64 noundef 128)
+; IS________OPM-NEXT:    tail call void @nofree_arg_only(i8* nocapture nofree [[TMP1]], i8* nocapture [[P]])
+; IS________OPM-NEXT:    tail call void @free(i8* noalias nocapture [[TMP1]])
+; IS________OPM-NEXT:    ret void
+;
+; IS________NPM-LABEL: define {{[^@]+}}@test3d
+; IS________NPM-SAME: (i8* nocapture [[P:%.*]]) {
+; IS________NPM-NEXT:    [[TMP1:%.*]] = tail call noalias i8* @aligned_alloc(i64 noundef 33, i64 noundef 128)
+; IS________NPM-NEXT:    tail call void @nofree_arg_only(i8* noalias nocapture nofree [[TMP1]], i8* nocapture [[P]])
+; IS________NPM-NEXT:    tail call void @free(i8* noalias nocapture [[TMP1]])
+; IS________NPM-NEXT:    ret void
+;
+; CHECK-SAME; (i8* nocapture [[P:%.*]]) {
+  %1 = tail call noalias i8* @aligned_alloc(i64 33, i64 128)
+  tail call void @nofree_arg_only(i8* %1, i8* %p)
+  tail call void @free(i8* %1)
+  ret void
+}
+
 declare noalias i8* @calloc(i64, i64)
 
 define void @test0() {
@@ -564,8 +587,9 @@ define i32 @irreducible_cfg(i32 %0) {
 ; IS________NPM-NEXT:    [[TMP14]] = add nsw i32 [[DOT1]], 1
 ; IS________NPM-NEXT:    br label [[TMP8]]
 ; IS________NPM:       15:
-; IS________NPM-NEXT:    [[TMP16:%.*]] = load i32, i32* [[TMP3]], align 4
-; IS________NPM-NEXT:    ret i32 [[TMP16]]
+; IS________NPM-NEXT:    [[TMP16:%.*]] = bitcast i32* [[TMP3]] to i8*
+; IS________NPM-NEXT:    [[TMP17:%.*]] = load i32, i32* [[TMP3]], align 4
+; IS________NPM-NEXT:    ret i32 [[TMP17]]
 ;
   %2 = call noalias i8* @malloc(i64 4)
   %3 = bitcast i8* %2 to i32*

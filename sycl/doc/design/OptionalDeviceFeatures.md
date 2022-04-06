@@ -369,6 +369,11 @@ instantiations of `sycl::atomic_ref` as an optional feature.
 
 [6]: <#appendix-adding-an-attribute-to-8-byte-atomic_ref>
 
+Because the `[[sycl_detail::uses_aspects()]]` attribute is only needed for the
+device compiler, the headers should protect it with
+`#ifdef __SYCL_DEVICE_ONLY__`.  This avoids warnings when our headers are
+compiled with a third-party host compiler.
+
 Although the examples above show only a single aspect parameter to the
 `[[sycl_detail::uses_aspects()]]` attribute, this attribute should support a
 list of aspects, similar to the `[[sycl::device_has()]]` attribute.  This will

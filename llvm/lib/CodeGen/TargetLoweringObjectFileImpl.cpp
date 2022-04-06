@@ -446,7 +446,8 @@ static SectionKind getELFKindForNamedSection(StringRef Name, SectionKind K) {
                                       /*AddSegmentInfo=*/false) ||
       Name == getInstrProfSectionName(IPSK_covfun, Triple::ELF,
                                       /*AddSegmentInfo=*/false) ||
-      Name == ".llvmbc" || Name == ".llvmcmd")
+      Name == ".llvmbc" || Name == ".llvmcmd" ||
+      Name.startswith(".llvm.offloading."))
     return SectionKind::getMetadata();
 
   if (Name.empty() || Name[0] != '.') return K;
@@ -681,9 +682,10 @@ calcUniqueIDUpdateFlagsAndSize(const GlobalObject *GO, StringRef SectionName,
   }
 
   if (Retain) {
-    if ((Ctx.getAsmInfo()->useIntegratedAssembler() ||
-         Ctx.getAsmInfo()->binutilsIsAtLeast(2, 36)) &&
-        !TM.getTargetTriple().isOSSolaris())
+    if (TM.getTargetTriple().isOSSolaris())
+      Flags |= ELF::SHF_SUNW_NODISCARD;
+    else if (Ctx.getAsmInfo()->useIntegratedAssembler() ||
+             Ctx.getAsmInfo()->binutilsIsAtLeast(2, 36))
       Flags |= ELF::SHF_GNU_RETAIN;
     return NextUniqueID++;
   }
@@ -860,12 +862,15 @@ static MCSection *selectELFSectionForGlobal(
     EmitUniqueSection = true;
     Flags |= ELF::SHF_LINK_ORDER;
   }
-  if (Retain &&
-      (Ctx.getAsmInfo()->useIntegratedAssembler() ||
-       Ctx.getAsmInfo()->binutilsIsAtLeast(2, 36)) &&
-      !TM.getTargetTriple().isOSSolaris()) {
-    EmitUniqueSection = true;
-    Flags |= ELF::SHF_GNU_RETAIN;
+  if (Retain) {
+    if (TM.getTargetTriple().isOSSolaris()) {
+      EmitUniqueSection = true;
+      Flags |= ELF::SHF_SUNW_NODISCARD;
+    } else if (Ctx.getAsmInfo()->useIntegratedAssembler() ||
+               Ctx.getAsmInfo()->binutilsIsAtLeast(2, 36)) {
+      EmitUniqueSection = true;
+      Flags |= ELF::SHF_GNU_RETAIN;
+    }
   }
 
   MCSectionELF *Section = selectELFSectionForGlobal(
@@ -1169,6 +1174,15 @@ void TargetLoweringObjectFileMachO::Initialize(MCContext &Ctx,
   LSDAEncoding = dwarf::DW_EH_PE_pcrel;
   TTypeEncoding =
       dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4;
+}
+
+MCSection *TargetLoweringObjectFileMachO::getStaticDtorSection(
+    unsigned Priority, const MCSymbol *KeySym) const {
+  // TODO(yln): Remove -lower-global-dtors-via-cxa-atexit fallback flag
+  // (LowerGlobalDtorsViaCxaAtExit) and always issue a fatal error here.
+  if (TM->Options.LowerGlobalDtorsViaCxaAtExit)
+    report_fatal_error("@llvm.global_dtors should have been lowered already");
+  return StaticDtorSection;
 }
 
 void TargetLoweringObjectFileMachO::emitModuleMetadata(MCStreamer &Streamer,
@@ -2170,8 +2184,7 @@ MCSection *TargetLoweringObjectFileWasm::getStaticCtorSection(
 
 MCSection *TargetLoweringObjectFileWasm::getStaticDtorSection(
     unsigned Priority, const MCSymbol *KeySym) const {
-  llvm_unreachable("@llvm.global_dtors should have been lowered already");
-  return nullptr;
+  report_fatal_error("@llvm.global_dtors should have been lowered already");
 }
 
 //===----------------------------------------------------------------------===//

@@ -124,6 +124,7 @@ add_gen_header(
   GEN_HDR stdio.h
   DEPENDS
     .llvm_libc_common_h
+    .llvm-libc-macros.file_seek_macros
     .llvm-libc-types.FILE
     .llvm-libc-types.size_t
 )
@@ -140,6 +141,7 @@ add_gen_header(
     .llvm-libc-types.ldiv_t
     .llvm-libc-types.lldiv_t
     .llvm-libc-types.size_t
+    .llvm-libc-types.__atexithandler_t
 )
 
 add_gen_header(
@@ -148,6 +150,7 @@ add_gen_header(
   GEN_HDR unistd.h
   DEPENDS
     .llvm_libc_common_h
+    .llvm-libc-macros.file_seek_macros
     .llvm-libc-types.size_t
     .llvm-libc-types.ssize_t
 )

@@ -11,15 +11,16 @@
 #define _LIBCPP___FORMAT_FORMATTER_POINTER_H
 
 #include <__algorithm/copy.h>
+#include <__assert>
 #include <__availability>
 #include <__config>
-#include <__debug>
 #include <__format/format_error.h>
 #include <__format/format_fwd.h>
 #include <__format/formatter.h>
 #include <__format/formatter_integral.h>
 #include <__format/parser_std_format_spec.h>
 #include <__iterator/access.h>
+#include <cstddef>
 #include <cstdint>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -29,12 +30,6 @@
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if _LIBCPP_STD_VER > 17
-
-// TODO FMT Remove this once we require compilers with proper C++20 support.
-// If the compiler has no concepts support, the format header will be disabled.
-// Without concepts support enable_if needs to be used and that too much effort
-// to support compilers with partial C++20 support.
-#  if !defined(_LIBCPP_HAS_NO_CONCEPTS)
 
 namespace __format_spec {
 
@@ -80,8 +75,6 @@ struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<void*, _CharT>
 template <__formatter::__char_type _CharT>
 struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<const void*, _CharT>
     : public __format_spec::__formatter_pointer<_CharT> {};
-
-#  endif // !defined(_LIBCPP_HAS_NO_CONCEPTS)
 
 #endif //_LIBCPP_STD_VER > 17
 

@@ -297,9 +297,10 @@ std::string InputSectionBase::getObjMsg(uint64_t off) {
   if (!file->archiveName.empty())
     archive = (" in archive " + file->archiveName).str();
 
-  // Find a symbol that encloses a given location.
+  // Find a symbol that encloses a given location. getObjMsg may be called
+  // before ObjFile::initializeLocalSymbols where local symbols are initialized.
   for (Symbol *b : file->getSymbols())
-    if (auto *d = dyn_cast<Defined>(b))
+    if (auto *d = dyn_cast_or_null<Defined>(b))
       if (d->section == this && d->value <= off && off < d->value + d->size)
         return filename + ":(" + toString(*d) + ")" + archive;
 
@@ -321,15 +322,6 @@ template <class ELFT>
 InputSection::InputSection(ObjFile<ELFT> &f, const typename ELFT::Shdr &header,
                            StringRef name)
     : InputSectionBase(f, header, name, InputSectionBase::Regular) {}
-
-bool InputSection::classof(const SectionBase *s) {
-  return s->kind() == SectionBase::Regular ||
-         s->kind() == SectionBase::Synthetic;
-}
-
-OutputSection *InputSection::getParent() const {
-  return cast_or_null<OutputSection>(parent);
-}
 
 // Copy SHT_GROUP section contents. Used only for the -r option.
 template <class ELFT> void InputSection::copyShtGroup(uint8_t *buf) {
@@ -367,6 +359,7 @@ template <class ELFT, class RelTy>
 void InputSection::copyRelocations(uint8_t *buf, ArrayRef<RelTy> rels) {
   const TargetInfo &target = *elf::target;
   InputSectionBase *sec = getRelocatedSection();
+  (void)sec->data(); // uncompress if needed
 
   for (const RelTy &rel : rels) {
     RelType type = rel.getType(config->isMips64EL);
@@ -419,7 +412,7 @@ void InputSection::copyRelocations(uint8_t *buf, ArrayRef<RelTy> rels) {
       }
 
       int64_t addend = getAddend<ELFT>(rel);
-      const uint8_t *bufLoc = sec->data().begin() + rel.r_offset;
+      const uint8_t *bufLoc = sec->rawData.begin() + rel.r_offset;
       if (!RelTy::IsRela)
         addend = target.getImplicitAddend(bufLoc, type);
 
@@ -1211,11 +1204,6 @@ void InputSectionBase::adjustSplitStackFunctionPrologues(uint8_t *buf,
 }
 
 template <class ELFT> void InputSection::writeTo(uint8_t *buf) {
-  if (auto *s = dyn_cast<SyntheticSection>(this)) {
-    s->writeTo(buf);
-    return;
-  }
-
   if (LLVM_UNLIKELY(type == SHT_NOBITS))
     return;
   // If -r or --emit-relocs is given, then an InputSection
@@ -1423,7 +1411,7 @@ void MergeInputSection::splitIntoPieces() {
 }
 
 SectionPiece *MergeInputSection::getSectionPiece(uint64_t offset) {
-  if (this->data().size() <= offset)
+  if (this->rawData.size() <= offset)
     fatal(toString(this) + ": offset is outside the section");
 
   // If Offset is not at beginning of a section piece, it is not in the map.

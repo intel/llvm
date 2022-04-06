@@ -273,6 +273,10 @@ void ARMTargetLowering::addMVEVectorTypes(bool HasMVEFP) {
     setOperationAction(ISD::USUBSAT, VT, Legal);
     setOperationAction(ISD::ABDS, VT, Legal);
     setOperationAction(ISD::ABDU, VT, Legal);
+    setOperationAction(ISD::AVGFLOORS, VT, Legal);
+    setOperationAction(ISD::AVGFLOORU, VT, Legal);
+    setOperationAction(ISD::AVGCEILS, VT, Legal);
+    setOperationAction(ISD::AVGCEILU, VT, Legal);
 
     // No native support for these.
     setOperationAction(ISD::UDIV, VT, Expand);
@@ -477,7 +481,7 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
   setBooleanVectorContents(ZeroOrNegativeOneBooleanContent);
 
   if (!Subtarget->isTargetDarwin() && !Subtarget->isTargetIOS() &&
-      !Subtarget->isTargetWatchOS()) {
+      !Subtarget->isTargetWatchOS() && !Subtarget->isTargetDriverKit()) {
     bool IsHFTarget = TM.Options.FloatABIType == FloatABI::Hard;
     for (int LCID = 0; LCID < RTLIB::UNKNOWN_LIBCALL; ++LCID)
       setLibcallCallingConv(static_cast<RTLIB::Libcall>(LCID),
@@ -1560,6 +1564,12 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
     setTargetDAGCombine(ISD::SRL);
   if (Subtarget->isThumb1Only())
     setTargetDAGCombine(ISD::SHL);
+  // Attempt to lower smin/smax to ssat/usat
+  if ((!Subtarget->isThumb() && Subtarget->hasV6Ops()) ||
+      Subtarget->isThumb2()) {
+    setTargetDAGCombine(ISD::SMIN);
+    setTargetDAGCombine(ISD::SMAX);
+  }
 
   setStackPointerRegisterToSaveRestore(ARM::SP);
 
@@ -10510,9 +10520,6 @@ void ARMTargetLowering::ReplaceNodeResults(SDNode *N,
     return;
   case ISD::INTRINSIC_WO_CHAIN:
     return ReplaceLongIntrinsic(N, Results, DAG);
-  case ISD::ABS:
-     lowerABS(N, Results, DAG);
-     return ;
   case ISD::LOAD:
     LowerLOAD(N, Results, DAG);
     break;
@@ -12171,7 +12178,7 @@ void ARMTargetLowering::AdjustInstrPostInstrSelection(MachineInstr &MI,
     if (Subtarget->isThumb1Only()) {
       for (unsigned c = MCID->getNumOperands() - 4; c--;) {
         MI.addOperand(MI.getOperand(1));
-        MI.RemoveOperand(1);
+        MI.removeOperand(1);
       }
 
       // Restore the ties
@@ -12209,7 +12216,7 @@ void ARMTargetLowering::AdjustInstrPostInstrSelection(MachineInstr &MI,
       definesCPSR = true;
       if (MO.isDead())
         deadCPSR = true;
-      MI.RemoveOperand(i);
+      MI.removeOperand(i);
       break;
     }
   }
@@ -15353,6 +15360,10 @@ static SDValue FlattenVectorShuffle(ShuffleVectorSDNode *N, SelectionDAG &DAG) {
   case ISD::MULHU:
   case ISD::ABDS:
   case ISD::ABDU:
+  case ISD::AVGFLOORS:
+  case ISD::AVGFLOORU:
+  case ISD::AVGCEILS:
+  case ISD::AVGCEILU:
     break;
   default:
     return SDValue();
@@ -15966,10 +15977,10 @@ static SDValue CombineBaseUpdate(SDNode *N,
   // Try to fold with other users. Non-constant updates are considered
   // first, and constant updates are sorted to not break a sequence of
   // strided accesses (if there is any).
-  std::sort(BaseUpdates.begin(), BaseUpdates.end(),
-            [](BaseUpdateUser &LHS, BaseUpdateUser &RHS) {
-              return LHS.ConstInc < RHS.ConstInc;
-            });
+  std::stable_sort(BaseUpdates.begin(), BaseUpdates.end(),
+                   [](const BaseUpdateUser &LHS, const BaseUpdateUser &RHS) {
+                     return LHS.ConstInc < RHS.ConstInc;
+                   });
   for (BaseUpdateUser &User : BaseUpdates) {
     if (TryCombineBaseUpdate(Target, User, /*SimpleConstIncOnly=*/false, DCI))
       return SDValue();
@@ -17552,12 +17563,57 @@ static SDValue PerformFPExtendCombine(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
+// Lower smin(smax(x, C1), C2) to ssat or usat, if they have saturating
+// constant bounds.
+static SDValue PerformMinMaxToSatCombine(SDValue Op, SelectionDAG &DAG,
+                                         const ARMSubtarget *Subtarget) {
+  if ((Subtarget->isThumb() || !Subtarget->hasV6Ops()) &&
+      !Subtarget->isThumb2())
+    return SDValue();
+
+  EVT VT = Op.getValueType();
+  SDValue Op0 = Op.getOperand(0);
+
+  if (VT != MVT::i32 ||
+      (Op0.getOpcode() != ISD::SMIN && Op0.getOpcode() != ISD::SMAX) ||
+      !isa<ConstantSDNode>(Op.getOperand(1)) ||
+      !isa<ConstantSDNode>(Op0.getOperand(1)))
+    return SDValue();
+
+  SDValue Min = Op;
+  SDValue Max = Op0;
+  SDValue Input = Op0.getOperand(0);
+  if (Min.getOpcode() == ISD::SMAX)
+    std::swap(Min, Max);
+
+  APInt MinC = Min.getConstantOperandAPInt(1);
+  APInt MaxC = Max.getConstantOperandAPInt(1);
+
+  if (Min.getOpcode() != ISD::SMIN || Max.getOpcode() != ISD::SMAX ||
+      !(MinC + 1).isPowerOf2())
+    return SDValue();
+
+  SDLoc DL(Op);
+  if (MinC == ~MaxC)
+    return DAG.getNode(ARMISD::SSAT, DL, VT, Input,
+                       DAG.getConstant(MinC.countTrailingOnes(), DL, VT));
+  if (MaxC == 0)
+    return DAG.getNode(ARMISD::USAT, DL, VT, Input,
+                       DAG.getConstant(MinC.countTrailingOnes(), DL, VT));
+
+  return SDValue();
+}
+
 /// PerformMinMaxCombine - Target-specific DAG combining for creating truncating
 /// saturates.
 static SDValue PerformMinMaxCombine(SDNode *N, SelectionDAG &DAG,
                                     const ARMSubtarget *ST) {
   EVT VT = N->getValueType(0);
   SDValue N0 = N->getOperand(0);
+
+  if (VT == MVT::i32)
+    return PerformMinMaxToSatCombine(SDValue(N, 0), DAG, ST);
+
   if (!ST->hasMVEIntegerOps())
     return SDValue();
 
@@ -19350,8 +19406,8 @@ bool ARMTargetLowering::isLegalAddImmediate(int64_t Imm) const {
 // Return false to prevent folding
 // (mul (add r, c0), c1) -> (add (mul r, c1), c0*c1) in DAGCombine,
 // if the folding leads to worse code.
-bool ARMTargetLowering::isMulAddWithConstProfitable(
-    const SDValue &AddNode, const SDValue &ConstNode) const {
+bool ARMTargetLowering::isMulAddWithConstProfitable(SDValue AddNode,
+                                                    SDValue ConstNode) const {
   // Let the DAGCombiner decide for vector types and large types.
   const EVT VT = AddNode.getValueType();
   if (VT.isVector() || VT.getScalarSizeInBits() > 32)
@@ -20533,38 +20589,6 @@ SDValue ARMTargetLowering::LowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const {
   return IsStrict ? DAG.getMergeValues({Result, Chain}, Loc) : Result;
 }
 
-void ARMTargetLowering::lowerABS(SDNode *N, SmallVectorImpl<SDValue> &Results,
-                                 SelectionDAG &DAG) const {
-  assert(N->getValueType(0) == MVT::i64 && "Unexpected type (!= i64) on ABS.");
-  MVT HalfT = MVT::i32;
-  SDLoc dl(N);
-  SDValue Hi, Lo, Tmp;
-
-  if (!isOperationLegalOrCustom(ISD::ADDCARRY, HalfT) ||
-      !isOperationLegalOrCustom(ISD::UADDO, HalfT))
-    return ;
-
-  unsigned OpTypeBits = HalfT.getScalarSizeInBits();
-  SDVTList VTList = DAG.getVTList(HalfT, MVT::i1);
-
-  Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, HalfT, N->getOperand(0),
-                   DAG.getConstant(0, dl, HalfT));
-  Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, HalfT, N->getOperand(0),
-                   DAG.getConstant(1, dl, HalfT));
-
-  Tmp = DAG.getNode(ISD::SRA, dl, HalfT, Hi,
-                    DAG.getConstant(OpTypeBits - 1, dl,
-                    getShiftAmountTy(HalfT, DAG.getDataLayout())));
-  Lo = DAG.getNode(ISD::UADDO, dl, VTList, Tmp, Lo);
-  Hi = DAG.getNode(ISD::ADDCARRY, dl, VTList, Tmp, Hi,
-                   SDValue(Lo.getNode(), 1));
-  Hi = DAG.getNode(ISD::XOR, dl, HalfT, Tmp, Hi);
-  Lo = DAG.getNode(ISD::XOR, dl, HalfT, Tmp, Lo);
-
-  Results.push_back(Lo);
-  Results.push_back(Hi);
-}
-
 bool
 ARMTargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const {
   // The ARM target isn't yet aware of offsets.
@@ -20783,24 +20807,24 @@ bool ARMTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
   case Intrinsic::arm_ldaex:
   case Intrinsic::arm_ldrex: {
     auto &DL = I.getCalledFunction()->getParent()->getDataLayout();
-    PointerType *PtrTy = cast<PointerType>(I.getArgOperand(0)->getType());
+    Type *ValTy = I.getParamElementType(0);
     Info.opc = ISD::INTRINSIC_W_CHAIN;
-    Info.memVT = MVT::getVT(PtrTy->getPointerElementType());
+    Info.memVT = MVT::getVT(ValTy);
     Info.ptrVal = I.getArgOperand(0);
     Info.offset = 0;
-    Info.align = DL.getABITypeAlign(PtrTy->getPointerElementType());
+    Info.align = DL.getABITypeAlign(ValTy);
     Info.flags = MachineMemOperand::MOLoad | MachineMemOperand::MOVolatile;
     return true;
   }
   case Intrinsic::arm_stlex:
   case Intrinsic::arm_strex: {
     auto &DL = I.getCalledFunction()->getParent()->getDataLayout();
-    PointerType *PtrTy = cast<PointerType>(I.getArgOperand(1)->getType());
+    Type *ValTy = I.getParamElementType(1);
     Info.opc = ISD::INTRINSIC_W_CHAIN;
-    Info.memVT = MVT::getVT(PtrTy->getPointerElementType());
+    Info.memVT = MVT::getVT(ValTy);
     Info.ptrVal = I.getArgOperand(1);
     Info.offset = 0;
-    Info.align = DL.getABITypeAlign(PtrTy->getPointerElementType());
+    Info.align = DL.getABITypeAlign(ValTy);
     Info.flags = MachineMemOperand::MOStore | MachineMemOperand::MOVolatile;
     return true;
   }
@@ -21095,8 +21119,11 @@ Value *ARMTargetLowering::emitLoadLinked(IRBuilderBase &Builder, Type *ValueTy,
   Type *Tys[] = { Addr->getType() };
   Intrinsic::ID Int = IsAcquire ? Intrinsic::arm_ldaex : Intrinsic::arm_ldrex;
   Function *Ldrex = Intrinsic::getDeclaration(M, Int, Tys);
+  CallInst *CI = Builder.CreateCall(Ldrex, Addr);
 
-  return Builder.CreateTruncOrBitCast(Builder.CreateCall(Ldrex, Addr), ValueTy);
+  CI->addParamAttr(
+      0, Attribute::get(M->getContext(), Attribute::ElementType, ValueTy));
+  return Builder.CreateTruncOrBitCast(CI, ValueTy);
 }
 
 void ARMTargetLowering::emitAtomicCmpXchgNoStoreLLBalance(
@@ -21134,10 +21161,13 @@ Value *ARMTargetLowering::emitStoreConditional(IRBuilderBase &Builder,
   Type *Tys[] = { Addr->getType() };
   Function *Strex = Intrinsic::getDeclaration(M, Int, Tys);
 
-  return Builder.CreateCall(
+  CallInst *CI = Builder.CreateCall(
       Strex, {Builder.CreateZExtOrBitCast(
                   Val, Strex->getFunctionType()->getParamType(0)),
               Addr});
+  CI->addParamAttr(1, Attribute::get(M->getContext(), Attribute::ElementType,
+                                     Val->getType()));
+  return CI;
 }
 
 

@@ -11,7 +11,7 @@
 
 include "mlir/Pass/PassBase.td"
 
-def BufferDeallocation : Pass<"buffer-deallocation", "FuncOp"> {
+def BufferDeallocation : Pass<"buffer-deallocation", "func::FuncOp"> {
   let summary = "Adds all required dealloc operations for all allocations in "
                 "the input program";
   let description = [{
@@ -88,7 +88,7 @@ def BufferDeallocation : Pass<"buffer-deallocation", "FuncOp"> {
   let constructor = "mlir::bufferization::createBufferDeallocationPass()";
 }
 
-def BufferHoisting : Pass<"buffer-hoisting", "FuncOp"> {
+def BufferHoisting : Pass<"buffer-hoisting", "func::FuncOp"> {
   let summary = "Optimizes placement of allocation operations by moving them "
                 "into common dominators and out of nested regions";
   let description = [{
@@ -98,7 +98,7 @@ def BufferHoisting : Pass<"buffer-hoisting", "FuncOp"> {
   let constructor = "mlir::bufferization::createBufferHoistingPass()";
 }
 
-def BufferLoopHoisting : Pass<"buffer-loop-hoisting", "FuncOp"> {
+def BufferLoopHoisting : Pass<"buffer-loop-hoisting", "func::FuncOp"> {
   let summary = "Optimizes placement of allocation operations by moving them "
                 "out of loop nests";
   let description = [{
@@ -133,7 +133,7 @@ def BufferResultsToOutParams : Pass<"buffer-results-to-out-params", "ModuleOp"> 
   let dependentDialects = ["memref::MemRefDialect"];
 }
 
-def FinalizingBufferize : Pass<"finalizing-bufferize", "FuncOp"> {
+def FinalizingBufferize : Pass<"finalizing-bufferize", "func::FuncOp"> {
   let summary = "Finalize a partial bufferization";
   let description = [{
     A bufferize pass that finalizes a partial bufferization by removing
@@ -149,7 +149,89 @@ def FinalizingBufferize : Pass<"finalizing-bufferize", "FuncOp"> {
   let constructor = "mlir::bufferization::createFinalizingBufferizePass()";
 }
 
-def PromoteBuffersToStack : Pass<"promote-buffers-to-stack", "FuncOp"> {
+def OneShotBufferize : Pass<"one-shot-bufferize", "ModuleOp"> {
+  let summary = "One-Shot Bufferize";
+  let description = [{
+    This pass bufferizes all ops that implement `BufferizableOpInterface`. It
+    first performs an inplacability analysis on SSA use-def chains of tensor
+    values to determine which OpOperands may bufferize in-place, i.e., without
+    inserting a buffer copy. It then rewrites the IR, inserting a buffer
+    allocation and copy for each OpOperand that was decided to bufferize
+    out-of-place.
+
+    One-Shot Bufferize (and `BufferizableOpInterface`) was designed for ops that
+    are in destination-passing style. When bufferizing such ops, it is possible
+    to reuse the buffer of a tensor OpOperand for a tensor OpResult. In essence,
+    a possible destination of an operation is already passed as an SSA value.
+
+    `tensor.insert` is an example for an op in destination-passing style. E.g.,
+    when bufferizing `%t0 = tensor.insert %f into %dest[%idx]`, `buffer(%t0)` is
+    identical to `buffer(%dest)` in the absence of RaW conflicts. As a counter
+    example, `tensor.generate` is not in destination-passing style and always
+    results in a new buffer allocation.
+
+    One-Shot Bufferize deallocates all buffers that it allocates. Returning or
+    yielding newly allocated buffers from a block can lead to bad performance
+    because additional buffer copies would be inserted. By default, such IR is
+    rejected by One-Shot Bufferize. If performance is not important, such IR can
+    be allowed with `allow-return-allocs=1`.
+
+    One-Shot Bufferize will by default reject IR that contains non-bufferizable
+    op, i.e., ops that do not implemement BufferizableOpInterface. Such IR can
+    be allowed with `allow-unknown-ops=1`. In that case, to_memref and to_tensor
+    ops will be generated at the bufferization boundary. This is useful for
+    compatibility with existing partial bufferization passes: These can
+    bufferize the remaining IR after running One-Shot Bufferize.
+
+    Note: Running One-Shot Bufferize after a partial bufferization pass is
+    currently not supported. Running partial bufferization passes after running
+    One-Shot Bufferize is supported and the recommended way to gradually
+    migrate from partial bufferization to One-Shot Bufferize.
+
+    With `dialect-filter`, bufferization can be restricted to a set of dialects.
+    If no filter is specified, all ops that implement `BufferizableOpInterface`
+    are bufferized. Ops from the `std` dialect are an exception: These ops are
+    always ignored, even if no filter is specified. When specifying a dialect
+    filter and `allow-unknown-ops` is not turned on, bufferization would fail
+    when encountering an op that is not included in the filter (even if it is
+    bufferizable).
+
+    For testing/debugging purposes, `test-analysis-only=1 print-conflicts=1`
+    prints analysis results and explains why an OpOperand was decided to
+    bufferize out-of-place. This is useful for understanding why One-Shot
+    Bufferize chose to insert a certain buffer copy.
+  }];
+  let options = [
+    Option<"allowReturnAllocs", "allow-return-allocs", "bool",
+            /*default=*/"false",
+           "Allows returning/yielding new allocations from a block.">,
+    Option<"allowUnknownOps", "allow-unknown-ops", "bool",
+           /*default=*/"false",
+           "Allows unknown (not bufferizable) ops in the input IR.">,
+    Option<"analysisFuzzerSeed", "analysis-fuzzer-seed", "unsigned",
+           /*default=*/"0",
+           "Test only: Analyze ops in random order with a given seed (fuzzer)">,
+    Option<"createDeallocs", "create-deallocs", "bool", /*default=*/"true",
+           "Specify if buffers should be deallocated. For compatibility with "
+           "core bufferization passes.">,
+    ListOption<"dialectFilter", "dialect-filter", "std::string",
+               "Restrict bufferization to ops from these dialects.",
+               "llvm::cl::MiscFlags::CommaSeparated">,
+    Option<"fullyDynamicLayoutMaps", "fully-dynamic-layout-maps", "bool",
+           /*default=*/"true",
+           "Generate MemRef types with dynamic offset+strides by default.">,
+    Option<"testAnalysisOnly", "test-analysis-only", "bool",
+            /*default=*/"false",
+           "Test only: Only run inplaceability analysis and annotate IR">,
+    Option<"printConflicts", "print-conflicts", "bool",
+            /*default=*/"false",
+           "Test only: Annotate IR with RaW conflicts. Requires "
+           "test-analysis-only.">,
+  ];
+  let constructor = "mlir::bufferization::createOneShotBufferizePass()";
+}
+
+def PromoteBuffersToStack : Pass<"promote-buffers-to-stack", "func::FuncOp"> {
   let summary = "Promotes heap-based allocations to automatically managed "
                 "stack-based allocations";
   let description = [{

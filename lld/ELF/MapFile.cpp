@@ -168,7 +168,7 @@ static void writeMapFile(raw_fd_ostream &os) {
       continue;
     }
 
-    osec = cast<OutputSection>(cmd);
+    osec = &cast<OutputDesc>(cmd)->osec;
     writeHeader(os, osec->addr, osec->getLMA(), osec->size, osec->alignment);
     os << osec->name << '\n';
 
@@ -207,25 +207,6 @@ static void writeMapFile(raw_fd_ostream &os) {
         continue;
       }
     }
-  }
-}
-
-void elf::writeWhyExtract() {
-  if (config->whyExtract.empty())
-    return;
-
-  std::error_code ec;
-  raw_fd_ostream os(config->whyExtract, ec, sys::fs::OF_None);
-  if (ec) {
-    error("cannot open --why-extract= file " + config->whyExtract + ": " +
-          ec.message());
-    return;
-  }
-
-  os << "reference\textracted\tsymbol\n";
-  for (auto &entry : whyExtract) {
-    os << std::get<0>(entry) << '\t' << toString(std::get<1>(entry)) << '\t'
-       << toString(std::get<2>(entry)) << '\n';
   }
 }
 
@@ -292,22 +273,4 @@ void elf::writeMapAndCref() {
     writeMapFile(os);
   if (config->cref)
     writeCref(os);
-}
-
-void elf::writeArchiveStats() {
-  if (config->printArchiveStats.empty())
-    return;
-
-  std::error_code ec;
-  raw_fd_ostream os(config->printArchiveStats, ec, sys::fs::OF_None);
-  if (ec) {
-    error("--print-archive-stats=: cannot open " + config->printArchiveStats +
-          ": " + ec.message());
-    return;
-  }
-
-  os << "members\textracted\tarchive\n";
-  for (const ArchiveFile *f : archiveFiles)
-    os << f->getMemberCount() << '\t' << f->getExtractedMemberCount() << '\t'
-       << f->getName() << '\n';
 }

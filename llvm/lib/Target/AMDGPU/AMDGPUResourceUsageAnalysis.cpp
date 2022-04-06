@@ -28,6 +28,7 @@
 #include "GCNSubtarget.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/GlobalValue.h"
@@ -87,9 +88,7 @@ int32_t AMDGPUResourceUsageAnalysis::SIFunctionResourceInfo::getTotalNumSGPRs(
 
 int32_t AMDGPUResourceUsageAnalysis::SIFunctionResourceInfo::getTotalNumVGPRs(
     const GCNSubtarget &ST, int32_t ArgNumAGPR, int32_t ArgNumVGPR) const {
-  if (ST.hasGFX90AInsts() && ArgNumAGPR)
-    return alignTo(ArgNumVGPR, 4) + ArgNumAGPR;
-  return std::max(ArgNumVGPR, ArgNumAGPR);
+  return AMDGPU::getTotalNumVGPRs(ST.hasGFX90AInsts(), ArgNumAGPR, ArgNumVGPR);
 }
 
 int32_t AMDGPUResourceUsageAnalysis::SIFunctionResourceInfo::getTotalNumVGPRs(
