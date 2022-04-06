@@ -34,6 +34,7 @@ list(APPEND SYCL_TEST_DEPS
   get_device_count_by_type
   llvm-config
   llvm-cxxdump
+  llvm-dis
   llvm-readobj
   )
 

@@ -13,6 +13,7 @@
 
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/Demangle/Demangle.h"
+#include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -22,16 +23,63 @@
 #include "llvm/Support/Regex.h"
 
 using namespace llvm;
+namespace id = itanium_demangle;
 
 #define DEBUG_TYPE "esimd-verifier"
 
-// A list of unsupported functions in ESIMD context.
-static const char *IllegalFunctions[] = {
-    "^cl::sycl::multi_ptr<.+> cl::sycl::accessor<.+>::get_pointer<.+>\\(\\) "
-    "const",
-    " cl::sycl::accessor<.+>::operator\\[\\]<.+>\\(.+\\) const"};
+// A list of SYCL functions (regexps) allowed for use in ESIMD context.
+static const char *LegalSYCLFunctions[] = {
+    "^cl::sycl::accessor<.+>::accessor",
+    "^cl::sycl::accessor<.+>::~accessor",
+    "^cl::sycl::accessor<.+>::getNativeImageObj",
+    "^cl::sycl::accessor<.+>::__init_esimd",
+    "^cl::sycl::id<.+>::.+",
+    "^cl::sycl::item<.+>::.+",
+    "^cl::sycl::nd_item<.+>::.+",
+    "^cl::sycl::group<.+>::.+",
+    "^cl::sycl::sub_group<.+>::.+",
+    "^cl::sycl::range<.+>::.+",
+    "^cl::sycl::kernel_handler::.+",
+    "^cl::sycl::cos<.+>",
+    "^cl::sycl::sin<.+>",
+    "^cl::sycl::log<.+>",
+    "^cl::sycl::exp<.+>",
+    "^cl::sycl::operator.+<.+>",
+    "^cl::sycl::ext::oneapi::sub_group::.+",
+    "^cl::sycl::ext::oneapi::experimental::spec_constant<.+>::.+",
+    "^cl::sycl::ext::oneapi::experimental::this_sub_group"};
 
 namespace {
+
+// Simplest possible implementation of an allocator for the Itanium demangler
+class SimpleAllocator {
+protected:
+  SmallVector<void *, 128> Ptrs;
+
+public:
+  void reset() {
+    for (void *Ptr : Ptrs) {
+      // Destructors are not called, but that is OK for the
+      // itanium_demangle::Node subclasses
+      std::free(Ptr);
+    }
+    Ptrs.resize(0);
+  }
+
+  template <typename T, typename... Args> T *makeNode(Args &&...args) {
+    void *Ptr = std::calloc(1, sizeof(T));
+    Ptrs.push_back(Ptr);
+    return new (Ptr) T(std::forward<Args>(args)...);
+  }
+
+  void *allocateNodeArray(size_t sz) {
+    void *Ptr = std::calloc(sz, sizeof(id::Node *));
+    Ptrs.push_back(Ptr);
+    return Ptr;
+  }
+
+  ~SimpleAllocator() { reset(); }
+};
 
 class ESIMDVerifierImpl {
   const Module &M;
@@ -63,22 +111,49 @@ public:
           if (!Callee)
             continue;
 
-          // Demangle called function name and check if it matches any illegal
-          // function name. Report an error if there is a match.
-          std::string DemangledName = demangle(Callee->getName().str());
-          for (const char *Name : IllegalFunctions) {
-            Regex NameRE(Name);
-            assert(NameRE.isValid() && "invalid function name regex");
-            if (NameRE.match(DemangledName)) {
-              std::string ErrorMsg = std::string("function '") + DemangledName +
-                                     "' is not supported in ESIMD context";
-              F->getContext().emitError(&I, ErrorMsg);
-            }
-          }
-
           // Add callee to the list to be analyzed if it is not a declaration.
           if (!Callee->isDeclaration())
             Add2Worklist(Callee);
+
+          // Demangle called function name and check if it is legal to use this
+          // function in ESIMD context.
+          StringRef MangledName = Callee->getName();
+          id::ManglingParser<SimpleAllocator> Parser(MangledName.begin(),
+                                                     MangledName.end());
+          id::Node *AST = Parser.parse();
+          if (!AST || AST->getKind() != id::Node::KFunctionEncoding)
+            continue;
+
+          auto *FE = static_cast<id::FunctionEncoding *>(AST);
+          const id::Node *NameNode = FE->getName();
+          if (!NameNode) // Can it be null?
+            continue;
+
+          id::OutputBuffer NameBuf;
+          NameNode->print(NameBuf);
+          StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
+
+          // We are interested in functions defined in SYCL namespace, but
+          // outside of ESIMD namespaces.
+          if (!Name.startswith("cl::sycl::") ||
+              Name.startswith("cl::sycl::detail::") ||
+              Name.startswith("cl::sycl::ext::intel::esimd::") ||
+              Name.startswith("cl::sycl::ext::intel::experimental::esimd::"))
+            continue;
+
+          // Check if function name matches any allowed SYCL function name.
+          if (any_of(LegalSYCLFunctions, [Name](const char *LegalName) {
+                Regex LegalNameRE(LegalName);
+                assert(LegalNameRE.isValid() && "invalid function name regex");
+                return LegalNameRE.match(Name);
+              }))
+            continue;
+
+          // If not, report an error.
+          std::string ErrorMsg = std::string("function '") +
+                                 demangle(MangledName.str()) +
+                                 "' is not supported in ESIMD context";
+          F->getContext().emitError(&I, ErrorMsg);
         }
       }
     }

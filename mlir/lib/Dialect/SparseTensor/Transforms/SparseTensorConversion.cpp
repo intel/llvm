@@ -177,7 +177,7 @@ static Value genAllocaScalar(ConversionPatternRewriter &rewriter, Location loc,
 
 /// Generates a temporary buffer of the given type and given contents.
 static Value genBuffer(ConversionPatternRewriter &rewriter, Location loc,
-                       ArrayRef<Value> values) {
+                       ValueRange values) {
   unsigned sz = values.size();
   assert(sz >= 1);
   Value buffer = genAlloca(rewriter, loc, sz, values[0].getType());
@@ -205,10 +205,7 @@ static void newParams(ConversionPatternRewriter &rewriter,
   params.push_back(genBuffer(rewriter, loc, attrs));
   // Dimension sizes array of the enveloping tensor. Useful for either
   // verification of external data, or for construction of internal data.
-  SmallVector<Value, 4> sizes;
-  for (Value s : szs)
-    sizes.push_back(s);
-  params.push_back(genBuffer(rewriter, loc, sizes));
+  params.push_back(genBuffer(rewriter, loc, szs));
   // Dimension order permutation array. This is the "identity" permutation by
   // default, or otherwise the "reverse" permutation of a given ordering, so
   // that indices can be mapped quickly to the right position.
@@ -456,7 +453,18 @@ class SparseTensorInitConverter : public OpConversionPattern<InitOp> {
 
 /// Sparse conversion rule for the convert operator.
 class SparseTensorConvertConverter : public OpConversionPattern<ConvertOp> {
+  /// Options to control sparse code generation.
+  SparseTensorConversionOptions options;
+
+public:
   using OpConversionPattern::OpConversionPattern;
+  SparseTensorConvertConverter(MLIRContext *context,
+                               SparseTensorConversionOptions o)
+      : OpConversionPattern<ConvertOp>(context), options(o) {}
+  SparseTensorConvertConverter(TypeConverter &typeConv, MLIRContext *context,
+                               SparseTensorConversionOptions o)
+      : OpConversionPattern<ConvertOp>(typeConv, context), options(o) {}
+
   LogicalResult
   matchAndRewrite(ConvertOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
@@ -828,14 +836,17 @@ public:
 
 /// Populates the given patterns list with conversion rules required for
 /// the sparsification of linear algebra operations.
-void mlir::populateSparseTensorConversionPatterns(TypeConverter &typeConverter,
-                                                  RewritePatternSet &patterns) {
+void mlir::populateSparseTensorConversionPatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns,
+    const SparseTensorConversionOptions &options) {
   patterns.add<SparseReturnConverter, SparseTensorToDimSizeConverter,
                SparseCastConverter, SparseTensorNewConverter,
-               SparseTensorInitConverter, SparseTensorConvertConverter,
-               SparseTensorReleaseConverter, SparseTensorToPointersConverter,
-               SparseTensorToIndicesConverter, SparseTensorToValuesConverter,
-               SparseTensorLoadConverter, SparseTensorLexInsertConverter,
-               SparseTensorExpandConverter, SparseTensorCompressConverter,
-               SparseTensorOutConverter>(typeConverter, patterns.getContext());
+               SparseTensorInitConverter, SparseTensorReleaseConverter,
+               SparseTensorToPointersConverter, SparseTensorToIndicesConverter,
+               SparseTensorToValuesConverter, SparseTensorLoadConverter,
+               SparseTensorLexInsertConverter, SparseTensorExpandConverter,
+               SparseTensorCompressConverter, SparseTensorOutConverter>(
+      typeConverter, patterns.getContext());
+  patterns.add<SparseTensorConvertConverter>(typeConverter,
+                                             patterns.getContext(), options);
 }
