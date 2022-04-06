@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/Transforms/IPO/Attributor.h"
 
 #include "llvm/ADT/APInt.h"
@@ -44,7 +45,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO/ArgumentPromotion.h"
@@ -402,25 +403,29 @@ static bool genericValueTraversal(
 
     if (auto *LI = dyn_cast<LoadInst>(V)) {
       bool UsedAssumedInformation = false;
-      SmallSetVector<Value *, 4> PotentialCopies;
-      if (AA::getPotentiallyLoadedValues(A, *LI, PotentialCopies, QueryingAA,
-                                         UsedAssumedInformation,
-                                         /* OnlyExact */ true)) {
-        // Values have to be dynamically unique or we loose the fact that a
-        // single llvm::Value might represent two runtime values (e.g., stack
-        // locations in different recursive calls).
-        bool DynamicallyUnique =
-            llvm::all_of(PotentialCopies, [&A, &QueryingAA](Value *PC) {
-              return AA::isDynamicallyUnique(A, QueryingAA, *PC);
-            });
-        if (DynamicallyUnique &&
-            (!Intraprocedural || !CtxI ||
-             llvm::all_of(PotentialCopies, [CtxI](Value *PC) {
-               return AA::isValidInScope(*PC, CtxI->getFunction());
-             }))) {
-          for (auto *PotentialCopy : PotentialCopies)
-            Worklist.push_back({PotentialCopy, CtxI});
-          continue;
+      // If we ask for the potentially loaded values from the initial pointer we
+      // will simply end up here again. The load is as far as we can make it.
+      if (LI->getPointerOperand() != InitialV) {
+        SmallSetVector<Value *, 4> PotentialCopies;
+        if (AA::getPotentiallyLoadedValues(A, *LI, PotentialCopies, QueryingAA,
+                                           UsedAssumedInformation,
+                                           /* OnlyExact */ true)) {
+          // Values have to be dynamically unique or we loose the fact that a
+          // single llvm::Value might represent two runtime values (e.g., stack
+          // locations in different recursive calls).
+          bool DynamicallyUnique =
+              llvm::all_of(PotentialCopies, [&A, &QueryingAA](Value *PC) {
+                return AA::isDynamicallyUnique(A, QueryingAA, *PC);
+              });
+          if (DynamicallyUnique &&
+              (!Intraprocedural || !CtxI ||
+               llvm::all_of(PotentialCopies, [CtxI](Value *PC) {
+                 return AA::isValidInScope(*PC, CtxI->getFunction());
+               }))) {
+            for (auto *PotentialCopy : PotentialCopies)
+              Worklist.push_back({PotentialCopy, CtxI});
+            continue;
+          }
         }
       }
     }
@@ -1344,7 +1349,7 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
     DenseMap<Value *, OffsetInfo> OffsetInfoMap;
     OffsetInfoMap[&AssociatedValue] = OffsetInfo{0};
 
-    auto HandlePassthroughUser = [&](Value *Usr, OffsetInfo &PtrOI,
+    auto HandlePassthroughUser = [&](Value *Usr, OffsetInfo PtrOI,
                                      bool &Follow) {
       OffsetInfo &UsrOI = OffsetInfoMap[Usr];
       UsrOI = PtrOI;
@@ -5844,7 +5849,7 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
     bool HasPotentiallyFreeingUnknownUses = false;
 
     /// The set of free calls that use this allocation.
-    SmallPtrSet<CallBase *, 1> PotentialFreeCalls{};
+    SmallSetVector<CallBase *, 1> PotentialFreeCalls{};
   };
 
   struct DeallocationInfo {
@@ -5856,7 +5861,7 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
     bool MightFreeUnknownObjects = false;
 
     /// The set of allocation calls that are potentially freed.
-    SmallPtrSet<CallBase *, 1> PotentialAllocationCalls{};
+    SmallSetVector<CallBase *, 1> PotentialAllocationCalls{};
   };
 
   AAHeapToStackFunction(const IRPosition &IRP, Attributor &A)
@@ -5866,9 +5871,9 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
     // Ensure we call the destructor so we release any memory allocated in the
     // sets.
     for (auto &It : AllocationInfos)
-      It.getSecond()->~AllocationInfo();
+      It.second->~AllocationInfo();
     for (auto &It : DeallocationInfos)
-      It.getSecond()->~DeallocationInfo();
+      It.second->~DeallocationInfo();
   }
 
   void initialize(Attributor &A) override {
@@ -5942,7 +5947,8 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
 
   bool isAssumedHeapToStack(const CallBase &CB) const override {
     if (isValidState())
-      if (AllocationInfo *AI = AllocationInfos.lookup(&CB))
+      if (AllocationInfo *AI =
+              AllocationInfos.lookup(const_cast<CallBase *>(&CB)))
         return AI->Status != AllocationInfo::INVALID;
     return false;
   }
@@ -6091,11 +6097,11 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
 
   /// Collection of all malloc-like calls in a function with associated
   /// information.
-  DenseMap<CallBase *, AllocationInfo *> AllocationInfos;
+  MapVector<CallBase *, AllocationInfo *> AllocationInfos;
 
   /// Collection of all free-like calls in a function with associated
   /// information.
-  DenseMap<CallBase *, DeallocationInfo *> DeallocationInfos;
+  MapVector<CallBase *, DeallocationInfo *> DeallocationInfos;
 
   ChangeStatus updateImpl(Attributor &A) override;
 };
@@ -9696,6 +9702,10 @@ private:
         const SetVector<Function *> &Edges = AAEdges->getOptimisticEdges();
 
         for (Function *Edge : Edges) {
+          // Functions that do not call back into the module can be ignored.
+          if (Edge->hasFnAttribute(Attribute::NoCallback))
+            continue;
+
           // We don't need a dependency if the result is reachable.
           const AAFunctionReachability &EdgeReachability =
               A.getAAFor<AAFunctionReachability>(
@@ -9866,10 +9876,10 @@ private:
 
   /// Used to answer if a call base inside this function can reach a specific
   /// function.
-  DenseMap<const CallBase *, QueryResolver> CBQueries;
+  MapVector<const CallBase *, QueryResolver> CBQueries;
 
   /// This is for instruction queries than scan "forward".
-  DenseMap<const Instruction *, QueryResolver> InstQueries;
+  MapVector<const Instruction *, QueryResolver> InstQueries;
 };
 } // namespace
 

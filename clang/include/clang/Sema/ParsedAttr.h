@@ -911,6 +911,7 @@ class ParsedAttributesView {
   using SizeType = decltype(std::declval<VecTy>().size());
 
 public:
+  SourceRange Range;
   bool empty() const { return AttrList.empty(); }
   SizeType size() const { return AttrList.size(); }
   ParsedAttr &operator[](SizeType pos) { return *AttrList[pos]; }
@@ -1009,15 +1010,19 @@ public:
 
   AttributePool &getPool() const { return pool; }
 
-  void takeAllFrom(ParsedAttributes &attrs) {
-    addAll(attrs.begin(), attrs.end());
-    attrs.clearListOnly();
-    pool.takeAllFrom(attrs.pool);
+  void takeAllFrom(ParsedAttributes &Other) {
+    assert(&Other != this &&
+           "ParsedAttributes can't take attributes from itself");
+    addAll(Other.begin(), Other.end());
+    Other.clearListOnly();
+    pool.takeAllFrom(Other.pool);
   }
 
-  void takeOneFrom(ParsedAttributes &Attrs, ParsedAttr *PA) {
-    Attrs.getPool().remove(PA);
-    Attrs.remove(PA);
+  void takeOneFrom(ParsedAttributes &Other, ParsedAttr *PA) {
+    assert(&Other != this &&
+           "ParsedAttributes can't take attribute from itself");
+    Other.getPool().remove(PA);
+    Other.remove(PA);
     getPool().add(PA);
     addAtEnd(PA);
   }
@@ -1025,6 +1030,7 @@ public:
   void clear() {
     clearListOnly();
     pool.clear();
+    Range = SourceRange();
   }
 
   /// Add attribute with expression arguments.
@@ -1106,27 +1112,6 @@ public:
 
 private:
   mutable AttributePool pool;
-};
-
-struct ParsedAttributesWithRange : ParsedAttributes {
-  ParsedAttributesWithRange(AttributeFactory &factory)
-      : ParsedAttributes(factory) {}
-
-  void clear() {
-    ParsedAttributes::clear();
-    Range = SourceRange();
-  }
-
-  SourceRange Range;
-};
-struct ParsedAttributesViewWithRange : ParsedAttributesView {
-  ParsedAttributesViewWithRange() {}
-  void clearListOnly() {
-    ParsedAttributesView::clearListOnly();
-    Range = SourceRange();
-  }
-
-  SourceRange Range;
 };
 
 /// These constants match the enumerated choices of

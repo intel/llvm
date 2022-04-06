@@ -12,6 +12,7 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
@@ -109,6 +110,10 @@ struct TestLinalgTransforms
       *this, "test-swap-subtensor-padtensor",
       llvm::cl::desc("Test rewrite of subtensor(pad_tensor) into "
                      "pad_tensor(subtensor)"),
+      llvm::cl::init(false)};
+  Option<bool> testSplitReduction{
+      *this, "test-split-reduction",
+      llvm::cl::desc("Test split reduction transformation"),
       llvm::cl::init(false)};
   ListOption<int64_t> peeledLoops{
       *this, "peeled-loops",
@@ -616,6 +621,20 @@ static void applyTilePattern(FuncOp funcOp, const std::string &loopType,
   (void)applyPatternsAndFoldGreedily(funcOp, std::move(tilingPattern));
 }
 
+static void applySplitReduction(FuncOp funcOp) {
+  RewritePatternSet patterns(funcOp.getContext());
+  linalg::populateSplitReductionPattern(
+      patterns,
+      [](LinalgOp op) {
+        unsigned insertDimIndex = op.getNumLoops() - 1;
+        return std::make_pair(4, insertDimIndex);
+      },
+      LinalgTransformationFilter(
+          ArrayRef<StringAttr>{},
+          StringAttr::get(funcOp.getContext(), "SPLIT")));
+  (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
+}
+
 /// Apply transformations specified as patterns.
 void TestLinalgTransforms::runOnOperation() {
   auto lambda = [&](void *) {
@@ -665,6 +684,8 @@ void TestLinalgTransforms::runOnOperation() {
   if (testTileScalarizeDynamicDims)
     return applyTilePattern(getOperation(), loopType, tileSizes,
                             /*peeledLoops=*/{}, /*scalarizeDynamicDims=*/true);
+  if (testSplitReduction)
+    return applySplitReduction(getOperation());
 }
 
 namespace mlir {

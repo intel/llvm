@@ -525,6 +525,14 @@ static Optional<Instruction *> instCombineConvertFromSVBool(InstCombiner &IC,
   return IC.replaceInstUsesWith(II, EarliestReplacement);
 }
 
+static Optional<Instruction *> instCombineSVESel(InstCombiner &IC,
+                                                 IntrinsicInst &II) {
+  IRBuilder<> Builder(&II);
+  auto Select = Builder.CreateSelect(II.getOperand(0), II.getOperand(1),
+                                     II.getOperand(2));
+  return IC.replaceInstUsesWith(II, Select);
+}
+
 static Optional<Instruction *> instCombineSVEDup(InstCombiner &IC,
                                                  IntrinsicInst &II) {
   IntrinsicInst *Pg = dyn_cast<IntrinsicInst>(II.getArgOperand(1));
@@ -1229,6 +1237,8 @@ AArch64TTIImpl::instCombineIntrinsic(InstCombiner &IC,
     return instCombineSVEST1(IC, II, DL);
   case Intrinsic::aarch64_sve_sdiv:
     return instCombineSVESDIV(IC, II);
+  case Intrinsic::aarch64_sve_sel:
+    return instCombineSVESel(IC, II);
   }
 
   return None;
@@ -2594,7 +2604,8 @@ InstructionCost AArch64TTIImpl::getSpliceCost(VectorType *Tp, int Index) {
 InstructionCost AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
                                                VectorType *Tp,
                                                ArrayRef<int> Mask, int Index,
-                                               VectorType *SubTp) {
+                                               VectorType *SubTp,
+                                               ArrayRef<Value *> Args) {
   Kind = improveShuffleKindFromMask(Kind, Mask);
   if (Kind == TTI::SK_Broadcast || Kind == TTI::SK_Transpose ||
       Kind == TTI::SK_Select || Kind == TTI::SK_PermuteSingleSrc ||

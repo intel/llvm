@@ -36,8 +36,8 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineInstrBundleIterator.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
@@ -918,7 +918,10 @@ void RegsForValue::getCopyToRegs(SDValue Val, SelectionDAG &DAG,
                                           CallConv.getValue(), RegVTs[Value])
                                     : RegVTs[Value];
 
-    if (ExtendKind == ISD::ANY_EXTEND && TLI.isZExtFree(Val, RegisterVT))
+    // We need to zero extend constants that are liveout to match assumptions
+    // in FunctionLoweringInfo::ComputePHILiveOutRegInfo.
+    if (ExtendKind == ISD::ANY_EXTEND &&
+        (TLI.isZExtFree(Val, RegisterVT) || isa<ConstantSDNode>(Val)))
       ExtendKind = ISD::ZERO_EXTEND;
 
     getCopyToParts(DAG, dl, Val.getValue(Val.getResNo() + Value), &Parts[Part],

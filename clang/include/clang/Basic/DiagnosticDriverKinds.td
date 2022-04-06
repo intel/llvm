@@ -393,6 +393,9 @@ def warn_drv_preprocessed_input_file_unused : Warning<
 def warn_drv_unused_argument : Warning<
   "argument unused during compilation: '%0'">,
   InGroup<UnusedCommandLineArgument>;
+def warn_drv_unused_x : Warning<
+  "'-x %0' after last input file has no effect">,
+  InGroup<UnusedCommandLineArgument>;
 def warn_drv_empty_joined_argument : Warning<
   "joined argument expects additional value: '%0'">,
   InGroup<UnusedCommandLineArgument>;
@@ -492,6 +495,10 @@ def err_drv_modules_validate_once_requires_timestamp : Error<
 def err_test_module_file_extension_format : Error<
   "-ftest-module-file-extension argument '%0' is not of the required form "
   "'blockname:major:minor:hashed:user info'">;
+
+def err_drv_extract_api_wrong_kind : Error<
+  "header file '%0' input '%1' does not match the type of prior input "
+  "in api extraction; use '-x %2' to override">;
 
 def warn_slash_u_filename : Warning<"'/U%0' treated as the '/U' option">,
   InGroup<DiagGroup<"slash-u-filename">>;

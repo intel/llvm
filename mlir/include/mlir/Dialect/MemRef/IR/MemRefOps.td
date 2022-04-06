@@ -825,7 +825,7 @@ def MemRef_GlobalOp : MemRef_Op<"global", [Symbol]> {
     The `memref.global` operation declares or defines a named global memref
     variable. The backing memory for the variable is allocated statically and is
     described by the type of the variable (which should be a statically shaped
-    memref type). The operation is a declaration if no `inital_value` is
+    memref type). The operation is a declaration if no `initial_value` is
     specified, else it is a definition. The `initial_value` can either be a unit
     attribute to represent a definition of an uninitialized global variable, or
     an elements attribute to represent the definition of a global variable with
@@ -878,6 +878,9 @@ def MemRef_GlobalOp : MemRef_Op<"global", [Symbol]> {
      bool isUninitialized() {
        return !isExternal() && initial_value().getValue().isa<UnitAttr>();
      }
+     /// Returns the constant initial value if the memref.global is a constant,
+     /// or null otherwise.
+     ElementsAttr getConstantInitValue();
   }];
   let hasVerifier = 1;
 }
@@ -1190,41 +1193,7 @@ class MemRef_ReassociativeReshapeOp<string mnemonic, list<Trait> traits = []> :
       [NoSideEffect, ViewLikeOpInterface])>,
     Arguments<(ins AnyStridedMemRef:$src, IndexListArrayAttr:$reassociation)>,
     Results<(outs AnyStridedMemRef:$result)>{
-  let builders = [
-    // Builders for a contracting reshape whose result type is computed from
-    // `src` and `reassociation`.
-    OpBuilder<(ins "Value":$src,
-      "ArrayRef<ReassociationIndices>":$reassociation,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
-    OpBuilder<(ins "Value":$src,
-      "ArrayRef<ReassociationExprs>":$reassociation,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
-    [{
-      auto reassociationMaps =
-          convertReassociationMapsToIndices($_builder, reassociation);
-      build($_builder, $_state, src, reassociationMaps, attrs);
-    }]>,
-
-    // Builders for a reshape whose result type is passed explicitly. This may
-    // be either a contracting or expanding reshape.
-    OpBuilder<(ins "Type":$resultType, "Value":$src,
-      "ArrayRef<ReassociationIndices>":$reassociation,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
-    [{
-      build($_builder, $_state, resultType, src, attrs);
-      $_state.addAttribute("reassociation",
-                          getReassociationIndicesAttribute($_builder, reassociation));
-    }]>,
-    OpBuilder<(ins "Type":$resultType, "Value":$src,
-      "ArrayRef<ReassociationExprs>":$reassociation,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
-    [{
-      auto reassociationMaps =
-          convertReassociationMapsToIndices($_builder, reassociation);
-      build($_builder, $_state, resultType, src, reassociationMaps, attrs);
-    }]>
-  ];
-
+  
   code commonExtraClassDeclaration = [{
     SmallVector<AffineMap, 4> getReassociationMaps();
     SmallVector<ReassociationExprs, 4> getReassociationExprs();
@@ -1285,6 +1254,25 @@ def MemRef_ExpandShapeOp : MemRef_ReassociativeReshapeOp<"expand_shape"> {
       memref<?x?xf32, stride_spec> into memref<?x?x?xf32, stride_spec_2>
     ```
   }];
+  let builders = [
+    // Builders using ReassociationIndices.
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationIndices>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      build($_builder, $_state, resultType, src, attrs);
+      $_state.addAttribute("reassociation",
+                          getReassociationIndicesAttribute($_builder, reassociation));
+    }]>,
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      auto reassociationMaps =
+          convertReassociationMapsToIndices($_builder, reassociation);
+      build($_builder, $_state, resultType, src, reassociationMaps, attrs);
+    }]>
+  ];
   let extraClassDeclaration = commonExtraClassDeclaration;
   let hasVerifier = 1;
 }
@@ -1323,6 +1311,39 @@ def MemRef_CollapseShapeOp : MemRef_ReassociativeReshapeOp<"collapse_shape"> {
       memref<?x?x?xf32, stride_spec> into memref<?x?xf32, stride_spec_2>
     ```
   }];
+  let builders = [
+    // Builders for a contracting reshape whose result type is computed from
+    // `src` and `reassociation`.
+    OpBuilder<(ins "Value":$src,
+      "ArrayRef<ReassociationIndices>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    OpBuilder<(ins "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      auto reassociationMaps =
+          convertReassociationMapsToIndices($_builder, reassociation);
+      build($_builder, $_state, src, reassociationMaps, attrs);
+    }]>,
+
+    // Builders for a reshape whose result type is passed explicitly.
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationIndices>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      build($_builder, $_state, resultType, src, attrs);
+      $_state.addAttribute("reassociation",
+                          getReassociationIndicesAttribute($_builder, reassociation));
+    }]>,
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      auto reassociationMaps =
+          convertReassociationMapsToIndices($_builder, reassociation);
+      build($_builder, $_state, resultType, src, reassociationMaps, attrs);
+    }]>
+  ];
   let extraClassDeclaration = commonExtraClassDeclaration;
   let hasVerifier = 1;
 }

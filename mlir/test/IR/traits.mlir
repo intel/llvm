@@ -498,6 +498,10 @@ func @succeededOilistTrivial() {
   test.oilist_with_keywords_only keyword otherKeyword
   // CHECK: test.oilist_with_keywords_only keyword otherKeyword
   test.oilist_with_keywords_only otherKeyword keyword
+  // CHECK: test.oilist_with_keywords_only thirdKeyword
+  test.oilist_with_keywords_only thirdKeyword
+  // CHECK: test.oilist_with_keywords_only keyword thirdKeyword
+  test.oilist_with_keywords_only keyword thirdKeyword
   return
 }
 
@@ -550,7 +554,7 @@ func @succeededOilistCustom(%arg0: i32, %arg1: i32, %arg2: i32) {
   test.oilist_custom private (%arg0, %arg1 : i32, i32)
   // CHECK: test.oilist_custom private(%[[ARG0]], %[[ARG1]] : i32, i32) nowait
   test.oilist_custom private (%arg0, %arg1 : i32, i32) nowait
-  // CHECK: test.oilist_custom private(%arg0, %arg1 : i32, i32) nowait reduction (%arg1)
+  // CHECK: test.oilist_custom private(%arg0, %arg1 : i32, i32) reduction (%arg1) nowait
   test.oilist_custom nowait reduction (%arg1) private (%arg0, %arg1 : i32, i32)
   return
 }
@@ -575,7 +579,7 @@ func @failedHasDominanceScopeOutsideDominanceFreeScope() -> () {
 // checked for dominance
 func @illegalInsideDominanceFreeScope() -> () {
   test.graph_region {
-    builtin.func @test() -> i1 {
+    func.func @test() -> i1 {
     ^bb1:
       // expected-error @+1 {{operand #0 does not dominate this use}}
       %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
@@ -594,7 +598,7 @@ func @illegalInsideDominanceFreeScope() -> () {
 // checked for dominance
 func @illegalCDFGInsideDominanceFreeScope() -> () {
   test.graph_region {
-    builtin.func @test() -> i1 {
+    func.func @test() -> i1 {
     ^bb1:
       // expected-error @+1 {{operand #0 does not dominate this use}}
       %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
