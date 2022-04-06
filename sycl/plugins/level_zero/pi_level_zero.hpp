@@ -467,6 +467,8 @@ struct _pi_device : _pi_object {
 // in the same context.
 struct pi_command_list_info_t {
   // The Level-Zero fence that will be signalled at completion.
+  // Immediate commandlists do not have an associated fence.
+  // A nullptr for the fence indicates that this is an immediate commandlist.
   ze_fence_handle_t ZeFence{nullptr};
   // Record if the fence is in use.
   // This is needed to avoid leak of the tracked command-list if the fence
@@ -610,9 +612,8 @@ struct _pi_context : _pi_object {
   std::unordered_map<ze_device_handle_t, std::list<ze_command_list_handle_t>>
       ZeCopyCommandListCache;
 
-  // Retrieves a command list for executing on this device.
-  // Depending on setting, this could be a standard or immediate commandlist.
-  // When using standard commandlists a fence is also retrieved.
+  // Retrieves a command list for executing on this device along with
+  // a fence to be used in tracking the execution of this command list.
   // If a command list has been created on this device which has
   // completed its commands, then that command list and its associated fence
   // will be reused. Otherwise, a new command list and fence will be created for
@@ -736,16 +737,12 @@ struct _pi_queue : _pi_object {
     // round robin strategy and the queue group ordinal.
     uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex);
 
-    // Return a queue descriptor using the provided ordinal and index.
-    void createQueueDesc(uint32_t Index, uint32_t Ordinal,
-                         ZeStruct<ze_command_queue_desc_t> &ZeCommandQueueDesc);
-
     // This function will return one of possibly multiple available native
     // queues and the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
 
     // This function returns the next immediate commandlist to use.
-    pi_command_list_ptr_t &getImmCmdList(bool UseCopyEngine);
+    pi_command_list_ptr_t &getImmCmdList();
 
     // These indices are to filter specific range of the queues to use,
     // and to organize round-robin across them.
@@ -761,8 +758,8 @@ struct _pi_queue : _pi_object {
   // link copy engines, if available.
   pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
 
-  // Wait on all immediate commandlists associated with this queue
-  pi_result waitOnAllImmCmdLists();
+  // Wait for all commandlists associated with this Queue to finish operations.
+  pi_result synchronize();
 
   pi_queue_group_t &getQueueGroup(bool UseCopyEngine) {
     return UseCopyEngine ? CopyQueueGroup : ComputeQueueGroup;

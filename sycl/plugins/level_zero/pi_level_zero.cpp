@@ -366,10 +366,10 @@ private:
 //
 static const std::pair<int, int> getRangeOfAllowedComputeEngines = [] {
   const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
-  // If the environment variable is not set, all available compute engines
-  // can be used.
+  // If the environment variable is not set, only index 0 compute engine will be
+  // used.
   if (!EnvVar)
-    return std::pair<int, int>(0, INT_MAX);
+    return std::pair<int, int>(0, 0);
 
   auto EnvVarValue = std::atoi(EnvVar);
   if (EnvVarValue >= 0) {
@@ -389,10 +389,10 @@ static const std::pair<int, int> getRangeOfAllowedComputeEngines = [] {
 // available copy engines can be used.
 static const std::pair<int, int> getRangeOfAllowedCopyEngines = [] {
   const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
-  // If the environment variable is not set, all available copy engines can be
+  // If the environment variable is not set, only index 0 copy engine will be
   // used.
   if (!EnvVar)
-    return std::pair<int, int>(0, INT_MAX);
+    return std::pair<int, int>(0, 0);
   std::string CopyEngineRange = EnvVar;
   // Environment variable can be a single integer or a pair of integers
   // separated by ":"
@@ -855,7 +855,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
           : this->Context->ZeComputeCommandListCache[this->Device->ZeDevice];
 
   // Immediate commandlists do not have an associated fence.
-  if (!UseImmediateCommandLists) {
+  if (CommandList->second.ZeFence != nullptr) {
     // Fence had been signalled meaning the associated command-list completed.
     // Reset the fence and put the command list into a cache for reuse in PI
     // calls.
@@ -883,7 +883,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
 
   // Standard commandlists move in and out of the cache as they are recycled.
   // Immediate commandlists are always available.
-  if (!UseImmediateCommandLists && MakeAvailable) {
+  if (CommandList->second.ZeFence != nullptr && MakeAvailable) {
     std::lock_guard<std::mutex> lock(this->Context->ZeCommandListCacheMutex);
     ZeCommandListCache.push_back(CommandList->first);
   }
@@ -1116,7 +1116,7 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
   // Immediate commandlists have been pre-allocated and are always available.
   if (UseImmediateCommandLists) {
     CommandList =
-        Queue->getQueueGroup(UseCopyEngine).getImmCmdList(UseCopyEngine);
+        Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
     return PI_SUCCESS;
   }
 
@@ -1460,7 +1460,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // Check global control to make every command blocking for debugging.
   if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
     if (UseImmediateCommandLists) {
-      waitOnAllImmCmdLists();
+      synchronize();
     } else {
       // Wait until command lists attached to the command queue are executed.
       ZE_CALL(zeHostSynchronize, (ZeCommandQueue));
@@ -1506,26 +1506,6 @@ uint32_t _pi_queue::pi_queue_group_t::getQueueIndex(uint32_t *QueueGroupOrdinal,
   return CurrentIndex;
 }
 
-// Return a queue descriptor using the provided ordinal and index.
-void _pi_queue::pi_queue_group_t::createQueueDesc(
-    uint32_t Index, uint32_t Ordinal,
-    ZeStruct<ze_command_queue_desc_t> &ZeCommandQueueDesc) {
-
-  ZeCommandQueueDesc.ordinal = Ordinal;
-  ZeCommandQueueDesc.index = Index;
-  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
-
-  // Evaluate performance of explicit usage for "0" index.
-  if (Index != 0) {
-    ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
-  }
-
-  zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
-          "(round robin in [%d, %d])\n",
-          ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
-          UpperIndex);
-}
-
 // This function will return one of possibly multiple available native
 // queues and the value of the queue group ordinal.
 ze_command_queue_handle_t &
@@ -1542,7 +1522,19 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
     return ZeQueue;
 
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  createQueueDesc(QueueIndex, *QueueGroupOrdinal, ZeCommandQueueDesc);
+  ZeCommandQueueDesc.ordinal = *QueueGroupOrdinal;
+  ZeCommandQueueDesc.index = QueueIndex;
+  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
+
+  // Evaluate performance of explicit usage for "0" index.
+  if (QueueIndex != 0) {
+    ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
+  }
+
+  zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
+    "(round robin in [%d, %d])\n",
+    ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+    UpperIndex);
 
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -1556,18 +1548,28 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
 
 // This function will return one of possibly multiple available
 // immediate commandlists associated with this Queue.
-pi_command_list_ptr_t &
-_pi_queue::pi_queue_group_t::getImmCmdList(bool UseCopyEngine) {
+pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
 
   uint32_t QueueIndex, QueueOrdinal;
-  auto Index = Queue->getQueueGroup(UseCopyEngine)
-                   .getQueueIndex(&QueueOrdinal, &QueueIndex);
+  auto Index = getQueueIndex(&QueueOrdinal, &QueueIndex);
 
   if (ImmCmdLists[Index] != Queue->CommandListMap.end())
     return ImmCmdLists[Index];
 
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  createQueueDesc(QueueIndex, QueueOrdinal, ZeCommandQueueDesc);
+  ZeCommandQueueDesc.ordinal = QueueOrdinal;
+  ZeCommandQueueDesc.index = QueueIndex;
+  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
+
+  // Evaluate performance of explicit usage for "0" index.
+  if (QueueIndex != 0) {
+    ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
+  }
+
+  zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
+    "(round robin in [%d, %d])\n",
+    ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+    UpperIndex);
 
   ze_command_list_handle_t ZeCommandList;
   ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
@@ -1582,7 +1584,7 @@ _pi_queue::pi_queue_group_t::getImmCmdList(bool UseCopyEngine) {
   // QueueRelease
   auto QueueType = Type;
   auto &ZeCommandListCache =
-      QueueType != queue_type::Compute
+      QueueType == queue_type::Compute
           ? Queue->Context->ZeComputeCommandListCache[Queue->Device->ZeDevice]
           : Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice];
   std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
@@ -3277,28 +3279,16 @@ pi_result piQueueRelease(pi_queue Queue) {
         return Res;
 
       // Make sure all commands get executed.
-      // Only do so for a healthy queue as otherwise sync may not be valid.
-      if (Queue->Healthy) {
-        if (UseImmediateCommandLists) {
-          Queue->waitOnAllImmCmdLists();
-        } else {
-          for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
-            if (ZeQueue)
-              ZE_CALL(zeHostSynchronize, (ZeQueue));
-          }
-          for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
-            if (ZeQueue)
-              ZE_CALL(zeHostSynchronize, (ZeQueue));
-          }
-        }
-      }
+      Queue->synchronize();
+
       // Destroy all the fences created associated with this queue.
       for (auto it = Queue->CommandListMap.begin();
            it != Queue->CommandListMap.end(); ++it) {
         // This fence wasn't yet signalled when we polled it for recycling
         // the command-list, so need to release the command-list too.
-        // For immediate commandlists we don't need to resset the commandlist
-        // but rely on event cleanup done as part of reset.
+        // For immediate commandlists we don't need to do an L0 reset of the
+        // commandlist but do need to do event cleanup which is also in the
+        // resetCommandList function.
         if (UseImmediateCommandLists || it->second.InUse) {
           Queue->resetCommandList(it, true);
         }
@@ -3368,7 +3358,7 @@ pi_result piQueueFinish(pi_queue Queue) {
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock lock(Queue->Mutex);
 
-    Queue->waitOnAllImmCmdLists();
+    Queue->synchronize();
     return PI_SUCCESS;
   }
 
@@ -5034,7 +5024,10 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
              ZeEvent, (*Event)->WaitList.Length,
              (*Event)->WaitList.ZeEventList));
   } else {
-    // Add the command to the command list for later submission
+    // Add the command to the command list for later submission.
+    // No lock is needed here, unlike the immediate commandlist case above,
+    // because the kernels are not actually submitted yet. Kernels will be
+    // submitted only when the comamndlist is closed. Then, a lock is held.
     ZE_CALL(zeCommandListAppendLaunchKernel,
             (CommandList->first, Kernel->ZeKernel, &ZeThreadGroupDimensions,
              ZeEvent, (*Event)->WaitList.Length,
@@ -5817,18 +5810,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   if (Res != PI_SUCCESS)
     return Res;
 
-  if (UseImmediateCommandLists) {
-    Queue->waitOnAllImmCmdLists();
-  } else {
-    for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
-      if (ZeQueue)
-        ZE_CALL(zeHostSynchronize, (ZeQueue));
-    }
-    for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
-      if (ZeQueue)
-        ZE_CALL(zeHostSynchronize, (ZeQueue));
-    }
-  }
+  Queue->synchronize();
 
   Queue->LastCommandEvent = *Event;
 
@@ -5920,10 +5902,12 @@ bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
          (!isInOrderQueue() || UseCopyEngineForInOrderQueue);
 }
 
-// To ensure we complete all operations in flight in a Queue we add a barrier to
-// all immediate commandlists associated with the Queue. An alternative approach
-// would be to wait on all Events associated with the in-flight operations.
-pi_result _pi_queue::waitOnAllImmCmdLists() {
+// Wait on all operations in flight on this Queue.
+// If using immediate commandlists add barriers to all commandlists associated
+// with the Queue. An alternative approach would be to wait on all Events
+// associated with the in-flight operations. For standard commandlists sync the
+// L0 queues directly.
+pi_result _pi_queue::synchronize() {
   if (!Healthy)
     return PI_SUCCESS;
 
@@ -5942,10 +5926,19 @@ pi_result _pi_queue::waitOnAllImmCmdLists() {
     return PI_SUCCESS;
   };
 
-  for (auto ImmCmdList : ComputeQueueGroup.ImmCmdLists)
-    syncImmCmdList(this, ImmCmdList);
-  for (auto ImmCmdList : CopyQueueGroup.ImmCmdLists)
-    syncImmCmdList(this, ImmCmdList);
+  if (UseImmediateCommandLists) {
+    for (auto ImmCmdList : ComputeQueueGroup.ImmCmdLists)
+      syncImmCmdList(this, ImmCmdList);
+    for (auto ImmCmdList : CopyQueueGroup.ImmCmdLists)
+      syncImmCmdList(this, ImmCmdList);
+  } else {
+    for (auto &ZeQueue : ComputeQueueGroup.ZeQueues)
+      if (ZeQueue)
+        ZE_CALL(zeHostSynchronize, (ZeQueue));
+    for (auto &ZeQueue : CopyQueueGroup.ZeQueues)
+      if (ZeQueue)
+        ZE_CALL(zeHostSynchronize, (ZeQueue));
+  }
   return PI_SUCCESS;
 }
 
