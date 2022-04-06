@@ -3436,6 +3436,15 @@ pi_result cuda_piKernelSetExecInfo(pi_kernel, pi_kernel_exec_info, size_t,
   return PI_SUCCESS;
 }
 
+pi_result cuda_piextProgramSetSpecializationConstant(pi_program, pi_uint32,
+                                                     size_t, const void *) {
+  // This entry point is only used for native specialization constants (SPIR-V),
+  // and the CUDA plugin is AOT only so this entry point is not supported.
+  cl::sycl::detail::pi::die(
+      "Native specialization constants are not supported");
+  return {};
+}
+
 pi_result cuda_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
                                         size_t arg_size,
                                         const void *arg_value) {
@@ -5057,6 +5066,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRetain, cuda_piKernelRetain)
   _PI_CL(piKernelRelease, cuda_piKernelRelease)
   _PI_CL(piKernelSetExecInfo, cuda_piKernelSetExecInfo)
+  _PI_CL(piextProgramSetSpecializationConstant,
+         cuda_piextProgramSetSpecializationConstant)
   _PI_CL(piextKernelSetArgPointer, cuda_piextKernelSetArgPointer)
   _PI_CL(piextKernelCreateWithNativeHandle,
          cuda_piextKernelCreateWithNativeHandle)
