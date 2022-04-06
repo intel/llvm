@@ -3,7 +3,8 @@
 
 #include <CL/sycl.hpp>
 
-// Some helper macros to verify return type of the builtins. To be used like this
+// Some helper macros to verify return type of the builtins. To be used like
+// this
 //
 //   CHECK(Expected return type in SYCL 1.2.1,
 //         Expected return type in SYCL 2020,
@@ -12,12 +13,8 @@
 //
 // C++17 doesn't allow lambdas in unevaluated context. Could be simplified
 // further in C++20 including more std::declval usage.
-template <class... Args>
-struct CheckHelper {
-    template<class F>
-    static auto call(F f) {
-        return f(Args()...);
-    }
+template <class... Args> struct CheckHelper {
+  template <class F> static auto call(F f) { return f(Args()...); }
 };
 
 #if SYCL_LANGUAGE_VERSION < 202001
@@ -74,185 +71,184 @@ void foo() {
   // isequal
   CHECK(int16_t, bool, isequal, half, half);
   CHECK(int16v, int16v, isequal, halfv, halfv);
-  CHECK2020(_, boolm , isequal, halfm, halfm);
+  CHECK2020(_, boolm, isequal, halfm, halfm);
 
   CHECK(int32_t, bool, isequal, float, float);
   CHECK(int32v, int32v, isequal, floatv, floatv);
-  CHECK2020(_, boolm , isequal, floatm, floatm);
+  CHECK2020(_, boolm, isequal, floatm, floatm);
 
   CHECK(int64_t, bool, isequal, double, double);
   CHECK(int64v, int64v, isequal, doublev, doublev);
-  CHECK2020(_, boolm , isequal, doublem, doublem);
+  CHECK2020(_, boolm, isequal, doublem, doublem);
 
   // isnotequal
   CHECK(int16_t, bool, isnotequal, half, half);
   CHECK(int16v, int16v, isnotequal, halfv, halfv);
-  CHECK2020(_, boolm , isnotequal, halfm, halfm);
+  CHECK2020(_, boolm, isnotequal, halfm, halfm);
 
   CHECK(int32_t, bool, isnotequal, float, float);
   CHECK(int32v, int32v, isnotequal, floatv, floatv);
-  CHECK2020(_, boolm , isnotequal, floatm, floatm);
+  CHECK2020(_, boolm, isnotequal, floatm, floatm);
 
   CHECK(int64_t, bool, isnotequal, double, double);
   CHECK(int64v, int64v, isnotequal, doublev, doublev);
-  CHECK2020(_, boolm , isnotequal, doublem, doublem);
-
+  CHECK2020(_, boolm, isnotequal, doublem, doublem);
 
   // isgreater
   CHECK(int16_t, bool, isgreater, half, half);
   CHECK(int16v, int16v, isgreater, halfv, halfv);
-  CHECK2020(_, boolm , isgreater, halfm, halfm);
+  CHECK2020(_, boolm, isgreater, halfm, halfm);
 
   CHECK(int32_t, bool, isgreater, float, float);
   CHECK(int32v, int32v, isgreater, floatv, floatv);
-  CHECK2020(_, boolm , isgreater, floatm, floatm);
+  CHECK2020(_, boolm, isgreater, floatm, floatm);
 
   CHECK(int64_t, bool, isgreater, double, double);
   CHECK(int64v, int64v, isgreater, doublev, doublev);
-  CHECK2020(_, boolm , isgreater, doublem, doublem);
+  CHECK2020(_, boolm, isgreater, doublem, doublem);
 
   // isgreaterequal
   CHECK(int16_t, bool, isgreaterequal, half, half);
   CHECK(int16v, int16v, isgreaterequal, halfv, halfv);
-  CHECK2020(_, boolm , isgreaterequal, halfm, halfm);
+  CHECK2020(_, boolm, isgreaterequal, halfm, halfm);
 
   CHECK(int32_t, bool, isgreaterequal, float, float);
   CHECK(int32v, int32v, isgreaterequal, floatv, floatv);
-  CHECK2020(_, boolm , isgreaterequal, floatm, floatm);
+  CHECK2020(_, boolm, isgreaterequal, floatm, floatm);
 
   CHECK(int64_t, bool, isgreaterequal, double, double);
   CHECK(int64v, int64v, isgreaterequal, doublev, doublev);
-  CHECK2020(_, boolm , isgreaterequal, doublem, doublem);
+  CHECK2020(_, boolm, isgreaterequal, doublem, doublem);
 
   // isless
   CHECK(int16_t, bool, isless, half, half);
   CHECK(int16v, int16v, isless, halfv, halfv);
-  CHECK2020(_, boolm , isless, halfm, halfm);
+  CHECK2020(_, boolm, isless, halfm, halfm);
 
   CHECK(int32_t, bool, isless, float, float);
   CHECK(int32v, int32v, isless, floatv, floatv);
-  CHECK2020(_, boolm , isless, floatm, floatm);
+  CHECK2020(_, boolm, isless, floatm, floatm);
 
   CHECK(int64_t, bool, isless, double, double);
   CHECK(int64v, int64v, isless, doublev, doublev);
-  CHECK2020(_, boolm , isless, doublem, doublem);
+  CHECK2020(_, boolm, isless, doublem, doublem);
 
   // islessequal
   CHECK(int16_t, bool, islessequal, half, half);
   CHECK(int16v, int16v, islessequal, halfv, halfv);
-  CHECK2020(_, boolm , islessequal, halfm, halfm);
+  CHECK2020(_, boolm, islessequal, halfm, halfm);
 
   CHECK(int32_t, bool, islessequal, float, float);
   CHECK(int32v, int32v, islessequal, floatv, floatv);
-  CHECK2020(_, boolm , islessequal, floatm, floatm);
+  CHECK2020(_, boolm, islessequal, floatm, floatm);
 
   CHECK(int64_t, bool, islessequal, double, double);
   CHECK(int64v, int64v, islessequal, doublev, doublev);
-  CHECK2020(_, boolm , islessequal, doublem, doublem);
+  CHECK2020(_, boolm, islessequal, doublem, doublem);
 
   // islessgreater
   CHECK(int16_t, bool, islessgreater, half, half);
   CHECK(int16v, int16v, islessgreater, halfv, halfv);
-  CHECK2020(_, boolm , islessgreater, halfm, halfm);
+  CHECK2020(_, boolm, islessgreater, halfm, halfm);
 
   CHECK(int32_t, bool, islessgreater, float, float);
   CHECK(int32v, int32v, islessgreater, floatv, floatv);
-  CHECK2020(_, boolm , islessgreater, floatm, floatm);
+  CHECK2020(_, boolm, islessgreater, floatm, floatm);
 
   CHECK(int64_t, bool, islessgreater, double, double);
   CHECK(int64v, int64v, islessgreater, doublev, doublev);
-  CHECK2020(_, boolm , islessgreater, doublem, doublem);
+  CHECK2020(_, boolm, islessgreater, doublem, doublem);
 
   // isfinite
   CHECK(int16_t, bool, isfinite, half);
   CHECK(int16v, int16v, isfinite, halfv);
-  CHECK2020(_, boolm , isfinite, halfm);
+  CHECK2020(_, boolm, isfinite, halfm);
 
   CHECK(int32_t, bool, isfinite, float);
   CHECK(int32v, int32v, isfinite, floatv);
-  CHECK2020(_, boolm , isfinite, floatm);
+  CHECK2020(_, boolm, isfinite, floatm);
 
   CHECK(int64_t, bool, isfinite, double);
   CHECK(int64v, int64v, isfinite, doublev);
-  CHECK2020(_, boolm , isfinite, doublem);
+  CHECK2020(_, boolm, isfinite, doublem);
 
   // isinf
   CHECK(int16_t, bool, isinf, half);
   CHECK(int16v, int16v, isinf, halfv);
-  CHECK2020(_, boolm , isinf, halfm);
+  CHECK2020(_, boolm, isinf, halfm);
 
   CHECK(int32_t, bool, isinf, float);
   CHECK(int32v, int32v, isinf, floatv);
-  CHECK2020(_, boolm , isinf, floatm);
+  CHECK2020(_, boolm, isinf, floatm);
 
   CHECK(int64_t, bool, isinf, double);
   CHECK(int64v, int64v, isinf, doublev);
-  CHECK2020(_, boolm , isinf, doublem);
+  CHECK2020(_, boolm, isinf, doublem);
 
   // isnan
   CHECK(int16_t, bool, isnan, half);
   CHECK(int16v, int16v, isnan, halfv);
-  CHECK2020(_, boolm , isnan, halfm);
+  CHECK2020(_, boolm, isnan, halfm);
 
   CHECK(int32_t, bool, isnan, float);
   CHECK(int32v, int32v, isnan, floatv);
-  CHECK2020(_, boolm , isnan, floatm);
+  CHECK2020(_, boolm, isnan, floatm);
 
   CHECK(int64_t, bool, isnan, double);
   CHECK(int64v, int64v, isnan, doublev);
-  CHECK2020(_, boolm , isnan, doublem);
+  CHECK2020(_, boolm, isnan, doublem);
 
   // isnormal
   CHECK(int16_t, bool, isnormal, half);
   CHECK(int16v, int16v, isnormal, halfv);
-  CHECK2020(_, boolm , isnormal, halfm);
+  CHECK2020(_, boolm, isnormal, halfm);
 
   CHECK(int32_t, bool, isnormal, float);
   CHECK(int32v, int32v, isnormal, floatv);
-  CHECK2020(_, boolm , isnormal, floatm);
+  CHECK2020(_, boolm, isnormal, floatm);
 
   CHECK(int64_t, bool, isnormal, double);
   CHECK(int64v, int64v, isnormal, doublev);
-  CHECK2020(_, boolm , isnormal, doublem);
+  CHECK2020(_, boolm, isnormal, doublem);
 
   // isordered
   CHECK(int16_t, bool, isordered, half, half);
   CHECK(int16v, int16v, isordered, halfv, halfv);
-  CHECK2020(_, boolm , isordered, halfm, halfm);
+  CHECK2020(_, boolm, isordered, halfm, halfm);
 
   CHECK(int32_t, bool, isordered, float, float);
   CHECK(int32v, int32v, isordered, floatv, floatv);
-  CHECK2020(_, boolm , isordered, floatm, floatm);
+  CHECK2020(_, boolm, isordered, floatm, floatm);
 
   CHECK(int64_t, bool, isordered, double, double);
   CHECK(int64v, int64v, isordered, doublev, doublev);
-  CHECK2020(_, boolm , isordered, doublem, doublem);
+  CHECK2020(_, boolm, isordered, doublem, doublem);
 
   // isunordered
   CHECK(int16_t, bool, isunordered, half, half);
   CHECK(int16v, int16v, isunordered, halfv, halfv);
-  CHECK2020(_, boolm , isunordered, halfm, halfm);
+  CHECK2020(_, boolm, isunordered, halfm, halfm);
 
   CHECK(int32_t, bool, isunordered, float, float);
   CHECK(int32v, int32v, isunordered, floatv, floatv);
-  CHECK2020(_, boolm , isunordered, floatm, floatm);
+  CHECK2020(_, boolm, isunordered, floatm, floatm);
 
   CHECK(int64_t, bool, isunordered, double, double);
   CHECK(int64v, int64v, isunordered, doublev, doublev);
-  CHECK2020(_, boolm , isunordered, doublem, doublem);
+  CHECK2020(_, boolm, isunordered, doublem, doublem);
 
   // signbit
   CHECK(int16_t, bool, signbit, half);
   CHECK(int16v, int16v, signbit, halfv);
-  CHECK2020(_, boolm , signbit, halfm);
+  CHECK2020(_, boolm, signbit, halfm);
 
   CHECK(int32_t, bool, signbit, float);
   CHECK(int32v, int32v, signbit, floatv);
-  CHECK2020(_, boolm , signbit, floatm);
+  CHECK2020(_, boolm, signbit, floatm);
 
   CHECK(int64_t, bool, signbit, double);
   CHECK(int64v, int64v, signbit, doublev);
-  CHECK2020(_, boolm , signbit, doublem);
+  CHECK2020(_, boolm, signbit, doublem);
 
   // any
   CHECK(int, bool, any, int16_t)
