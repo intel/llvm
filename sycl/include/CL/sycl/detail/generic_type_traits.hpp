@@ -509,7 +509,8 @@ template <typename T> inline constexpr bool msbIsSet(const T x) {
 //
 template <typename T>
 using common_rel_ret_t =
-    conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
+    conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>,
+                  std::conditional_t<is_genfloatd<T>::value, int64_t, int>>;
 #else
 // SYCL 2020 4.17.9 (Relation functions), e.g. table 178
 //
