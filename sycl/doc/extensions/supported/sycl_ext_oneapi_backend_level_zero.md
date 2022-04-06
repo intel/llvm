@@ -425,11 +425,11 @@ the application should not attempt further direct use of those handles.
 
 A SYCL buffer that is constructed with this interop API uses the Level Zero memory allocation for its full lifetime, and the contents of the Level Zero memory allocation are unspecified for the lifetime of the SYCL buffer. If the application modifies the contents of that Level Zero memory allocation during the lifetime of the SYCL buffer, the behavior is undefined. The initial contents of the SYCL buffer will be the initial contents of the Level Zero memory allocation at the time of the SYCL buffer's construction.
 
-As with other SYCL objects, the SYCL buffer destructor is triggered only when the last reference count to the buffer is dropped, as described in the core SYCL specification section 4.7.2.3, "Buffer synchronization rules". The SYCL buffer destructor does not need to block even if work on the buffer has not completed.
+The behavior of the SYCL buffer destructor depends on the Ownership flag. As with other SYCL buffers, this behavior is triggered only when the last reference count to the buffer is dropped, as described in the core SYCL specification section 4.7.2.3, "Buffer synchronization rules".
 
-* If the ownership is keep (i.e. the application retains ownership of the Level Zero memory allocation), then SYCL runtime doesn't free the Level Zero memory allocation and leaves this responsibility to the user.
+* If the ownership is keep (i.e. the application retains ownership of the Level Zero memory allocation), then the SYCL buffer destructor blocks until all work in queues on the buffer have completed. The buffer's contents are written to the Level Zero memory allocation by the time the destructor completes.
 
-* If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory allocation) then SYCL runtime frees the Level Zero memory allocation asynchronously when it is no longer in use in queues.
+* If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory allocation), then the SYCL buffer destructor does not need to block even if work on the buffer has not completed. The SYCL runtime frees the Level Zero memory allocation asynchronously when it is no longer in use in queues.
 
 ## 5 Level-Zero additional functionality
 
