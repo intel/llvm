@@ -21,7 +21,7 @@ template <class... Args> struct CheckHelper {
 #define CHECK(EXPECTED121, EXPECTED2020, FUNC, ...)                            \
   {                                                                            \
     auto ret = CheckHelper<__VA_ARGS__>::call(                                 \
-        [](auto... args) { return cl : sycl::FUNC(args...); });                \
+        [](auto... args) { return cl::sycl::FUNC(args...); });                 \
     static_assert(std::is_same_v<decltype(ret), EXPECTED121>);                 \
   }
 #define CHECK2020(...)
