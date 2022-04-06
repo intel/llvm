@@ -2122,15 +2122,18 @@ public:
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     // USM allows to use raw pointers instead of buffers/accessors, but these
-    // pointers point to the specially allocated memory. For pointer fields we
-    // add a kernel argument with the same type as field but global address
-    // space, because OpenCL requires it.
+    // pointers point to the specially allocated memory. For pointer fields,
+    // except for function pointer fields, we add a kernel argument with the
+    // same type as field but global address space, because OpenCL requires it.
+    // Function pointers should have program address space. This is set in
+    // CodeGen.
     QualType PointeeTy = FieldTy->getPointeeType();
     Qualifiers Quals = PointeeTy.getQualifiers();
     auto AS = Quals.getAddressSpace();
     // Leave global_device and global_host address spaces as is to help FPGA
     // device in memory allocations
-    if (AS != LangAS::sycl_global_device && AS != LangAS::sycl_global_host)
+    if (!PointeeTy->isFunctionType() && AS != LangAS::sycl_global_device &&
+        AS != LangAS::sycl_global_host)
       Quals.setAddressSpace(LangAS::sycl_global);
     PointeeTy = SemaRef.getASTContext().getQualifiedType(
         PointeeTy.getUnqualifiedType(), Quals);
