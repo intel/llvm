@@ -401,5 +401,5 @@ struct free_memory {
 |3|2021-04-13|James Brodman|Free Memory Query
 |4|2021-07-06|Rehana Begam|Introduced explicit ownership for queue
 |5|2021-07-25|Sergey Maslov|Introduced SYCL interop for events
-|6|2021-08-30|Dmitry Vodopyanov|Updated according to SYCL 2020 reqs for extensions
-|7|2021-09-13|Sergey Maslov|Updated according to SYCL 2020 standard
+|6|2021-08-30|Dmitry Vodopyanov|Updated according to the SYCL 2020 reqs for extensions
+|7|2021-09-13|Sergey Maslov|Updated according to the SYCL 2020 standard
