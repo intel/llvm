@@ -139,19 +139,17 @@ define zeroext i1 @t6(i32 %a) #0 {
 define zeroext i1 @t7(i32 %0) {
 ; X86-LABEL: t7:
 ; X86:       ## %bb.0:
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %cl
-; X86-NEXT:    movb $19, %al
-; X86-NEXT:    shrb %cl, %al
-; X86-NEXT:    andb $1, %al
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    movl $19, %ecx
+; X86-NEXT:    btl %eax, %ecx
+; X86-NEXT:    setb %al
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: t7:
 ; X64:       ## %bb.0:
-; X64-NEXT:    movl %edi, %ecx
-; X64-NEXT:    movb $19, %al
-; X64-NEXT:    ## kill: def $cl killed $cl killed $ecx
-; X64-NEXT:    shrb %cl, %al
-; X64-NEXT:    andb $1, %al
+; X64-NEXT:    movl $19, %eax
+; X64-NEXT:    btl %edi, %eax
+; X64-NEXT:    setb %al
 ; X64-NEXT:    retq
   %2 = trunc i32 %0 to i5
   %3 = lshr i5 -13, %2
@@ -163,25 +161,112 @@ define zeroext i1 @t7(i32 %0) {
 define zeroext i1 @t8(i8 %0, i8 %1) {
 ; X86-LABEL: t8:
 ; X86:       ## %bb.0:
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %cl
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
-; X86-NEXT:    shrb %cl, %al
-; X86-NEXT:    andb $1, %al
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X86-NEXT:    btl %eax, %ecx
+; X86-NEXT:    setb %al
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: t8:
 ; X64:       ## %bb.0:
-; X64-NEXT:    movl %esi, %ecx
-; X64-NEXT:    movl %edi, %eax
-; X64-NEXT:    ## kill: def $cl killed $cl killed $ecx
-; X64-NEXT:    shrb %cl, %al
-; X64-NEXT:    andb $1, %al
-; X64-NEXT:    ## kill: def $al killed $al killed $eax
+; X64-NEXT:    btl %esi, %edi
+; X64-NEXT:    setb %al
 ; X64-NEXT:    retq
   %3 = lshr i8 %0, %1
   %4 = and i8 %3, 1
   %5 = icmp ne i8 %4, 0
   ret i1 %5
+}
+
+define i64 @t9(i32 %0, i32 %1) {
+; X86-LABEL: t9:
+; X86:       ## %bb.0:
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %edx
+; X86-NEXT:    xorl %eax, %eax
+; X86-NEXT:    btl %edx, %ecx
+; X86-NEXT:    setb %al
+; X86-NEXT:    xorl %edx, %edx
+; X86-NEXT:    retl
+;
+; X64-LABEL: t9:
+; X64:       ## %bb.0:
+; X64-NEXT:    xorl %eax, %eax
+; X64-NEXT:    btl %esi, %edi
+; X64-NEXT:    setb %al
+; X64-NEXT:    retq
+  %3 = lshr i32 %0, %1
+  %4 = and i32 %3, 1
+  %5 = icmp ne i32 %4, 0
+  %6 = zext i1 %5 to i64
+  ret i64 %6
+}
+
+define i32 @t10(i32 %0, i32 %1) {
+; X86-LABEL: t10:
+; X86:       ## %bb.0:
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %edx
+; X86-NEXT:    xorl %eax, %eax
+; X86-NEXT:    btl %edx, %ecx
+; X86-NEXT:    setae %al
+; X86-NEXT:    retl
+;
+; X64-LABEL: t10:
+; X64:       ## %bb.0:
+; X64-NEXT:    xorl %eax, %eax
+; X64-NEXT:    btl %esi, %edi
+; X64-NEXT:    setae %al
+; X64-NEXT:    retq
+  %3 = lshr i32 %0, %1
+  %4 = and i32 %3, 1
+  %5 = xor i32 %4, 1
+  ret i32 %5
+}
+
+define i32 @t11(i32 %0, i32 %1) {
+; X86-LABEL: t11:
+; X86:       ## %bb.0:
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %edx
+; X86-NEXT:    xorl %eax, %eax
+; X86-NEXT:    btl %edx, %ecx
+; X86-NEXT:    setae %al
+; X86-NEXT:    retl
+;
+; X64-LABEL: t11:
+; X64:       ## %bb.0:
+; X64-NEXT:    xorl %eax, %eax
+; X64-NEXT:    btl %esi, %edi
+; X64-NEXT:    setae %al
+; X64-NEXT:    retq
+  %3 = xor i32 %0, -1
+  %4 = lshr i32 %3, %1
+  %5 = and i32 %4, 1
+  ret i32 %5
+}
+
+define i32 @t12(i32 %0, i32 %1) {
+; X86-LABEL: t12:
+; X86:       ## %bb.0:
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %edx
+; X86-NEXT:    xorl %eax, %eax
+; X86-NEXT:    btl %edx, %ecx
+; X86-NEXT:    setb %al
+; X86-NEXT:    retl
+;
+; X64-LABEL: t12:
+; X64:       ## %bb.0:
+; X64-NEXT:    xorl %eax, %eax
+; X64-NEXT:    btl %esi, %edi
+; X64-NEXT:    setb %al
+; X64-NEXT:    retq
+  %3 = xor i32 %0, -1
+  %4 = lshr i32 %3, %1
+  %5 = and i32 %4, 1
+  %6 = xor i32 %5, 1
+  ret i32 %6
 }
 
 define i16 @shift_and(i16 %a) {

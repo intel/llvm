@@ -15838,7 +15838,8 @@ static SDValue lowerV8I16Shuffle(const SDLoc &DL, ArrayRef<int> Mask,
       V1 = extract128BitVector(V1V2, 0, DAG, DL);
       V2 = extract128BitVector(V1V2, 4, DAG, DL);
     } else {
-      SmallVector<SDValue> DWordClearOps(4, DAG.getConstant(0, DL, MVT::i32));
+      SmallVector<SDValue, 4> DWordClearOps(4,
+                                            DAG.getConstant(0, DL, MVT::i32));
       for (unsigned i = 0; i != 4; i += 1 << (NumEvenDrops - 1))
         DWordClearOps[i] = DAG.getConstant(0xFFFF, DL, MVT::i32);
       SDValue DWordClearMask =
@@ -17276,8 +17277,14 @@ static SDValue lowerShuffleAsRepeatedMaskAndLanePermute(
     return SDValue();
 
   // On AVX2 targets we can permute 256-bit vectors as 64-bit sub-lanes
-  // (with PERMQ/PERMPD), otherwise we can only permute whole 128-bit lanes.
-  int SubLaneScale = Subtarget.hasAVX2() && VT.is256BitVector() ? 2 : 1;
+  // (with PERMQ/PERMPD). On AVX512BW targets, permuting 32-bit sub-lanes, even
+  // with a variable shuffle, is worth it for 64xi8 vectors. Otherwise we can
+  // only permute whole 128-bit lanes.
+  int SubLaneScale = 1;
+  if (Subtarget.hasAVX2() && VT.is256BitVector())
+    SubLaneScale = 2;
+  if (Subtarget.hasBWI() && VT == MVT::v64i8)
+    SubLaneScale = 4;
   int NumSubLanes = NumLanes * SubLaneScale;
   int NumSubLaneElts = NumLaneElts / SubLaneScale;
 
@@ -17286,9 +17293,9 @@ static SDValue lowerShuffleAsRepeatedMaskAndLanePermute(
   // determine the source sub-lane for each destination sub-lane.
   int TopSrcSubLane = -1;
   SmallVector<int, 8> Dst2SrcSubLanes((unsigned)NumSubLanes, -1);
-  SmallVector<int, 8> RepeatedSubLaneMasks[2] = {
-      SmallVector<int, 8>((unsigned)NumSubLaneElts, SM_SentinelUndef),
-      SmallVector<int, 8>((unsigned)NumSubLaneElts, SM_SentinelUndef)};
+  SmallVector<SmallVector<int, 8>> RepeatedSubLaneMasks(
+      SubLaneScale,
+      SmallVector<int, 8>((unsigned)NumSubLaneElts, SM_SentinelUndef));
 
   for (int DstSubLane = 0; DstSubLane != NumSubLanes; ++DstSubLane) {
     // Extract the sub-lane mask, check that it all comes from the same lane
@@ -22914,6 +22921,36 @@ static SDValue LowerFGETSIGN(SDValue Op, SelectionDAG &DAG) {
   return Res;
 }
 
+/// Helper for attempting to create a X86ISD::BT node.
+static SDValue getBT(SDValue Src, SDValue BitNo, const SDLoc &DL, SelectionDAG &DAG) {
+  // If Src is i8, promote it to i32 with any_extend.  There is no i8 BT
+  // instruction.  Since the shift amount is in-range-or-undefined, we know
+  // that doing a bittest on the i32 value is ok.  We extend to i32 because
+  // the encoding for the i16 version is larger than the i32 version.
+  // Also promote i16 to i32 for performance / code size reason.
+  if (Src.getValueType().getScalarSizeInBits() < 32)
+    Src = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Src);
+
+  // No legal type found, give up.
+  if (!DAG.getTargetLoweringInfo().isTypeLegal(Src.getValueType()))
+    return SDValue();
+
+  // See if we can use the 32-bit instruction instead of the 64-bit one for a
+  // shorter encoding. Since the former takes the modulo 32 of BitNo and the
+  // latter takes the modulo 64, this is only valid if the 5th bit of BitNo is
+  // known to be zero.
+  if (Src.getValueType() == MVT::i64 &&
+      DAG.MaskedValueIsZero(BitNo, APInt(BitNo.getValueSizeInBits(), 32)))
+    Src = DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Src);
+
+  // If the operand types disagree, extend the shift amount to match.  Since
+  // BT ignores high bits (like shifts) we can use anyextend.
+  if (Src.getValueType() != BitNo.getValueType())
+    BitNo = DAG.getNode(ISD::ANY_EXTEND, DL, Src.getValueType(), BitNo);
+
+  return DAG.getNode(X86ISD::BT, DL, MVT::i32, Src, BitNo);
+}
+
 /// Helper for creating a X86ISD::SETCC node.
 static SDValue getSETCC(X86::CondCode Cond, SDValue EFLAGS, const SDLoc &dl,
                         SelectionDAG &DAG) {
@@ -23600,33 +23637,13 @@ static SDValue LowerAndToBT(SDValue And, ISD::CondCode CC, const SDLoc &dl,
     CC = CC == ISD::SETEQ ? ISD::SETNE : ISD::SETEQ;
   }
 
-  // If Src is i8, promote it to i32 with any_extend.  There is no i8 BT
-  // instruction.  Since the shift amount is in-range-or-undefined, we know
-  // that doing a bittest on the i32 value is ok.  We extend to i32 because
-  // the encoding for the i16 version is larger than the i32 version.
-  // Also promote i16 to i32 for performance / code size reason.
-  if (Src.getValueType().getScalarSizeInBits() < 32)
-    Src = DAG.getNode(ISD::ANY_EXTEND, dl, MVT::i32, Src);
+  // Attempt to create the X86ISD::BT node.
+  if (SDValue BT = getBT(Src, BitNo, dl, DAG)) {
+    X86CC = CC == ISD::SETEQ ? X86::COND_AE : X86::COND_B;
+    return BT;
+  }
 
-  // No legal type found, give up.
-  if (!DAG.getTargetLoweringInfo().isTypeLegal(Src.getValueType()))
-    return SDValue();
-
-  // See if we can use the 32-bit instruction instead of the 64-bit one for a
-  // shorter encoding. Since the former takes the modulo 32 of BitNo and the
-  // latter takes the modulo 64, this is only valid if the 5th bit of BitNo is
-  // known to be zero.
-  if (Src.getValueType() == MVT::i64 &&
-      DAG.MaskedValueIsZero(BitNo, APInt(BitNo.getValueSizeInBits(), 32)))
-    Src = DAG.getNode(ISD::TRUNCATE, dl, MVT::i32, Src);
-
-  // If the operand types disagree, extend the shift amount to match.  Since
-  // BT ignores high bits (like shifts) we can use anyextend.
-  if (Src.getValueType() != BitNo.getValueType())
-    BitNo = DAG.getNode(ISD::ANY_EXTEND, dl, Src.getValueType(), BitNo);
-
-  X86CC = CC == ISD::SETEQ ? X86::COND_AE : X86::COND_B;
-  return DAG.getNode(X86ISD::BT, dl, MVT::i32, Src, BitNo);
+  return SDValue();
 }
 
 // Check if pre-AVX condcode can be performed by a single FCMP op.
@@ -44759,14 +44776,7 @@ static SDValue combineCarryThroughADD(SDValue EFLAGS, SelectionDAG &DAG) {
           BitNo = Carry.getOperand(1);
           Carry = Carry.getOperand(0);
         }
-        if (Carry.getScalarValueSizeInBits() < 32)
-          Carry = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Carry);
-        EVT CarryVT = Carry.getValueType();
-        if (DAG.getTargetLoweringInfo().isTypeLegal(CarryVT)) {
-          if (CarryVT != BitNo.getValueType())
-            BitNo = DAG.getNode(ISD::ANY_EXTEND, DL, CarryVT, BitNo);
-          return DAG.getNode(X86ISD::BT, DL, MVT::i32, Carry, BitNo);
-        }
+        return getBT(Carry, BitNo, DL, DAG);
       }
     }
   }
@@ -47319,6 +47329,34 @@ static SDValue combineAnd(SDNode *N, SelectionDAG &DAG,
 
   if (SDValue R = combineAndLoadToBZHI(N, DAG, Subtarget))
     return R;
+
+  // Fold AND(SRL(X,Y),1) -> SETCC(BT(X,Y), COND_B) iff Y is not a constant
+  // avoids slow variable shift (moving shift amount to ECX etc.)
+  if (isOneConstant(N1) && N0->hasOneUse()) {
+    SDValue Src = N0;
+    while ((Src.getOpcode() == ISD::ZERO_EXTEND ||
+            Src.getOpcode() == ISD::TRUNCATE) &&
+           Src.getOperand(0)->hasOneUse())
+      Src = Src.getOperand(0);
+    X86::CondCode X86CC = X86::COND_B;
+    // Peek through AND(NOT(SRL(X,Y)),1).
+    if (isBitwiseNot(Src)) {
+      Src = Src.getOperand(0);
+      X86CC = X86::COND_AE;
+    }
+    if (Src.getOpcode() == ISD::SRL &&
+        !isa<ConstantSDNode>(Src.getOperand(1))) {
+      SDValue BitNo = Src.getOperand(1);
+      Src = Src.getOperand(0);
+      // Peek through AND(SRL(NOT(X),Y),1).
+      if (isBitwiseNot(Src)) {
+        Src = Src.getOperand(0);
+        X86CC = X86CC == X86::COND_AE ? X86::COND_B : X86::COND_AE;
+      }
+      if (SDValue BT = getBT(Src, BitNo, dl, DAG))
+        return DAG.getZExtOrTrunc(getSETCC(X86CC, BT, dl, DAG), dl, VT);
+    }
+  }
 
   if (VT.isVector() && (VT.getScalarSizeInBits() % 8) == 0) {
     // Attempt to recursively combine a bitmask AND with shuffles.

@@ -69,11 +69,13 @@ set(files
   __algorithm/ranges_find.h
   __algorithm/ranges_find_if.h
   __algorithm/ranges_find_if_not.h
+  __algorithm/ranges_max.h
   __algorithm/ranges_max_element.h
   __algorithm/ranges_min.h
   __algorithm/ranges_min_element.h
   __algorithm/ranges_mismatch.h
   __algorithm/ranges_swap_ranges.h
+  __algorithm/ranges_transform.h
   __algorithm/remove.h
   __algorithm/remove_copy.h
   __algorithm/remove_copy_if.h

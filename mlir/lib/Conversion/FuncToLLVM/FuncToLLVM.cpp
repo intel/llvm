@@ -86,7 +86,7 @@ prependResAttrsToArgAttrs(OpBuilder &builder,
   auto allAttrs = SmallVector<Attribute>(
       numArguments + 1, DictionaryAttr::get(builder.getContext()));
   NamedAttribute *argAttrs = nullptr;
-  for (auto it = attributes.begin(); it != attributes.end();) {
+  for (auto *it = attributes.begin(); it != attributes.end();) {
     if (it->getName() == FunctionOpInterface::getArgDictAttrName()) {
       auto arrayAttrs = it->getValue().cast<ArrayAttr>();
       assert(arrayAttrs.size() == numArguments &&
@@ -113,7 +113,6 @@ prependResAttrsToArgAttrs(OpBuilder &builder,
     return;
   }
   *argAttrs = newArgAttrs;
-  return;
 }
 
 /// Creates an auxiliary function with pointer-to-memref-descriptor-struct

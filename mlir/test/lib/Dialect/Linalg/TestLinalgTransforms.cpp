@@ -33,6 +33,8 @@ using namespace mlir::linalg;
 namespace {
 struct TestLinalgTransforms
     : public PassWrapper<TestLinalgTransforms, OperationPass<FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestLinalgTransforms)
+
   TestLinalgTransforms() = default;
   TestLinalgTransforms(const TestLinalgTransforms &pass) : PassWrapper(pass) {}
 
@@ -118,11 +120,11 @@ struct TestLinalgTransforms
   ListOption<int64_t> peeledLoops{
       *this, "peeled-loops",
       llvm::cl::desc("Loops to be peeled when test-tile-pattern"),
-      llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
+      llvm::cl::ZeroOrMore};
   ListOption<int64_t> tileSizes{
       *this, "tile-sizes",
       llvm::cl::desc("Linalg tile sizes for test-tile-pattern"),
-      llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
+      llvm::cl::ZeroOrMore};
   Option<bool> skipPartial{
       *this, "skip-partial",
       llvm::cl::desc("Skip loops inside partial iterations during peeling"),
