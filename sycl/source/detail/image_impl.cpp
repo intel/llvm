@@ -271,7 +271,7 @@ image_impl<Dimensions>::image_impl(
   RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
   const ContextImplPtr Context = getSyclObjImpl(SyclContext);
   const detail::plugin &Plugin = Context->getPlugin();
-  Plugin.call<PiApiKind::piMemGetInfo>(Mem, CL_MEM_SIZE, sizeof(size_t),
+  Plugin.call<PiApiKind::piMemGetInfo>(Mem, PI_MEM_SIZE, sizeof(size_t),
                                        &(BaseT::MSizeInBytes), nullptr);
 
   RT::PiMemImageFormat Format;

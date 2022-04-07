@@ -42,10 +42,12 @@
 //   piextEventCreateWithNativeHandle
 // 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle. Added
 // piQueueFlush function.
+// 7.9 Added new context and ownership arguments to
+// piextMemCreateWithNativeHandle.
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 6
-#define _PI_H_VERSION_MINOR 8
+#define _PI_H_VERSION_MAJOR 7
+#define _PI_H_VERSION_MINOR 9
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -941,6 +943,14 @@ typedef struct {
 
 using pi_image_format = _pi_image_format;
 using pi_image_desc = _pi_image_desc;
+
+typedef enum {
+  PI_MEM_CONTEXT = CL_MEM_CONTEXT,
+  PI_MEM_SIZE = CL_MEM_SIZE
+} _pi_mem_info;
+
+using pi_mem_info = _pi_mem_info;
+
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
 // They are 3 distinct categories:
@@ -1163,10 +1173,9 @@ __SYCL_EXPORT pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
                                          const pi_image_desc *image_desc,
                                          void *host_ptr, pi_mem *ret_mem);
 
-__SYCL_EXPORT pi_result piMemGetInfo(
-    pi_mem mem,
-    cl_mem_info param_name, // TODO: untie from OpenCL
-    size_t param_value_size, void *param_value, size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piMemGetInfo(pi_mem mem, pi_mem_info param_name,
+                                     size_t param_value_size, void *param_value,
+                                     size_t *param_value_size_ret);
 
 __SYCL_EXPORT pi_result piMemImageGetInfo(pi_mem image,
                                           pi_image_info param_name,
@@ -1193,9 +1202,13 @@ __SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI mem from.
+/// \param context The PI context of the memory allocation.
+/// \param ownNativeHandle Indicates if we own the native memory handle or it
+/// came from interop that asked to not transfer the ownership to SYCL RT.
 /// \param mem is the PI mem created from the native handle.
-__SYCL_EXPORT pi_result
-piextMemCreateWithNativeHandle(pi_native_handle nativeHandle, pi_mem *mem);
+__SYCL_EXPORT pi_result piextMemCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    pi_mem *mem);
 
 //
 // Program
@@ -1619,7 +1632,7 @@ typedef enum {
   PI_MEM_ALLOC_BASE_PTR = CL_MEM_ALLOC_BASE_PTR_INTEL,
   PI_MEM_ALLOC_SIZE = CL_MEM_ALLOC_SIZE_INTEL,
   PI_MEM_ALLOC_DEVICE = CL_MEM_ALLOC_DEVICE_INTEL,
-} _pi_mem_info;
+} _pi_mem_alloc_info;
 
 typedef enum {
   PI_MEM_TYPE_UNKNOWN = CL_MEM_TYPE_UNKNOWN_INTEL,
@@ -1637,7 +1650,7 @@ typedef enum : pi_bitfield {
 
 using pi_usm_capability_query = _pi_usm_capability_query;
 using pi_usm_capabilities = _pi_usm_capabilities;
-using pi_mem_info = _pi_mem_info;
+using pi_mem_alloc_info = _pi_mem_alloc_info;
 using pi_usm_type = _pi_usm_type;
 using pi_usm_migration_flags = _pi_usm_migration_flags;
 
@@ -1766,7 +1779,7 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
 /// \param param_value is the result
 /// \param param_value_size_ret is how many bytes were written
 __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
-    pi_context context, const void *ptr, pi_mem_info param_name,
+    pi_context context, const void *ptr, pi_mem_alloc_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 /// API to get Plugin internal data, opaque to SYCL RT. Some devices whose
