@@ -42,7 +42,7 @@ or later. In order to have CM_EMU library as part of Intel DPC++
 compiler for ESIMD_EMULATOR backend, the library needs to be built
 during ESIMD_EMULATOR plug-in software module generation. Details on
 building CM_EMU library for ESIMD_EMULATOR such as required packages
-are descirbed in [ESIMD CPU Emulation](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
+are described in [ESIMD CPU Emulation](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
 
 ## Command line option / environment variable options
 
