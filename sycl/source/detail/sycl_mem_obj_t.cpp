@@ -23,7 +23,7 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
                   SizeInBytes, AvailableEvent, std::move(Allocator)) {}
 
 SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
-                         const size_t SizeInBytes, event AvailableEvent,
+                         const size_t, event AvailableEvent,
                          std::unique_ptr<SYCLMemObjAllocator> Allocator)
     : SYCLMemObjT(MemObject, SyclContext, true, AvailableEvent,
                   std::move(Allocator)) {}
