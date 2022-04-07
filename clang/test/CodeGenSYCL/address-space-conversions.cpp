@@ -1,9 +1,8 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple spir64 -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 // Validates address space conversions for SYCL mode.
 // See clang/docs/SYCLSupport.rst#address-space-handling for allowed
 // conversions.
-
 void bar(int &Data) {}
 // CHECK-DAG: define{{.*}} spir_func void @[[RAW_REF:[a-zA-Z0-9_]+]](i32 addrspace(4)* noundef align 4 dereferenceable(4) %
 void bar2(int &Data) {}

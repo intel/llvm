@@ -216,6 +216,13 @@ C++20 Feature Support
 
 - Implemented `__builtin_source_location()` which enables library support for std::source_location.
 
+- The mangling scheme for C++20 modules has incompatibly changed. The
+  initial mangling was discovered not to be reversible, and the weak
+  ownership design decision did not give the backwards compatibility
+  that was hoped for. C++20 since added ``extern "C++"`` semantics
+  that can be used for such compatibility. The demangler now demangles
+  symbols with named module attachment.
+
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -290,6 +297,12 @@ Internal API Changes
 
 Build System Changes
 --------------------
+
+* CMake ``-DCLANG_DEFAULT_PIE_ON_LINUX=ON`` is now the default. This is used by
+  linux-gnu systems to decide whether ``-fPIE -pie`` is the default (instead of
+  ``-fno-pic -no-pie``). This matches GCC installations on many Linux distros.
+  Note: linux-android and linux-musl always default to ``-fPIE -pie``, ignoring
+  this variable. ``-DCLANG_DEFAULT_PIE_ON_LINUX`` may be removed in the future.
 
 AST Matchers
 ------------

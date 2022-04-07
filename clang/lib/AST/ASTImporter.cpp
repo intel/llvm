@@ -3664,11 +3664,7 @@ ExpectedDecl ASTNodeImporter::VisitFieldDecl(FieldDecl *D) {
             if (!FoundField->getInClassInitializer())
               FoundField->setInClassInitializer(*ToInitializerOrErr);
           } else {
-            // We can't return error here,
-            // since we already mapped D as imported.
-            // FIXME: warning message?
-            consumeError(ToInitializerOrErr.takeError());
-            return FoundField;
+              return ToInitializerOrErr.takeError();
           }
         }
         return FoundField;
