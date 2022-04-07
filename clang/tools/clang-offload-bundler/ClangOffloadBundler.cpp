@@ -1972,7 +1972,7 @@ int main(int argc, const char **argv) {
     return 0;
   }
 
-  if (OutputFileNames.getNumOccurrences() == 0) {
+  if (OutputFileNames.getNumOccurrences() == 0 && !CheckSection) {
     reportError(
         createStringError(errc::invalid_argument, "no output file specified!"));
   }

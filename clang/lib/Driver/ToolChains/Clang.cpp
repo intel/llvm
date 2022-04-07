@@ -8682,17 +8682,15 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     } else {
       UB += CurTC->getInputFilename(Inputs[I]);
     }
-    // For -fintelfpga, when bundling objects we also want to bundle up the
-    // named dependency file.
-    if (IsFPGADepBundle) {
-      const char *BaseName = Clang::getBaseInputName(TCArgs, Inputs[0]);
-      SmallString<128> DepFile(C.getDriver().getFPGATempDepFile(BaseName));
-      if (!DepFile.empty()) {
-        UB += ',';
-        UB += DepFile;
-      }
-    }
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
+  }
+  // For -fintelfpga, when bundling objects we also want to bundle up the
+  // named dependency file.
+  if (IsFPGADepBundle) {
+    const char *BaseName = Clang::getBaseInputName(TCArgs, Inputs[0]);
+    SmallString<128> DepFile(C.getDriver().getFPGATempDepFile(BaseName));
+    if (!DepFile.empty())
+      CmdArgs.push_back(TCArgs.MakeArgString("-input=" + DepFile));
   }
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(
@@ -8838,18 +8836,20 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       TCArgs.MakeArgString(Twine("-input=") + InputFileName));
 
   // Get unbundled files command.
-  SmallString<128> UB;
-  UB += "-outputs=";
   // When dealing with -fintelfpga, there is an additional unbundle step
   // that occurs for the dependency file.  In that case, do not use the
   // dependent information, but just the output file.
-  if (IsFPGADepUnbundle || IsFPGADepLibUnbundle)
+  if (IsFPGADepUnbundle || IsFPGADepLibUnbundle) {
+    SmallString<128> UB;
+    UB += "-output=";
     UB += Outputs[0].getFilename();
-  else {
+    CmdArgs.push_back(TCArgs.MakeArgString(UB));
+  } else {
     for (unsigned I = 0; I < Outputs.size(); ++I) {
-      if (I)
-        UB += ',';
+      SmallString<128> UB;
+      UB += "-output=";
       UB += DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
+      CmdArgs.push_back(TCArgs.MakeArgString(UB));
     }
   }
   CmdArgs.push_back("-unbundle");

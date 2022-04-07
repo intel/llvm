@@ -85,7 +85,7 @@
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
 // FOFFLOAD_STATIC_LIB_SRC2: clang{{.*}} "-emit-obj" {{.*}} "-o" "[[HOSTOBJ:.+\.o]]"
 // FOFFLOAD_STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "-o" "[[HOSTEXE:.+\.out]]"
-// FOFFLOAD_STATIC_LIB_SRC2: clang-offload-deps{{.*}} "-output=[[OUTDEPS:.+\.bc]]" "[[HOSTEXE]]"
+// FOFFLOAD_STATIC_LIB_SRC2: clang-offload-deps{{.*}} "-outputs=[[OUTDEPS:.+\.bc]]" "[[HOSTEXE]]"
 // FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-output=[[OUTLIB:.+\.txt]]"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-link{{.*}} "[[OUTDEPS]]" "-o" "[[OUTTEMP:.+\.bc]]"

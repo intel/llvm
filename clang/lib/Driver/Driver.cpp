@@ -2935,7 +2935,7 @@ static bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   // file and the target triple being looked for.
   const char *Targets =
       C.getArgs().MakeArgString(Twine("-targets=sycl-") + TT.str());
-  const char *Inputs = C.getArgs().MakeArgString(Twine("-inputs=") + Object);
+  const char *Inputs = C.getArgs().MakeArgString(Twine("-input=") + Object);
   // Always use -type=ao for aocx/aocr bundle checking.  The 'bundles' are
   // actually archives.
   SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler", "-type=ao",
@@ -2958,7 +2958,7 @@ static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
   const char *Targets =
       C.getArgs().MakeArgString(Twine("-targets=sycl-") + TT.str());
   const char *Inputs =
-      C.getArgs().MakeArgString(Twine("-inputs=") + File.str());
+      C.getArgs().MakeArgString(Twine("-input=") + File.str());
   // Always use -type=ao for bundle checking.  The 'bundles' are
   // actually archives.
   SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler",
@@ -2979,7 +2979,7 @@ static bool hasOffloadSections(Compilation &C, const StringRef &Archive,
   // TODO - Improve checking to check for explicit offload target instead
   // of the generic host availability.
   const char *Targets = Args.MakeArgString(Twine("-targets=host-") + TT.str());
-  const char *Inputs = Args.MakeArgString(Twine("-inputs=") + Archive.str());
+  const char *Inputs = Args.MakeArgString(Twine("-input=") + Archive.str());
   // Always use -type=ao for bundle checking.  The 'bundles' are
   // actually archives.
   SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler", "-type=ao",
