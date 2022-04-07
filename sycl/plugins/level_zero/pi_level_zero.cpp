@@ -3550,7 +3550,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   try {
     *RetMem = new _pi_buffer(
         Context, pi_cast<char *>(Ptr) /* Level Zero Memory Handle */,
-        HostPtrOrNull, nullptr, 0, 0,
+        HostPtrOrNull, true /* OwnZeMemHandle */, nullptr, 0, 0,
         DeviceIsIntegrated /* allocation in host memory */, HostPtrImported);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
@@ -3561,16 +3561,30 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   return PI_SUCCESS;
 }
 
-pi_result piMemGetInfo(pi_mem Mem,
-                       cl_mem_info ParamName, // TODO: untie from OpenCL
-                       size_t ParamValueSize, void *ParamValue,
-                       size_t *ParamValueSizeRet) {
-  (void)Mem;
-  (void)ParamName;
-  (void)ParamValueSize;
-  (void)ParamValue;
-  (void)ParamValueSizeRet;
-  die("piMemGetInfo: not implemented");
+pi_result piMemGetInfo(pi_mem Mem, pi_mem_info ParamName, size_t ParamValueSize,
+                       void *ParamValue, size_t *ParamValueSizeRet) {
+  PI_ASSERT(Mem, PI_INVALID_VALUE);
+  // piMemImageGetInfo must be used for images
+  PI_ASSERT(!Mem->isImage(), PI_INVALID_VALUE);
+
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+
+  switch (ParamName) {
+  case PI_MEM_CONTEXT:
+    return ReturnValue(Mem->Context);
+  case PI_MEM_SIZE: {
+    // Get size of the allocation
+    size_t Size;
+    ZE_CALL(zeMemGetAddressRange,
+            (Mem->Context->ZeContext, pi_cast<void *>(Mem->getZeHandle()),
+             nullptr, &Size));
+
+    return ReturnValue(Size);
+  }
+  default:
+    die("piMemGetInfo: Parameter is not implemented");
+  }
+
   return {};
 }
 
@@ -3585,7 +3599,8 @@ pi_result piMemRetain(pi_mem Mem) {
 // If indirect access tracking is not enabled then this functions just performs
 // zeMemFree. If indirect access tracking is enabled then reference counting is
 // performed.
-static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr) {
+static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr,
+                                 bool OwnZeMemHandle = true) {
   pi_platform Plt = Context->Devices[0]->Platform;
   std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
                                             std::defer_lock);
@@ -3605,13 +3620,17 @@ static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr) {
     Context->MemAllocs.erase(It);
   }
 
-  ZE_CALL(zeMemFree, (Context->ZeContext, Ptr));
+  if (OwnZeMemHandle)
+    ZE_CALL(zeMemFree, (Context->ZeContext, Ptr));
 
   if (IndirectAccessTrackingEnabled)
     PI_CALL(ContextReleaseHelper(Context));
 
   return PI_SUCCESS;
 }
+
+static pi_result USMFreeHelper(pi_context Context, void *Ptr,
+                               bool OwnZeMemHandle = true);
 
 pi_result piMemRelease(pi_mem Mem) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
@@ -3631,9 +3650,16 @@ pi_result piMemRelease(pi_mem Mem) {
             ZeUSMImport.doZeUSMRelease(driverHandle, Mem->MapHostPtr);
           } else {
             if (enableBufferPooling()) {
-              PI_CALL(piextUSMFree(Mem->Context, Mem->getZeHandle()));
+              pi_platform Plt = Mem->Context->Devices[0]->Platform;
+              std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
+                                                        std::defer_lock);
+              if (IndirectAccessTrackingEnabled)
+                ContextsLock.lock();
+              return USMFreeHelper(Mem->Context, Mem->getZeHandle(),
+                                   Mem->OwnZeMemHandle);
             } else {
-              if (auto Res = ZeMemFreeHelper(Mem->Context, Mem->getZeHandle()))
+              if (auto Res = ZeMemFreeHelper(Mem->Context, Mem->getZeHandle(),
+                                             Mem->OwnZeMemHandle))
                 return Res;
             }
           }
@@ -3797,7 +3823,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
 
   try {
-    auto ZePIImage = new _pi_image(Context, ZeHImage, HostPtrOrNull);
+    auto ZePIImage = new _pi_image(Context, ZeHImage, HostPtrOrNull, true);
 
 #ifndef NDEBUG
     ZePIImage->ZeImageDesc = ZeImageDesc;
@@ -3828,10 +3854,65 @@ pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
 }
 
 pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                         pi_mem *Mem) {
-  (void)NativeHandle;
-  (void)Mem;
-  die("piextMemCreateWithNativeHandle: not supported");
+                                         pi_context Context,
+                                         bool ownNativeHandle, pi_mem *Mem) {
+  PI_ASSERT(Mem, PI_INVALID_VALUE);
+  PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
+  PI_ASSERT(Context, PI_INVALID_CONTEXT);
+  PI_ASSERT(Context->Devices.size() == 1, PI_INVALID_CONTEXT);
+
+  // Get base of the allocation
+  void *Base;
+  size_t Size;
+  void *Ptr = pi_cast<void *>(NativeHandle);
+  ZE_CALL(zeMemGetAddressRange, (Context->ZeContext, Ptr, &Base, &Size));
+
+  PI_ASSERT(Ptr == Base, PI_INVALID_VALUE);
+
+  // Check type of the allocation
+  ZeStruct<ze_memory_allocation_properties_t> ZeMemProps;
+  ze_device_handle_t ZeDevice;
+  ZE_CALL(zeMemGetAllocProperties,
+          (Context->ZeContext, Ptr, &ZeMemProps, &ZeDevice));
+  bool OnHost = false;
+  switch (ZeMemProps.type) {
+  case ZE_MEMORY_TYPE_HOST:
+    OnHost = true;
+    break;
+  case ZE_MEMORY_TYPE_SHARED:
+  case ZE_MEMORY_TYPE_DEVICE:
+    break;
+  case ZE_MEMORY_TYPE_UNKNOWN:
+    // Memory allocation is unrelated to the context
+    return PI_INVALID_CONTEXT;
+  default:
+    die("Unexpected memory type");
+  }
+
+  try {
+    *Mem = new _pi_buffer(Context, pi_cast<char *>(NativeHandle),
+                          nullptr /* HostPtr */, ownNativeHandle, nullptr, 0, 0,
+                          OnHost);
+
+    pi_platform Plt = Context->Devices[0]->Platform;
+    std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
+                                              std::defer_lock);
+    if (IndirectAccessTrackingEnabled) {
+      // We need to keep track of all memory allocations in the context
+      ContextsLock.lock();
+      // Retain context to be sure that it is released after all memory
+      // allocations in this context are released.
+      PI_CALL(piContextRetain(Context));
+
+      Context->MemAllocs.emplace(
+          std::piecewise_construct, std::forward_as_tuple(Ptr),
+          std::forward_as_tuple(Context, ownNativeHandle));
+    }
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 
@@ -4724,8 +4805,6 @@ pi_result piKernelRetain(pi_kernel Kernel) {
   return PI_SUCCESS;
 }
 
-static pi_result USMFreeHelper(pi_context Context, void *Ptr);
-
 pi_result piKernelRelease(pi_kernel Kernel) {
 
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
@@ -4744,7 +4823,8 @@ pi_result piKernelRelease(pi_kernel Kernel) {
       // Kernel is not submitted for execution, release referenced memory
       // allocations.
       for (auto &MemAlloc : Kernel->MemAllocs) {
-        USMFreeHelper(MemAlloc->second.Context, MemAlloc->first);
+        USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
+                      MemAlloc->second.OwnZeMemHandle);
       }
       Kernel->MemAllocs.clear();
     }
@@ -6701,13 +6781,13 @@ pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
             PI_INVALID_VALUE);
 
   try {
-    *RetMem =
-        new _pi_buffer(Buffer->Context,
-                       pi_cast<char *>(Buffer->getZeHandle()) +
-                           Region->origin /* Level Zero memory handle */,
-                       nullptr /* Host pointer */, Buffer /* Parent buffer */,
-                       Region->origin /* Sub-buffer origin */,
-                       Region->size /*Sub-buffer size*/);
+    *RetMem = new _pi_buffer(
+        Buffer->Context,
+        pi_cast<char *>(Buffer->getZeHandle()) +
+            Region->origin /* Level Zero memory handle */,
+        nullptr /* Host pointer */, true /* OwnZeMemHandle */,
+        Buffer /* Parent buffer */, Region->origin /* Sub-buffer origin */,
+        Region->size /*Sub-buffer size*/);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -6919,8 +6999,10 @@ static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
   return PI_SUCCESS;
 }
 
-static pi_result USMFreeImpl(pi_context Context, void *Ptr) {
-  ZE_CALL(zeMemFree, (Context->ZeContext, Ptr));
+static pi_result USMFreeImpl(pi_context Context, void *Ptr,
+                             bool OwnZeMemHandle) {
+  if (OwnZeMemHandle)
+    ZE_CALL(zeMemFree, (Context->ZeContext, Ptr));
   return PI_SUCCESS;
 }
 
@@ -6990,8 +7072,8 @@ void *USMMemoryAllocBase::allocate(size_t Size, size_t Alignment) {
   return Ptr;
 }
 
-void USMMemoryAllocBase::deallocate(void *Ptr) {
-  auto Res = USMFreeImpl(Context, Ptr);
+void USMMemoryAllocBase::deallocate(void *Ptr, bool OwnZeMemHandle) {
+  auto Res = USMFreeImpl(Context, Ptr, OwnZeMemHandle);
   if (Res != PI_SUCCESS) {
     throw UsmAllocationException(Res);
   }
@@ -7205,7 +7287,8 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
 // container with contexts because deallocating the memory can turn RefCount of
 // a context to 0 and as a result the context being removed from the list of
 // tracked contexts.
-static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
+static pi_result USMFreeHelper(pi_context Context, void *Ptr,
+                               bool OwnZeMemHandle) {
   if (IndirectAccessTrackingEnabled) {
     auto It = Context->MemAllocs.find(Ptr);
     if (It == std::end(Context->MemAllocs)) {
@@ -7222,7 +7305,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
   }
 
   if (!UseUSMAllocator) {
-    pi_result Res = USMFreeImpl(Context, Ptr);
+    pi_result Res = USMFreeImpl(Context, Ptr, OwnZeMemHandle);
     if (IndirectAccessTrackingEnabled)
       PI_CALL(ContextReleaseHelper(Context));
     return Res;
@@ -7241,7 +7324,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
   // If memory type is host release from host pool
   if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_HOST) {
     try {
-      Context->HostMemAllocContext->deallocate(Ptr);
+      Context->HostMemAllocContext->deallocate(Ptr, OwnZeMemHandle);
     } catch (const UsmAllocationException &Ex) {
       return Ex.getError();
     } catch (...) {
@@ -7274,15 +7357,15 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
     }
 
     auto DeallocationHelper =
-        [Context, Device,
-         Ptr](std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
+        [Context, Device, Ptr, OwnZeMemHandle](
+            std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
           try {
             auto It = AllocContextMap.find(Device);
             if (It == AllocContextMap.end())
               return PI_INVALID_VALUE;
 
             // The right context is found, deallocate the pointer
-            It->second.deallocate(Ptr);
+            It->second.deallocate(Ptr, OwnZeMemHandle);
           } catch (const UsmAllocationException &Ex) {
             return Ex.getError();
           }
@@ -7308,7 +7391,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
     }
   }
 
-  pi_result Res = USMFreeImpl(Context, Ptr);
+  pi_result Res = USMFreeImpl(Context, Ptr, OwnZeMemHandle);
   if (SharedReadOnlyAllocsIterator != Context->SharedReadOnlyAllocs.end()) {
     Context->SharedReadOnlyAllocs.erase(SharedReadOnlyAllocsIterator);
   }
@@ -7550,8 +7633,9 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 /// @param ParamValue is the result
 /// @param ParamValueRet is how many bytes were written
 pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
-                                  pi_mem_info ParamName, size_t ParamValueSize,
-                                  void *ParamValue, size_t *ParamValueSizeRet) {
+                                  pi_mem_alloc_info ParamName,
+                                  size_t ParamValueSize, void *ParamValue,
+                                  size_t *ParamValueSizeRet) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
   ze_device_handle_t ZeDeviceHandle;
