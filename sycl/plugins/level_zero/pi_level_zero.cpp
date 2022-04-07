@@ -3380,7 +3380,7 @@ static pi_result ZeHostMemAllocHelper(void **ResultPtr, pi_context Context,
     PI_CALL(piContextRetain(Context));
   }
 
-  ze_host_mem_alloc_desc_t ZeDesc = {};
+  ZeStruct<ze_host_mem_alloc_desc_t> ZeDesc;
   ZeDesc.flags = 0;
   ZE_CALL(zeMemAllocHost, (Context->ZeContext, &ZeDesc, Size, 1, ResultPtr));
 
@@ -7974,7 +7974,10 @@ pi_result _pi_buffer::free() {
     if (Context->SingleRootDevice && Context->SingleRootDevice != Device) {
       // These were re-using root-device allocations
     }
-    PI_CALL(piextUSMFree(Context, Alloc.second.ZeHandle));
+    // It is possible that the real allocation wasn't made if the buffer
+    // wasn't really used on this device.
+    if (Alloc.second.ZeHandle)
+      PI_CALL(piextUSMFree(Context, Alloc.second.ZeHandle));
   }
   return PI_SUCCESS;
 }

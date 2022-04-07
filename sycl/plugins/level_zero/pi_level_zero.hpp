@@ -1057,11 +1057,13 @@ struct _pi_image final : _pi_mem {
 
   virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
                                 pi_device Device = nullptr) override {
+    (void *)Device;
     ZeHandle = pi_cast<char *>(ZeImage);
     return PI_SUCCESS;
   }
   virtual pi_result getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
                                    pi_device Device = nullptr) override {
+    (void *)Device;
     ZeHandlePtr = pi_cast<char **>(&ZeImage);
     return PI_SUCCESS;
   }
