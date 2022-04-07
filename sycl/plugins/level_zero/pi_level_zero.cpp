@@ -72,6 +72,18 @@ static const bool UseCopyEngineForInOrderQueue = [] {
           (std::stoi(CopyEngineForInOrderQueue) != 0));
 }();
 
+// This is an experimental option that lets user to optimize use of non-USM
+// host pointers. Instead of importing host pointer every time it is used, we
+// import it during its first use and release it during context deletion.
+// By default, it is turned off
+static const pi_uint32 ZeOptImportNonUSMHostPointer = [] {
+  const char *OptImportNonUSMHostPointer =
+      std::getenv("SYCL_PI_LEVEL_ZERO_OPT_IMPORT_NONUSM_HOST_POINTER");
+  const pi_uint32 OptImportNonUSMHostPointerValue =
+      OptImportNonUSMHostPointer ? std::atoi(OptImportNonUSMHostPointer) : 0;
+  return OptImportNonUSMHostPointerValue;
+}();
+
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
@@ -5780,6 +5792,24 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
                                       pi_event *Event, bool PreferCopyEngine) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
+
+  // Import src pointer the first time it is used here.
+  if (ZeUSMImport.Enabled && Src != nullptr &&
+      ZeOptImportNonUSMHostPointer) {
+    // Query memory type of the pointer
+    ze_device_handle_t ZeDeviceHandle;
+    ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
+    ZE_CALL(zeMemGetAllocProperties,
+            (Queue->Context->ZeContext, Src, &ZeMemoryAllocationProperties,
+             &ZeDeviceHandle));
+
+    // If not shared of any type, we can import the ptr
+    if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
+      // Promote the host ptr to USM host memory
+      ze_driver_handle_t driverHandle = Queue->Context->Devices[0]->Platform->ZeDriver;
+      ZeUSMImport.doZeUSMImport(driverHandle, Src, Size);
+    }
+  }
 
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
