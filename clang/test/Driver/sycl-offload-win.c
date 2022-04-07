@@ -16,8 +16,8 @@
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all %t-orig.obj -### /link %t-orig.lib 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
-// FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o" "-targets=host-x86_64-pc-windows-msvc,sycl-spir64-unknown-unknown" "-inputs={{.*}}-orig.obj" "-outputs={{.+}}.{{(o|obj)}},{{.+}}.{{(o|obj)}}" "-unbundle"
-// FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-inputs={{.*}}-orig.lib" "-outputs=[[OUTLIB:.+\.txt]]" "-unbundle"
+// FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o" "-targets=host-x86_64-pc-windows-msvc,sycl-spir64-unknown-unknown" "-input={{.*}}-orig.obj" "-output={{.+}}.{{(o|obj)}}" "-output={{.+}}.{{(o|obj)}}" "-unbundle"
+// FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-input={{.*}}-orig.lib" "-output=[[OUTLIB:.+\.txt]]" "-unbundle"
 // FOFFLOAD_STATIC_LIB: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB: llvm-link{{(.exe)?}}{{.*}} "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB: link{{(.exe)?}}{{.+}} "{{.*}}-orig.lib"
@@ -34,8 +34,8 @@
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB2
 // RUN: env LIB=%t_dir %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all %t-orig.obj -### /link %basename_t-orig2.lib 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB2
-// FOFFLOAD_STATIC_LIB2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o" "-targets=host-x86_64-pc-windows-msvc,sycl-spir64-unknown-unknown" "-inputs={{.*}}-orig.obj" "-outputs={{.+}}.{{(o|obj)}},{{.+}}.{{(o|obj)}}" "-unbundle"
-// FOFFLOAD_STATIC_LIB2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-inputs={{.*}}-orig2.lib" "-outputs=[[OUTLIB:.+\.txt]]" "-unbundle"
+// FOFFLOAD_STATIC_LIB2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o" "-targets=host-x86_64-pc-windows-msvc,sycl-spir64-unknown-unknown" "-input={{.*}}-orig.obj" "-output={{.+}}.{{(o|obj)}}" "-output={{.+}}.{{(o|obj)}}" "-unbundle"
+// FOFFLOAD_STATIC_LIB2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-input={{.*}}-orig2.lib" "-output=[[OUTLIB:.+\.txt]]" "-unbundle"
 // FOFFLOAD_STATIC_LIB2: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB2: llvm-link{{(.exe)?}}{{.*}} "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB2: link{{(.exe)?}}{{.+}} "{{.*}}-orig2.lib"
@@ -51,10 +51,10 @@
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_MULTI_O
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl %t-orig.lib %t-1.obj %t-2.obj %t-3.obj -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_MULTI_O
-// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs={{.*}}-1.obj"{{.+}} "-unbundle"
-// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs={{.*}}-2.obj"{{.+}} "-unbundle"
-// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs={{.*}}-3.obj"{{.+}} "-unbundle"
-// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-inputs={{.*}}-orig.lib" "-outputs=[[OUTLIB:.+\.txt]]" "-unbundle"
+// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-input={{.*}}-1.obj"{{.+}} "-unbundle"
+// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-input={{.*}}-2.obj"{{.+}} "-unbundle"
+// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-input={{.*}}-3.obj"{{.+}} "-unbundle"
+// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-input={{.*}}-orig.lib" "-output=[[OUTLIB:.+\.txt]]" "-unbundle"
 // FOFFLOAD_STATIC_LIB_MULTI_O: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_MULTI_O: llvm-link{{(.exe)?}}{{.*}} "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_MULTI_O: link{{(.exe)?}}{{.+}} "{{.*}}-orig.lib"
@@ -69,10 +69,10 @@
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_MULTI_LIB
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl %t1.lib %t2.lib %t-orig.obj -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_MULTI_LIB
-// FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs={{.*}}-orig.obj"{{.+}} "-unbundle"
-// FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-inputs={{.*}}1.lib" "-outputs=[[OUTLIB1:.+\.txt]]" "-unbundle"
+// FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-input={{.*}}-orig.obj"{{.+}} "-unbundle"
+// FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-input={{.*}}1.lib" "-output=[[OUTLIB1:.+\.txt]]" "-unbundle"
 // FOFFLOAD_STATIC_MULTI_LIB: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB1]]" "--in-replace=[[OUTLIB1]]" "--out-file-list=[[OUTLIST1:.+\.txt]]" "--out-replace=[[OUTLIST1]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB1]]" "-o" "[[OUTLIST1]]"
-// FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-inputs={{.*}}2.lib" "-outputs=[[OUTLIB2:.+\.txt]]" "-unbundle"
+// FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-input={{.*}}2.lib" "-output=[[OUTLIB2:.+\.txt]]" "-unbundle"
 // FOFFLOAD_STATIC_MULTI_LIB: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB2]]" "--in-replace=[[OUTLIB2]]" "--out-file-list=[[OUTLIST2:.+\.txt]]" "--out-replace=[[OUTLIST2]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB2]]" "-o" "[[OUTLIST2:.+\.txt]]"
 // FOFFLOAD_STATIC_MULTI_LIB: llvm-link{{(.exe)?}}{{.*}} "@[[OUTLIST1]]" "@[[OUTLIST2]]"
 // FOFFLOAD_STATIC_MULTI_LIB: link{{(.exe)?}}{{.+}} "{{.*}}1.lib" "{{.*}}2.lib"
@@ -117,7 +117,7 @@
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t-orig.lib %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
-// FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-inputs={{.*}}-orig.lib" "-outputs=[[OUTLIB:.+\.txt]]" "-unbundle"
+// FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-input={{.*}}-orig.lib" "-output=[[OUTLIB:.+\.txt]]" "-unbundle"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-link{{(.exe)?}}{{.*}} "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC2: link{{(.exe)?}}{{.+}} "{{.*}}-orig.lib"
@@ -127,7 +127,7 @@
 // FSYCL_P: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" {{.*}} "-E" {{.*}} "-o" "[[DEVICEPP:.+\.ii]]"
 // FSYCL_P: append-file{{.*}} "--output=[[APPEND:.+\.cpp]]"
 // FSYCL_P: clang{{.*}} "-cc1" "-triple" "x86_64-pc-windows-msvc{{.*}}" {{.*}} "-E" {{.*}} "-o" "[[HOSTPP:.+\.ii]]"{{.*}} "[[APPEND]]"
-// FSYCL_P: clang-offload-bundler{{.*}} "-type=ii" "-targets=sycl-spir64-unknown-unknown,host-x86_64-pc-windows-msvc" {{.*}} "-inputs=[[DEVICEPP]],[[HOSTPP]]"
+// FSYCL_P: clang-offload-bundler{{.*}} "-type=ii" "-targets=sycl-spir64-unknown-unknown,host-x86_64-pc-windows-msvc" {{.*}} "-input=[[DEVICEPP]]" "-input=[[HOSTPP]]"
 
 // RUN: touch %t-orig.lib
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl %t-orig.lib %s -### /link -out:force_out_file 2>&1 \

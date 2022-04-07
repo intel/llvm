@@ -211,7 +211,7 @@
 //
 // RUN: clang-offload-wrapper -o %t.wrapper.bc -host=x86_64-pc-linux-gnu -kind=sycl -target=spir64-unknown-linux %t1.tgt
 // RUN: %clang -target x86_64-pc-linux-gnu -c %t.wrapper.bc -o %t.wrapper.o
-// RUN: clang-offload-bundler --type=o --inputs=%t.wrapper.o --targets=sycl-spir64-unknown-linux --outputs=%t1.out --unbundle
+// RUN: clang-offload-bundler --type=o -input=%t.wrapper.o --targets=sycl-spir64-unknown-linux -output=%t1.out --unbundle
 // RUN: diff %t1.out %t1.tgt
 
 // Check that clang-offload-wrapper adds LLVMOMPOFFLOAD notes

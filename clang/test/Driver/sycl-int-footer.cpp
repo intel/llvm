@@ -12,13 +12,13 @@
 // FOOTER_PREPROC_GEN: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}" "-o" "[[PREPROC_DEVICE:.+\.ii]]"
 // FOOTER_PREPROC_GEN: append-file{{.*}} "[[INPUTFILE:.+\.cpp]]" "--append=[[INTFOOTER]]" "--orig-filename=[[INPUTFILE]]" "--output=[[APPENDEDSRC:.+\.cpp]]"
 // FOOTER_PREPROC_GEN: clang{{.*}} "-fsycl-is-host"{{.*}} "-E"{{.*}} "-o" "[[PREPROC_HOST:.+\.ii]]"{{.*}} "[[APPENDEDSRC]]"
-// FOOTER_PREPROC_GEN: clang-offload-bundler{{.*}} "-inputs=[[PREPROC_DEVICE]],[[PREPROC_HOST]]"
+// FOOTER_PREPROC_GEN: clang-offload-bundler{{.*}} "-input=[[PREPROC_DEVICE]]" "-input=[[PREPROC_HOST]]"
 
 /// Preprocessed file use with integration footer
 // RUN: touch %t.ii
 // RUN:  %clangxx -fsycl %t.ii -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER_PREPROC_USE %s
-// FOOTER_PREPROC_USE: clang-offload-bundler{{.*}} "-outputs=[[HOST_PP:.+\.ii]],[[DEVICE_PP:.+\.ii]]"
+// FOOTER_PREPROC_USE: clang-offload-bundler{{.*}} "-output=[[HOST_PP:.+\.ii]]" "-output=[[DEVICE_PP:.+\.ii]]"
 // FOOTER_PREPROC_USE: clang{{.*}} "-fsycl-is-device"{{.*}} "[[DEVICE_PP]]"
 // FOOTER_PREPROC_USE: clang{{.*}} "-fsycl-is-host"{{.*}} "[[HOST_PP]]"
 

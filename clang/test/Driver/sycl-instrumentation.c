@@ -13,9 +13,9 @@
 // RUN: | FileCheck -check-prefixes=CHECK-SPIRV %s
 
 // CHECK-SPIRV: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-instrument-device-code"
-// CHECK-SPIRV: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-itt-user-wrappers.{{o|obj}}" "-outputs={{.*}}libsycl-itt-user-wrappers-{{.*}}.{{o|obj}}" "-unbundle"
-// CHECK-SPIRV: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-itt-compiler-wrappers.{{o|obj}}" "-outputs={{.*}}libsycl-itt-compiler-wrappers-{{.*}}.{{o|obj}}" "-unbundle"
-// CHECK-SPIRV: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-itt-stubs.{{o|obj}}" "-outputs={{.*}}libsycl-itt-stubs-{{.*}}.{{o|obj}}" "-unbundle"
+// CHECK-SPIRV: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-itt-user-wrappers.{{o|obj}}" "-output={{.*}}libsycl-itt-user-wrappers-{{.*}}.{{o|obj}}" "-unbundle"
+// CHECK-SPIRV: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-itt-compiler-wrappers.{{o|obj}}" "-output={{.*}}libsycl-itt-compiler-wrappers-{{.*}}.{{o|obj}}" "-unbundle"
+// CHECK-SPIRV: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-itt-stubs.{{o|obj}}" "-output={{.*}}libsycl-itt-stubs-{{.*}}.{{o|obj}}" "-unbundle"
 // CHECK-SPIRV: llvm-link{{.*}} "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"
 // CHECK-HOST-NOT: "-cc1"{{.*}} "-fsycl-is-host"{{.*}} "-fsycl-instrument-device-code"
 
@@ -24,5 +24,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fsycl-instrument-device-code -nocudalib -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-WARNING,CHECK-NONPASSED %s
 // CHECK-NONPASSED-NOT: "-fsycl-instrument-device-code"
-// CHECK-NONPASSED-NOT: "-inputs={{.*}}libsycl-itt-{{.*}}.{{o|obj}}"
+// CHECK-NONPASSED-NOT: "-input={{.*}}libsycl-itt-{{.*}}.{{o|obj}}"
 // CHECK-WARNING: warning: argument unused during compilation: '-fsycl-instrument-device-code'
