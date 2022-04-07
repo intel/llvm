@@ -2726,6 +2726,13 @@ def warn_cxx17_compat_constexpr_body_invalid_stmt : Warning<
   "use of this statement in a constexpr %select{function|constructor}0 "
   "is incompatible with C++ standards before C++20">,
   InGroup<CXXPre20Compat>, DefaultIgnore;
+def ext_constexpr_body_invalid_stmt_cxx2b : ExtWarn<
+  "use of this statement in a constexpr %select{function|constructor}0 "
+  "is a C++2b extension">, InGroup<CXX2b>;
+def warn_cxx20_compat_constexpr_body_invalid_stmt : Warning<
+  "use of this statement in a constexpr %select{function|constructor}0 "
+  "is incompatible with C++ standards before C++2b">,
+  InGroup<CXXPre2bCompat>, DefaultIgnore;
 def ext_constexpr_type_definition : ExtWarn<
   "type definition in a constexpr %select{function|constructor}0 "
   "is a C++14 extension">, InGroup<CXX14>;
@@ -2743,12 +2750,18 @@ def warn_cxx11_compat_constexpr_local_var : Warning<
   "variable declaration in a constexpr %select{function|constructor}0 "
   "is incompatible with C++ standards before C++14">,
   InGroup<CXXPre14Compat>, DefaultIgnore;
-def err_constexpr_local_var_static : Error<
-  "%select{static|thread_local}1 variable not permitted in a constexpr "
-  "%select{function|constructor}0">;
+def ext_constexpr_static_var : ExtWarn<
+  "definition of a %select{static|thread_local}1 variable "
+  "in a constexpr %select{function|constructor}0 "
+  "is a C++2b extension">, InGroup<CXX2b>;
+def warn_cxx20_compat_constexpr_static_var : Warning<
+  "definition of a %select{static|thread_local}1 variable "
+  "in a constexpr %select{function|constructor}0 "
+  "is incompatible with C++ standards before C++2b">,
+  InGroup<CXXPre2bCompat>, DefaultIgnore;
 def err_constexpr_local_var_non_literal_type : Error<
   "variable of non-literal type %1 cannot be defined in a constexpr "
-  "%select{function|constructor}0">;
+  "%select{function|constructor}0 before C++2b">;
 def ext_constexpr_local_var_no_init : ExtWarn<
   "uninitialized variable in a constexpr %select{function|constructor}0 "
   "is a C++20 extension">, InGroup<CXX20>;
@@ -6508,9 +6521,9 @@ def warn_sub_ptr_zero_size_types : Warning<
 def warn_pointer_arith_null_ptr : Warning<
   "performing pointer arithmetic on a null pointer has undefined behavior%select{| if the offset is nonzero}0">,
   InGroup<NullPointerArithmetic>, DefaultIgnore;
-def warn_gnu_null_ptr_arith : Warning<
+def warn_gnu_null_ptr_arith : Extension<
   "arithmetic on a null pointer treated as a cast from integer to pointer is a GNU extension">,
-  InGroup<NullPointerArithmetic>, DefaultIgnore;
+  InGroup<GNUNullPointerArithmetic>;
 def warn_pointer_sub_null_ptr : Warning<
   "performing pointer subtraction with a null pointer %select{has|may have}0 undefined behavior">,
   InGroup<NullPointerSubtraction>, DefaultIgnore;
@@ -6660,7 +6673,8 @@ def err_subscript_incomplete_or_sizeless_type : Error<
 def err_dereference_incomplete_type : Error<
   "dereference of pointer to incomplete type %0">;
 def ext_gnu_subscript_void_type : Extension<
-  "subscript of a pointer to void is a GNU extension">, InGroup<PointerArith>;
+  "subscript of a pointer to void is a GNU extension">,
+  InGroup<GNUPointerArith>;
 def err_typecheck_member_reference_struct_union : Error<
   "member reference base type %0 is not a structure or union">;
 def err_typecheck_member_reference_ivar : Error<
@@ -7186,11 +7200,11 @@ def err_duplicate_property : Error<
   "property has a previous declaration">;
 def ext_gnu_void_ptr : Extension<
   "arithmetic on%select{ a|}0 pointer%select{|s}0 to void is a GNU extension">,
-  InGroup<PointerArith>;
+  InGroup<GNUPointerArith>;
 def ext_gnu_ptr_func_arith : Extension<
   "arithmetic on%select{ a|}0 pointer%select{|s}0 to%select{ the|}2 function "
   "type%select{|s}2 %1%select{| and %3}2 is a GNU extension">,
-  InGroup<PointerArith>;
+  InGroup<GNUPointerArith>;
 def err_readonly_message_assignment : Error<
   "assigning to 'readonly' return result of an Objective-C message not allowed">;
 def ext_integer_increment_complex : Extension<
@@ -8826,6 +8840,8 @@ let CategoryName = "Inline Assembly Issue" in {
     " in asm %select{input|output}1 with a memory constraint '%2'">;
   def err_asm_input_duplicate_match : Error<
     "more than one input constraint matches the same output '%0'">;
+  def err_store_value_to_reg : Error<
+    "impossible constraint in asm: can't store value into a register">;
 
   def warn_asm_label_on_auto_decl : Warning<
     "ignored asm label '%0' on automatic variable">;
@@ -10782,6 +10798,8 @@ def err_omp_expected_int_param : Error<
   "expected a reference to an integer-typed parameter">;
 def err_omp_at_least_one_motion_clause_required : Error<
   "expected at least one 'to' clause or 'from' clause specified to '#pragma omp target update'">;
+def err_omp_cannot_update_with_internal_linkage : Error<
+  "the host cannot update a declare target variable that is not externally visible.">;
 def err_omp_usedeviceptr_not_a_pointer : Error<
   "expected pointer or reference to pointer in 'use_device_ptr' clause">;
 def err_omp_argument_type_isdeviceptr : Error <

@@ -316,42 +316,9 @@ int main (int argc, char *argv[]) {
 }
 ----
 
-== New bfloat16 math functions
-
-In order to take full advantage of the new matrix extension, https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc, for many applications it is necessary to introduce dedicated functions that support the new `bfloat16` data type, which can then be used as element wise operations on matrices.
-The `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions are extended to support the `bfloat16` type. This proposal assumes that devices which support the `ext_oneapi_bfloat16` aspect have the `bfloat16` scalar (`bfloat16`) and vector data types (See the issues section for an action item regarding suitable vector data types) available at compile-time, in line with corresponding `half` types that are available at compile time on devices that
-have `aspect::fp16` as described in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:opencl:extension-fp16. Therefore the `fma`, `fmin`, `fmax` and `fabs` functions should support all of the `bfloat16` vector and scalar types which we refer to as `genbfloat16` in this document.
-The descriptions of the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions can be found in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions. This extension does not introduce any changes to the expected behavior of these math functions beyond the new support for the `genbfloat16` types. A discussion issue has been raised at the bottom of this document on whether the specified maximum precision error should change for these functions when they use the `genbfloat16` data types.
-
-== New bfloat16 math function declarations
-
-```c++
-namespace sycl::ext::oneapi::experimental {
-
-// Available only when "T" is one of the genbfloat16 types.
-template <typename T>
-T fma(T a, T b, T c);
-
-// Available only when "T" is one of the genbfloat16 types.
-template <typename T>
-T fmax(T x, T y);
-
-// Available only when "T" is one of the genbfloat16 types.
-template <typename T>
-T fmin(T x, T y);
-
-// Available only when "T" is one of the genbfloat16 types.
-template <typename T>
-T fabs(T x);
-
-} // namespace sycl::ext::oneapi::experimental
-```
-
 == Issues
 
-1. Decide if there should be a different specified maximum precision error for these math functions when using the `genbfloat16` types.
-
-2. Decide the appropriate `bfloat16` vector types to support. Should the range of vector types match the range used for other data types such as half, float, and double: e.g. `bfloat16_1`, `bfloat16_2`, `bfloat16_3`, `bfloat16_4`, `bfloat16_8` and `bfloat16_16`. Natural storage types for `bfloat16` and `bfloat16_2` would probably be `uint16_t` and `uint32_t` respectively. What about the other vector types? The choice of `bfloat16` storage types should reflect the intended use of `bfloat16` for all compatible backends.
+None.
 
 == Revision History
 
@@ -366,5 +333,4 @@ T fabs(T x);
                              Apply code review suggestions
 |3|2021-08-18|Alexey Sotkin |Remove `uint16_t` constructor
 |4|2022-03-07|Aidan Belton and Jack Kirk |Switch from Intel vendor specific to oneapi
-|5|2022-04-05|Jack Kirk | Added section for bfloat16 math builtins
 |========================================
