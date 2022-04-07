@@ -546,8 +546,6 @@ erase_if(multimap<Key, T, Compare, Allocator>& c, Predicate pred);  // C++20
 #include <type_traits>
 #include <version>
 
-#include <utility> // TODO: Remove this
-
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
 #endif
@@ -960,8 +958,8 @@ public:
     typedef _Key                                     key_type;
     typedef _Tp                                      mapped_type;
     typedef pair<const key_type, mapped_type>        value_type;
-    typedef __identity_t<_Compare>                   key_compare;
-    typedef __identity_t<_Allocator>                 allocator_type;
+    typedef __type_identity_t<_Compare>              key_compare;
+    typedef __type_identity_t<_Allocator>            allocator_type;
     typedef value_type&                              reference;
     typedef const value_type&                        const_reference;
 
@@ -1745,8 +1743,8 @@ public:
     typedef _Key                                     key_type;
     typedef _Tp                                      mapped_type;
     typedef pair<const key_type, mapped_type>        value_type;
-    typedef __identity_t<_Compare>                   key_compare;
-    typedef __identity_t<_Allocator>                 allocator_type;
+    typedef __type_identity_t<_Compare>              key_compare;
+    typedef __type_identity_t<_Allocator>            allocator_type;
     typedef value_type&                              reference;
     typedef const value_type&                        const_reference;
 

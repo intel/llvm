@@ -122,6 +122,7 @@ struct Configuration {
   llvm::Optional<uint64_t> optRemarksHotnessThreshold = 0;
   llvm::StringRef optRemarksPasses;
   llvm::StringRef optRemarksFormat;
+  llvm::StringRef optStatsFilename;
   llvm::StringRef progName;
   llvm::StringRef printArchiveStats;
   llvm::StringRef printSymbolOrder;
@@ -139,6 +140,7 @@ struct Configuration {
   std::vector<VersionDefinition> versionDefinitions;
   std::vector<llvm::StringRef> auxiliaryList;
   std::vector<llvm::StringRef> filterList;
+  std::vector<llvm::StringRef> passPlugins;
   std::vector<llvm::StringRef> searchPaths;
   std::vector<llvm::StringRef> symbolOrderingFile;
   std::vector<llvm::StringRef> thinLTOModulesToCompile;

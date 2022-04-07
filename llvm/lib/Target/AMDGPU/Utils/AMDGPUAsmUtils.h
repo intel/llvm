@@ -24,14 +24,16 @@ const int OPR_ID_UNKNOWN = -1;
 const int OPR_ID_UNSUPPORTED = -2;
 
 template <class T> struct CustomOperand {
-  StringLiteral Name = "";
+  StringLiteral Name;
   int Encoding = 0;
   bool (*Cond)(T Context) = nullptr;
 };
 
 namespace SendMsg { // Symbolic names for the sendmsg(...) syntax.
 
-extern const char *const IdSymbolic[ID_GAPS_LAST_];
+extern const CustomOperand<const MCSubtargetInfo &> Msg[];
+extern const int MSG_SIZE;
+
 extern const char *const OpSysSymbolic[OP_SYS_LAST_];
 extern const char *const OpGsSymbolic[OP_GS_LAST_];
 

@@ -53,6 +53,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDVecArg.cpp
   ESIMD/ESIMDVerifier.cpp
+  LowerInvokeSimd.cpp
   LowerWGScope.cpp
   LowerWGLocalMemory.cpp
   MutatePrintfAddrspace.cpp

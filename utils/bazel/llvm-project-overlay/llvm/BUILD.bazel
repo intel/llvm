@@ -185,7 +185,12 @@ cc_library(
             "lib/Support/Unix/*.h",
             "lib/Support/Unix/*.inc",
         ]),
-    }),
+    }) + [
+        "lib/Support/BLAKE3/blake3_impl.h",
+        "lib/Support/BLAKE3/blake3.c",
+        "lib/Support/BLAKE3/blake3_dispatch.c",
+        "lib/Support/BLAKE3/blake3_portable.c",
+    ],
     hdrs = glob([
         "include/llvm/Support/**/*.h",
         "include/llvm/ADT/*.h",
@@ -199,11 +204,19 @@ cc_library(
         "include/llvm-c/ExternC.h",
         "include/llvm-c/Support.h",
         "include/llvm-c/Types.h",
+        "include/llvm-c/blake3.h",
         "include/llvm/ExecutionEngine/JITSymbol.h",
         "include/llvm/Support/Extension.def",
         "include/llvm/Support/VCSRevision.h",
     ],
     copts = llvm_copts,
+    defines = [
+        "BLAKE3_NO_AVX2",
+        "BLAKE3_NO_AVX512",
+        "BLAKE3_NO_SSE2",
+        "BLAKE3_NO_SSE41",
+        "BLAKE3_USE_NEON=0",
+    ],
     includes = ["include"],
     linkopts = select({
         "@bazel_tools//src/conditions:windows": [],
@@ -1366,11 +1379,7 @@ cc_library(
     hdrs = [
         "include/llvm-c/Transforms/Coroutines.h",
         "include/llvm/Transforms/Coroutines.h",
-        "include/llvm/Transforms/Coroutines/CoroCleanup.h",
-        "include/llvm/Transforms/Coroutines/CoroEarly.h",
-        "include/llvm/Transforms/Coroutines/CoroElide.h",
-        "include/llvm/Transforms/Coroutines/CoroSplit.h",
-    ],
+    ] + glob(["include/llvm/Transforms/Coroutines/*.h"]),
     copts = llvm_copts,
     deps = [
         ":Analysis",
@@ -1744,6 +1753,7 @@ llvm_target_lib_list = [lib for lib in [
             ("-gen-subtarget", "lib/Target/X86/X86GenSubtargetInfo.inc"),
             ("-gen-x86-EVEX2VEX-tables", "lib/Target/X86/X86GenEVEX2VEXTables.inc"),
             ("-gen-exegesis", "lib/Target/X86/X86GenExegesis.inc"),
+            ("-gen-x86-mnemonic-tables -asmwriternum=1", "lib/Target/X86/X86GenMnemonicTables.inc"),
         ],
     },
     {
@@ -3605,6 +3615,24 @@ cc_binary(
         ":AllTargetsCodeGens",
         ":BitReader",
         ":Core",
+    ],
+)
+
+cc_binary(
+    name = "llvm-remark-size-diff",
+    srcs = glob([
+        "tools/llvm-remark-size-diff/**/*.cpp",
+        "tools/llvm-remark-size-diff/**/*.h",
+    ]),
+    copts = llvm_copts,
+    includes = ["tools/llvm-reark-size-diff"],
+    stamp = 0,
+    deps = [
+        ":Core",
+        ":Demangle",
+        ":Object",
+        ":Remarks",
+        ":Support",
     ],
 )
 

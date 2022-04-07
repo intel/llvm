@@ -11,6 +11,7 @@
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/Passes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
@@ -32,7 +33,8 @@ void mlir::sparse_tensor::buildSparseCompiler(
   pm.addNestedPass<FuncOp>(createLinalgGeneralizationPass());
   pm.addPass(createLinalgElementwiseOpFusionPass());
   pm.addPass(createSparsificationPass(options.sparsificationOptions()));
-  pm.addPass(createSparseTensorConversionPass());
+  pm.addPass(createSparseTensorConversionPass(
+      options.sparseTensorConversionOptions()));
   pm.addNestedPass<FuncOp>(createLinalgBufferizePass());
   pm.addNestedPass<FuncOp>(vector::createVectorBufferizePass());
   pm.addNestedPass<FuncOp>(createConvertLinalgToLoopsPass());

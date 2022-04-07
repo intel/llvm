@@ -24,6 +24,20 @@
 using namespace llvm;
 using namespace X86Disassembler;
 
+std::string X86Disassembler::getMnemonic(const CodeGenInstruction *I, unsigned Variant) {
+    std::string AsmString = I->FlattenAsmStringVariants(I->AsmString, Variant);
+    StringRef Mnemonic(AsmString);
+    // Extract a mnemonic assuming it's separated by \t
+    Mnemonic = Mnemonic.take_until([](char C) { return C == '\t'; });
+
+    // Special case: CMOVCC, JCC, SETCC have "${cond}" in mnemonic.
+    // Replace it with "CC" in-place.
+    size_t CondPos = Mnemonic.find("${cond}");
+    if (CondPos != StringRef::npos)
+      Mnemonic = AsmString.replace(CondPos, StringRef::npos, "CC");
+    return Mnemonic.upper();
+}
+
 /// byteFromBitsInit - Extracts a value at most 8 bits in width from a BitsInit.
 ///   Useful for switch statements and the like.
 ///
@@ -61,14 +75,9 @@ static uint8_t byteFromRec(const Record* rec, StringRef name) {
   return byteFromBitsInit(*bits);
 }
 
-RecognizableInstr::RecognizableInstr(DisassemblerTables &tables,
-                                     const CodeGenInstruction &insn,
-                                     InstrUID uid) {
-  UID = uid;
-
+RecognizableInstrBase::RecognizableInstrBase(const CodeGenInstruction &insn) {
   Rec = insn.TheDef;
   Name = std::string(Rec->getName());
-  Spec = &tables.specForUID(UID);
 
   if (!Rec->isSubClassOf("X86Inst")) {
     ShouldBeEmitted = false;
@@ -128,6 +137,14 @@ RecognizableInstr::RecognizableInstr(DisassemblerTables &tables,
   }
 
   ShouldBeEmitted = true;
+}
+
+RecognizableInstr::RecognizableInstr(DisassemblerTables &tables,
+                                     const CodeGenInstruction &insn,
+                                     InstrUID uid)
+    : RecognizableInstrBase(insn) {
+  UID = uid;
+  Spec = &tables.specForUID(UID);
 }
 
 void RecognizableInstr::processInstr(DisassemblerTables &tables,
@@ -840,8 +857,8 @@ void RecognizableInstr::emitDecodePath(DisassemblerTables &tables) const {
 
     uint8_t currentOpcode;
 
-    for (currentOpcode = opcodeToSet; currentOpcode < opcodeToSet + Count;
-         ++currentOpcode)
+    for (currentOpcode = opcodeToSet;
+         currentOpcode < (uint8_t)(opcodeToSet + Count); ++currentOpcode)
       tables.setTableFields(*opcodeType, insnContext(), currentOpcode, *filter,
                             UID, Is32Bit, OpPrefix == 0,
                             IgnoresVEX_L || EncodeRC,

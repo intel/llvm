@@ -542,7 +542,7 @@ func @return_type_mismatch() -> i32 {
 
 func @return_inside_loop() {
   affine.for %i = 1 to 100 {
-    // expected-error@+1 {{'func.return' op expects parent op 'builtin.func'}}
+    // expected-error@+1 {{'func.return' op expects parent op 'func.func'}}
     return
   }
   return
@@ -680,7 +680,7 @@ func @calls(%arg0: i32) {
   %z = "casdasda"(%x) : (ppop32) -> i32
 }
 // -----
-// expected-error@+2 {{expected SSA operand}}
+// expected-error@+1 {{expected SSA operand}}
 func@n(){^b(
 // -----
 
@@ -882,7 +882,7 @@ func @type_alias_unknown(!unknown_alias) -> () { // expected-error {{undefined s
 
 // -----
 
-!missing_type_alias = type // expected-error@+2 {{expected non-function type}}
+!missing_type_alias = type // expected-error@+1 {{expected non-function type}}
 
 // -----
 

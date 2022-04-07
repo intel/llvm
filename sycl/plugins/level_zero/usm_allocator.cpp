@@ -44,12 +44,23 @@
 
 namespace settings {
 
+constexpr auto operator""_B(unsigned long long x) -> size_t { return x; }
+constexpr auto operator""_KB(unsigned long long x) -> size_t {
+  return x * 1024;
+}
+constexpr auto operator""_MB(unsigned long long x) -> size_t {
+  return x * 1024 * 1024;
+}
+constexpr auto operator""_GB(unsigned long long x) -> size_t {
+  return x * 1024 * 1024 * 1024;
+}
+
 // Buckets for Host use a minimum of the cache line size of 64 bytes.
 // This prevents two separate allocations residing in the same cache line.
 // Buckets for Device and Shared allocations will use starting size of 512.
 // This is because memory compression on newer GPUs makes the
 // minimum granularity 512 bytes instead of 64.
-static constexpr size_t MinBucketSize[3] = {64, 512, 512};
+static constexpr size_t MinBucketSize[SystemMemory::All] = {64, 512, 512, 512};
 
 // The largest size which is allocated via the allocator.
 // Allocations with size > CutOff bypass the USM allocator and
@@ -63,20 +74,19 @@ static class SetLimits {
 public:
   // Minimum allocation size that will be requested from the system.
   // By default this is the minimum allocation size of each memory type.
-  // Memory types are host, device, shared.
-  size_t SlabMinSize[3] = {64 * 1024, 64 * 1024, 2 * 1024 * 1024};
+  size_t SlabMinSize[SystemMemory::All] = {};
 
   // Allocations up to this limit will be subject to chunking/pooling
-  size_t MaxPoolableSize[3] = {2 * 1024 * 1024, 4 * 1024 * 1024, 0};
+  size_t MaxPoolableSize[SystemMemory::All] = {};
 
   // When pooling, each bucket will hold a max of 4 unfreed slabs
-  size_t Capacity[3] = {4, 4, 0};
+  size_t Capacity[SystemMemory::All] = {};
 
   // Maximum memory left unfreed in pool
-  size_t MaxPoolSize = 16 * 1024 * 1024;
+  size_t MaxPoolSize = 16_MB;
 
   size_t CurPoolSize = 0;
-  size_t CurPoolSizes[3] = {0, 0, 0};
+  size_t CurPoolSizes[SystemMemory::All] = {0, 0, 0, 0};
 
   size_t EnableBuffers = 1;
 
@@ -84,6 +94,25 @@ public:
   int PoolTrace = 0;
 
   SetLimits() {
+    // Initialize default pool settings.
+    MaxPoolableSize[SystemMemory::Host] = 2_MB;
+    Capacity[SystemMemory::Host] = 4;
+    SlabMinSize[SystemMemory::Host] = 64_KB;
+
+    MaxPoolableSize[SystemMemory::Device] = 4_MB;
+    Capacity[SystemMemory::Device] = 4;
+    SlabMinSize[SystemMemory::Device] = 64_KB;
+
+    // Disable pooling of shared USM allocations.
+    MaxPoolableSize[SystemMemory::Shared] = 0;
+    Capacity[SystemMemory::Shared] = 0;
+    SlabMinSize[SystemMemory::Shared] = 2_MB;
+
+    // Allow pooling of shared allocations that are only modified on host.
+    MaxPoolableSize[SystemMemory::SharedReadOnly] = 4_MB;
+    Capacity[SystemMemory::SharedReadOnly] = 4;
+    SlabMinSize[SystemMemory::SharedReadOnly] = 64_KB;
+
     // Parse optional parameters of this form:
     // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=[EnableBuffers][;[MaxPoolSize][;memtypelimits]...]
     //  memtypelimits: [<memtype>:]<limits>
@@ -113,15 +142,15 @@ public:
       size_t Multiplier = 1;
       if (tolower(Param[Length - 1]) == 'k') {
         Length--;
-        Multiplier = 1024;
+        Multiplier = 1_KB;
       }
       if (tolower(Param[Length - 1]) == 'm') {
         Length--;
-        Multiplier = 1024 * 1024;
+        Multiplier = 1_MB;
       }
       if (tolower(Param[Length - 1]) == 'g') {
         Length--;
-        Multiplier = 1024 * 1024 * 1024;
+        Multiplier = 1_GB;
       }
       std::string TheNumber = Param.substr(0, Length);
       if (TheNumber.find_first_not_of("0123456789") == std::string::npos)
@@ -270,7 +299,8 @@ public:
 
 using namespace settings;
 
-static const char *MemTypeNames[3] = {"Host", "Device", "Shared"};
+static const char *MemTypeNames[SystemMemory::All] = {
+    "Host", "Device", "Shared", "SharedReadOnly"};
 
 // Aligns the pointer down to the specified alignment
 // (e.g. returns 8 for Size = 13, Alignment = 8)
@@ -410,7 +440,7 @@ public:
 
   // Get pointer to allocation that is one piece of an available slab in this
   // bucket.
-  void *getChunk(bool &FromSlab, bool &FromPool);
+  void *getChunk(bool &FromPool);
 
   // Get pointer to allocation that is a full slab in this bucket.
   void *getSlab(bool &FromPool);
@@ -465,7 +495,7 @@ private:
   void decrementPool(bool &FromPool);
 
   // Get a slab to be used for chunked allocations.
-  decltype(AvailableSlabs.begin()) getAvailSlab(bool &FromSlab, bool &FromPool);
+  decltype(AvailableSlabs.begin()) getAvailSlab(bool &FromPool);
 
   // Get a slab that will be used as a whole for a single allocation.
   decltype(AvailableSlabs.begin()) getAvailFullSlab(bool &FromPool);
@@ -498,8 +528,8 @@ public:
     Buckets.push_back(std::make_unique<Bucket>(CutOff, *this));
   }
 
-  void *allocate(size_t Size, size_t Alignment, bool &FromSlab, bool &FromPool);
-  void *allocate(size_t Size, bool &FromSlab, bool &FromPool);
+  void *allocate(size_t Size, size_t Alignment, bool &FromPool);
+  void *allocate(size_t Size, bool &FromPool);
   void deallocate(void *Ptr, bool &ToPool);
 
   SystemMemory &getMemHandle() { return *MemHandle; }
@@ -557,7 +587,7 @@ size_t Slab::FindFirstAvailableChunkIdx() const {
 }
 
 void *Slab::getChunk() {
-  assert(NumAllocated != Chunks.size());
+  // assert(NumAllocated != Chunks.size());
 
   const size_t ChunkIdx = FindFirstAvailableChunkIdx();
   // Free chunk must exist, otherwise we would have allocated another slab
@@ -703,10 +733,9 @@ void Bucket::freeSlab(Slab &Slab, bool &ToPool) {
   }
 }
 
-auto Bucket::getAvailSlab(bool &FromSlab, bool &FromPool)
+auto Bucket::getAvailSlab(bool &FromPool)
     -> decltype(AvailableSlabs.begin()) {
 
-  FromSlab = false;
   if (AvailableSlabs.size() == 0) {
     auto It = AvailableSlabs.insert(AvailableSlabs.begin(),
                                     std::make_unique<Slab>(*this));
@@ -720,19 +749,16 @@ auto Bucket::getAvailSlab(bool &FromSlab, bool &FromPool)
       // Now it is no longer in the pool, so update count.
       --chunkedSlabsInPool;
       decrementPool(FromPool);
-    } else {
-      // From partially filled slab
-      FromSlab = true;
     }
   }
 
   return AvailableSlabs.begin();
 }
 
-void *Bucket::getChunk(bool &FromSlab, bool &FromPool) {
+void *Bucket::getChunk(bool &FromPool) {
   std::lock_guard<std::mutex> Lg(BucketLock);
 
-  auto SlabIt = getAvailSlab(FromSlab, FromPool);
+  auto SlabIt = getAvailSlab(FromPool);
   auto *FreeChunk = (*SlabIt)->getChunk();
 
   // If the slab is full, move it to unavailable slabs and update its iterator
@@ -885,8 +911,7 @@ void Bucket::printStats(bool &TitlePrinted, SystemMemory::MemType MT) {
 
 // SystemMemory &Bucket::getMemHandle() { return OwnAllocCtx.getMemHandle(); }
 
-void *USMAllocContext::USMAllocImpl::allocate(size_t Size, bool &FromSlab,
-                                              bool &FromPool) {
+void *USMAllocContext::USMAllocImpl::allocate(size_t Size, bool &FromPool) {
   void *Ptr;
 
   if (Size == 0)
@@ -902,7 +927,7 @@ void *USMAllocContext::USMAllocImpl::allocate(size_t Size, bool &FromSlab,
   if (Size > Bucket.ChunkCutOff())
     Ptr = Bucket.getSlab(FromPool);
   else
-    Ptr = Bucket.getChunk(FromSlab, FromPool);
+    Ptr = Bucket.getChunk(FromPool);
 
   if (USMSettings.PoolTrace > 1)
     Bucket.countAlloc(FromPool);
@@ -911,14 +936,14 @@ void *USMAllocContext::USMAllocImpl::allocate(size_t Size, bool &FromSlab,
 }
 
 void *USMAllocContext::USMAllocImpl::allocate(size_t Size, size_t Alignment,
-                                              bool &FromSlab, bool &FromPool) {
+                                              bool &FromPool) {
   void *Ptr;
 
   if (Size == 0)
     return nullptr;
 
   if (Alignment <= 1)
-    return allocate(Size, FromSlab, FromPool);
+    return allocate(Size, FromPool);
 
   size_t AlignedSize = (Size > 1) ? AlignUp(Size, Alignment) : Alignment;
 
@@ -934,7 +959,7 @@ void *USMAllocContext::USMAllocImpl::allocate(size_t Size, size_t Alignment,
   if (AlignedSize > Bucket.ChunkCutOff()) {
     Ptr = Bucket.getSlab(FromPool);
   } else {
-    Ptr = Bucket.getChunk(FromSlab, FromPool);
+    Ptr = Bucket.getChunk(FromPool);
   }
 
   if (USMSettings.PoolTrace > 1)
@@ -1005,10 +1030,7 @@ USMAllocContext::USMAllocContext(std::unique_ptr<SystemMemory> MemHandle)
 void *USMAllocContext::allocate(size_t size) {
   // For full-slab allocations indicates whether slab is from Pool.
   bool FromPool;
-  // For chunked allocations indicates whether from existing Slab.
-  // If existing Slab, then FromPool indicates whether slab was from Pool.
-  bool FromSlab;
-  auto Ptr = pImpl->allocate(size, FromSlab, FromPool);
+  auto Ptr = pImpl->allocate(size, FromPool);
 
   if (USMSettings.PoolTrace > 2) {
     auto MT = pImpl->getMemHandle().getMemType();
@@ -1021,8 +1043,7 @@ void *USMAllocContext::allocate(size_t size) {
 
 void *USMAllocContext::allocate(size_t size, size_t alignment) {
   bool FromPool;
-  bool FromSlab;
-  auto Ptr = pImpl->allocate(size, alignment, FromSlab, FromPool);
+  auto Ptr = pImpl->allocate(size, alignment, FromPool);
 
   if (USMSettings.PoolTrace > 2) {
     auto MT = pImpl->getMemHandle().getMemType();

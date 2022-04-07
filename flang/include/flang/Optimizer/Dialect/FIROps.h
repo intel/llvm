@@ -33,11 +33,15 @@ mlir::ParseResult parseCmpcOp(mlir::OpAsmParser &parser,
                               mlir::OperationState &result);
 mlir::ParseResult parseSelector(mlir::OpAsmParser &parser,
                                 mlir::OperationState &result,
-                                mlir::OpAsmParser::OperandType &selector,
+                                mlir::OpAsmParser::UnresolvedOperand &selector,
                                 mlir::Type &type);
 
 static constexpr llvm::StringRef getAdaptToByRefAttrName() {
   return "adapt.valuebyref";
+}
+
+static constexpr llvm::StringRef getNormalizedLowerBoundAttrName() {
+  return "normalized.lb";
 }
 
 } // namespace fir

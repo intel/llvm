@@ -61,12 +61,8 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
   if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy>) {
     return detail::SLM_BTI;
   } else {
-#ifdef __SYCL_DEVICE_ONLY__
-    const auto mem_obj = detail::AccessorPrivateProxy::getNativeImageObj(acc);
-    return __esimd_get_surface_index(mem_obj);
-#else  // __SYCL_DEVICE_ONLY__
-    return __esimd_get_surface_index(acc);
-#endif // __SYCL_DEVICE_ONLY__
+    return __esimd_get_surface_index(
+        detail::AccessorPrivateProxy::getNativeImageObj(acc));
   }
 }
 
@@ -253,12 +249,8 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
   static_assert(Sz <= 8 * detail::OperandSize::OWORD,
                 "block size must be at most 8 owords");
 
-#if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
-#else  // __SYCL_DEVICE_ONLY__
-  auto surf_ind = __esimd_get_surface_index(acc);
-#endif // __SYCL_DEVICE_ONLY__
 
   if constexpr (Flags::template alignment<simd<T, N>> >=
                 detail::OperandSize::OWORD) {
@@ -317,12 +309,8 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
   static_assert(Sz <= 8 * detail::OperandSize::OWORD,
                 "block size must be at most 8 owords");
 
-#if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
-#else //
-  auto surf_ind = __esimd_get_surface_index(acc);
-#endif
   __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
 }
 
@@ -1137,7 +1125,7 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_from(
 template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, typename Flags, int ChunkSize, typename>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
-                              sycl::access::target::global_buffer, void>
+                              sycl::access::target::device, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
                                            Flags) SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
@@ -1267,7 +1255,7 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
 template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, typename Flags, int ChunkSize, typename>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
-                              sycl::access::target::global_buffer, void>
+                              sycl::access::target::device, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
                                          Flags) const SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;

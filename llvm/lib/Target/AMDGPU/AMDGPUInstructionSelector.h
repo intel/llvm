@@ -133,7 +133,6 @@ private:
 
   void initM0(MachineInstr &I) const;
   bool selectG_LOAD_STORE_ATOMICRMW(MachineInstr &I) const;
-  bool selectG_AMDGPU_ATOMIC_CMPXCHG(MachineInstr &I) const;
   bool selectG_SELECT(MachineInstr &I) const;
   bool selectG_BRCOND(MachineInstr &I) const;
   bool selectG_GLOBAL_VALUE(MachineInstr &I) const;
@@ -145,6 +144,7 @@ private:
   bool selectGlobalAtomicFadd(MachineInstr &I, MachineOperand &AddrOp,
                               MachineOperand &DataOp) const;
   bool selectBVHIntrinsic(MachineInstr &I) const;
+  bool selectSMFMACIntrin(MachineInstr &I) const;
   bool selectWaveAddress(MachineInstr &I) const;
 
   std::pair<Register, unsigned> selectVOP3ModsImpl(MachineOperand &Root,

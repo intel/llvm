@@ -168,7 +168,7 @@ static void invokeCreateWithInferredReturnType(Operation *op) {
         OperationState state(location, OpTy::getOperationName());
         // TODO: Expand to regions.
         OpTy::build(b, state, values, op->getAttrs());
-        (void)b.createOperation(state);
+        (void)b.create(state);
       }
     }
   }
@@ -295,7 +295,7 @@ struct TestRegionRewriteUndo : public RewritePattern {
     // Create the region operation with an entry block containing arguments.
     OperationState newRegion(op->getLoc(), "test.region");
     newRegion.addRegion();
-    auto *regionOp = rewriter.createOperation(newRegion);
+    auto *regionOp = rewriter.create(newRegion);
     auto *entryBlock = rewriter.createBlock(&regionOp->getRegion(0));
     entryBlock->addArgument(rewriter.getIntegerType(64),
                             rewriter.getUnknownLoc());
@@ -676,7 +676,7 @@ struct TestLegalizePatternDriver
                            [](Type type) { return type.isF32(); });
     });
     target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
-      return converter.isSignatureLegal(op.getType()) &&
+      return converter.isSignatureLegal(op.getFunctionType()) &&
              converter.isLegal(&op.getBody());
     });
     target.addDynamicallyLegalOp<func::CallOp>(
@@ -1106,7 +1106,7 @@ struct TestTypeConversionDriver
               recursiveType.getName() == "outer_converted_type");
     });
     target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
-      return converter.isSignatureLegal(op.getType()) &&
+      return converter.isSignatureLegal(op.getFunctionType()) &&
              converter.isLegal(&op.getBody());
     });
     target.addDynamicallyLegalOp<TestCastOp>([&](TestCastOp op) {

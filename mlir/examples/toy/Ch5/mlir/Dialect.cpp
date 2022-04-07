@@ -106,7 +106,7 @@ void ToyDialect::initialize() {
 /// of 'printBinaryOp' below.
 static mlir::ParseResult parseBinaryOp(mlir::OpAsmParser &parser,
                                        mlir::OperationState &result) {
-  SmallVector<mlir::OpAsmParser::OperandType, 2> operands;
+  SmallVector<mlir::OpAsmParser::UnresolvedOperand, 2> operands;
   SMLoc operandsLoc = parser.getCurrentLocation();
   Type type;
   if (parser.parseOperandList(operands, /*requiredOperandCount=*/2) ||
@@ -303,7 +303,7 @@ mlir::Region *FuncOp::getCallableRegion() { return &getBody(); }
 /// Returns the results types that the callable region produces when
 /// executed.
 llvm::ArrayRef<mlir::Type> FuncOp::getCallableResults() {
-  return getType().getResults();
+  return getFunctionType().getResults();
 }
 
 //===----------------------------------------------------------------------===//
@@ -364,7 +364,7 @@ mlir::LogicalResult ReturnOp::verify() {
     return emitOpError() << "expects at most 1 return operand";
 
   // The operand number and types must match the function signature.
-  const auto &results = function.getType().getResults();
+  const auto &results = function.getFunctionType().getResults();
   if (getNumOperands() != results.size())
     return emitOpError() << "does not return the same number of values ("
                          << getNumOperands() << ") as the enclosing function ("

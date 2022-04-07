@@ -52,6 +52,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
+#include "llvm/IR/IntrinsicsARM.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
@@ -1882,7 +1883,9 @@ Error BitcodeReader::parseTypeTableBody() {
     case bitc::TYPE_CODE_OPAQUE_POINTER: { // OPAQUE_POINTER: [addrspace]
       if (Record.size() != 1)
         return error("Invalid opaque pointer record");
-      if (Context.supportsTypedPointers())
+      if (LLVM_UNLIKELY(!Context.hasSetOpaquePointersValue())) {
+        Context.enableOpaquePointers();
+      } else if (Context.supportsTypedPointers())
         return error(
             "Opaque pointers are only supported in -opaque-pointers mode");
       unsigned AddressSpace = Record[0];
@@ -4144,11 +4147,23 @@ Error BitcodeReader::propagateAttributeTypes(CallBase *CB,
   case Intrinsic::aarch64_ldaxr:
   case Intrinsic::aarch64_ldxr:
   case Intrinsic::aarch64_stlxr:
-  case Intrinsic::aarch64_stxr: {
-    unsigned ArgNo = CB->getIntrinsicID() == Intrinsic::aarch64_stlxr ||
-                             CB->getIntrinsicID() == Intrinsic::aarch64_stxr
-                         ? 1
-                         : 0;
+  case Intrinsic::aarch64_stxr:
+  case Intrinsic::arm_ldaex:
+  case Intrinsic::arm_ldrex:
+  case Intrinsic::arm_stlex:
+  case Intrinsic::arm_strex: {
+    unsigned ArgNo;
+    switch (CB->getIntrinsicID()) {
+    case Intrinsic::aarch64_stlxr:
+    case Intrinsic::aarch64_stxr:
+    case Intrinsic::arm_stlex:
+    case Intrinsic::arm_strex:
+      ArgNo = 1;
+      break;
+    default:
+      ArgNo = 0;
+      break;
+    }
     if (!Attrs.getParamElementType(ArgNo)) {
       Type *ElTy = getPtrElementTypeByID(ArgTyIDs[ArgNo]);
       if (!ElTy)

@@ -1434,11 +1434,6 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__is_trivially_constructible`` (C++, GNU, Microsoft)
 * ``__is_trivially_copyable`` (C++, GNU, Microsoft)
 * ``__is_trivially_destructible`` (C++, MSVC 2013)
-* ``__is_trivially_relocatable`` (Clang): Returns true if moving an object
-  of the given type, and then destroying the source object, is known to be
-  functionally equivalent to copying the underlying bytes and then dropping the
-  source object on the floor. This is true of trivial types and types which
-  were made trivially relocatable via the ``clang::trivial_abi`` attribute.
 * ``__is_union`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_unsigned`` (C++, Embarcadero):
   Returns false for enumeration types. Note, before Clang 13, returned true for
@@ -4142,8 +4137,22 @@ The ``__declspec`` style syntax is also supported:
 
   #pragma clang attribute pop
 
-A single push directive accepts only one attribute regardless of the syntax
-used.
+A single push directive can contain multiple attributes, however, 
+only one syntax style can be used within a single directive:
+
+.. code-block:: c++
+
+  #pragma clang attribute push ([[noreturn, noinline]], apply_to = function)
+
+  void function1(); // The function now has the [[noreturn]] and [[noinline]] attributes
+
+  #pragma clang attribute pop
+  
+  #pragma clang attribute push (__attribute((noreturn, noinline)), apply_to = function)
+
+  void function2(); // The function now has the __attribute((noreturn)) and __attribute((noinline)) attributes
+
+  #pragma clang attribute pop
 
 Because multiple push directives can be nested, if you're writing a macro that
 expands to ``_Pragma("clang attribute")`` it's good hygiene (though not

@@ -1689,6 +1689,16 @@ def SYCLAddIRAttributesGlobalVariable : InheritableAttr {
   let Documentation = [SYCLAddIRAttributesGlobalVariableDocs];
 }
 
+def SYCLAddIRAnnotationsMember : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "add_ir_annotations_member">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[Field], ErrorDiag>;
+  let AcceptsExprPack = 1;
+  let AdditionalMembers = SYCLAddIRAttrCommonMembers.MemberCode;
+  let Documentation = [SYCLAddIRAnnotationsMemberDocs];
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -3251,17 +3261,20 @@ def ReqdWorkGroupSize : InheritableAttr {
               ExprArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
-    ArrayRef<const Expr *> dimensions() const {
-      return {getXDim(), getYDim(), getZDim()};
+    Optional<llvm::APSInt> getXDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))
+        return CE->getResultAsAPSInt();
+      return None;
     }
-    Optional<llvm::APSInt> getXDimVal(ASTContext &Ctx) const {
-      return getXDim()->getIntegerConstantExpr(Ctx);
+    Optional<llvm::APSInt> getYDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getYDim()))
+        return CE->getResultAsAPSInt();
+      return None;
     }
-    Optional<llvm::APSInt> getYDimVal(ASTContext &Ctx) const {
-      return getYDim()->getIntegerConstantExpr(Ctx);
-    }
-    Optional<llvm::APSInt> getZDimVal(ASTContext &Ctx) const {
-      return getZDim()->getIntegerConstantExpr(Ctx);
+    Optional<llvm::APSInt> getZDimVal() const {
+      if (const auto *CE = dyn_cast<ConstantExpr>(getZDim()))
+        return CE->getResultAsAPSInt();
+      return None;
     }
   }];
   let Documentation = [ReqdWorkGroupSizeAttrDocs];

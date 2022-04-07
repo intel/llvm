@@ -521,8 +521,7 @@ static void instantiateOMPDeclareVariantAttr(
       continue;
     NeedDevicePtrExprs.push_back(ER.get());
   }
-  for (auto A : Attr.appendArgs())
-    AppendArgs.push_back(A);
+  llvm::append_range(AppendArgs, Attr.appendArgs());
 
   S.ActOnOpenMPDeclareVariantDirective(
       FD, E, TI, NothingExprs, NeedDevicePtrExprs, AppendArgs, SourceLocation(),
@@ -593,31 +592,6 @@ static void instantiateDependentAMDGPUWavesPerEUAttr(
   }
 
   S.addAMDGPUWavesPerEUAttr(New, Attr, MinExpr, MaxExpr);
-}
-
-template <typename AttrName>
-static void instantiateIntelSYCTripleLFunctionAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const AttrName *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-
-  ExprResult Result = S.SubstExpr(Attr->getXDim(), TemplateArgs);
-  if (Result.isInvalid())
-    return;
-  Expr *XDimExpr = Result.getAs<Expr>();
-
-  Result = S.SubstExpr(Attr->getYDim(), TemplateArgs);
-  if (Result.isInvalid())
-    return;
-  Expr *YDimExpr = Result.getAs<Expr>();
-
-  Result = S.SubstExpr(Attr->getZDim(), TemplateArgs);
-  if (Result.isInvalid())
-    return;
-  Expr *ZDimExpr = Result.getAs<Expr>();
-
-  S.addIntelTripleArgAttr<AttrName>(New, *Attr, XDimExpr, YDimExpr, ZDimExpr);
 }
 
 static void instantiateIntelFPGAForcePow2DepthAttr(
@@ -853,6 +827,18 @@ static void instantiateSYCLAddIRAttributesGlobalVariableAttr(
   S.AddSYCLAddIRAttributesGlobalVariableAttr(New, *A, Args);
 }
 
+static void instantiateSYCLAddIRAnnotationsMemberAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLAddIRAnnotationsMemberAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext ConstantEvaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  SmallVector<Expr *, 4> Args;
+  if (S.SubstExprs(ArrayRef<Expr *>(A->args().begin(), A->args().end()),
+                   /*IsCall=*/false, TemplateArgs, Args))
+    return;
+  S.AddSYCLAddIRAnnotationsMemberAttr(New, *A, Args);
+}
+
 static void instantiateWorkGroupSizeHintAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const WorkGroupSizeHintAttr *A, Decl *New) {
@@ -889,6 +875,25 @@ static void instantiateSYCLIntelMaxWorkGroupSizeAttr(
 
   S.AddSYCLIntelMaxWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
                                      ZResult.get());
+}
+
+static void instantiateReqdWorkGroupSizeAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const ReqdWorkGroupSizeAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult XResult = S.SubstExpr(A->getXDim(), TemplateArgs);
+  if (XResult.isInvalid())
+    return;
+  ExprResult YResult = S.SubstExpr(A->getYDim(), TemplateArgs);
+  if (YResult.isInvalid())
+    return;
+  ExprResult ZResult = S.SubstExpr(A->getZDim(), TemplateArgs);
+  if (ZResult.isInvalid())
+    return;
+
+  S.AddReqdWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
+                             ZResult.get());
 }
 
 // This doesn't take any template parameters, but we have a custom action that
@@ -1116,8 +1121,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *ReqdWorkGroupSize =
             dyn_cast<ReqdWorkGroupSizeAttr>(TmplAttr)) {
-      instantiateIntelSYCTripleLFunctionAttr<ReqdWorkGroupSizeAttr>(
-          *this, TemplateArgs, ReqdWorkGroupSize, New);
+      instantiateReqdWorkGroupSizeAttr(*this, TemplateArgs, ReqdWorkGroupSize,
+                                       New);
       continue;
     }
     if (const auto *SYCLIntelMaxWorkGroupSize =
@@ -1159,6 +1164,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLAddIRAttributesGlobalVariableAttr>(TmplAttr)) {
       instantiateSYCLAddIRAttributesGlobalVariableAttr(
           *this, TemplateArgs, SYCLAddIRAttributesGlobalVariable, New);
+      continue;
+    }
+    if (const auto *SYCLAddIRAnnotationsMember =
+            dyn_cast<SYCLAddIRAnnotationsMemberAttr>(TmplAttr)) {
+      instantiateSYCLAddIRAnnotationsMemberAttr(
+          *this, TemplateArgs, SYCLAddIRAnnotationsMember, New);
       continue;
     }
     if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(TmplAttr)) {
@@ -1402,6 +1413,7 @@ Decl *TemplateDeclInstantiator::InstantiateTypedefNameDecl(TypedefNameDecl *D,
     SemaRef.inferGslPointerAttribute(Typedef);
 
   Typedef->setAccess(D->getAccess());
+  Typedef->setReferenced(D->isReferenced());
 
   return Typedef;
 }
@@ -2284,7 +2296,7 @@ Decl *TemplateDeclInstantiator::VisitCXXRecordDecl(CXXRecordDecl *D) {
   if (D->isLambda())
     Record = CXXRecordDecl::CreateLambda(
         SemaRef.Context, Owner, D->getLambdaTypeInfo(), D->getLocation(),
-        D->isDependentLambda(), D->isGenericLambda(),
+        D->getLambdaDependencyKind(), D->isGenericLambda(),
         D->getLambdaCaptureDefault());
   else
     Record = CXXRecordDecl::Create(SemaRef.Context, D->getTagKind(), Owner,

@@ -12,6 +12,7 @@
 #include "ErrorHandling.h"
 #include "PerfReader.h"
 #include "ProfiledBinary.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/ProfileData/SampleProfWriter.h"
 #include <memory>
 #include <unordered_set>
@@ -104,6 +105,8 @@ protected:
                           uint64_t HotCntThreshold);
 
   void showDensitySuggestion(double Density);
+
+  void collectProfiledFunctions();
 
   // Thresholds from profile summary to answer isHotCount/isColdCount queries.
   uint64_t HotCountThreshold;

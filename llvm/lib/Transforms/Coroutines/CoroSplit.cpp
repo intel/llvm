@@ -934,7 +934,8 @@ void CoroCloner::create() {
   case coro::ABI::Switch:
     // Bootstrap attributes by copying function attributes from the
     // original function.  This should include optimization settings and so on.
-    NewAttrs = NewAttrs.addFnAttributes(Context, AttrBuilder(Context, OrigAttrs.getFnAttrs()));
+    NewAttrs = NewAttrs.addFnAttributes(
+        Context, AttrBuilder(Context, OrigAttrs.getFnAttrs()));
 
     addFramePointerAttrs(NewAttrs, Context, 0,
                          Shape.FrameSize, Shape.FrameAlign);
@@ -2209,16 +2210,13 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
   auto &FAM =
       AM.getResult<FunctionAnalysisManagerCGSCCProxy>(C, CG).getManager();
 
-  if (!declaresCoroSplitIntrinsics(M))
-    return PreservedAnalyses::all();
-
   // Check for uses of llvm.coro.prepare.retcon/async.
   SmallVector<Function *, 2> PrepareFns;
   addPrepareFunction(M, PrepareFns, "llvm.coro.prepare.retcon");
   addPrepareFunction(M, PrepareFns, "llvm.coro.prepare.async");
 
   // Find coroutines for processing.
-  SmallVector<LazyCallGraph::Node *, 4> Coroutines;
+  SmallVector<LazyCallGraph::Node *> Coroutines;
   for (LazyCallGraph::Node &N : C)
     if (N.getFunction().hasFnAttribute(CORO_PRESPLIT_ATTR))
       Coroutines.push_back(&N);

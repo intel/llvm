@@ -1983,6 +1983,7 @@ cc_library(
         ":ArithmeticTransforms",
         ":BufferizationTransforms",
         ":ConversionPasses",
+        ":FuncDialect",
         ":FuncTransforms",
         ":LinalgTransforms",
         ":Pass",
@@ -2004,6 +2005,7 @@ td_library(
         ":CallInterfacesTdFiles",
         ":CastInterfacesTdFiles",
         ":ControlFlowInterfacesTdFiles",
+        ":FunctionInterfacesTdFiles",
         ":InferTypeOpInterfaceTdFiles",
         ":OpBaseTdFiles",
         ":SideEffectInterfacesTdFiles",
@@ -2210,6 +2212,7 @@ cc_library(
         ":Affine",
         ":AffineAnalysis",
         ":Analysis",
+        ":FuncDialect",
         ":IR",
         ":MemRefDialect",
         ":SCFDialect",
@@ -2633,6 +2636,7 @@ cc_library(
         ":ArithmeticDialect",
         ":ControlFlowInterfaces",
         ":Dialect",
+        ":FuncDialect",
         ":IR",
         ":InferTypeOpInterface",
         ":MLIRShapeCanonicalizationIncGen",
@@ -2939,9 +2943,11 @@ cc_library(
     deps = [
         ":Affine",
         ":ArithmeticDialect",
+        ":ArithmeticUtils",
         ":BufferizationDialect",
         ":BufferizationTransforms",
         ":DialectUtils",
+        ":FuncDialect",
         ":IR",
         ":LinalgOps",
         ":MemRefDialect",
@@ -2994,6 +3000,24 @@ cc_library(
 )
 
 cc_library(
+    name = "MlirLspServerSupportLib",
+    srcs = glob(
+        [
+            "lib/Tools/lsp-server-support/*.cpp",
+        ],
+    ),
+    hdrs = glob(
+        [
+            "lib/Tools/lsp-server-support/*.h",
+        ],
+    ),
+    deps = [
+        ":Support",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
     name = "MlirLspServerLib",
     srcs = glob(
         [
@@ -3009,7 +3033,30 @@ cc_library(
     includes = ["include"],
     deps = [
         ":IR",
+        ":MlirLspServerSupportLib",
         ":Parser",
+        ":Support",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "MlirPdllLspServerLib",
+    srcs = glob(
+        [
+            "lib/Tools/mlir-pdll-lsp-server/*.cpp",
+            "lib/Tools/mlir-pdll-lsp-server/*.h",
+        ],
+    ),
+    hdrs = glob(
+        ["include/mlir/Tools/mlir-pdll-lsp-server/*.h"],
+    ),
+    includes = ["include"],
+    deps = [
+        ":MlirLspServerSupportLib",
+        ":PDLLAST",
+        ":PDLLODS",
+        ":PDLLParser",
         ":Support",
         "//llvm:Support",
     ],
@@ -3454,6 +3501,7 @@ cc_library(
         ":ControlFlowOps",
         ":ControlFlowToLLVM",
         ":ConversionPassIncGen",
+        ":FuncDialect",
         ":FuncToLLVM",
         ":GPUCommonTransforms",
         ":GPUDialect",
@@ -3546,6 +3594,7 @@ cc_library(
         ":ArithmeticToLLVM",
         ":ControlFlowToLLVM",
         ":ConversionPassIncGen",
+        ":FuncDialect",
         ":FuncToLLVM",
         ":GPUCommonTransforms",
         ":GPUDialect",
@@ -3813,6 +3862,14 @@ gentbl_cc_library(
         (
             ["-gen-enum-defs"],
             "include/mlir/Dialect/LLVMIR/NVVMOpsEnums.cpp.inc",
+        ),
+        (
+            ["-gen-struct-attr-decls"],
+            "include/mlir/Dialect/LLVMIR/NVVMOpsStructs.h.inc",
+        ),
+        (
+            ["-gen-struct-attr-defs"],
+            "include/mlir/Dialect/LLVMIR/NVVMOpsStructs.cpp.inc",
         ),
         (
             [
@@ -4274,6 +4331,7 @@ cc_library(
     hdrs = ["include/mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"],
     includes = ["include"],
     deps = [
+        ":FuncDialect",
         ":SPIRVDialect",
         ":TransformUtils",
         "//llvm:Support",
@@ -4295,6 +4353,7 @@ cc_library(
     ),
     includes = ["include"],
     deps = [
+        ":FuncDialect",
         ":IR",
         ":Pass",
         ":SPIRVConversion",
@@ -5181,6 +5240,7 @@ cc_library(
         ":Analysis",
         ":ConversionPassIncGen",
         ":DataLayoutInterfaces",
+        ":FuncDialect",
         ":IR",
         ":LLVMCommonConversion",
         ":LLVMDialect",
@@ -5696,6 +5756,7 @@ cc_library(
     deps = [
         ":AllToLLVMIRTranslations",
         ":DLTIDialect",
+        ":FuncDialect",
         ":IR",
         ":ToLLVMIRTranslation",
         ":Translation",
@@ -6649,6 +6710,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":ArithmeticDialect",
+        ":FuncDialect",
         ":IR",
         ":Pass",
         ":QuantOpsIncGen",
@@ -7169,6 +7231,7 @@ cc_library(
         ":AMX",
         ":AMXTransforms",
         ":ArithmeticDialect",
+        ":ArithmeticUtils",
         ":ArmNeon",
         ":ArmSVE",
         ":ArmSVETransforms",
@@ -8410,5 +8473,15 @@ cc_binary(
         ":Support",
         "//llvm:Support",
         "//llvm:config",
+    ],
+)
+
+cc_binary(
+    name = "mlir-pdll-lsp-server",
+    srcs = ["tools/mlir-pdll-lsp-server/mlir-pdll-lsp-server.cpp"],
+    includes = ["include"],
+    deps = [
+        ":MlirPdllLspServerLib",
+        ":Support",
     ],
 )
