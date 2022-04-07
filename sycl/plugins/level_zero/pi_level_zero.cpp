@@ -1598,13 +1598,18 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
 }
 
 pi_result _pi_queue::executeOpenCommandListWithEvent(pi_event Event) {
-  if (UseImmediateCommandLists)
-    // When using immediate commandlists there are no open commandlists.
-    return PI_SUCCESS;
-
   // TODO: see if we can reliably tell if the event is copy or compute.
   // Meanwhile check both open command-lists.
   using IsCopy = bool;
+
+  if (UseImmediateCommandLists) {
+    // When using immediate commandlists there should be no open commandlists.
+    PI_ASSERT(!(hasOpenCommandList(IsCopy{true}) ||
+                hasOpenCommandList(IsCopy{false})),
+              PI_INVALID_QUEUE);
+    return PI_SUCCESS;
+  }
+
   if (hasOpenCommandList(IsCopy{false}) &&
       ComputeCommandBatch.OpenCommandList->first == Event->ZeCommandList) {
     if (auto Res = executeOpenCommandList(IsCopy{false}))
@@ -5010,7 +5015,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   if (UseImmediateCommandLists && IndirectAccessTrackingEnabled) {
     // If using immediate commandlists then gathering of indirect
-    // references and appending to the queue (shich means submission)
+    // references and appending to the queue (which means submission)
     // must be done together.
     std::unique_lock<std::mutex> ContextsLock(
         Queue->Device->Platform->ContextsMutex, std::defer_lock);
@@ -5911,6 +5916,7 @@ bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
 // with the Queue. An alternative approach would be to wait on all Events
 // associated with the in-flight operations. For standard commandlists sync the
 // L0 queues directly.
+// The caller is expected to hold a lock on the Queue.
 pi_result _pi_queue::synchronize() {
   if (!Healthy)
     return PI_SUCCESS;
@@ -5920,13 +5926,14 @@ pi_result _pi_queue::synchronize() {
       return PI_SUCCESS;
 
     pi_event Event;
-    EventCreate(Queue->Context, Queue, true, &Event);
+    PI_CALL(EventCreate(Queue->Context, nullptr, true, &Event));
     auto zeEvent = Event->ZeEvent;
     ZE_CALL(zeCommandListAppendBarrier,
             (ImmCmdList->first, zeEvent, 0, nullptr));
     ZE_CALL(zeHostSynchronize, (zeEvent));
-    ZE_CALL(zeEventDestroy, (zeEvent));
-    delete Event;
+    Event->Completed = true;
+    Event->ZeCommandList = nullptr;
+    PI_CALL(Event->cleanup(Queue));
     return PI_SUCCESS;
   };
 

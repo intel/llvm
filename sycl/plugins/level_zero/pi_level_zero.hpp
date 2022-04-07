@@ -644,7 +644,7 @@ struct _pi_context : _pi_object {
   // already exist in Queue will be closed and executed.
   // When using immediate commandlists, retrieves an immediate command list
   // for executing on this device. Immediate commandlists are created only
-  // once per device and after that they are reused.
+  // once for each SYCL Queue and after that they are reused.
   pi_result getAvailableCommandList(pi_queue Queue,
                                     pi_command_list_ptr_t &CommandList,
                                     bool UseCopyEngine = false,
