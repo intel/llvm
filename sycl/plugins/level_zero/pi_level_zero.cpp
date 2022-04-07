@@ -909,8 +909,8 @@ typedef struct CommandListBatchConfig {
 
   // Thresholds for when increase batch size (number of closed early is small
   // and number of closed full is high).
-  pi_uint32 NumTimesClosedEarlyThreshold{2};
-  pi_uint32 NumTimesClosedFullThreshold{10};
+  pi_uint32 NumTimesClosedEarlyThreshold{3};
+  pi_uint32 NumTimesClosedFullThreshold{8};
 
   // Tells the starting size of a batch.
   pi_uint32 startSize() const { return Size > 0 ? Size : DynamicSizeStart; }
