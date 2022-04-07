@@ -579,8 +579,21 @@ pi_result piextEnqueueDeviceVariableWrite(pi_queue Queue, pi_program Program,
                                           pi_event *Event);
 ```
 
-In both cases the `name` parameter is the same as the `sycl-unique-id` string
-that is associated with the device global variable.
+The `piextEnqueueDeviceVariableRead` function reads `Count` bytes at byte-offset
+`Offset` from a device global variable in `Program` identified by the name
+`Name`. The read data is stored in `Dst`. Likewise, the
+`piextEnqueueDeviceVariableWrite` function reads `Count` bytes from `Dst` and
+stores them at byte-offset `Offset` in the device global variable in `Program`
+identified by the name `Name`.
+
+Both functions will enqueue the associated memory command on `Queue` where it
+will first wait for `NumEventsInWaitList` events in `EventsWaitList` to finish.
+`Event` will be populated with the event associated with resulting enqueued
+command. If either `BlockingRead` or `BlockingWrite` is `true` the call will
+block on the host until the enqueued command finishes execution.
+
+For `device_global` variables the `Name` parameter in calls to these functions
+is the same as the associated `sycl-unique-id` string.
 
 The Level Zero backend has existing APIs that can implement these PI
 interfaces.  The plugin first calls [`zeModuleGetGlobalPointer()`][8] to get a
