@@ -526,9 +526,6 @@ template <typename T>
 using common_rel_ret_t =
     conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
 #endif
-#if SYCL_LANGUAGE_VERSION < 202001
-#else
-#endif
 
 // forward declaration
 template <int N> struct Boolean;
