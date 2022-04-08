@@ -1581,7 +1581,7 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
   ImmCmdLists[Index] =
       Queue->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
-              ZeCommandList, {nullptr, false, nullptr, QueueOrdinal}})
+              ZeCommandList, {nullptr, true, nullptr, QueueOrdinal}})
           .first;
   // Add this commandlist to the cache so it can be destroyed as part of
   // QueueRelease
@@ -3297,7 +3297,7 @@ pi_result piQueueRelease(pi_queue Queue) {
         // For immediate commandlists we don't need to do an L0 reset of the
         // commandlist but do need to do event cleanup which is also in the
         // resetCommandList function.
-        if (UseImmediateCommandLists || it->second.InUse) {
+        if (it->second.InUse) {
           Queue->resetCommandList(it, true);
         }
         // TODO: remove "if" when the problem is fixed in the level zero
