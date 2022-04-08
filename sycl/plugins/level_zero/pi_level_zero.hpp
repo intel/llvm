@@ -590,6 +590,9 @@ struct _pi_context : _pi_object {
   // Finalize the PI context
   pi_result finalize();
 
+  // Return the Platform, which is the same for all devices in the context
+  pi_platform getPlatform() const { return Devices[0]->Platform; }
+
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
   ze_context_handle_t ZeContext;
@@ -928,9 +931,10 @@ struct _pi_mem : _pi_object {
   // piEnqueueMemBufferMap for details).
   char *MapHostPtr;
 
-  // Indicates if we own the native memory handle or it came from interop that
-  // asked to not transfer the ownership to SYCL RT.
-  bool OwnZeMemHandle;
+  // Keeps the native memory handle that came from interop that asked to
+  // not transfer the ownership to SYCL RT. The non-nullptr value
+  // here means we must NOT release this handle at destruction.
+  void *NotOwnZeMemHandle{nullptr};
 
   // Flag to indicate that this memory is allocated in host memory
   bool OnHost;
@@ -951,6 +955,7 @@ struct _pi_mem : _pi_object {
   // The value is the information needed to maintain/undo the mapping.
   std::unordered_map<void *, Mapping> Mappings;
 
+  // Enumerates all possible types of accesses.
   enum access_mode_t { unknown, read_write, read_only, write_only };
 
   // Interface of the _pi_mem object
@@ -969,9 +974,9 @@ struct _pi_mem : _pi_object {
   virtual ~_pi_mem() = default;
 
 protected:
-  _pi_mem(pi_context Ctx, char *HostPtr, bool OwnZeMemHandle,
+  _pi_mem(pi_context Ctx, char *HostPtr, void *NotOwnZeMemHandle,
           bool MemOnHost = false, bool ImportedHostPtr = false)
-      : Context{Ctx}, MapHostPtr{HostPtr}, OwnZeMemHandle{OwnZeMemHandle},
+      : Context{Ctx}, MapHostPtr{HostPtr}, NotOwnZeMemHandle{NotOwnZeMemHandle},
         OnHost{MemOnHost}, HostPtrImported{ImportedHostPtr}, Mappings{} {}
 };
 
@@ -981,8 +986,9 @@ using pi_buffer = _pi_buffer *;
 struct _pi_buffer final : _pi_mem {
   // Buffer constructor
   _pi_buffer(pi_context Context, size_t Size, char *HostPtr,
-             bool OwnZeMemHandle, bool ImportedHostPtr = false)
-      : _pi_mem(Context, HostPtr, OwnZeMemHandle, false, ImportedHostPtr),
+             bool ImportedHostPtr = false)
+      : _pi_mem(Context, HostPtr, nullptr /* NotOwnZeMemHandle */, false,
+                ImportedHostPtr),
         Size(Size), SubBuffer{nullptr, 0} {
 
     // We treat integrated devices (physical memory shared with the CPU)
@@ -1004,8 +1010,38 @@ struct _pi_buffer final : _pi_mem {
 
   // Sub-buffer constructor
   _pi_buffer(pi_buffer Parent, size_t Origin, size_t Size)
-      : _pi_mem(Parent->Context, nullptr, Parent->OnHost, false),
+      : _pi_mem(Parent->Context, nullptr, nullptr /* NotOwnZeMemHandle */,
+                Parent->OnHost, false),
         Size(Size), SubBuffer{Parent, Origin} {}
+
+  // Interop-buffer constructor
+  _pi_buffer(pi_context Context, size_t Size, pi_device Device,
+             bool AllocationOnHost, char *ZeMemHandle, bool OwnZeMemHandle)
+      : _pi_mem(Context, nullptr /* HostPtr */,
+                OwnZeMemHandle ? nullptr : ZeMemHandle, false /* OnHost */,
+                false /* ImportedHostPtr */),
+        Size(Size), SubBuffer{nullptr, 0} {
+
+    // Re-use the given device allocation.
+    // If it is not a device allocatiin then still mark it as valid, and
+    // expect caller to initialize it right after buffer construction.
+    auto D = Device ? Device : Context->Devices[0];
+    LastDeviceWithValidAllocation = D;
+    Allocations[D].Valid = true;
+    if (D == Device) {
+      Allocations[D].ZeHandle = ZeMemHandle;
+    }
+
+    // Check if this buffer can always stay on host
+    if (AllocationOnHost) {
+      if (Context->Devices.size() == 1 &&
+          Context->Devices[0]->ZeDeviceProperties->flags &
+              ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) {
+        OnHost = true;
+        MapHostPtr = ZeMemHandle;
+      }
+    }
+  }
 
   // Returns a pointer to the USM allocation representing this PI buffer
   // on the specified Device. If Device is nullptr then the returned
@@ -1048,22 +1084,20 @@ struct _pi_buffer final : _pi_mem {
   } SubBuffer;
 };
 
-// TODO: add proepr support for images on context with multiple devices.
+// TODO: add proper support for images on context with multiple devices.
 struct _pi_image final : _pi_mem {
   // Image constructor
-  _pi_image(pi_context Ctx, ze_image_handle_t Image, char *HostPtr,
-            bool OwnZeMemHandle)
-      : _pi_mem(Ctx, HostPtr, OwnZeMemHandle), ZeImage{Image} {}
+  _pi_image(pi_context Ctx, ze_image_handle_t Image, char *HostPtr)
+      : _pi_mem(Ctx, HostPtr, nullptr /* NotOwnZeMemHandle */), ZeImage{Image} {
+  }
 
   virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
-                                pi_device Device = nullptr) override {
-    (void *)Device;
+                                pi_device = nullptr) override {
     ZeHandle = pi_cast<char *>(ZeImage);
     return PI_SUCCESS;
   }
   virtual pi_result getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
-                                   pi_device Device = nullptr) override {
-    (void *)Device;
+                                   pi_device = nullptr) override {
     ZeHandlePtr = pi_cast<char **>(&ZeImage);
     return PI_SUCCESS;
   }

@@ -3017,7 +3017,7 @@ pi_result ContextReleaseHelper(pi_context Context) {
 
   if (--(Context->RefCount) == 0) {
     if (IndirectAccessTrackingEnabled) {
-      pi_platform Plt = Context->Devices[0]->Platform;
+      pi_platform Plt = Context->getPlatform();
       auto &Contexts = Plt->Contexts;
       auto It = std::find(Contexts.begin(), Contexts.end(), Context);
       if (It != Contexts.end())
@@ -3047,7 +3047,7 @@ pi_result ContextReleaseHelper(pi_context Context) {
 }
 
 pi_result piContextRelease(pi_context Context) {
-  pi_platform Plt = Context->Devices[0]->Platform;
+  pi_platform Plt = Context->getPlatform();
   std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
                                             std::defer_lock);
   if (IndirectAccessTrackingEnabled)
@@ -3364,7 +3364,7 @@ static pi_result ZeDeviceMemAllocHelper(void **ResultPtr, pi_context Context,
 // otherwise just calls zeMemAllocHost.
 static pi_result ZeHostMemAllocHelper(void **ResultPtr, pi_context Context,
                                       size_t Size) {
-  pi_platform Plt = Context->Devices[0]->Platform;
+  pi_platform Plt = Context->getPlatform();
   std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
                                             std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
@@ -3439,7 +3439,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     // If not shared of any type, we can import the ptr
     if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
       // Promote the host ptr to USM host memory
-      ze_driver_handle_t driverHandle = Context->Devices[0]->Platform->ZeDriver;
+      ze_driver_handle_t driverHandle = Context->getPlatform()->ZeDriver;
       ZeUSMImport.doZeUSMImport(driverHandle, HostPtr, Size);
       HostPtrImported = true;
     }
@@ -3449,8 +3449,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   auto HostPtrOrNull =
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
   try {
-    Buffer = new _pi_buffer(Context, Size, HostPtrOrNull,
-                            true /* OwnZeMemHandle */, HostPtrImported);
+    Buffer = new _pi_buffer(Context, Size, HostPtrOrNull, HostPtrImported);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3499,12 +3498,8 @@ pi_result piMemGetInfo(pi_mem Mem, pi_mem_info ParamName, size_t ParamValueSize,
     return ReturnValue(Mem->Context);
   case PI_MEM_SIZE: {
     // Get size of the allocation
-    size_t Size;
-    ZE_CALL(zeMemGetAddressRange,
-            (Mem->Context->ZeContext, pi_cast<void *>(Mem->getZeHandle()),
-             nullptr, &Size));
-
-    return ReturnValue(Size);
+    auto Buffer = pi_cast<pi_buffer>(Mem);
+    return ReturnValue(size_t{Buffer->Size});
   }
   default:
     die("piMemGetInfo: Parameter is not implemented");
@@ -3526,7 +3521,7 @@ pi_result piMemRetain(pi_mem Mem) {
 // performed.
 static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr,
                                  bool OwnZeMemHandle = true) {
-  pi_platform Plt = Context->Devices[0]->Platform;
+  pi_platform Plt = Context->getPlatform();
   std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
                                             std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
@@ -3555,7 +3550,7 @@ static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr,
 }
 
 static pi_result USMFreeHelper(pi_context Context, void *Ptr,
-                               bool OwnZeMemHandle = true);
+                               bool OwnZeMemHandle);
 
 pi_result piMemRelease(pi_mem Mem) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
@@ -3729,7 +3724,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
 
   try {
-    auto ZePIImage = new _pi_image(Context, ZeHImage, HostPtrOrNull, true);
+    auto ZePIImage = new _pi_image(Context, ZeHImage, HostPtrOrNull);
 
 #ifndef NDEBUG
     ZePIImage->ZeImageDesc = ZeImageDesc;
@@ -3767,25 +3762,24 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Mem, PI_INVALID_VALUE);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
-  PI_ASSERT(Context->Devices.size() == 1, PI_INVALID_CONTEXT);
 
   // Get base of the allocation
   void *Base;
   size_t Size;
   void *Ptr = pi_cast<void *>(NativeHandle);
   ZE_CALL(zeMemGetAddressRange, (Context->ZeContext, Ptr, &Base, &Size));
-
   PI_ASSERT(Ptr == Base, PI_INVALID_VALUE);
 
-  // Check type of the allocation
   ZeStruct<ze_memory_allocation_properties_t> ZeMemProps;
-  ze_device_handle_t ZeDevice;
+  ze_device_handle_t ZeDevice = nullptr;
   ZE_CALL(zeMemGetAllocProperties,
           (Context->ZeContext, Ptr, &ZeMemProps, &ZeDevice));
-  bool OnHost = false;
+
+  // Check type of the allocation
+  bool HostAllocation = false;
   switch (ZeMemProps.type) {
   case ZE_MEMORY_TYPE_HOST:
-    OnHost = true;
+    HostAllocation = true;
     break;
   case ZE_MEMORY_TYPE_SHARED:
   case ZE_MEMORY_TYPE_DEVICE:
@@ -3797,12 +3791,21 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
     die("Unexpected memory type");
   }
 
-  try {
-    *Mem = new _pi_buffer(Context, pi_cast<char *>(NativeHandle),
-                          nullptr /* HostPtr */, ownNativeHandle, nullptr, 0, 0,
-                          OnHost);
+  pi_device Device = nullptr;
+  if (ZeDevice) {
+    Device = Context->getPlatform()->getDeviceFromNativeHandle(ZeDevice);
+    // Check that the device is present in this context.
+    if (std::find(Context->Devices.begin(), Context->Devices.end(), Device) ==
+        Context->Devices.end()) {
+      return PI_INVALID_CONTEXT;
+    }
+  }
 
-    pi_platform Plt = Context->Devices[0]->Platform;
+  try {
+    *Mem = new _pi_buffer(Context, Size, Device, HostAllocation,
+                          pi_cast<char *>(NativeHandle), ownNativeHandle);
+
+    pi_platform Plt = Context->getPlatform();
     std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
                                               std::defer_lock);
     if (IndirectAccessTrackingEnabled) {
@@ -3821,6 +3824,26 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+
+  // Initialize the buffer as necessary
+  auto Buffer = pi_cast<pi_buffer>(*Mem);
+  if (Device) {
+    // If this allocation is on a device, then we re-use it for the buffer.
+    // Nothing to do.
+  } else if (HostAllocation && Buffer->OnHost) {
+    // If this is host allocation and buffer always stays on host there
+    // nothing more to do.
+  } else {
+    // In all other cases (shared allocation, or host allocation that cannot
+    // represent the buffer in this context) copy the data to a newly
+    // created device allocation.
+    char *ZeHandleDst;
+    PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only));
+    ZE_CALL(zeCommandListAppendMemoryCopy,
+            (Context->ZeCommandListInit, ZeHandleDst, Ptr, Size, nullptr, 0,
+             nullptr));
+  }
+
   return PI_SUCCESS;
 }
 
@@ -4730,7 +4753,7 @@ pi_result piKernelRelease(pi_kernel Kernel) {
     // then release referenced memory allocations. As a result, memory can be
     // deallocated and context can be removed from container in the platform.
     // That's why we need to lock a mutex here.
-    pi_platform Plt = Kernel->Program->Context->Devices[0]->Platform;
+    pi_platform Plt = Kernel->Program->Context->getPlatform();
     std::lock_guard<std::mutex> ContextsLock(Plt->ContextsMutex);
 
     if (--Kernel->SubmissionsCount == 0) {
@@ -5518,8 +5541,7 @@ pi_result piSamplerCreate(pi_context Context,
         // border", i.e. logic is flipped. Starting from API version 1.3 this
         // problem is going to be fixed. That's why check for API version to set
         // an address mode.
-        ze_api_version_t ZeApiVersion =
-            Context->Devices[0]->Platform->ZeApiVersion;
+        ze_api_version_t ZeApiVersion = Context->getPlatform()->ZeApiVersion;
         // TODO: add support for PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE
         switch (CurValueAddressingMode) {
         case PI_SAMPLER_ADDRESSING_MODE_NONE:
@@ -6746,7 +6768,7 @@ pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
                                void *BufferCreateInfo, pi_mem *RetMem) {
 
   PI_ASSERT(Buffer && !Buffer->isImage() &&
-                !(static_cast<_pi_buffer *>(Buffer))->isSubBuffer(),
+                !(static_cast<pi_buffer>(Buffer))->isSubBuffer(),
             PI_INVALID_MEM_OBJECT);
 
   PI_ASSERT(BufferCreateType == PI_BUFFER_CREATE_TYPE_REGION &&
@@ -7211,7 +7233,7 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
   if (Alignment > 65536)
     return PI_INVALID_VALUE;
 
-  pi_platform Plt = Context->Devices[0]->Platform;
+  pi_platform Plt = Context->getPlatform();
   std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
                                             std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
@@ -7332,7 +7354,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
       PI_ASSERT(Device->ZeDevice == ZeDeviceHandle, PI_INVALID_DEVICE);
     } else {
       // All devices in the context are of the same platform.
-      auto Platform = Context->Devices[0]->Platform;
+      auto Platform = Context->getPlatform();
       Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
       PI_ASSERT(Device, PI_INVALID_DEVICE);
     }
@@ -7382,12 +7404,12 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
 }
 
 pi_result piextUSMFree(pi_context Context, void *Ptr) {
-  pi_platform Plt = Context->Devices[0]->Platform;
+  pi_platform Plt = Context->getPlatform();
   std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
                                             std::defer_lock);
   if (IndirectAccessTrackingEnabled)
     ContextsLock.lock();
-  return USMFreeHelper(Context, Ptr);
+  return USMFreeHelper(Context, Ptr, true /* OwnZeMemHandle */);
 }
 
 pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
@@ -7651,8 +7673,7 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   }
   case PI_MEM_ALLOC_DEVICE:
     if (ZeDeviceHandle) {
-      // All devices in the context are of the same platform.
-      auto Platform = Context->Devices[0]->Platform;
+      auto Platform = Context->getPlatform();
       auto Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
       return Device ? ReturnValue(Device) : PI_INVALID_VALUE;
     } else {
@@ -7961,13 +7982,19 @@ pi_result _pi_buffer::free() {
     return PI_SUCCESS;
   }
   if (HostPtrImported) {
-    ze_driver_handle_t DriverHandle = Context->Devices[0]->Platform->ZeDriver;
+    ze_driver_handle_t DriverHandle = Context->getPlatform()->ZeDriver;
     ZeUSMImport.doZeUSMRelease(DriverHandle, MapHostPtr);
     if (OnHost) {
       // We were using imported host pointer, so nothing to free.
       return PI_SUCCESS;
     }
   }
+
+  pi_platform Plt = Context->getPlatform();
+  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
+                                            std::defer_lock);
+  if (IndirectAccessTrackingEnabled)
+    ContextsLock.lock();
 
   for (auto &Alloc : Allocations) {
     auto Device = Alloc.first;
@@ -7976,8 +8003,10 @@ pi_result _pi_buffer::free() {
     }
     // It is possible that the real allocation wasn't made if the buffer
     // wasn't really used on this device.
-    if (Alloc.second.ZeHandle)
-      PI_CALL(piextUSMFree(Context, Alloc.second.ZeHandle));
+    if (Alloc.second.ZeHandle) {
+      PI_CALL(USMFreeHelper(Context, Alloc.second.ZeHandle,
+                            Alloc.second.ZeHandle != NotOwnZeMemHandle));
+    }
   }
   return PI_SUCCESS;
 }
