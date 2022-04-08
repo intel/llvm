@@ -14,6 +14,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
@@ -156,12 +157,11 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
   // Check pointer annotations.
   SmallVector<IntrinsicInst *, 4> RemovableAnnots;
   for (Function &F : M)
-    for (BasicBlock &BB : F)
-      for (Instruction &Inst : BB)
-        if (auto *IntrInst = dyn_cast<IntrinsicInst>(&Inst))
-          if (IntrInst->getIntrinsicID() == Intrinsic::ptr_annotation &&
-              transformSYCLPropertiesAnnotation(M, IntrInst, RemovableAnnots))
-            CompileTimePropertiesMet = true;
+    for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I)
+      if (auto *IntrInst = dyn_cast<IntrinsicInst>(&*I))
+        if (IntrInst->getIntrinsicID() == Intrinsic::ptr_annotation &&
+            transformSYCLPropertiesAnnotation(M, IntrInst, RemovableAnnots))
+          CompileTimePropertiesMet = true;
 
   // Remove irrelevant "sycl-properties" annotations after the transformations.
   for (IntrinsicInst *IntrInst : RemovableAnnots) {
