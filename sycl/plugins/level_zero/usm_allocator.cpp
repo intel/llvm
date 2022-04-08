@@ -733,8 +733,7 @@ void Bucket::freeSlab(Slab &Slab, bool &ToPool) {
   }
 }
 
-auto Bucket::getAvailSlab(bool &FromPool)
-    -> decltype(AvailableSlabs.begin()) {
+auto Bucket::getAvailSlab(bool &FromPool) -> decltype(AvailableSlabs.begin()) {
 
   if (AvailableSlabs.size() == 0) {
     auto It = AvailableSlabs.insert(AvailableSlabs.begin(),
