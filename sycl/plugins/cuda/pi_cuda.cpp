@@ -576,7 +576,7 @@ pi_result _pi_program::build_program(const char *build_options) {
 ///       query to PI and use cuModuleGetFunction to check for a kernel.
 /// Note: Another alternative is to add kernel names as metadata, like with
 ///       reqd_work_group_size.
-std::string getKernelNames(pi_program program) {
+std::string getKernelNames(pi_program) {
   cl::sycl::detail::pi::die("getKernelNames not implemented");
   return {};
 }
@@ -1490,6 +1490,10 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
   }
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
+  }
   case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
@@ -1728,6 +1732,15 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     }
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
+  case PI_DEVICE_INFO_BACKEND_VERSION: {
+    int major =
+        getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
+    int minor =
+        getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
+    std::string result = std::to_string(major) + "." + std::to_string(minor);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   result.c_str());
+  }
 
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
@@ -1740,7 +1753,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // TODO: Check if Intel device UUID extension is utilized for CUDA.
     // For details about this extension, see
-    // sycl/doc/extensions/supported/SYCL_EXT_INTEL_DEVICE_INFO.md
+    // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
     return PI_INVALID_VALUE;
 
@@ -2151,7 +2164,7 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   return PI_SUCCESS;
 }
 
-pi_result cuda_piMemGetInfo(pi_mem, cl_mem_info, size_t, void *, size_t *) {
+pi_result cuda_piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
   cl::sycl::detail::pi::die("cuda_piMemGetInfo not implemented");
 }
 
@@ -2172,10 +2185,16 @@ pi_result cuda_piextMemGetNativeHandle(pi_mem mem,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI mem object from.
+/// \param[in] context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
+/// it came from interop that asked to not transfer the ownership to SYCL RT.
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle, pi_mem *) {
+pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                              pi_context context,
+                                              bool ownNativeHandle,
+                                              pi_mem *mem) {
   cl::sycl::detail::pi::die(
       "Creation of PI mem from native handle not implemented");
   return {};
@@ -4778,9 +4797,32 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
       event_ptr->start();
     }
 
-    result = PI_CHECK_ERROR(
-        cuMemAdvise((CUdeviceptr)ptr, length, (CUmem_advise)advice,
-                    queue->get_context()->get_device()->get()));
+    switch (advice) {
+    case PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY:
+    case PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY:
+    case PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION:
+    case PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION:
+    case PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY:
+    case PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY:
+      result = PI_CHECK_ERROR(cuMemAdvise(
+          (CUdeviceptr)ptr, length,
+          (CUmem_advise)(advice - PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY + 1),
+          queue->get_context()->get_device()->get()));
+      break;
+    case PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST:
+    case PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST:
+    case PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST:
+    case PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST:
+      result = PI_CHECK_ERROR(cuMemAdvise(
+          (CUdeviceptr)ptr, length,
+          (CUmem_advise)(advice - PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY + 1 -
+                         (PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST -
+                          PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION)),
+          CU_DEVICE_CPU));
+      break;
+    default:
+      cl::sycl::detail::pi::die("Unknown advice");
+    }
     if (event) {
       result = event_ptr->record();
       *event = event_ptr.release();
@@ -4810,7 +4852,7 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 /// \param param_value is the result
 /// \param param_value_size_ret is how many bytes were written
 pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
-                                       pi_mem_info param_name,
+                                       pi_mem_alloc_info param_name,
                                        size_t param_value_size,
                                        void *param_value,
                                        size_t *param_value_size_ret) {

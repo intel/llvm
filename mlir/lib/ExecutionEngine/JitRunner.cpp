@@ -21,7 +21,7 @@
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/Parser.h"
+#include "mlir/Parser/Parser.h"
 #include "mlir/Support/FileUtilities.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -110,8 +110,8 @@ struct CompileAndExecuteConfig {
 
 } // namespace
 
-static OwningModuleRef parseMLIRInput(StringRef inputFilename,
-                                      MLIRContext *context) {
+static OwningOpRef<ModuleOp> parseMLIRInput(StringRef inputFilename,
+                                            MLIRContext *context) {
   // Set up the input file.
   std::string errorMessage;
   auto file = openInputFile(inputFilename, &errorMessage);
@@ -122,7 +122,7 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
 
   llvm::SourceMgr sourceMgr;
   sourceMgr.AddNewSourceBuffer(std::move(file), SMLoc());
-  return OwningModuleRef(parseSourceFile(sourceMgr, context));
+  return parseSourceFile<ModuleOp>(sourceMgr, context);
 }
 
 static inline Error makeStringError(const Twine &message) {
@@ -207,9 +207,13 @@ static Error compileAndExecute(Options &options, ModuleOp module,
     return symbolMap;
   };
 
-  auto expectedEngine = mlir::ExecutionEngine::create(
-      module, config.llvmModuleBuilder, config.transformer, jitCodeGenOptLevel,
-      executionEngineLibs);
+  mlir::ExecutionEngineOptions engineOptions;
+  engineOptions.llvmModuleBuilder = config.llvmModuleBuilder;
+  engineOptions.transformer = config.transformer;
+  engineOptions.jitCodeGenOptLevel = jitCodeGenOptLevel;
+  engineOptions.sharedLibPaths = executionEngineLibs;
+  engineOptions.enableObjectCache = true;
+  auto expectedEngine = mlir::ExecutionEngine::create(module, engineOptions);
   if (!expectedEngine)
     return expectedEngine.takeError();
 
@@ -248,7 +252,7 @@ template <typename Type>
 Error checkCompatibleReturnType(LLVM::LLVMFuncOp mainFunction);
 template <>
 Error checkCompatibleReturnType<int32_t>(LLVM::LLVMFuncOp mainFunction) {
-  auto resultType = mainFunction.getType()
+  auto resultType = mainFunction.getFunctionType()
                         .cast<LLVM::LLVMFunctionType>()
                         .getReturnType()
                         .dyn_cast<IntegerType>();
@@ -258,7 +262,7 @@ Error checkCompatibleReturnType<int32_t>(LLVM::LLVMFuncOp mainFunction) {
 }
 template <>
 Error checkCompatibleReturnType<int64_t>(LLVM::LLVMFuncOp mainFunction) {
-  auto resultType = mainFunction.getType()
+  auto resultType = mainFunction.getFunctionType()
                         .cast<LLVM::LLVMFunctionType>()
                         .getReturnType()
                         .dyn_cast<IntegerType>();
@@ -268,7 +272,7 @@ Error checkCompatibleReturnType<int64_t>(LLVM::LLVMFuncOp mainFunction) {
 }
 template <>
 Error checkCompatibleReturnType<float>(LLVM::LLVMFuncOp mainFunction) {
-  if (!mainFunction.getType()
+  if (!mainFunction.getFunctionType()
            .cast<LLVM::LLVMFunctionType>()
            .getReturnType()
            .isa<Float32Type>())
@@ -283,7 +287,9 @@ Error compileAndExecuteSingleReturnFunction(Options &options, ModuleOp module,
   if (!mainFunction || mainFunction.isExternal())
     return makeStringError("entry point not found");
 
-  if (mainFunction.getType().cast<LLVM::LLVMFunctionType>().getNumParams() != 0)
+  if (mainFunction.getFunctionType()
+          .cast<LLVM::LLVMFunctionType>()
+          .getNumParams() != 0)
     return makeStringError("function inputs not supported");
 
   if (Error error = checkCompatibleReturnType<Type>(mainFunction))

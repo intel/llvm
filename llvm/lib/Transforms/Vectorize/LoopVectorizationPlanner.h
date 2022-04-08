@@ -25,6 +25,7 @@
 #define LLVM_TRANSFORMS_VECTORIZE_LOOPVECTORIZATIONPLANNER_H
 
 #include "VPlan.h"
+#include "llvm/Support/InstructionCost.h"
 
 namespace llvm {
 
@@ -59,7 +60,7 @@ class VPBuilder {
   }
 
 public:
-  VPBuilder() {}
+  VPBuilder() = default;
 
   /// Clear the insertion point: created instructions will not be inserted into
   /// a block.

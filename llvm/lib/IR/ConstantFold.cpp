@@ -30,8 +30,6 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/ManagedStatic.h"
-#include "llvm/Support/MathExtras.h"
 using namespace llvm;
 using namespace llvm::PatternMatch;
 
@@ -726,7 +724,7 @@ Constant *llvm::ConstantFoldShuffleVectorInstruction(Constant *V1, Constant *V2,
 
   // Undefined shuffle mask -> undefined value.
   if (all_of(Mask, [](int Elt) { return Elt == UndefMaskElem; })) {
-    return UndefValue::get(FixedVectorType::get(EltTy, MaskNumElts));
+    return UndefValue::get(VectorType::get(EltTy, MaskEltCount));
   }
 
   // If the mask is all zeros this is a splat, no need to go through all

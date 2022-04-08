@@ -401,13 +401,6 @@ private:
   llvm::MapVector<GlobalDecl, StringRef> MangledDeclNames;
   llvm::StringMap<GlobalDecl, llvm::BumpPtrAllocator> Manglings;
 
-  // An ordered map of canonical GlobalDecls paired with the cpu-index for
-  // cpu-specific name manglings.
-  llvm::MapVector<std::pair<GlobalDecl, unsigned>, StringRef>
-      CPUSpecificMangledDeclNames;
-  llvm::StringMap<std::pair<GlobalDecl, unsigned>, llvm::BumpPtrAllocator>
-      CPUSpecificManglings;
-
   /// Global annotations.
   std::vector<llvm::Constant*> Annotations;
 
@@ -416,6 +409,10 @@ private:
 
   /// Used for uniquing of annotation arguments.
   llvm::DenseMap<unsigned, llvm::Constant *> AnnotationArgs;
+
+  /// Used for uniquing of SYCL annotation arguments. SYCL annotations are
+  /// handled differently than regular annotations so they cannot share map.
+  llvm::DenseMap<unsigned, llvm::Constant *> SYCLAnnotationArgs;
 
   llvm::StringMap<llvm::GlobalVariable *> CFConstantStringMap;
 
@@ -849,7 +846,9 @@ public:
 
   llvm::Function *CreateGlobalInitOrCleanUpFunction(
       llvm::FunctionType *ty, const Twine &name, const CGFunctionInfo &FI,
-      SourceLocation Loc = SourceLocation(), bool TLS = false);
+      SourceLocation Loc = SourceLocation(), bool TLS = false,
+      llvm::GlobalVariable::LinkageTypes Linkage =
+          llvm::GlobalVariable::InternalLinkage);
 
   /// Return the AST address space of the underlying global variable for D, as
   /// determined by its declaration. Normally this is the same as the address
@@ -1314,6 +1313,14 @@ public:
   /// Add global annotations that are set on D, for the global GV. Those
   /// annotations are emitted during finalization of the LLVM code.
   void AddGlobalAnnotations(const ValueDecl *D, llvm::GlobalValue *GV);
+
+  /// Emit additional args of the annotation.
+  llvm::Constant *
+  EmitSYCLAnnotationArgs(const SYCLAddIRAnnotationsMemberAttr *Attr);
+
+  /// Add attributes from add_ir_attributes_global_variable on TND to GV.
+  void AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
+                                 const RecordDecl *RD);
 
   bool isInNoSanitizeList(SanitizerMask Kind, llvm::Function *Fn,
                           SourceLocation Loc) const;

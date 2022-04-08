@@ -11,7 +11,7 @@ endif()
 set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
 if(NOT DEFINED LLVM_VERSION_MAJOR)
-  set(LLVM_VERSION_MAJOR 14)
+  set(LLVM_VERSION_MAJOR 15)
 endif()
 if(NOT DEFINED LLVM_VERSION_MINOR)
   set(LLVM_VERSION_MINOR 0)
@@ -26,6 +26,11 @@ endif()
 if (NOT PACKAGE_VERSION)
   set(PACKAGE_VERSION
     "${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}${LLVM_VERSION_SUFFIX}")
+endif()
+
+if(NOT DEFINED LLVM_SHLIB_SYMBOL_VERSION)
+  # "Symbol version prefix for libLLVM.so"
+  set(LLVM_SHLIB_SYMBOL_VERSION "LLVM_${LLVM_VERSION_MAJOR}")
 endif()
 
 if ((CMAKE_GENERATOR MATCHES "Visual Studio") AND (MSVC_TOOLSET_VERSION LESS 142) AND (CMAKE_GENERATOR_TOOLSET STREQUAL ""))
@@ -462,6 +467,7 @@ option(LLVM_ENABLE_PEDANTIC "Compile with pedantic enabled." ON)
 option(LLVM_ENABLE_WERROR "Fail and stop if a warning is triggered." OFF)
 
 option(LLVM_ENABLE_DUMP "Enable dump functions even when assertions are disabled" OFF)
+option(LLVM_UNREACHABLE_OPTIMIZE "Optimize llvm_unreachable() as undefined behavior (default), guaranteed trap when OFF" ON)
 
 if( NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
   option(LLVM_ENABLE_ASSERTIONS "Enable assertions" OFF)
@@ -729,10 +735,23 @@ set(LLVM_PROFDATA_FILE "" CACHE FILEPATH
 include(config-ix)
 
 # By default, we target the host, but this can be overridden at CMake
-# invocation time.
-set(LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_HOST_TRIPLE}" CACHE STRING
+# invocation time. Except on 64-bit AIX, where the system toolchain
+# expect 32-bit objects by default.
+if("${LLVM_HOST_TRIPLE}" MATCHES "^powerpc64-ibm-aix")
+  string(REGEX REPLACE "^powerpc64" "powerpc" LLVM_DEFAULT_TARGET_TRIPLE_default "${LLVM_HOST_TRIPLE}")
+else()
+  set(LLVM_DEFAULT_TARGET_TRIPLE_default "${LLVM_HOST_TRIPLE}")
+endif()
+
+set(LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE_default}" CACHE STRING
   "Default target for which LLVM will generate code." )
-set(TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
+if (TARGET_TRIPLE)
+  message(WARNING "TARGET_TRIPLE is deprecated and will be removed in a future release. "
+                  "Please use LLVM_DEFAULT_TARGET_TRIPLE instead.")
+  set(LLVM_TARGET_TRIPLE "${TARGET_TRIPLE}")
+else()
+  set(LLVM_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
+endif()
 message(STATUS "LLVM host triple: ${LLVM_HOST_TRIPLE}")
 message(STATUS "LLVM default target triple: ${LLVM_DEFAULT_TARGET_TRIPLE}")
 
@@ -1128,9 +1147,6 @@ if( LLVM_INCLUDE_TESTS )
     DEPENDS ${LLVM_LIT_DEPENDS} ${LLVM_ADDITIONAL_TEST_TARGETS}
     ARGS ${LLVM_LIT_EXTRA_ARGS}
     )
-  if(TARGET check-runtimes)
-    add_dependencies(check-all check-runtimes)
-  endif()
   add_custom_target(test-depends
                     DEPENDS ${LLVM_LIT_DEPENDS} ${LLVM_ADDITIONAL_TEST_DEPENDS})
   set_target_properties(test-depends PROPERTIES FOLDER "Tests")

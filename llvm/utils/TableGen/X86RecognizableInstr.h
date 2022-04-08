@@ -16,12 +16,15 @@
 #ifndef LLVM_UTILS_TABLEGEN_X86RECOGNIZABLEINSTR_H
 #define LLVM_UTILS_TABLEGEN_X86RECOGNIZABLEINSTR_H
 
-#include "CodeGenTarget.h"
-#include "X86DisassemblerTables.h"
+#include "CodeGenInstruction.h"
 #include "llvm/Support/DataTypes.h"
-#include "llvm/TableGen/Record.h"
+#include "llvm/Support/X86DisassemblerDecoderCommon.h"
+
+struct InstructionSpecifier;
 
 namespace llvm {
+
+class Record;
 
 #define X86_INSTR_MRM_MAPPING     \
   MAP(C0, 64)                     \
@@ -153,14 +156,10 @@ namespace X86Local {
 
 namespace X86Disassembler {
 
-/// RecognizableInstr - Encapsulates all information required to decode a single
-///   instruction, as extracted from the LLVM instruction tables.  Has methods
-///   to interpret the information available in the LLVM tables, and to emit the
-///   instruction into DisassemblerTables.
-class RecognizableInstr {
-private:
-  /// The opcode of the instruction, as used in an MCInst
-  InstrUID UID;
+class DisassemblerTables;
+
+/// Extract common fields of a single X86 instruction from a CodeGenInstruction
+struct RecognizableInstrBase {
   /// The record from the .td files corresponding to this instruction
   const Record* Rec;
   /// The OpPrefix field from the record
@@ -223,10 +222,23 @@ private:
   /// memory operands expand to 5 operands in the MCInst
   const std::vector<CGIOperandList::OperandInfo>* Operands;
 
+  /// \param insn The CodeGenInstruction to extract information from.
+  RecognizableInstrBase(const CodeGenInstruction &insn);
+};
+
+/// RecognizableInstr - Encapsulates all information required to decode a single
+///   instruction, as extracted from the LLVM instruction tables.  Has methods
+///   to interpret the information available in the LLVM tables, and to emit the
+///   instruction into DisassemblerTables.
+class RecognizableInstr : public RecognizableInstrBase {
+public:
+  /// The opcode of the instruction, as used in an MCInst
+  InstrUID UID;
   /// The description of the instruction that is emitted into the instruction
   /// info table
   InstructionSpecifier* Spec;
 
+private:
   /// insnContext - Returns the primary context in which the instruction is
   ///   valid.
   ///
@@ -334,6 +346,7 @@ private:
   ///               decode information for the current instruction.
   void emitDecodePath(DisassemblerTables &tables) const;
 
+public:
   /// Constructor - Initializes a RecognizableInstr with the appropriate fields
   ///   from a CodeGenInstruction.
   ///
@@ -343,7 +356,6 @@ private:
   RecognizableInstr(DisassemblerTables &tables,
                     const CodeGenInstruction &insn,
                     InstrUID uid);
-public:
   /// processInstr - Accepts a CodeGenInstruction and loads decode information
   ///   for it into a DisassemblerTables if appropriate.
   ///
@@ -357,6 +369,7 @@ public:
                            InstrUID uid);
 };
 
+std::string getMnemonic(const CodeGenInstruction *I, unsigned Variant);
 } // namespace X86Disassembler
 
 } // namespace llvm

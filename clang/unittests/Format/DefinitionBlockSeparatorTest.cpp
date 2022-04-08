@@ -56,17 +56,15 @@ protected:
       InverseStyle.SeparateDefinitionBlocks = FormatStyle::SDS_Never;
     else
       InverseStyle.SeparateDefinitionBlocks = FormatStyle::SDS_Always;
-    EXPECT_EQ(ExpectedCode.str(), separateDefinitionBlocks(ExpectedCode, Style))
+    EXPECT_EQ(ExpectedCode, separateDefinitionBlocks(ExpectedCode, Style))
         << "Expected code is not stable";
-    std::string InverseResult =
-        separateDefinitionBlocks(ExpectedCode, InverseStyle);
-    EXPECT_NE(ExpectedCode.str(), InverseResult)
+    EXPECT_NE(ExpectedCode,
+              separateDefinitionBlocks(ExpectedCode, InverseStyle))
         << "Inverse formatting makes no difference";
     std::string CodeToFormat =
         HasOriginalCode ? Code.str() : removeEmptyLines(Code);
     std::string Result = separateDefinitionBlocks(CodeToFormat, Style);
-    EXPECT_EQ(ExpectedCode.str(), Result) << "Test failed. Formatted:\n"
-                                          << Result;
+    EXPECT_EQ(ExpectedCode, Result) << "Test failed. Formatted:\n" << Result;
   }
 
   static std::string removeEmptyLines(llvm::StringRef Code) {
@@ -105,6 +103,15 @@ TEST_F(DefinitionBlockSeparatorTest, Basic) {
                "};\n"
                "\n"
                "struct bar {\n"
+               "  int j, k;\n"
+               "};",
+               Style);
+
+  verifyFormat("union foo {\n"
+               "  int i, j;\n"
+               "};\n"
+               "\n"
+               "union bar {\n"
                "  int j, k;\n"
                "};",
                Style);
@@ -311,6 +318,9 @@ TEST_F(DefinitionBlockSeparatorTest, Always) {
                       "int bar3(int j, int k, const enum Bar b) {\n"
                       "  // A comment\n"
                       "  int r = j % k;\n"
+                      "  if (struct S = getS()) {\n"
+                      "    // if condition\n"
+                      "  }\n"
                       "  return r;\n"
                       "}\n";
   std::string Postfix = "\n"
@@ -364,6 +374,9 @@ TEST_F(DefinitionBlockSeparatorTest, Never) {
                         "int bar3(int j, int k, const enum Bar b) {\n"
                         "  // A comment\n"
                         "  int r = j % k;\n"
+                        "  if (struct S = getS()) {\n"
+                        "    // if condition\n"
+                        "  }\n"
                         "  return r;\n"
                         "}\n"
                         "} // namespace";
@@ -425,6 +438,10 @@ TEST_F(DefinitionBlockSeparatorTest, OpeningBracketOwnsLine) {
                "{\n"
                "  // A comment\n"
                "  int r = j % k;\n"
+               "  if (struct S = getS())\n"
+               "  {\n"
+               "    // if condition\n"
+               "  }\n"
                "  return r;\n"
                "}\n"
                "} // namespace NS",
@@ -473,6 +490,9 @@ TEST_F(DefinitionBlockSeparatorTest, Leave) {
                         "int bar3(int j, int k, const enum Bar b) {\n"
                         "  // A comment\n"
                         "  int r = j % k;\n"
+                        "  if (struct S = getS()) {\n"
+                        "    // if condition\n"
+                        "  }\n"
                         "  return r;\n"
                         "}\n"
                         "} // namespace";

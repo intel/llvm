@@ -15,7 +15,7 @@
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/TypeUtilities.h"
-#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallBitVector.h"
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -408,6 +408,44 @@ LogicalResult mlir::linalg::detail::verifyConvolutionInterface(Operation *op) {
   }
   return success();
 }
+
+//===----------------------------------------------------------------------===//
+// FillOpInterface implementation
+//===----------------------------------------------------------------------===//
+
+enum class MatchFillResult {
+  Success = 0,
+  NotLinalgOp,
+  WrongNumOperands,
+  NotScalarInput
+};
+
+static MatchFillResult isFillInterfaceImpl(Operation *op) {
+  auto linalgOp = dyn_cast<linalg::LinalgOp>(op);
+  if (!linalgOp)
+    return MatchFillResult::NotLinalgOp;
+  if (linalgOp.getNumInputs() != 1 || linalgOp.getNumOutputs() != 1)
+    return MatchFillResult::WrongNumOperands;
+
+  OpOperand *value = linalgOp.getInputOperand(0);
+  if (!linalgOp.isScalar(value))
+    return MatchFillResult::NotScalarInput;
+
+  return MatchFillResult::Success;
+}
+
+LogicalResult mlir::linalg::detail::verifyFillInterface(Operation *op) {
+  auto res = isFillInterfaceImpl(op);
+  if (res == MatchFillResult::NotLinalgOp)
+    return op->emitError("expected a LinalgOp");
+  if (res == MatchFillResult::WrongNumOperands)
+    return op->emitError("expected op with 1 input and 1 output");
+  if (res == MatchFillResult::NotScalarInput)
+    return op->emitError("expected op with scalar input");
+
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // StructuredOpInterface implementation
 //===----------------------------------------------------------------------===//
@@ -484,15 +522,15 @@ SmallVector<int64_t, 4> LinalgOp::computeStaticLoopSizes() {
 /// are used within an AffineExpr.
 struct HasAffineDimExprVisitor
     : public AffineExprVisitor<HasAffineDimExprVisitor, bool> {
-  HasAffineDimExprVisitor(llvm::SmallSet<unsigned, 4> &positions)
-      : positions(positions) {}
+  HasAffineDimExprVisitor(llvm::SmallBitVector positions)
+      : positions(std::move(positions)) {}
 
   bool visitAffineBinaryOpExpr(AffineBinaryOpExpr binaryOpExpr) {
     return visit(binaryOpExpr.getLHS()) || visit(binaryOpExpr.getRHS());
   }
 
   bool visitDimExpr(AffineDimExpr dimExpr) {
-    return positions.count(dimExpr.getPosition());
+    return positions.test(dimExpr.getPosition());
   }
 
   bool visitConstantExpr(AffineConstantExpr constExpr) { return false; }
@@ -500,7 +538,7 @@ struct HasAffineDimExprVisitor
   bool visitSymbolExpr(AffineSymbolExpr symbolExpr) { return false; }
 
 private:
-  llvm::SmallSet<unsigned, 4> positions;
+  llvm::SmallBitVector positions;
 };
 
 LogicalResult
@@ -523,19 +561,17 @@ LinalgOp::reifyResultShapes(OpBuilder &b,
 
   /// From loopsToShapesMap extract the submap that represents the shape of the
   /// (resultIdx, dim) needed.
-  SmallVector<unsigned, 4> resultPosRange =
-      llvm::to_vector<4>(llvm::seq<unsigned>(resultShapesSubMapPos.first,
-                                             resultShapesSubMapPos.second));
-  AffineMap loopToResultsShapeMap = loopsToShapesMap.getSubMap(resultPosRange);
+  AffineMap loopToResultsShapeMap = loopsToShapesMap.getSliceMap(
+      resultShapesSubMapPos.first,
+      resultShapesSubMapPos.second - resultShapesSubMapPos.first);
   AffineMap resultShapesFromInputShapesMap =
       loopToResultsShapeMap.compose(getShapesToLoopsMap());
 
   // Check that the result dim map does not contain the positions corresponding
   // to the outputs.
-  llvm::SmallSet<unsigned, 4> outputDims;
-  llvm::for_each(resultPosRange,
-                 [&outputDims](unsigned dim) { outputDims.insert(dim); });
-  HasAffineDimExprVisitor checkDimExpr(outputDims);
+  llvm::SmallBitVector outputDims(resultShapesFromInputShapesMap.getNumDims());
+  outputDims.set(resultShapesSubMapPos.first, resultShapesSubMapPos.second);
+  HasAffineDimExprVisitor checkDimExpr(std::move(outputDims));
   Location loc = getOperation()->getLoc();
   auto allResultDimValues =
       applyMapToValues(b, loc, resultShapesFromInputShapesMap,
@@ -574,6 +610,15 @@ LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
            << op->getNumResults()
            << ") to be equal to the number of output tensors ("
            << linalgOp.getOutputTensorOperands().size() << ")";
+
+  // Check all iterator types are known.
+  auto iteratorTypesRange =
+      linalgOp.iterator_types().getAsValueRange<StringAttr>();
+  for (StringRef iteratorType : iteratorTypesRange) {
+    if (!llvm::is_contained(getAllIteratorTypeNames(), iteratorType))
+      return op->emitOpError("unexpected iterator_type (")
+             << iteratorType << ")";
+  }
 
   // Before checking indexing maps, we need to make sure the attributes
   // referenced by it are valid.

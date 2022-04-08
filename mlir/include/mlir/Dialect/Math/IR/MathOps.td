@@ -16,7 +16,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // Base class for math dialect ops. Ops in this dialect have no side effects and
 // can be applied element-wise to vectors and tensors.
-class Math_Op<string mnemonic, list<OpTrait> traits = []> :
+class Math_Op<string mnemonic, list<Trait> traits = []> :
     Op<Math_Dialect, mnemonic, traits # [NoSideEffect,
     DeclareOpInterfaceMethods<VectorUnrollOpInterface>] #
     ElementwiseMappable.traits>;
@@ -24,7 +24,7 @@ class Math_Op<string mnemonic, list<OpTrait> traits = []> :
 // Base class for unary math operations on integer types. Require a operand and
 // result of the same type. This type can be an integer type, or vector or tensor
 // thereof.
-class Math_IntegerUnaryOp<string mnemonic, list<OpTrait> traits = []> :
+class Math_IntegerUnaryOp<string mnemonic, list<Trait> traits = []> :
     Math_Op<mnemonic, traits # [SameOperandsAndResultType]> {
   let arguments = (ins SignlessIntegerLike:$operand);
   let results = (outs SignlessIntegerLike:$result);
@@ -35,7 +35,7 @@ class Math_IntegerUnaryOp<string mnemonic, list<OpTrait> traits = []> :
 // Base class for unary math operations on floating point types. Require a
 // operand and result of the same type. This type can be a floating point type,
 // or vector or tensor thereof.
-class Math_FloatUnaryOp<string mnemonic, list<OpTrait> traits = []> :
+class Math_FloatUnaryOp<string mnemonic, list<Trait> traits = []> :
     Math_Op<mnemonic, traits # [SameOperandsAndResultType]> {
   let arguments = (ins FloatLike:$operand);
   let results = (outs FloatLike:$result);
@@ -46,7 +46,7 @@ class Math_FloatUnaryOp<string mnemonic, list<OpTrait> traits = []> :
 // Base class for binary math operations on floating point types. Require two
 // operands and one result of the same type. This type can be a floating point
 // type, or a vector or tensor thereof.
-class Math_FloatBinaryOp<string mnemonic, list<OpTrait> traits = []> :
+class Math_FloatBinaryOp<string mnemonic, list<Trait> traits = []> :
     Math_Op<mnemonic, traits # [SameOperandsAndResultType]> {
   let arguments = (ins FloatLike:$lhs, FloatLike:$rhs);
   let results = (outs FloatLike:$result);
@@ -57,7 +57,7 @@ class Math_FloatBinaryOp<string mnemonic, list<OpTrait> traits = []> :
 // Base class for floating point ternary operations. Require three operands and
 // one result of the same type. This type can be a floating point type, or a
 // vector or tensor thereof.
-class Math_FloatTernaryOp<string mnemonic, list<OpTrait> traits = []> :
+class Math_FloatTernaryOp<string mnemonic, list<Trait> traits = []> :
     Math_Op<mnemonic, traits # [SameOperandsAndResultType]> {
   let arguments = (ins FloatLike:$a, FloatLike:$b, FloatLike:$c);
   let results = (outs FloatLike:$result);
@@ -89,6 +89,7 @@ def Math_AbsOp : Math_FloatUnaryOp<"abs"> {
     %x = math.abs %y : tensor<4x?xf8>
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -230,6 +231,7 @@ def Math_CopySignOp : Math_FloatBinaryOp<"copysign"> {
     %x = math.copysign %y, %z : tensor<4x?xf8>
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -320,6 +322,7 @@ def Math_CountLeadingZerosOp : Math_IntegerUnaryOp<"ctlz"> {
     %x = math.ctlz %y : tensor<4x?xi8>
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -344,6 +347,7 @@ def Math_CountTrailingZerosOp : Math_IntegerUnaryOp<"cttz"> {
     %x = math.cttz %y : tensor<4x?xi8>
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -368,6 +372,7 @@ def Math_CtPopOp : Math_IntegerUnaryOp<"ctpop"> {
     %x = math.ctpop %y : tensor<4x?xi8>
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -684,6 +689,7 @@ def Math_PowFOp : Math_FloatBinaryOp<"powf"> {
     %x = math.powf %y, %z : tensor<4x?xbf16>
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -723,6 +729,7 @@ def Math_SqrtOp : Math_FloatUnaryOp<"sqrt"> {
     %x = math.sqrt %y : tensor<4x?xf32>
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -732,12 +739,6 @@ def Math_SqrtOp : Math_FloatUnaryOp<"sqrt"> {
 def Math_TanhOp : Math_FloatUnaryOp<"tanh"> {
   let summary = "hyperbolic tangent of the specified value";
   let description = [{
-    Syntax:
-
-    ```
-    operation ::= ssa-id `=` `std.tanh` ssa-use `:` type
-    ```
-
     The `tanh` operation computes the hyperbolic tangent. It takes one operand
     and returns one result of the same type. This type may be a float scalar
     type, a vector whose element type is float, or a tensor of floats. It has

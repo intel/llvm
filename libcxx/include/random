@@ -1694,6 +1694,7 @@ class piecewise_linear_distribution
 #include <__random/geometric_distribution.h>
 #include <__random/independent_bits_engine.h>
 #include <__random/is_seed_sequence.h>
+#include <__random/is_valid.h>
 #include <__random/knuth_b.h>
 #include <__random/linear_congruential_engine.h>
 #include <__random/log2.h>
@@ -1717,7 +1718,6 @@ class piecewise_linear_distribution
 #include <initializer_list>
 #include <version>
 
-#include <algorithm>   // for backward compatibility; TODO remove it
 #include <cmath>       // for backward compatibility; TODO remove it
 #include <cstddef>     // for backward compatibility; TODO remove it
 #include <cstdint>     // for backward compatibility; TODO remove it
@@ -1729,7 +1729,7 @@ class piecewise_linear_distribution
 #include <vector>      // for backward compatibility; TODO remove it
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 #endif // _LIBCPP_RANDOM

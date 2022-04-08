@@ -9,6 +9,7 @@
 #ifndef PYTHON_TEST_OPS
 #define PYTHON_TEST_OPS
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/Bindings/Python/Attributes.td"
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
@@ -28,7 +29,7 @@ class TestAttr<string name, string attrMnemonic>
   let mnemonic = attrMnemonic;
 }
 
-class TestOp<string mnemonic, list<OpTrait> traits = []>
+class TestOp<string mnemonic, list<Trait> traits = []>
     : Op<Python_Test_Dialect, mnemonic, traits>;
 
 //===----------------------------------------------------------------------===//

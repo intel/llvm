@@ -335,6 +335,8 @@ static UnresolvedPolicy getUnresolvedSymbolPolicy(opt::InputArgList &args) {
     StringRef s = arg->getValue();
     if (s == "ignore-all")
       return UnresolvedPolicy::Ignore;
+    if (s == "import-dynamic")
+      return UnresolvedPolicy::ImportDynamic;
     if (s == "report-all")
       return errorOrWarn;
     error("unknown --unresolved-symbols value: " + s);
@@ -357,8 +359,6 @@ static void readConfigs(opt::InputArgList &args) {
   config->exportAll = args.hasArg(OPT_export_all);
   config->exportTable = args.hasArg(OPT_export_table);
   config->growableTable = args.hasArg(OPT_growable_table);
-  errorHandler().fatalWarnings =
-      args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false);
   config->importMemory = args.hasArg(OPT_import_memory);
   config->sharedMemory = args.hasArg(OPT_shared_memory);
   config->importTable = args.hasArg(OPT_import_table);
@@ -529,6 +529,11 @@ static void checkOptions(opt::InputArgList &args) {
     // -pie will change meaning when Module Linking is implemented.
     if (config->pie) {
       warn("creating PIEs, with -pie, is not yet stable");
+    }
+
+    if (config->unresolvedSymbols == UnresolvedPolicy::ImportDynamic) {
+      warn("dynamic imports are not yet stable "
+           "(--unresolved-symbols=import-dynamic)");
     }
   }
 
@@ -808,9 +813,27 @@ static void splitSections() {
   });
 }
 
+static bool isKnownZFlag(StringRef s) {
+  // For now, we only support a very limited set of -z flags
+  return s.startswith("stack-size=");
+}
+
+// Report a warning for an unknown -z option.
+static void checkZOptions(opt::InputArgList &args) {
+  for (auto *arg : args.filtered(OPT_z))
+    if (!isKnownZFlag(arg->getValue()))
+      warn("unknown -z value: " + StringRef(arg->getValue()));
+}
+
 void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   WasmOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
+
+  // Interpret these flags early because error()/warn() depend on them.
+  errorHandler().errorLimit = args::getInteger(args, OPT_error_limit, 20);
+  errorHandler().fatalWarnings =
+      args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false);
+  checkZOptions(args);
 
   // Handle --help
   if (args.hasArg(OPT_help)) {
@@ -847,8 +870,6 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
     v.push_back(arg->getValue());
   cl::ResetAllOptionOccurrences();
   cl::ParseCommandLineOptions(v.size(), v.data());
-
-  errorHandler().errorLimit = args::getInteger(args, OPT_error_limit, 20);
 
   readConfigs(args);
 

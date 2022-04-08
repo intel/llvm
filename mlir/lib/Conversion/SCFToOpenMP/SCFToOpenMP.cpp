@@ -17,9 +17,9 @@
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -71,8 +71,9 @@ template <
 static bool
 matchSelectReduction(Block &block, ArrayRef<Predicate> lessThanPredicates,
                      ArrayRef<Predicate> greaterThanPredicates, bool &isMin) {
-  static_assert(llvm::is_one_of<SelectOpTy, SelectOp, LLVM::SelectOp>::value,
-                "only std and llvm select ops are supported");
+  static_assert(
+      llvm::is_one_of<SelectOpTy, arith::SelectOp, LLVM::SelectOp>::value,
+      "only arithmetic and llvm select ops are supported");
 
   // Expect exactly three operations in the block.
   if (block.empty() || llvm::hasSingleElement(block) ||
@@ -290,7 +291,7 @@ static omp::ReductionDeclareOp declareReduction(PatternRewriter &builder,
 
   // Match select-based min/max reductions.
   bool isMin;
-  if (matchSelectReduction<arith::CmpFOp, SelectOp>(
+  if (matchSelectReduction<arith::CmpFOp, arith::SelectOp>(
           reduction, {arith::CmpFPredicate::OLT, arith::CmpFPredicate::OLE},
           {arith::CmpFPredicate::OGT, arith::CmpFPredicate::OGE}, isMin) ||
       matchSelectReduction<LLVM::FCmpOp, LLVM::SelectOp>(
@@ -299,7 +300,7 @@ static omp::ReductionDeclareOp declareReduction(PatternRewriter &builder,
     return createDecl(builder, symbolTable, reduce,
                       minMaxValueForFloat(type, !isMin));
   }
-  if (matchSelectReduction<arith::CmpIOp, SelectOp>(
+  if (matchSelectReduction<arith::CmpIOp, arith::SelectOp>(
           reduction, {arith::CmpIPredicate::slt, arith::CmpIPredicate::sle},
           {arith::CmpIPredicate::sgt, arith::CmpIPredicate::sge}, isMin) ||
       matchSelectReduction<LLVM::ICmpOp, LLVM::SelectOp>(
@@ -311,7 +312,7 @@ static omp::ReductionDeclareOp declareReduction(PatternRewriter &builder,
                         isMin ? LLVM::AtomicBinOp::min : LLVM::AtomicBinOp::max,
                         decl, reduce);
   }
-  if (matchSelectReduction<arith::CmpIOp, SelectOp>(
+  if (matchSelectReduction<arith::CmpIOp, arith::SelectOp>(
           reduction, {arith::CmpIPredicate::ult, arith::CmpIPredicate::ule},
           {arith::CmpIPredicate::ugt, arith::CmpIPredicate::uge}, isMin) ||
       matchSelectReduction<LLVM::ICmpOp, LLVM::SelectOp>(
@@ -334,16 +335,6 @@ struct ParallelOpLowering : public OpRewritePattern<scf::ParallelOp> {
 
   LogicalResult matchAndRewrite(scf::ParallelOp parallelOp,
                                 PatternRewriter &rewriter) const override {
-    // Replace SCF yield with OpenMP yield.
-    {
-      OpBuilder::InsertionGuard guard(rewriter);
-      rewriter.setInsertionPointToEnd(parallelOp.getBody());
-      assert(llvm::hasSingleElement(parallelOp.getRegion()) &&
-             "expected scf.parallel to have one block");
-      rewriter.replaceOpWithNewOp<omp::YieldOp>(
-          parallelOp.getBody()->getTerminator(), ValueRange());
-    }
-
     // Declare reductions.
     // TODO: consider checking it here is already a compatible reduction
     // declaration and use it instead of redeclaring.
@@ -363,8 +354,6 @@ struct ParallelOpLowering : public OpRewritePattern<scf::ParallelOp> {
         loc, rewriter.getIntegerType(64), rewriter.getI64IntegerAttr(1));
     SmallVector<Value> reductionVariables;
     reductionVariables.reserve(parallelOp.getNumReductions());
-    Value token = rewriter.create<LLVM::StackSaveOp>(
-        loc, LLVM::LLVMPointerType::get(rewriter.getIntegerType(8)));
     for (Value init : parallelOp.getInitVals()) {
       assert((LLVM::isCompatibleType(init.getType()) ||
               init.getType().isa<LLVM::PointerElementTypeInterface>()) &&
@@ -391,31 +380,40 @@ struct ParallelOpLowering : public OpRewritePattern<scf::ParallelOp> {
     // Create the parallel wrapper.
     auto ompParallel = rewriter.create<omp::ParallelOp>(loc);
     {
+
       OpBuilder::InsertionGuard guard(rewriter);
       rewriter.createBlock(&ompParallel.region());
 
-      // Replace SCF yield with OpenMP yield.
-      {
-        OpBuilder::InsertionGuard innerGuard(rewriter);
-        rewriter.setInsertionPointToEnd(parallelOp.getBody());
-        assert(llvm::hasSingleElement(parallelOp.getRegion()) &&
-               "expected scf.parallel to have one block");
-        rewriter.replaceOpWithNewOp<omp::YieldOp>(
-            parallelOp.getBody()->getTerminator(), ValueRange());
-      }
-
       // Replace the loop.
-      auto loop = rewriter.create<omp::WsLoopOp>(
-          parallelOp.getLoc(), parallelOp.getLowerBound(),
-          parallelOp.getUpperBound(), parallelOp.getStep());
-      rewriter.create<omp::TerminatorOp>(loc);
+      {
+        OpBuilder::InsertionGuard allocaGuard(rewriter);
+        auto loop = rewriter.create<omp::WsLoopOp>(
+            parallelOp.getLoc(), parallelOp.getLowerBound(),
+            parallelOp.getUpperBound(), parallelOp.getStep());
+        rewriter.create<omp::TerminatorOp>(loc);
 
-      rewriter.inlineRegionBefore(parallelOp.getRegion(), loop.region(),
-                                  loop.region().begin());
-      if (!reductionVariables.empty()) {
-        loop.reductionsAttr(
-            ArrayAttr::get(rewriter.getContext(), reductionDeclSymbols));
-        loop.reduction_varsMutable().append(reductionVariables);
+        rewriter.inlineRegionBefore(parallelOp.getRegion(), loop.region(),
+                                    loop.region().begin());
+
+        Block *ops = rewriter.splitBlock(&*loop.region().begin(),
+                                         loop.region().begin()->begin());
+
+        rewriter.setInsertionPointToStart(&*loop.region().begin());
+
+        auto scope = rewriter.create<memref::AllocaScopeOp>(parallelOp.getLoc(),
+                                                            TypeRange());
+        rewriter.create<omp::YieldOp>(loc, ValueRange());
+        Block *scopeBlock = rewriter.createBlock(&scope.getBodyRegion());
+        rewriter.mergeBlocks(ops, scopeBlock);
+        auto oldYield = cast<scf::YieldOp>(scopeBlock->getTerminator());
+        rewriter.setInsertionPointToEnd(&*scope.getBodyRegion().begin());
+        rewriter.replaceOpWithNewOp<memref::AllocaScopeReturnOp>(
+            oldYield, oldYield->getOperands());
+        if (!reductionVariables.empty()) {
+          loop.reductionsAttr(
+              ArrayAttr::get(rewriter.getContext(), reductionDeclSymbols));
+          loop.reduction_varsMutable().append(reductionVariables);
+        }
       }
     }
 
@@ -428,7 +426,6 @@ struct ParallelOpLowering : public OpRewritePattern<scf::ParallelOp> {
     }
     rewriter.replaceOp(parallelOp, results);
 
-    rewriter.create<LLVM::StackRestoreOp>(loc, token);
     return success();
   }
 };
@@ -437,7 +434,8 @@ struct ParallelOpLowering : public OpRewritePattern<scf::ParallelOp> {
 static LogicalResult applyPatterns(ModuleOp module) {
   ConversionTarget target(*module.getContext());
   target.addIllegalOp<scf::ReduceOp, scf::ReduceReturnOp, scf::ParallelOp>();
-  target.addLegalDialect<omp::OpenMPDialect, LLVM::LLVMDialect>();
+  target.addLegalDialect<omp::OpenMPDialect, LLVM::LLVMDialect,
+                         memref::MemRefDialect>();
 
   RewritePatternSet patterns(module.getContext());
   patterns.add<ParallelOpLowering>(module.getContext());

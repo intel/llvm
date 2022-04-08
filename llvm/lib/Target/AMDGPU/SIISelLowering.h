@@ -53,6 +53,9 @@ private:
                                    uint64_t Offset, Align Alignment,
                                    bool Signed,
                                    const ISD::InputArg *Arg = nullptr) const;
+  SDValue loadImplicitKernelArgument(SelectionDAG &DAG, MVT VT, const SDLoc &DL,
+                                     Align Alignment,
+                                     ImplicitParameter Param) const;
 
   SDValue lowerStackParameter(SelectionDAG &DAG, CCValAssign &VA,
                               const SDLoc &SL, SDValue Chain,
@@ -505,6 +508,9 @@ public:
 
   std::pair<InstructionCost, MVT> getTypeLegalizationCost(const DataLayout &DL,
                                                           Type *Ty) const;
+
+  MachineMemOperand::Flags
+  getTargetMMOFlags(const Instruction &I) const override;
 };
 
 } // End namespace llvm

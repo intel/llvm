@@ -44,6 +44,10 @@ module attributes {gpu.container_module} {
       %gDimY = gpu.grid_dim y
       %gDimZ = gpu.grid_dim z
 
+      %gIdX = gpu.global_id x
+      %gIdY = gpu.global_id y
+      %gIdZ = gpu.global_id z
+
       %sgId = gpu.subgroup_id : index
       %numSg = gpu.num_subgroups : index
       %SgSi = gpu.subgroup_size : index
@@ -158,7 +162,7 @@ module attributes {gpu.container_module} {
     "gpu.func"() ({
     ^bb0(%arg0: f32, %arg1: memref<?xf32>, %arg2: memref<5xf32, 3>, %arg3: memref<5xf32, 5>):
       "gpu.return"() : () -> ()
-    } ) {gpu.kernel, sym_name = "kernel_1", type = (f32, memref<?xf32>) -> (), workgroup_attributions = 1: i64} : () -> ()
+    } ) {function_type = (f32, memref<?xf32>) -> (), gpu.kernel, sym_name = "kernel_1", workgroup_attributions = 1: i64} : () -> ()
   }
 
   func @alloc() {
@@ -223,7 +227,7 @@ module attributes {gpu.container_module} {
     return
   }
 
-  func @mmamatrix_valid_element_type(){
+  func @mmamatrix_valid_element_type(%src : memref<32x32xf16, affine_map<(d0, d1) -> (d0 * 64 + d1)>>){
     // CHECK-LABEL: func @mmamatrix_valid_element_type
     %wg = memref.alloca() {alignment = 32} : memref<32x32xf16, 3>
     // CHECK: %[[wg:.*]] = memref.alloca()
@@ -233,11 +237,32 @@ module attributes {gpu.container_module} {
     // CHECK: %[[cst:.*]] = arith.constant 1.000000e+00 : f32
     %0 = gpu.subgroup_mma_load_matrix %wg[%i, %i] {leadDimension = 32 : index} : memref<32x32xf16, 3> -> !gpu.mma_matrix<16x16xf16, "AOp">
     // CHECK: gpu.subgroup_mma_load_matrix %[[wg]][%[[i]], %[[i]]] {leadDimension = 32 : index} : memref<32x32xf16, 3> -> !gpu.mma_matrix<16x16xf16, "AOp">
+    %s = gpu.subgroup_mma_load_matrix %src[%i, %i] {leadDimension = 64 : index} : memref<32x32xf16, affine_map<(d0, d1) -> (d0 * 64 + d1)>> -> !gpu.mma_matrix<16x16xf16, "AOp">
+    // CHECK: gpu.subgroup_mma_load_matrix %{{.*}}[%[[i]], %[[i]]] {leadDimension = 64 : index} : memref<32x32xf16, #{{.*}}> -> !gpu.mma_matrix<16x16xf16, "AOp">
     %1 = gpu.subgroup_mma_constant_matrix %cst : !gpu.mma_matrix<16x16xf32, "COp">
     // CHECK: gpu.subgroup_mma_elementwise addf %{{.*}}, %{{.*}} : (!gpu.mma_matrix<16x16xf32, "COp">, !gpu.mma_matrix<16x16xf32, "COp">) -> !gpu.mma_matrix<16x16xf32, "COp">
     %2 = gpu.subgroup_mma_elementwise addf %1, %1 : (!gpu.mma_matrix<16x16xf32, "COp">, !gpu.mma_matrix<16x16xf32, "COp">) -> !gpu.mma_matrix<16x16xf32, "COp">
     // CHECK: gpu.subgroup_mma_elementwise maxf %{{.*}}, %{{.*}} : (!gpu.mma_matrix<16x16xf32, "COp">, !gpu.mma_matrix<16x16xf32, "COp">) -> !gpu.mma_matrix<16x16xf32, "COp">
     %3 = gpu.subgroup_mma_elementwise maxf %2, %1 : (!gpu.mma_matrix<16x16xf32, "COp">, !gpu.mma_matrix<16x16xf32, "COp">) -> !gpu.mma_matrix<16x16xf32, "COp">
+    return
+  }
+
+  func @async_cp(%dst : memref<2x7x5xf32, 3>, %src : memref<4x5xf32>){
+    // CHECK-LABEL: func @async_cp
+    %c0 = arith.constant 0 : index
+    // CHECK: gpu.device_async_copy %{{.*}}[{{.*}}, {{.*}}], %{{.*}}[{{.*}}, {{.*}}, {{.*}}], 4 : memref<4x5xf32> to memref<2x7x5xf32, 3>
+    %0 = gpu.device_async_copy %src[%c0, %c0], %dst[%c0, %c0, %c0], 4 : memref<4x5xf32> to memref<2x7x5xf32, 3>
+    // CHECK: %{{.*}} = gpu.device_async_create_group
+    %token = gpu.device_async_create_group %0
+    // CHECK: gpu.device_async_wait %{{.*}} {numGroups = 1 : i32}
+    gpu.device_async_wait %token {numGroups = 1 : i32}
+    return
+  }
+
+  // CHECK-LABEL: func @set_default_device
+  func @set_default_device(%arg0: i32) {
+    // CHECK: gpu.set_default_device
+    gpu.set_default_device %arg0
     return
   }
 }

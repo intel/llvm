@@ -20,11 +20,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "AArch64TargetMachine.h"
+#include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
@@ -258,7 +260,7 @@ void applyFoldMergeToZext(MachineInstr &MI, MachineRegisterInfo &MRI,
   // %d(s64) = G_ZEXT %a(s32)
   Observer.changingInstr(MI);
   MI.setDesc(B.getTII().get(TargetOpcode::G_ZEXT));
-  MI.RemoveOperand(2);
+  MI.removeOperand(2);
   Observer.changedInstr(MI);
 }
 

@@ -277,18 +277,19 @@ def SPV_DeviceTypeAttr : SPV_EnumAttr<
   ]>;
 
 def SPV_V_AMD         : I32EnumAttrCase<"AMD", 0>;
-def SPV_V_ARM         : I32EnumAttrCase<"ARM", 1>;
-def SPV_V_Imagination : I32EnumAttrCase<"Imagination", 2>;
-def SPV_V_Intel       : I32EnumAttrCase<"Intel", 3>;
-def SPV_V_NVIDIA      : I32EnumAttrCase<"NVIDIA", 4>;
-def SPV_V_Qualcomm    : I32EnumAttrCase<"Qualcomm", 5>;
-def SPV_V_SwiftShader : I32EnumAttrCase<"SwiftShader", 6>;
-def SPV_V_Unknown     : I32EnumAttrCase<"Unknown", 7>;
+def SPV_V_Apple       : I32EnumAttrCase<"Apple", 1>;
+def SPV_V_ARM         : I32EnumAttrCase<"ARM", 2>;
+def SPV_V_Imagination : I32EnumAttrCase<"Imagination", 3>;
+def SPV_V_Intel       : I32EnumAttrCase<"Intel", 4>;
+def SPV_V_NVIDIA      : I32EnumAttrCase<"NVIDIA", 5>;
+def SPV_V_Qualcomm    : I32EnumAttrCase<"Qualcomm", 6>;
+def SPV_V_SwiftShader : I32EnumAttrCase<"SwiftShader", 7>;
+def SPV_V_Unknown     : I32EnumAttrCase<"Unknown", 0xff>;
 
 def SPV_VendorAttr : SPV_EnumAttr<
   "Vendor", "recognized SPIR-V vendor strings", "vendor", [
-    SPV_V_AMD, SPV_V_ARM, SPV_V_Imagination, SPV_V_Intel,
-    SPV_V_NVIDIA, SPV_V_Qualcomm, SPV_V_SwiftShader,
+    SPV_V_AMD, SPV_V_Apple, SPV_V_ARM, SPV_V_Imagination,
+    SPV_V_Intel, SPV_V_NVIDIA, SPV_V_Qualcomm, SPV_V_SwiftShader,
     SPV_V_Unknown
   ]>;
 
@@ -4078,6 +4079,7 @@ def SPV_OC_OpSRem                      : I32EnumAttrCase<"OpSRem", 138>;
 def SPV_OC_OpSMod                      : I32EnumAttrCase<"OpSMod", 139>;
 def SPV_OC_OpFRem                      : I32EnumAttrCase<"OpFRem", 140>;
 def SPV_OC_OpFMod                      : I32EnumAttrCase<"OpFMod", 141>;
+def SPV_OC_OpVectorTimesScalar         : I32EnumAttrCase<"OpVectorTimesScalar", 142>;
 def SPV_OC_OpMatrixTimesScalar         : I32EnumAttrCase<"OpMatrixTimesScalar", 143>;
 def SPV_OC_OpMatrixTimesMatrix         : I32EnumAttrCase<"OpMatrixTimesMatrix", 146>;
 def SPV_OC_OpIsNan                     : I32EnumAttrCase<"OpIsNan", 156>;
@@ -4173,6 +4175,7 @@ def SPV_OC_OpCooperativeMatrixMulAddNV : I32EnumAttrCase<"OpCooperativeMatrixMul
 def SPV_OC_OpCooperativeMatrixLengthNV : I32EnumAttrCase<"OpCooperativeMatrixLengthNV", 5362>;
 def SPV_OC_OpSubgroupBlockReadINTEL    : I32EnumAttrCase<"OpSubgroupBlockReadINTEL", 5575>;
 def SPV_OC_OpSubgroupBlockWriteINTEL   : I32EnumAttrCase<"OpSubgroupBlockWriteINTEL", 5576>;
+def SPV_OC_OpAssumeTrueKHR             : I32EnumAttrCase<"OpAssumeTrueKHR", 5630>;
 def SPV_OC_OpAtomicFAddEXT             : I32EnumAttrCase<"OpAtomicFAddEXT", 6035>;
 
 def SPV_OpcodeAttr :
@@ -4202,32 +4205,33 @@ def SPV_OpcodeAttr :
       SPV_OC_OpSNegate, SPV_OC_OpFNegate, SPV_OC_OpIAdd, SPV_OC_OpFAdd,
       SPV_OC_OpISub, SPV_OC_OpFSub, SPV_OC_OpIMul, SPV_OC_OpFMul, SPV_OC_OpUDiv,
       SPV_OC_OpSDiv, SPV_OC_OpFDiv, SPV_OC_OpUMod, SPV_OC_OpSRem, SPV_OC_OpSMod,
-      SPV_OC_OpFRem, SPV_OC_OpFMod, SPV_OC_OpMatrixTimesScalar,
-      SPV_OC_OpMatrixTimesMatrix, SPV_OC_OpIsNan, SPV_OC_OpIsInf, SPV_OC_OpOrdered,
-      SPV_OC_OpUnordered, SPV_OC_OpLogicalEqual, SPV_OC_OpLogicalNotEqual,
-      SPV_OC_OpLogicalOr, SPV_OC_OpLogicalAnd, SPV_OC_OpLogicalNot, SPV_OC_OpSelect,
-      SPV_OC_OpIEqual, SPV_OC_OpINotEqual, SPV_OC_OpUGreaterThan,
-      SPV_OC_OpSGreaterThan, SPV_OC_OpUGreaterThanEqual, SPV_OC_OpSGreaterThanEqual,
-      SPV_OC_OpULessThan, SPV_OC_OpSLessThan, SPV_OC_OpULessThanEqual,
-      SPV_OC_OpSLessThanEqual, SPV_OC_OpFOrdEqual, SPV_OC_OpFUnordEqual,
-      SPV_OC_OpFOrdNotEqual, SPV_OC_OpFUnordNotEqual, SPV_OC_OpFOrdLessThan,
-      SPV_OC_OpFUnordLessThan, SPV_OC_OpFOrdGreaterThan, SPV_OC_OpFUnordGreaterThan,
-      SPV_OC_OpFOrdLessThanEqual, SPV_OC_OpFUnordLessThanEqual,
-      SPV_OC_OpFOrdGreaterThanEqual, SPV_OC_OpFUnordGreaterThanEqual,
-      SPV_OC_OpShiftRightLogical, SPV_OC_OpShiftRightArithmetic,
-      SPV_OC_OpShiftLeftLogical, SPV_OC_OpBitwiseOr, SPV_OC_OpBitwiseXor,
-      SPV_OC_OpBitwiseAnd, SPV_OC_OpNot, SPV_OC_OpBitFieldInsert,
-      SPV_OC_OpBitFieldSExtract, SPV_OC_OpBitFieldUExtract, SPV_OC_OpBitReverse,
-      SPV_OC_OpBitCount, SPV_OC_OpControlBarrier, SPV_OC_OpMemoryBarrier,
-      SPV_OC_OpAtomicExchange, SPV_OC_OpAtomicCompareExchange,
-      SPV_OC_OpAtomicCompareExchangeWeak, SPV_OC_OpAtomicIIncrement,
-      SPV_OC_OpAtomicIDecrement, SPV_OC_OpAtomicIAdd, SPV_OC_OpAtomicISub,
-      SPV_OC_OpAtomicSMin, SPV_OC_OpAtomicUMin, SPV_OC_OpAtomicSMax,
-      SPV_OC_OpAtomicUMax, SPV_OC_OpAtomicAnd, SPV_OC_OpAtomicOr, SPV_OC_OpAtomicXor,
-      SPV_OC_OpPhi, SPV_OC_OpLoopMerge, SPV_OC_OpSelectionMerge, SPV_OC_OpLabel,
-      SPV_OC_OpBranch, SPV_OC_OpBranchConditional, SPV_OC_OpReturn,
-      SPV_OC_OpReturnValue, SPV_OC_OpUnreachable, SPV_OC_OpGroupBroadcast,
-      SPV_OC_OpNoLine, SPV_OC_OpModuleProcessed, SPV_OC_OpGroupNonUniformElect,
+      SPV_OC_OpFRem, SPV_OC_OpFMod, SPV_OC_OpVectorTimesScalar,
+      SPV_OC_OpMatrixTimesScalar, SPV_OC_OpMatrixTimesMatrix, SPV_OC_OpIsNan,
+      SPV_OC_OpIsInf, SPV_OC_OpOrdered, SPV_OC_OpUnordered, SPV_OC_OpLogicalEqual,
+      SPV_OC_OpLogicalNotEqual, SPV_OC_OpLogicalOr, SPV_OC_OpLogicalAnd,
+      SPV_OC_OpLogicalNot, SPV_OC_OpSelect, SPV_OC_OpIEqual, SPV_OC_OpINotEqual,
+      SPV_OC_OpUGreaterThan, SPV_OC_OpSGreaterThan, SPV_OC_OpUGreaterThanEqual,
+      SPV_OC_OpSGreaterThanEqual, SPV_OC_OpULessThan, SPV_OC_OpSLessThan,
+      SPV_OC_OpULessThanEqual, SPV_OC_OpSLessThanEqual, SPV_OC_OpFOrdEqual,
+      SPV_OC_OpFUnordEqual, SPV_OC_OpFOrdNotEqual, SPV_OC_OpFUnordNotEqual,
+      SPV_OC_OpFOrdLessThan, SPV_OC_OpFUnordLessThan, SPV_OC_OpFOrdGreaterThan,
+      SPV_OC_OpFUnordGreaterThan, SPV_OC_OpFOrdLessThanEqual,
+      SPV_OC_OpFUnordLessThanEqual, SPV_OC_OpFOrdGreaterThanEqual,
+      SPV_OC_OpFUnordGreaterThanEqual, SPV_OC_OpShiftRightLogical,
+      SPV_OC_OpShiftRightArithmetic, SPV_OC_OpShiftLeftLogical, SPV_OC_OpBitwiseOr,
+      SPV_OC_OpBitwiseXor, SPV_OC_OpBitwiseAnd, SPV_OC_OpNot,
+      SPV_OC_OpBitFieldInsert, SPV_OC_OpBitFieldSExtract, SPV_OC_OpBitFieldUExtract,
+      SPV_OC_OpBitReverse, SPV_OC_OpBitCount, SPV_OC_OpControlBarrier,
+      SPV_OC_OpMemoryBarrier, SPV_OC_OpAtomicExchange,
+      SPV_OC_OpAtomicCompareExchange, SPV_OC_OpAtomicCompareExchangeWeak,
+      SPV_OC_OpAtomicIIncrement, SPV_OC_OpAtomicIDecrement, SPV_OC_OpAtomicIAdd,
+      SPV_OC_OpAtomicISub, SPV_OC_OpAtomicSMin, SPV_OC_OpAtomicUMin,
+      SPV_OC_OpAtomicSMax, SPV_OC_OpAtomicUMax, SPV_OC_OpAtomicAnd,
+      SPV_OC_OpAtomicOr, SPV_OC_OpAtomicXor, SPV_OC_OpPhi, SPV_OC_OpLoopMerge,
+      SPV_OC_OpSelectionMerge, SPV_OC_OpLabel, SPV_OC_OpBranch,
+      SPV_OC_OpBranchConditional, SPV_OC_OpReturn, SPV_OC_OpReturnValue,
+      SPV_OC_OpUnreachable, SPV_OC_OpGroupBroadcast, SPV_OC_OpNoLine,
+      SPV_OC_OpModuleProcessed, SPV_OC_OpGroupNonUniformElect,
       SPV_OC_OpGroupNonUniformBroadcast, SPV_OC_OpGroupNonUniformBallot,
       SPV_OC_OpGroupNonUniformIAdd, SPV_OC_OpGroupNonUniformFAdd,
       SPV_OC_OpGroupNonUniformIMul, SPV_OC_OpGroupNonUniformFMul,
@@ -4238,7 +4242,7 @@ def SPV_OpcodeAttr :
       SPV_OC_OpCooperativeMatrixLoadNV, SPV_OC_OpCooperativeMatrixStoreNV,
       SPV_OC_OpCooperativeMatrixMulAddNV, SPV_OC_OpCooperativeMatrixLengthNV,
       SPV_OC_OpSubgroupBlockReadINTEL, SPV_OC_OpSubgroupBlockWriteINTEL,
-      SPV_OC_OpAtomicFAddEXT
+      SPV_OC_OpAssumeTrueKHR, SPV_OC_OpAtomicFAddEXT
     ]>;
 
 // End opcode section. Generated from SPIR-V spec; DO NOT MODIFY!
@@ -4248,7 +4252,7 @@ def SPV_OpcodeAttr :
 //===----------------------------------------------------------------------===//
 
 // Base class for all SPIR-V ops.
-class SPV_Op<string mnemonic, list<OpTrait> traits = []> :
+class SPV_Op<string mnemonic, list<Trait> traits = []> :
     Op<SPIRV_Dialect, mnemonic, !listconcat(traits, [
          // TODO: We don't need all of the following traits for every op; only
          // the suitable ones should be added automatically after ODS supports
@@ -4269,13 +4273,12 @@ class SPV_Op<string mnemonic, list<OpTrait> traits = []> :
   // For each SPIR-V op, the following static functions need to be defined
   // in SPVOps.cpp:
   //
-  // * static ParseResult parse<op-c++-class-name>(OpAsmParser &parser,
-  //                                               OperationState &result)
-  // * static void print(OpAsmPrinter &p, <op-c++-class-name> op)
-  // * static LogicalResult verify(<op-c++-class-name> op)
-  let parser = [{ return ::parse$cppClass(parser, result); }];
-  let printer = [{ return ::print(*this, p); }];
-  let verifier = [{ return ::verify(*this); }];
+  // * ParseResult <op-c++-class-name>::parse(OpAsmParser &parser,
+  //                                          OperationState &result)
+  // * void <op-c++-class-name>::print(OpAsmPrinter &p)
+  // * LogicalResult <op-c++-class-name>::verify()
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 
   // Specifies whether this op has a direct corresponding SPIR-V binary
   // instruction opcode. The (de)serializer use this field to determine whether
@@ -4310,7 +4313,7 @@ class SPV_Op<string mnemonic, list<OpTrait> traits = []> :
 }
 
 class SPV_UnaryOp<string mnemonic, Type resultType, Type operandType,
-                  list<OpTrait> traits = []> :
+                  list<Trait> traits = []> :
       SPV_Op<mnemonic, traits> {
   let arguments = (ins
     SPV_ScalarOrVectorOf<operandType>:$operand
@@ -4320,14 +4323,13 @@ class SPV_UnaryOp<string mnemonic, Type resultType, Type operandType,
     SPV_ScalarOrVectorOf<resultType>:$result
   );
 
-  let parser = [{ return ::parseUnaryOp(parser, result); }];
-  let printer = [{ return ::printUnaryOp(getOperation(), p); }];
+  let assemblyFormat = "$operand `:` type($operand) attr-dict";
   // No additional verification needed in addition to the ODS-generated ones.
-  let verifier = [{ return success(); }];
+  let hasVerifier = 0;
 }
 
 class SPV_BinaryOp<string mnemonic, Type resultType, Type operandsType,
-                   list<OpTrait> traits = []> :
+                   list<Trait> traits = []> :
       SPV_Op<mnemonic, traits> {
   let arguments = (ins
     SPV_ScalarOrVectorOf<operandsType>:$operand1,
@@ -4338,14 +4340,12 @@ class SPV_BinaryOp<string mnemonic, Type resultType, Type operandsType,
     SPV_ScalarOrVectorOf<resultType>:$result
   );
 
-  let parser = [{ return impl::parseOneResultSameOperandTypeOp(parser, result); }];
-  let printer = [{ return impl::printOneResultOp(getOperation(), p); }];
   // No additional verification needed in addition to the ODS-generated ones.
-  let verifier = [{ return success(); }];
+  let hasVerifier = 0;
 }
 
 class SPV_ExtInstOp<string mnemonic, string setPrefix, string setName,
-                    int opcode, list<OpTrait> traits = []> :
+                    int opcode, list<Trait> traits = []> :
   SPV_Op<setPrefix # "." # mnemonic, traits> {
 
   // Extended instruction sets have no direct opcode (they share the

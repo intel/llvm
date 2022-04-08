@@ -78,10 +78,13 @@ void PersistentDeviceCodeCache::putItemToDisc(
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
     const RT::PiProgram &NativePrg) {
 
+  if (!isImageCached(Img))
+    return;
+
   std::string DirName =
       getCacheItemPath(Device, Img, SpecConsts, BuildOptionsString);
 
-  if (!isImageCached(Img) || DirName.empty())
+  if (DirName.empty())
     return;
 
   auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
@@ -137,10 +140,13 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
 
+  if (!isImageCached(Img))
+    return {};
+
   std::string Path =
       getCacheItemPath(Device, Img, SpecConsts, BuildOptionsString);
 
-  if (!isImageCached(Img) || Path.empty() || !OSUtil::isPathPresent(Path))
+  if (Path.empty() || !OSUtil::isPathPresent(Path))
     return {};
 
   int i = 0;

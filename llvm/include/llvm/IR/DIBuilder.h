@@ -21,7 +21,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/IR/DebugInfo.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/TrackingMDRef.h"
 #include "llvm/Support/Casting.h"
@@ -220,6 +220,23 @@ namespace llvm {
     /// \param Name        Type name.
     /// \param SizeInBits  Size of the type.
     DIStringType *createStringType(StringRef Name, uint64_t SizeInBits);
+
+    /// Create debugging information entry for Fortran
+    /// assumed length string type.
+    /// \param Name            Type name.
+    /// \param StringLength    String length expressed as DIVariable *.
+    /// \param StrLocationExp  Optional memory location of the string.
+    DIStringType *createStringType(StringRef Name, DIVariable *StringLength,
+                                   DIExpression *StrLocationExp = nullptr);
+
+    /// Create debugging information entry for Fortran
+    /// assumed length string type.
+    /// \param Name             Type name.
+    /// \param StringLengthExp  String length expressed in DIExpression form.
+    /// \param StrLocationExp   Optional memory location of the string.
+    DIStringType *createStringType(StringRef Name,
+                                   DIExpression *StringLengthExp,
+                                   DIExpression *StrLocationExp = nullptr);
 
     /// Create debugging information entry for a qualified
     /// type, e.g. 'const int'.

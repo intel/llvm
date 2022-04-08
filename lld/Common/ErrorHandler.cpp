@@ -53,6 +53,18 @@ void ErrorHandler::flushStreams() {
 
 ErrorHandler &lld::errorHandler() { return context().e; }
 
+void lld::error(const Twine &msg) { errorHandler().error(msg); }
+void lld::error(const Twine &msg, ErrorTag tag, ArrayRef<StringRef> args) {
+  errorHandler().error(msg, tag, args);
+}
+void lld::fatal(const Twine &msg) { errorHandler().fatal(msg); }
+void lld::log(const Twine &msg) { errorHandler().log(msg); }
+void lld::message(const Twine &msg, llvm::raw_ostream &s) {
+  errorHandler().message(msg, s);
+}
+void lld::warn(const Twine &msg) { errorHandler().warn(msg); }
+uint64_t lld::errorCount() { return errorHandler().errorCount; }
+
 raw_ostream &lld::outs() {
   ErrorHandler &e = errorHandler();
   return e.outs();
@@ -107,6 +119,13 @@ void lld::diagnosticHandler(const DiagnosticInfo &di) {
   SmallString<128> s;
   raw_svector_ostream os(s);
   DiagnosticPrinterRawOStream dp(os);
+
+  // For an inline asm diagnostic, prepend the module name to get something like
+  // "$module <inline asm>:1:5: ".
+  if (auto *dism = dyn_cast<DiagnosticInfoSrcMgr>(&di))
+    if (dism->isInlineAsmDiag())
+      os << dism->getModuleName() << ' ';
+
   di.print(dp);
   switch (di.getSeverity()) {
   case DS_Error:

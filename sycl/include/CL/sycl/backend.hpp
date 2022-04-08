@@ -69,7 +69,8 @@ auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT> {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName) {
-    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
+    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
+                              PI_INVALID_OPERATION);
   }
   return Obj.template get_native<BackendName>();
 }
@@ -82,7 +83,8 @@ inline backend_return_t<backend::opencl, event>
 get_native<backend::opencl, event>(const event &Obj) {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != backend::opencl) {
-    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
+    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
+                              PI_INVALID_OPERATION);
   }
   backend_return_t<backend::opencl, event> ReturnValue;
   for (auto const &element : Obj.getNativeVector()) {
@@ -104,7 +106,8 @@ inline backend_return_t<backend::opencl, event> get_native<
     backend::opencl, event>(const event &Obj) {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != backend::opencl) {
-    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
+    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
+                              PI_INVALID_OPERATION);
   }
   return reinterpret_cast<
       typename detail::interop<backend::opencl, event>::type>(Obj.getNative());
@@ -239,7 +242,8 @@ typename std::enable_if<
 template <backend Backend, typename T, int Dimensions = 1,
           typename AllocatorT = buffer_allocator>
 typename std::enable_if<detail::InteropFeatureSupportMap<Backend>::MakeBuffer ==
-                            true,
+                                true &&
+                            Backend != backend::ext_oneapi_level_zero,
                         buffer<T, Dimensions, AllocatorT>>::type
 make_buffer(const typename backend_traits<Backend>::template input_type<
                 buffer<T, Dimensions, AllocatorT>> &BackendObject,

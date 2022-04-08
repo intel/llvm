@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/Parser.h"
+#include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
@@ -58,7 +58,7 @@ struct TestDialect : public Dialect {
   }
 
   void getCanonicalizationPatterns(RewritePatternSet &results) const override {
-    results.insert<DisabledPattern, EnabledPattern>(results.getContext());
+    results.add<DisabledPattern, EnabledPattern>(results.getContext());
   }
 };
 
@@ -74,7 +74,7 @@ TEST(CanonicalizerTest, TestDisablePatterns) {
     %1 = "test.foo"() {sym_name = "B"} : () -> (f32)
   )mlir";
 
-  OwningModuleRef module = mlir::parseSourceString(code, &context);
+  OwningOpRef<ModuleOp> module = parseSourceString<ModuleOp>(code, &context);
   ASSERT_TRUE(succeeded(mgr.run(*module)));
 
   EXPECT_TRUE(module->lookupSymbol("B"));

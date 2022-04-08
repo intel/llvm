@@ -26,8 +26,10 @@ template <int dimensions> class range;
 namespace detail {
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
-make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt) {
-  return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, Evt);
+make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt = {},
+                   bool OwnNativeHandle = true) {
+  return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, OwnNativeHandle,
+                                                 Evt);
 }
 } // namespace detail
 
@@ -236,7 +238,7 @@ public:
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
     size_t r[3] = {Range[0], 0, 0};
-    impl->constructorNotification(CodeLoc, (void *)impl.get(), &*first,
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), &first,
                                   (const void *)typeid(T).name(), dimensions,
                                   sizeof(T), r);
   }
@@ -253,7 +255,7 @@ public:
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
     size_t r[3] = {Range[0], 0, 0};
-    impl->constructorNotification(CodeLoc, (void *)impl.get(), &*first,
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), &first,
                                   (const void *)typeid(T).name(), dimensions,
                                   sizeof(T), r);
   }
@@ -314,14 +316,11 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : Range{0} {
 
-    size_t BufSize = detail::SYCLMemObjT::getBufSizeForContext(
-        detail::getSyclObjImpl(SyclContext), MemObject);
-
-    Range[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl>(
-        detail::pi::cast<pi_native_handle>(MemObject), SyclContext, BufSize,
+        detail::pi::cast<pi_native_handle>(MemObject), SyclContext,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
-        AvailableEvent);
+        /* OwnNativeHandle */ true, AvailableEvent);
+    Range[0] = impl->getSize() / sizeof(T);
     impl->constructorNotification(CodeLoc, (void *)impl.get(), &MemObject,
                                   (const void *)typeid(T).name(), dimensions,
                                   sizeof(T), rangeToArray(Range).data());
@@ -403,6 +402,11 @@ public:
       handler &commandGroupHandler, range<dimensions> accessRange,
       id<dimensions> accessOffset = {},
       const detail::code_location CodeLoc = detail::code_location::current()) {
+    if (isOutOfBounds(accessOffset, accessRange, this->Range))
+      throw cl::sycl::invalid_object_error(
+          "Requested accessor would exceed the bounds of the buffer",
+          PI_INVALID_VALUE);
+
     return accessor<T, dimensions, mode, target, access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(
         *this, commandGroupHandler, accessRange, accessOffset, {}, CodeLoc);
@@ -414,6 +418,11 @@ public:
   get_access(
       range<dimensions> accessRange, id<dimensions> accessOffset = {},
       const detail::code_location CodeLoc = detail::code_location::current()) {
+    if (isOutOfBounds(accessOffset, accessRange, this->Range))
+      throw cl::sycl::invalid_object_error(
+          "Requested accessor would exceed the bounds of the buffer",
+          PI_INVALID_VALUE);
+
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(
@@ -499,6 +508,17 @@ public:
     return impl->template get_property<propertyT>();
   }
 
+protected:
+  bool isOutOfBounds(const id<dimensions> &offset,
+                     const range<dimensions> &newRange,
+                     const range<dimensions> &parentRange) {
+    bool outOfBounds = false;
+    for (int i = 0; i < dimensions; ++i)
+      outOfBounds |= newRange[i] + offset[i] > parentRange[i];
+
+    return outOfBounds;
+  }
+
 private:
   std::shared_ptr<detail::buffer_impl> impl;
   template <class Obj>
@@ -510,7 +530,7 @@ private:
   friend class accessor;
   template <typename HT, int HDims, typename HAllocT>
   friend buffer<HT, HDims, HAllocT, void>
-  detail::make_buffer_helper(pi_native_handle, const context &, event);
+  detail::make_buffer_helper(pi_native_handle, const context &, event, bool);
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent
   // buffer
@@ -520,18 +540,15 @@ private:
   // Interop constructor
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
   buffer(pi_native_handle MemObject, const context &SyclContext,
-         event AvailableEvent = {},
+         bool OwnNativeHandle, event AvailableEvent = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : Range{0} {
 
-    size_t BufSize = detail::SYCLMemObjT::getBufSizeForContext(
-        detail::getSyclObjImpl(SyclContext), MemObject);
-
-    Range[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl>(
-        MemObject, SyclContext, BufSize,
+        MemObject, SyclContext,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
-        AvailableEvent);
+        OwnNativeHandle, AvailableEvent);
+    Range[0] = impl->getSize() / sizeof(T);
     impl->constructorNotification(CodeLoc, (void *)impl.get(), &MemObject,
                                   (const void *)typeid(T).name(), dimensions,
                                   sizeof(T), rangeToArray(Range).data());
@@ -552,16 +569,6 @@ private:
   template <typename Type, int N>
   size_t getOffsetInBytes(const id<N> &offset, const range<N> &range) {
     return detail::getLinearIndex(offset, range) * sizeof(Type);
-  }
-
-  bool isOutOfBounds(const id<dimensions> &offset,
-                     const range<dimensions> &newRange,
-                     const range<dimensions> &parentRange) {
-    bool outOfBounds = false;
-    for (int i = 0; i < dimensions; ++i)
-      outOfBounds |= newRange[i] + offset[i] > parentRange[i];
-
-    return outOfBounds;
   }
 
   bool isContiguousRegion(const id<1> &, const range<1> &, const range<1> &) {

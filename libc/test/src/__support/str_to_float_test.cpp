@@ -232,6 +232,11 @@ TEST_F(LlvmLibcStrToFloatTest, SimpleDecimalConversion32SpecificFailures) {
   simple_decimal_conversion_test<float>(
       "1.4012984643248170709237295832899161312802619418765e-45", 0x1, 0,
       ERANGE);
+  simple_decimal_conversion_test<float>(
+      "7."
+      "006492321624085354618647916449580656401309709382578858785341419448955413"
+      "42930300743319094181060791015625e-46",
+      0x0, 0, ERANGE);
 }
 
 TEST(LlvmLibcStrToFloatTest, SimpleDecimalConversionExtraTypes) {
@@ -254,18 +259,6 @@ TEST(LlvmLibcStrToFloatTest, SimpleDecimalConversionExtraTypes) {
   EXPECT_EQ(double_output_mantissa, uint64_t(0x1AC53A7E04BCDA));
   EXPECT_EQ(output_exp2, uint32_t(1089));
   EXPECT_EQ(errno, 0);
-
-  // TODO(michaelrj): Get long double support working.
-
-  // __uint128_t longDoubleOutputMantissa = 0;
-  // outputExp2 = 0;
-
-  // errno = 0;
-  // __llvm_libc::internal::simple_decimal_conversion<long double>(
-  //     "123456789012345678900", &longDoubleOutputMantissa, &outputExp2);
-  // EXPECT_EQ(longDoubleOutputMantissa, __uint128_t(0x1AC53A7E04BCDA));
-  // EXPECT_EQ(outputExp2, uint32_t(1089));
-  // EXPECT_EQ(errno, 0);
 }
 
 #if defined(LONG_DOUBLE_IS_DOUBLE)

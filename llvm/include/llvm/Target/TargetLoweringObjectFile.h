@@ -20,6 +20,7 @@
 
 namespace llvm {
 
+struct Align;
 class Constant;
 class DataLayout;
 class Function;

@@ -98,8 +98,6 @@ function(add_sycl_rt_library LIB_NAME)
       OpenCL-ICD
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
-    PUBLIC
-      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
   )
 
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
@@ -134,6 +132,7 @@ set(SYCL_SOURCES
     "detail/context_impl.cpp"
     "detail/device_binary_image.cpp"
     "detail/device_filter.cpp"
+    "detail/device_global_map.cpp"
     "detail/device_impl.cpp"
     "detail/error_handling/enqueue_kernel.cpp"
     "detail/event_impl.cpp"

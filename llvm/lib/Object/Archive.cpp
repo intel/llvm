@@ -30,7 +30,6 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include <string>
 #include <system_error>
@@ -256,6 +255,10 @@ Expected<StringRef> ArchiveMemberHeader::getName(uint64_t Size) const {
     if (Name.size() == 1) // Linker member.
       return Name;
     if (Name.size() == 2 && Name[1] == '/') // String table.
+      return Name;
+    // System libraries from the Windows SDK for Windows 11 contain this symbol.
+    // It looks like a CFG guard: we just skip it for now.
+    if (Name.equals("/<XFGHASHMAP>/"))
       return Name;
     // It's a long name.
     // Get the string table offset.

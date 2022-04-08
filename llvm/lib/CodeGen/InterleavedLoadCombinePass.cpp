@@ -19,7 +19,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
@@ -31,9 +30,8 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
@@ -656,10 +654,10 @@ public:
   };
 
   /// Basic-block the load instructions are within
-  BasicBlock *BB;
+  BasicBlock *BB = nullptr;
 
   /// Pointer value of all participation load instructions
-  Value *PV;
+  Value *PV = nullptr;
 
   /// Participating load instructions
   std::set<LoadInst *> LIs;
@@ -668,7 +666,7 @@ public:
   std::set<Instruction *> Is;
 
   /// Final shuffle-vector instruction
-  ShuffleVectorInst *SVI;
+  ShuffleVectorInst *SVI = nullptr;
 
   /// Information of the offset for each vector element
   ElementInfo *EI;
@@ -676,8 +674,7 @@ public:
   /// Vector Type
   FixedVectorType *const VTy;
 
-  VectorInfo(FixedVectorType *VTy)
-      : BB(nullptr), PV(nullptr), SVI(nullptr), VTy(VTy) {
+  VectorInfo(FixedVectorType *VTy) : VTy(VTy) {
     EI = new ElementInfo[VTy->getNumElements()];
   }
 
@@ -1207,9 +1204,7 @@ bool InterleavedLoadCombineImpl::combine(std::list<VectorInfo> &InterleavedLoad,
           ->getNumElements();
   FixedVectorType *ILTy = FixedVectorType::get(ETy, Factor * ElementsPerSVI);
 
-  SmallVector<unsigned, 4> Indices;
-  for (unsigned i = 0; i < Factor; i++)
-    Indices.push_back(i);
+  auto Indices = llvm::to_vector<4>(llvm::seq<unsigned>(0, Factor));
   InterleavedCost = TTI.getInterleavedMemoryOpCost(
       Instruction::Load, ILTy, Factor, Indices, InsertionPoint->getAlign(),
       InsertionPoint->getPointerAddressSpace(), CostKind);

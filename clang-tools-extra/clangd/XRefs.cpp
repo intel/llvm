@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 #include "XRefs.h"
 #include "AST.h"
-#include "CodeCompletionStrings.h"
 #include "FindSymbols.h"
 #include "FindTarget.h"
 #include "ParsedAST.h"
@@ -31,13 +30,11 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclVisitor.h"
 #include "clang/AST/ExprCXX.h"
-#include "clang/AST/ExternalASTSource.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/Type.h"
-#include "clang/Basic/CharInfo.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
@@ -50,16 +47,13 @@
 #include "clang/Index/USRGeneration.h"
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -1861,7 +1855,7 @@ static QualType typeForNode(const SelectionTree::Node *N) {
       QualType VisitCXXThrowExpr(const CXXThrowExpr *S) {
         return S->getSubExpr()->getType();
       }
-      QualType VisitCoyieldStmt(const CoyieldExpr *S) {
+      QualType VisitCoyieldExpr(const CoyieldExpr *S) {
         return type(S->getOperand());
       }
       // Treat a designated initializer like a reference to the field.
@@ -1928,9 +1922,9 @@ static QualType unwrapFindType(QualType T) {
   // FIXME: use HeuristicResolver to unwrap smart pointers?
 
   // Function type => return type.
-  if (auto FT = T->getAs<FunctionType>())
+  if (auto *FT = T->getAs<FunctionType>())
     return unwrapFindType(FT->getReturnType());
-  if (auto CRD = T->getAsCXXRecordDecl()) {
+  if (auto *CRD = T->getAsCXXRecordDecl()) {
     if (CRD->isLambda())
       return unwrapFindType(CRD->getLambdaCallOperator()->getReturnType());
     // FIXME: more cases we'd prefer the return type of the call operator?

@@ -151,6 +151,8 @@ getAArch64ArchFeaturesFromMarch(const Driver &D, StringRef March,
   std::pair<StringRef, StringRef> Split = StringRef(MarchLowerCase).split("+");
 
   llvm::AArch64::ArchKind ArchKind = llvm::AArch64::parseArch(Split.first);
+  if (Split.first == "native")
+    ArchKind = llvm::AArch64::getCPUArchKind(llvm::sys::getHostCPUName().str());
   if (ArchKind == llvm::AArch64::ArchKind::INVALID ||
       !llvm::AArch64::getArchFeatures(ArchKind, Features))
     return false;
@@ -222,7 +224,6 @@ getAArch64MicroArchFeaturesFromMcpu(const Driver &D, StringRef Mcpu,
 void aarch64::getAArch64TargetFeatures(const Driver &D,
                                        const llvm::Triple &Triple,
                                        const ArgList &Args,
-                                       llvm::opt::ArgStringList &CmdArgs,
                                        std::vector<StringRef> &Features,
                                        bool ForAS) {
   Arg *A;
@@ -394,6 +395,9 @@ fp16_fml_fallthrough:
   }
 
   if (std::find(ItBegin, ItEnd, "+v8.4a") != ItEnd ||
+      std::find(ItBegin, ItEnd, "+v8.5a") != ItEnd ||
+      std::find(ItBegin, ItEnd, "+v8.6a") != ItEnd ||
+      std::find(ItBegin, ItEnd, "+v8.7a") != ItEnd ||
       std::find(ItBegin, ItEnd, "+v8.8a") != ItEnd ||
       std::find(ItBegin, ItEnd, "+v9a") != ItEnd ||
       std::find(ItBegin, ItEnd, "+v9.1a") != ItEnd ||
@@ -466,16 +470,10 @@ fp16_fml_fallthrough:
 
   if (Arg *A = Args.getLastArg(options::OPT_mno_unaligned_access,
                                options::OPT_munaligned_access)) {
-    if (A->getOption().matches(options::OPT_mno_unaligned_access)) {
+    if (A->getOption().matches(options::OPT_mno_unaligned_access))
       Features.push_back("+strict-align");
-      if (!ForAS)
-        CmdArgs.push_back("-Wunaligned-access");
-    }
-  } else if (Triple.isOSOpenBSD()) {
+  } else if (Triple.isOSOpenBSD())
     Features.push_back("+strict-align");
-    if (!ForAS)
-      CmdArgs.push_back("-Wunaligned-access");
-  }
 
   if (Args.hasArg(options::OPT_ffixed_x1))
     Features.push_back("+reserve-x1");
@@ -592,4 +590,7 @@ fp16_fml_fallthrough:
     // Enabled A53 errata (835769) workaround by default on android
     Features.push_back("+fix-cortex-a53-835769");
   }
+
+  if (Args.getLastArg(options::OPT_mno_bti_at_return_twice))
+    Features.push_back("+no-bti-at-return-twice");
 }

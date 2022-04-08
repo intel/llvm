@@ -773,7 +773,7 @@ void ASTDeclReader::VisitEnumDecl(EnumDecl *ED) {
     }
     if (OldDef) {
       Reader.MergedDeclContexts.insert(std::make_pair(ED, OldDef));
-      ED->setCompleteDefinition(false);
+      ED->demoteThisDefinitionToDeclaration();
       Reader.mergeDefinitionVisibility(OldDef, ED);
       if (OldDef->getODRHash() != ED->getODRHash())
         Reader.PendingEnumOdrMergeFailures[OldDef].push_back(ED);
@@ -828,7 +828,7 @@ void ASTDeclReader::VisitRecordDecl(RecordDecl *RD) {
     }
     if (OldDef) {
       Reader.MergedDeclContexts.insert(std::make_pair(RD, OldDef));
-      RD->setCompleteDefinition(false);
+      RD->demoteThisDefinitionToDeclaration();
       Reader.mergeDefinitionVisibility(OldDef, RD);
     } else {
       OldDef = RD;
@@ -1801,7 +1801,7 @@ void ASTDeclReader::ReadCXXDefinitionData(
     using Capture = LambdaCapture;
 
     auto &Lambda = static_cast<CXXRecordDecl::LambdaDefinitionData &>(Data);
-    Lambda.Dependent = Record.readInt();
+    Lambda.DependencyKind = Record.readInt();
     Lambda.IsGenericLambda = Record.readInt();
     Lambda.CaptureDefault = Record.readInt();
     Lambda.NumCaptures = Record.readInt();
@@ -1917,8 +1917,8 @@ void ASTDeclReader::ReadCXXRecordDefinition(CXXRecordDecl *D, bool Update) {
   // allocate the appropriate DefinitionData structure.
   bool IsLambda = Record.readInt();
   if (IsLambda)
-    DD = new (C) CXXRecordDecl::LambdaDefinitionData(D, nullptr, false, false,
-                                                     LCD_None);
+    DD = new (C) CXXRecordDecl::LambdaDefinitionData(
+        D, nullptr, CXXRecordDecl::LDK_Unknown, false, LCD_None);
   else
     DD = new (C) struct CXXRecordDecl::DefinitionData(D);
 
@@ -2103,7 +2103,7 @@ void ASTDeclReader::VisitFriendTemplateDecl(FriendTemplateDecl *D) {
   VisitDecl(D);
   unsigned NumParams = Record.readInt();
   D->NumParams = NumParams;
-  D->Params = new TemplateParameterList*[NumParams];
+  D->Params = new (Reader.getContext()) TemplateParameterList *[NumParams];
   for (unsigned i = 0; i != NumParams; ++i)
     D->Params[i] = Record.readTemplateParameterList();
   if (Record.readInt()) // HasFriendDecl

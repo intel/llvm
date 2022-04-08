@@ -26,11 +26,11 @@ int main() {
 // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE6kernel
 // CHECK-SAME: i32 noundef [[ARG_A:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: i32 noundef [[ARG_B:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: i8 addrspace(1)* noundef readonly [[ACC1_DATA:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i8 addrspace(1)* noundef readonly align 1 [[ACC1_DATA:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[RANGE_TYPE]]* noundef byval(%[[RANGE_TYPE]]) align 4 [[ACC1_RANGE1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[RANGE_TYPE]]* noundef byval(%[[RANGE_TYPE]]) align 4 [[ACC1_RANGE2:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[ID_TYPE]]* noundef byval(%[[ID_TYPE]]) align 4 [[ACC1_ID:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: i8 addrspace(1)* noundef readonly [[ACC2_DATA:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i8 addrspace(1)* noundef readonly align 1 [[ACC2_DATA:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[RANGE_TYPE]]* noundef byval(%[[RANGE_TYPE]]) align 4 [[ACC2_RANGE1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[RANGE_TYPE]]* noundef byval(%[[RANGE_TYPE]]) align 4 [[ACC2_RANGE2:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[ID_TYPE]]* noundef byval(%[[ID_TYPE]]) align 4 [[ACC2_ID:%[a-zA-Z0-9_]+]],
