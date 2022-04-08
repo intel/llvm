@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl  %s
+// RUN: %clangxx -DSYCL2020_CONFORMANT_APIS -fsycl  %s
 // RUN: %clangxx -sycl-std=121 -fsycl %s
 
 #include <CL/sycl.hpp>
@@ -17,15 +17,7 @@ template <class... Args> struct CheckHelper {
   template <class F> static auto call(F f) { return f(Args()...); }
 };
 
-#if SYCL_LANGUAGE_VERSION < 202001
-#define CHECK(EXPECTED121, EXPECTED2020, FUNC, ...)                            \
-  {                                                                            \
-    auto ret = CheckHelper<__VA_ARGS__>::call(                                 \
-        [](auto... args) { return cl::sycl::FUNC(args...); });                 \
-    static_assert(std::is_same_v<decltype(ret), EXPECTED121>);                 \
-  }
-#define CHECK2020(...)
-#else
+#if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
 #define CHECK(EXPECTED121, EXPECTED2020, FUNC, ...)                            \
   {                                                                            \
     auto ret = CheckHelper<__VA_ARGS__>::call(                                 \
@@ -34,6 +26,14 @@ template <class... Args> struct CheckHelper {
   }
 // To be used for marray tests. Not yet implemented
 // #define CHECK2020(...) CHECK(__VA_ARGS__)
+#define CHECK2020(...)
+#else
+#define CHECK(EXPECTED121, EXPECTED2020, FUNC, ...)                            \
+  {                                                                            \
+    auto ret = CheckHelper<__VA_ARGS__>::call(                                 \
+        [](auto... args) { return cl::sycl::FUNC(args...); });                 \
+    static_assert(std::is_same_v<decltype(ret), EXPECTED121>);                 \
+  }
 #define CHECK2020(...)
 #endif
 
@@ -77,7 +77,9 @@ void foo() {
   CHECK(int32v, int32v, isequal, floatv, floatv);
   CHECK2020(_, boolm, isequal, floatm, floatm);
 
-  CHECK(int64_t, bool, isequal, double, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, isequal, double, double);
   CHECK(int64v, int64v, isequal, doublev, doublev);
   CHECK2020(_, boolm, isequal, doublem, doublem);
 
@@ -90,7 +92,9 @@ void foo() {
   CHECK(int32v, int32v, isnotequal, floatv, floatv);
   CHECK2020(_, boolm, isnotequal, floatm, floatm);
 
-  CHECK(int64_t, bool, isnotequal, double, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, isnotequal, double, double);
   CHECK(int64v, int64v, isnotequal, doublev, doublev);
   CHECK2020(_, boolm, isnotequal, doublem, doublem);
 
@@ -103,7 +107,9 @@ void foo() {
   CHECK(int32v, int32v, isgreater, floatv, floatv);
   CHECK2020(_, boolm, isgreater, floatm, floatm);
 
-  CHECK(int64_t, bool, isgreater, double, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, isgreater, double, double);
   CHECK(int64v, int64v, isgreater, doublev, doublev);
   CHECK2020(_, boolm, isgreater, doublem, doublem);
 
@@ -116,7 +122,9 @@ void foo() {
   CHECK(int32v, int32v, isgreaterequal, floatv, floatv);
   CHECK2020(_, boolm, isgreaterequal, floatm, floatm);
 
-  CHECK(int64_t, bool, isgreaterequal, double, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, isgreaterequal, double, double);
   CHECK(int64v, int64v, isgreaterequal, doublev, doublev);
   CHECK2020(_, boolm, isgreaterequal, doublem, doublem);
 
@@ -129,7 +137,9 @@ void foo() {
   CHECK(int32v, int32v, isless, floatv, floatv);
   CHECK2020(_, boolm, isless, floatm, floatm);
 
-  CHECK(int64_t, bool, isless, double, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, isless, double, double);
   CHECK(int64v, int64v, isless, doublev, doublev);
   CHECK2020(_, boolm, isless, doublem, doublem);
 
@@ -142,7 +152,9 @@ void foo() {
   CHECK(int32v, int32v, islessequal, floatv, floatv);
   CHECK2020(_, boolm, islessequal, floatm, floatm);
 
-  CHECK(int64_t, bool, islessequal, double, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, islessequal, double, double);
   CHECK(int64v, int64v, islessequal, doublev, doublev);
   CHECK2020(_, boolm, islessequal, doublem, doublem);
 
@@ -155,7 +167,9 @@ void foo() {
   CHECK(int32v, int32v, islessgreater, floatv, floatv);
   CHECK2020(_, boolm, islessgreater, floatm, floatm);
 
-  CHECK(int64_t, bool, islessgreater, double, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, islessgreater, double, double);
   CHECK(int64v, int64v, islessgreater, doublev, doublev);
   CHECK2020(_, boolm, islessgreater, doublem, doublem);
 
@@ -168,7 +182,9 @@ void foo() {
   CHECK(int32v, int32v, isfinite, floatv);
   CHECK2020(_, boolm, isfinite, floatm);
 
-  CHECK(int64_t, bool, isfinite, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, isfinite, double);
   CHECK(int64v, int64v, isfinite, doublev);
   CHECK2020(_, boolm, isfinite, doublem);
 
@@ -181,7 +197,9 @@ void foo() {
   CHECK(int32v, int32v, isinf, floatv);
   CHECK2020(_, boolm, isinf, floatm);
 
-  CHECK(int64_t, bool, isinf, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, isinf, double);
   CHECK(int64v, int64v, isinf, doublev);
   CHECK2020(_, boolm, isinf, doublem);
 
@@ -194,7 +212,9 @@ void foo() {
   CHECK(int32v, int32v, isnan, floatv);
   CHECK2020(_, boolm, isnan, floatm);
 
-  CHECK(int64_t, bool, isnan, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, isnan, double);
   CHECK(int64v, int64v, isnan, doublev);
   CHECK2020(_, boolm, isnan, doublem);
 
@@ -207,7 +227,9 @@ void foo() {
   CHECK(int32v, int32v, isnormal, floatv);
   CHECK2020(_, boolm, isnormal, floatm);
 
-  CHECK(int64_t, bool, isnormal, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, isnormal, double);
   CHECK(int64v, int64v, isnormal, doublev);
   CHECK2020(_, boolm, isnormal, doublem);
 
@@ -220,7 +242,9 @@ void foo() {
   CHECK(int32v, int32v, isordered, floatv, floatv);
   CHECK2020(_, boolm, isordered, floatm, floatm);
 
-  CHECK(int64_t, bool, isordered, double, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, isordered, double, double);
   CHECK(int64v, int64v, isordered, doublev, doublev);
   CHECK2020(_, boolm, isordered, doublem, doublem);
 
@@ -233,7 +257,9 @@ void foo() {
   CHECK(int32v, int32v, isunordered, floatv, floatv);
   CHECK2020(_, boolm, isunordered, floatm, floatm);
 
-  CHECK(int64_t, bool, isunordered, double, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, isunordered, double, double);
   CHECK(int64v, int64v, isunordered, doublev, doublev);
   CHECK2020(_, boolm, isunordered, doublem, doublem);
 
@@ -246,7 +272,9 @@ void foo() {
   CHECK(int32v, int32v, signbit, floatv);
   CHECK2020(_, boolm, signbit, floatm);
 
-  CHECK(int64_t, bool, signbit, double);
+  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
+  // scalar case).
+  CHECK(int32_t, bool, signbit, double);
   CHECK(int64v, int64v, signbit, doublev);
   CHECK2020(_, boolm, signbit, doublem);
 

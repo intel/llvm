@@ -1206,10 +1206,10 @@ detail::common_rel_ret_t<T> signbit(T x) __NOEXC {
 // The standard is being corrected for "any" at
 // https://github.com/KhronosGroup/SYCL-Docs/pull/234. Scalar/marray version
 // will return scalar "bool".
-#if SYCL_LANGUAGE_VERSION < 202001
-using anyall_ret_t = int;
-#else
+#if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
 using anyall_ret_t = bool;
+#else
+using anyall_ret_t = int;
 #endif
 
 template <typename T>
