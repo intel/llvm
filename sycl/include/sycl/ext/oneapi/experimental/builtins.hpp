@@ -165,6 +165,28 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fabs(T x) {
 #endif
 }
 
+template <typename T, unsigned long N>
+std::enable_if_t<std::is_same<T, bfloat16>::value, sycl::marray<T, N>>
+fabs(sycl::marray<T, N> x) {
+#ifdef __SYCL_DEVICE_ONLY__
+
+  sycl::marray<bfloat16, N> res;
+  uint32_t *x_storage = reinterpret_cast<uint32_t *>(&x);
+  uint32_t *res_storage = reinterpret_cast<uint32_t *>(&res);
+  for (int i = 0; i < N / 2; i++)
+    res_storage[i] = __clc_fabs(x_storage[i]);
+
+  if (N % 2) {
+    res[N - 1] = bfloat16::from_bits(__clc_fabs(x[N - 1].raw()));
+  }
+  return res;
+#else
+  (void)x;
+  throw runtime_error("bfloat16 is not currently supported on the host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
 template <typename T>
 std::enable_if_t<experimental::detail::is_bf16_storage_type<T>::value, T>
 fmin(T x, T y) {
