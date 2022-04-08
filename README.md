@@ -34,16 +34,6 @@ conducting experiments. As the implementation becomes more mature, we try to
 upstream as much DPC++ support to LLVM main branch as possible. See
 [SYCL upstreaming working group notes](/../../wiki/SYCL-upstreaming-working-group-meeting-notes)
 for more details.
-=======
-The LLVM project has multiple components. The core of the project is
-itself called "LLVM". This contains all of the tools, libraries, and header
-files needed to process intermediate representations and convert them into
-object files. Tools include an assembler, disassembler, bitcode analyzer, and
-bitcode optimizer. It also contains basic regression tests.
-
-C-like languages use the [Clang](http://clang.llvm.org/) frontend. This
-component compiles C, C++, Objective-C, and Objective-C++ code into LLVM bitcode
--- and from there into object files, using LLVM.
 
 Note that this project can be used as a technical foundation for some
 proprietary compiler products, which may leverage implementations from this open
