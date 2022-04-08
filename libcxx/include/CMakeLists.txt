@@ -66,6 +66,8 @@ set(files
   __algorithm/pop_heap.h
   __algorithm/prev_permutation.h
   __algorithm/push_heap.h
+  __algorithm/ranges_count.h
+  __algorithm/ranges_count_if.h
   __algorithm/ranges_find.h
   __algorithm/ranges_find_if.h
   __algorithm/ranges_find_if_not.h
@@ -409,6 +411,8 @@ set(files
   __threading_support
   __tree
   __tuple
+  __type_traits/integral_constant.h
+  __type_traits/is_callable.h
   __undef_macros
   __utility/as_const.h
   __utility/auto_cast.h
