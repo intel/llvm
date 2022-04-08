@@ -1116,7 +1116,6 @@ pi_result
 _pi_context::getAvailableCommandList(pi_queue Queue,
                                      pi_command_list_ptr_t &CommandList,
                                      bool UseCopyEngine, bool AllowBatching) {
-
   // Immediate commandlists have been pre-allocated and are always available.
   if (UseImmediateCommandLists) {
     CommandList = Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
@@ -5912,11 +5911,14 @@ bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
 }
 
 // Wait on all operations in flight on this Queue.
-// If using immediate commandlists add barriers to all commandlists associated
-// with the Queue. An alternative approach would be to wait on all Events
-// associated with the in-flight operations. For standard commandlists sync the
-// L0 queues directly.
 // The caller is expected to hold a lock on the Queue.
+// For standard commandlists sync the L0 queues directly.
+// For immediate commandlists add barriers to all commandlists associated
+// with the Queue. An alternative approach would be to wait on all Events
+// associated with the in-flight operations.
+// TODO: Event release in immediate commandlist mode is driven by the SYCL
+// runtime. Need to investigate whether relase can be done earlier, at sync
+// points such as this, to reduce total number of active Events.
 pi_result _pi_queue::synchronize() {
   if (!Healthy)
     return PI_SUCCESS;
