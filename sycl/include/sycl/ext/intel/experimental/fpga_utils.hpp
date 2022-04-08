@@ -98,6 +98,18 @@ public:
                  _T...>::value;
 };
 
+template <typename PropListT, typename PropKeyT, typename DefaultPropValT,
+          typename = void>
+struct GetOrDefaultValT {
+  using type = DefaultPropValT;
+};
+template <typename PropListT, typename PropKeyT, typename DefaultPropValT>
+struct GetOrDefaultValT<
+    PropListT, PropKeyT, DefaultPropValT,
+    std::enable_if_t<PropListT::template has_property<PropKeyT>()>> {
+  using type = decltype(PropListT::template get_property<PropKeyT>());
+};
+
 } // namespace experimental
 } // namespace intel
 } // namespace ext
