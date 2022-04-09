@@ -1023,7 +1023,7 @@ struct _pi_buffer final : _pi_mem {
         Size(Size), SubBuffer{nullptr, 0} {
 
     // Re-use the given device allocation.
-    // If it is not a device allocatiin then still mark it as valid, and
+    // If it is not a device allocation then still mark it as valid, and
     // expect caller to initialize it right after buffer construction.
     auto D = Device ? Device : Context->Devices[0];
     LastDeviceWithValidAllocation = D;

@@ -3323,7 +3323,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
       new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device, OwnNativeHandle);
   return PI_SUCCESS;
 }
-#if 0  // remove?
+
 // If indirect access tracking is enabled then performs reference counting,
 // otherwise just calls zeMemAllocDevice.
 static pi_result ZeDeviceMemAllocHelper(void **ResultPtr, pi_context Context,
@@ -3358,7 +3358,6 @@ static pi_result ZeDeviceMemAllocHelper(void **ResultPtr, pi_context Context,
   }
   return PI_SUCCESS;
 }
-#endif // 0
 
 // If indirect access tracking is enabled then performs reference counting,
 // otherwise just calls zeMemAllocHost.
@@ -4807,8 +4806,6 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   // If there are any pending arguments set them now.
   for (auto &Arg : Kernel->PendingArguments) {
-    // fprintf(stderr, "Arg[%d]: Size=%d, pi_mem=%p\n", Arg.Index,
-    // (int)Arg.Size, (void*)Arg.Value);
     char **ZeHandlePtr;
     PI_CALL(
         Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode, Queue->Device));
@@ -7915,8 +7912,13 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         // When HostPtr is imported we use it for the buffer.
         ZeHandle = MapHostPtr;
       } else {
-        PI_CALL(piextUSMHostAlloc(pi_cast<void **>(&ZeHandle), Context, nullptr,
-                                  Size, Alignment));
+        if (enableBufferPooling()) {
+          PI_CALL(piextUSMHostAlloc(pi_cast<void **>(&ZeHandle), Context,
+                                    nullptr, Size, Alignment));
+        } else {
+          PI_CALL(
+              ZeHostMemAllocHelper(pi_cast<void **>(&ZeHandle), Context, Size));
+        }
       }
     } else {
       if (Context->SingleRootDevice && Context->SingleRootDevice != Device) {
@@ -7928,11 +7930,18 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         //       devices in the context have the same root.
         PI_CALL(getZeHandle(ZeHandle, AccessMode, Context->SingleRootDevice));
       } else { // Create device allocation
-        PI_CALL(piextUSMDeviceAlloc(pi_cast<void **>(&ZeHandle), Context,
-                                    Device, nullptr, Size, Alignment));
+        if (enableBufferPooling()) {
+          PI_CALL(piextUSMDeviceAlloc(pi_cast<void **>(&ZeHandle), Context,
+                                      Device, nullptr, Size, Alignment));
+        } else {
+          PI_CALL(ZeDeviceMemAllocHelper(pi_cast<void **>(&ZeHandle), Context,
+                                         Device, Size));
+        }
       }
     }
     Allocation.ZeHandle = ZeHandle;
+  } else {
+    ZeHandle = Allocation.ZeHandle;
   }
 
   // If some prior access invalidated this allocation then make it valid again.
@@ -7971,8 +7980,8 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
     }
   }
 
-  // fprintf(stderr, "getZeHandle = %p\n", (void*)Allocation.ZeHandle);
-  ZeHandle = Allocation.ZeHandle;
+  zePrint("getZeHandle(pi_device{%p}) = %p\n", (void *)Device,
+          (void *)Allocation.ZeHandle);
   return PI_SUCCESS;
 }
 
