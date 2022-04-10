@@ -3719,11 +3719,8 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   ZE_CALL(zeImageCreate,
           (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeHImage));
 
-  auto HostPtrOrNull =
-      (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
-
   try {
-    auto ZePIImage = new _pi_image(Context, ZeHImage, HostPtrOrNull);
+    auto ZePIImage = new _pi_image(Context, ZeHImage);
 
 #ifndef NDEBUG
     ZePIImage->ZeImageDesc = ZeImageDesc;
@@ -3775,11 +3772,8 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
           (Context->ZeContext, Ptr, &ZeMemProps, &ZeDevice));
 
   // Check type of the allocation
-  bool HostAllocation = false;
   switch (ZeMemProps.type) {
   case ZE_MEMORY_TYPE_HOST:
-    HostAllocation = true;
-    break;
   case ZE_MEMORY_TYPE_SHARED:
   case ZE_MEMORY_TYPE_DEVICE:
     break;
@@ -3801,8 +3795,8 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   }
 
   try {
-    *Mem = new _pi_buffer(Context, Size, Device, HostAllocation,
-                          pi_cast<char *>(NativeHandle), ownNativeHandle);
+    *Mem = new _pi_buffer(Context, Size, Device, pi_cast<char *>(NativeHandle),
+                          ownNativeHandle);
 
     pi_platform Plt = Context->getPlatform();
     std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
@@ -3829,7 +3823,7 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   if (Device) {
     // If this allocation is on a device, then we re-use it for the buffer.
     // Nothing to do.
-  } else if (HostAllocation && Buffer->OnHost) {
+  } else if (Buffer->OnHost) {
     // If this is host allocation and buffer always stays on host there
     // nothing more to do.
   } else {
@@ -6003,14 +5997,18 @@ pi_result piEnqueueMemBufferWriteRect(
       EventWaitList, Event);
 }
 
-pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
-                                 pi_mem DstBuffer, size_t SrcOffset,
-                                 size_t DstOffset, size_t Size,
-                                 pi_uint32 NumEventsInWaitList,
+pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcMem, pi_mem DstMem,
+                                 size_t SrcOffset, size_t DstOffset,
+                                 size_t Size, pi_uint32 NumEventsInWaitList,
                                  const pi_event *EventWaitList,
                                  pi_event *Event) {
-  PI_ASSERT(SrcBuffer && DstBuffer, PI_INVALID_MEM_OBJECT);
+  PI_ASSERT(SrcMem && DstMem, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
+
+  PI_ASSERT(!SrcMem->isImage(), PI_INVALID_MEM_OBJECT);
+  PI_ASSERT(!DstMem->isImage(), PI_INVALID_MEM_OBJECT);
+  auto SrcBuffer = pi_cast<pi_buffer>(SrcMem);
+  auto DstBuffer = pi_cast<pi_buffer>(DstMem);
 
   std::shared_lock SrcLock(SrcBuffer->Mutex, std::defer_lock);
   std::scoped_lock LockAll(SrcLock, DstBuffer->Mutex, Queue->Mutex);
@@ -6037,13 +6035,18 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
 }
 
 pi_result piEnqueueMemBufferCopyRect(
-    pi_queue Queue, pi_mem SrcBuffer, pi_mem DstBuffer,
-    pi_buff_rect_offset SrcOrigin, pi_buff_rect_offset DstOrigin,
-    pi_buff_rect_region Region, size_t SrcRowPitch, size_t SrcSlicePitch,
-    size_t DstRowPitch, size_t DstSlicePitch, pi_uint32 NumEventsInWaitList,
+    pi_queue Queue, pi_mem SrcMem, pi_mem DstMem, pi_buff_rect_offset SrcOrigin,
+    pi_buff_rect_offset DstOrigin, pi_buff_rect_region Region,
+    size_t SrcRowPitch, size_t SrcSlicePitch, size_t DstRowPitch,
+    size_t DstSlicePitch, pi_uint32 NumEventsInWaitList,
     const pi_event *EventWaitList, pi_event *Event) {
-  PI_ASSERT(SrcBuffer && DstBuffer, PI_INVALID_MEM_OBJECT);
+  PI_ASSERT(SrcMem && DstMem, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
+
+  PI_ASSERT(!SrcMem->isImage(), PI_INVALID_MEM_OBJECT);
+  PI_ASSERT(!DstMem->isImage(), PI_INVALID_MEM_OBJECT);
+  auto SrcBuffer = pi_cast<pi_buffer>(SrcMem);
+  auto DstBuffer = pi_cast<pi_buffer>(DstMem);
 
   std::shared_lock SrcLock(SrcBuffer->Mutex, std::defer_lock);
   std::scoped_lock LockAll(SrcLock, DstBuffer->Mutex, Queue->Mutex);
@@ -6183,19 +6186,21 @@ static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
                                   pi_usm_mem_properties *Properties,
                                   size_t Size, pi_uint32 Alignment);
 
-pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
-                                pi_bool BlockingMap, pi_map_flags MapFlags,
-                                size_t Offset, size_t Size,
-                                pi_uint32 NumEventsInWaitList,
+pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
+                                pi_map_flags MapFlags, size_t Offset,
+                                size_t Size, pi_uint32 NumEventsInWaitList,
                                 const pi_event *EventWaitList, pi_event *Event,
                                 void **RetMap) {
 
   // TODO: we don't implement read-only or write-only, always read-write.
   // assert((map_flags & PI_MAP_READ) != 0);
   // assert((map_flags & PI_MAP_WRITE) != 0);
-  PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
+  PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
+
+  PI_ASSERT(!Mem->isImage(), PI_INVALID_MEM_OBJECT);
+  auto Buffer = pi_cast<pi_buffer>(Mem);
 
   ze_event_handle_t ZeEvent = nullptr;
 
@@ -6270,8 +6275,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
-      if (!Buffer->HostPtrImported &&
-          !(MapFlags & PI_MAP_WRITE_INVALIDATE_REGION)) {
+      if (ZeHandleSrc != Buffer->MapHostPtr &&
+          AccessMode != _pi_mem::write_only) {
         memcpy(*RetMap, ZeHandleSrc + Offset, Size);
       }
     } else {
@@ -6343,15 +6348,15 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   return PI_SUCCESS;
 }
 
-pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
+pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
                             pi_uint32 NumEventsInWaitList,
                             const pi_event *EventWaitList, pi_event *Event) {
+  PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
-  // TODO: handle the case when user does not care to follow the event
-  // of unmap completion.
-  PI_ASSERT(Event, PI_INVALID_EVENT);
+  PI_ASSERT(!Mem->isImage(), PI_INVALID_MEM_OBJECT);
+  auto Buffer = pi_cast<pi_buffer>(Mem);
 
   ze_event_handle_t ZeEvent = nullptr;
   {
@@ -6372,17 +6377,17 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     (*Event)->WaitList = TmpWaitList;
   }
 
-  _pi_mem::Mapping MapInfo = {};
+  _pi_buffer::Mapping MapInfo = {};
   {
     // Lock automatically releases when this goes out of scope.
-    std::scoped_lock Guard(MemObj->Mutex);
-    auto It = MemObj->Mappings.find(MappedPtr);
-    if (It == MemObj->Mappings.end()) {
+    std::scoped_lock Guard(Buffer->Mutex);
+    auto It = Buffer->Mappings.find(MappedPtr);
+    if (It == Buffer->Mappings.end()) {
       zePrint("piEnqueueMemUnmap: unknown memory mapping\n");
       return PI_INVALID_VALUE;
     }
     MapInfo = It->second;
-    MemObj->Mappings.erase(It);
+    Buffer->Mappings.erase(It);
 
     // NOTE: we still have to free the host memory allocated/returned by
     // piEnqueueMemBufferMap, but can only do so after the above copy
@@ -6392,12 +6397,12 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     // any memory, so there is nothing to free. This is indicated by a nullptr.
     if (Event)
       (*Event)->CommandData =
-          (MemObj->OnHost ? nullptr
-                          : (MemObj->MapHostPtr ? nullptr : MappedPtr));
+          (Buffer->OnHost ? nullptr
+                          : (Buffer->MapHostPtr ? nullptr : MappedPtr));
   }
 
   // For integrated devices the buffer is allocated in host memory.
-  if (MemObj->OnHost) {
+  if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
     PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
 
@@ -6417,10 +6422,10 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
     char *ZeHandleDst;
     PI_CALL(
-        MemObj->getZeHandle(ZeHandleDst, _pi_mem::write_only, Queue->Device));
+        Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only, Queue->Device));
 
-    std::scoped_lock Guard(MemObj->Mutex);
-    if (MemObj->MapHostPtr)
+    std::scoped_lock Guard(Buffer->Mutex);
+    if (Buffer->MapHostPtr)
       memcpy(ZeHandleDst + MapInfo.Offset, MappedPtr, MapInfo.Size);
 
     // Signal this event
@@ -6430,7 +6435,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   }
 
   // Lock automatically releases when this goes out of scope.
-  std::scoped_lock Lock(Queue->Mutex, MemObj->Mutex);
+  std::scoped_lock Lock(Queue->Mutex, Buffer->Mutex);
 
   pi_command_list_ptr_t CommandList{};
   if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList))
@@ -6447,10 +6452,10 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // left to doing copy (write back to the device).
   //
   // NOTE: Keep this in sync with the implementation of
-  // piEnqueueMemBufferMap/piEnqueueMemImageMap.
+  // piEnqueueMemBufferMap.
 
   char *ZeHandleDst;
-  PI_CALL(MemObj->getZeHandle(ZeHandleDst, _pi_mem::write_only, Queue->Device));
+  PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only, Queue->Device));
 
   ZE_CALL(zeCommandListAppendMemoryCopy,
           (ZeCommandList, ZeHandleDst + MapInfo.Offset, MappedPtr, MapInfo.Size,
@@ -6727,7 +6732,8 @@ piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
   std::scoped_lock LockAll(SrcLock, DstImage->Mutex, Queue->Mutex);
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
-  bool PreferCopyEngine = (SrcImage->OnHost || DstImage->OnHost);
+  // Images are always allocated on device.
+  bool PreferCopyEngine = false;
   return enqueueMemImageCommandHelper(
       PI_COMMAND_TYPE_IMAGE_COPY, Queue, SrcImage, DstImage,
       false, // is_blocking
@@ -7865,6 +7871,27 @@ pi_result _pi_buffer::getZeHandlePtr(char **&ZeHandlePtr,
   return PI_SUCCESS;
 }
 
+size_t _pi_buffer::getAlignment() const {
+  // Choose an alignment that is at most 64 and is the next power of 2
+  // for sizes less than 64.
+  auto Alignment = Size;
+  if (Alignment > 32UL)
+    Alignment = 64UL;
+  else if (Alignment > 16UL)
+    Alignment = 32UL;
+  else if (Alignment > 8UL)
+    Alignment = 16UL;
+  else if (Alignment > 4UL)
+    Alignment = 8UL;
+  else if (Alignment > 2UL)
+    Alignment = 4UL;
+  else if (Alignment > 1UL)
+    Alignment = 2UL;
+  else
+    Alignment = 1UL;
+  return Alignment;
+}
+
 pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
                                   pi_device Device) {
 
@@ -7883,60 +7910,57 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
     // be given a pointer to the allocation handle rather than its value.
     //
     Allocation.ZeHandle = ZeHandle;
+    Allocation.ReleaseAction = allocation_t::keep;
     LastDeviceWithValidAllocation = Device;
     return PI_SUCCESS;
   }
 
-  // Peform actual allocation as needed.
-  if (!Allocation.ZeHandle) {
-    // Choose an alignment that is at most 64 and is the next power of 2
-    // for sizes less than 64.
-    auto Alignment = Size;
-    if (Alignment > 32UL)
-      Alignment = 64UL;
-    else if (Alignment > 16UL)
-      Alignment = 32UL;
-    else if (Alignment > 8UL)
-      Alignment = 16UL;
-    else if (Alignment > 4UL)
-      Alignment = 8UL;
-    else if (Alignment > 2UL)
-      Alignment = 4UL;
-    else if (Alignment > 1UL)
-      Alignment = 2UL;
-    else
-      Alignment = 1UL;
-
-    if (OnHost) {
-      if (HostPtrImported) {
-        // When HostPtr is imported we use it for the buffer.
-        ZeHandle = MapHostPtr;
+  // First handle case where the buffer is represented by only
+  // a single host allocation.
+  if (OnHost) {
+    auto &HostAllocation = Allocations[nullptr];
+    // The host allocation may already exists, e.g. with imported
+    // host ptr, or in case of interop buffer.
+    if (!HostAllocation.ZeHandle) {
+      if (enableBufferPooling()) {
+        HostAllocation.ReleaseAction = allocation_t::free;
+        PI_CALL(piextUSMHostAlloc(pi_cast<void **>(&ZeHandle), Context, nullptr,
+                                  Size, getAlignment()));
       } else {
-        if (enableBufferPooling()) {
-          PI_CALL(piextUSMHostAlloc(pi_cast<void **>(&ZeHandle), Context,
-                                    nullptr, Size, Alignment));
-        } else {
-          PI_CALL(
-              ZeHostMemAllocHelper(pi_cast<void **>(&ZeHandle), Context, Size));
-        }
+        HostAllocation.ReleaseAction = allocation_t::free_native;
+        PI_CALL(
+            ZeHostMemAllocHelper(pi_cast<void **>(&ZeHandle), Context, Size));
       }
-    } else {
-      if (Context->SingleRootDevice && Context->SingleRootDevice != Device) {
-        // If all devices in the context are sub-devices of the same device
-        // then we reuse root-device allocation by all sub-devices in the
-        // context.
-        // TODO: we can probably generalize this and share root-device
-        //       allocations by its own sub-devices even if not all other
-        //       devices in the context have the same root.
-        PI_CALL(getZeHandle(ZeHandle, AccessMode, Context->SingleRootDevice));
-      } else { // Create device allocation
-        if (enableBufferPooling()) {
-          PI_CALL(piextUSMDeviceAlloc(pi_cast<void **>(&ZeHandle), Context,
-                                      Device, nullptr, Size, Alignment));
-        } else {
-          PI_CALL(ZeDeviceMemAllocHelper(pi_cast<void **>(&ZeHandle), Context,
-                                         Device, Size));
-        }
+      HostAllocation.ZeHandle = ZeHandle;
+      HostAllocation.Valid = true;
+    }
+    Allocation = HostAllocation;
+    Allocation.ReleaseAction = allocation_t::keep;
+    ZeHandle = Allocation.ZeHandle;
+    LastDeviceWithValidAllocation = Device;
+    return PI_SUCCESS;
+  }
+
+  // Peform actual device allocation as needed.
+  if (!Allocation.ZeHandle) {
+    if (Context->SingleRootDevice && Context->SingleRootDevice != Device) {
+      // If all devices in the context are sub-devices of the same device
+      // then we reuse root-device allocation by all sub-devices in the
+      // context.
+      // TODO: we can probably generalize this and share root-device
+      //       allocations by its own sub-devices even if not all other
+      //       devices in the context have the same root.
+      PI_CALL(getZeHandle(ZeHandle, AccessMode, Context->SingleRootDevice));
+      Allocation.ReleaseAction = allocation_t::keep;
+    } else { // Create device allocation
+      if (enableBufferPooling()) {
+        Allocation.ReleaseAction = allocation_t::free;
+        PI_CALL(piextUSMDeviceAlloc(pi_cast<void **>(&ZeHandle), Context,
+                                    Device, nullptr, Size, getAlignment()));
+      } else {
+        Allocation.ReleaseAction = allocation_t::free_native;
+        PI_CALL(ZeDeviceMemAllocHelper(pi_cast<void **>(&ZeHandle), Context,
+                                       Device, Size));
       }
     }
     Allocation.ZeHandle = ZeHandle;
@@ -7986,19 +8010,6 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
 }
 
 pi_result _pi_buffer::free() {
-  // Sub-buffers don't do real allocations
-  if (isSubBuffer()) {
-    return PI_SUCCESS;
-  }
-  if (HostPtrImported) {
-    ze_driver_handle_t DriverHandle = Context->getPlatform()->ZeDriver;
-    ZeUSMImport.doZeUSMRelease(DriverHandle, MapHostPtr);
-    if (OnHost) {
-      // We were using imported host pointer, so nothing to free.
-      return PI_SUCCESS;
-    }
-  }
-
   pi_platform Plt = Context->getPlatform();
   std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
                                             std::defer_lock);
@@ -8006,16 +8017,28 @@ pi_result _pi_buffer::free() {
     ContextsLock.lock();
 
   for (auto &Alloc : Allocations) {
-    auto Device = Alloc.first;
-    if (Context->SingleRootDevice && Context->SingleRootDevice != Device) {
-      // These were re-using root-device allocations
-    }
+    auto &ZeHandle = Alloc.second.ZeHandle;
     // It is possible that the real allocation wasn't made if the buffer
-    // wasn't really used on this device.
-    if (Alloc.second.ZeHandle) {
-      PI_CALL(USMFreeHelper(Context, Alloc.second.ZeHandle,
-                            Alloc.second.ZeHandle != NotOwnZeMemHandle));
+    // wasn't really used in this location.
+    if (!ZeHandle)
+      continue;
+
+    switch (Alloc.second.ReleaseAction) {
+    case allocation_t::keep:
+      break;
+    case allocation_t::free:
+      PI_CALL(USMFreeHelper(Context, ZeHandle, true));
+      break;
+    case allocation_t::free_native:
+      ZE_CALL(zeMemFree, (Context->ZeContext, ZeHandle))
+      break;
+    case allocation_t::unimport:
+      ZeUSMImport.doZeUSMRelease(Context->getPlatform()->ZeDriver, ZeHandle);
+      break;
+    default:
+      die("_pi_buffer::free(): Unhandled release action");
     }
+    ZeHandle = nullptr; // don't leave hanging pointers
   }
   return PI_SUCCESS;
 }

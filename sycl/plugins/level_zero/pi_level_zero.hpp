@@ -926,35 +926,6 @@ struct _pi_mem : _pi_object {
   // Keeps the PI context of this memory handle.
   pi_context Context;
 
-  // Keeps the host pointer where the buffer will be mapped to,
-  // if created with PI_MEM_FLAGS_HOST_PTR_USE (see
-  // piEnqueueMemBufferMap for details).
-  char *MapHostPtr;
-
-  // Keeps the native memory handle that came from interop that asked to
-  // not transfer the ownership to SYCL RT. The non-nullptr value
-  // here means we must NOT release this handle at destruction.
-  void *NotOwnZeMemHandle{nullptr};
-
-  // Flag to indicate that this memory is allocated in host memory
-  bool OnHost;
-
-  // Flag to indicate that the host ptr has been imported into USM
-  bool HostPtrImported;
-
-  // Supplementary data to keep track of the mappings of this memory
-  // created with piEnqueueMemBufferMap and piEnqueueMemImageMap.
-  struct Mapping {
-    // The offset in the buffer giving the start of the mapped region.
-    size_t Offset;
-    // The size of the mapped region.
-    size_t Size;
-  };
-
-  // The key is the host pointer representing an active mapping.
-  // The value is the information needed to maintain/undo the mapping.
-  std::unordered_map<void *, Mapping> Mappings;
-
   // Enumerates all possible types of accesses.
   enum access_mode_t { unknown, read_write, read_only, write_only };
 
@@ -974,10 +945,7 @@ struct _pi_mem : _pi_object {
   virtual ~_pi_mem() = default;
 
 protected:
-  _pi_mem(pi_context Ctx, char *HostPtr, void *NotOwnZeMemHandle,
-          bool MemOnHost = false, bool ImportedHostPtr = false)
-      : Context{Ctx}, MapHostPtr{HostPtr}, NotOwnZeMemHandle{NotOwnZeMemHandle},
-        OnHost{MemOnHost}, HostPtrImported{ImportedHostPtr}, Mappings{} {}
+  _pi_mem(pi_context Ctx) : Context{Ctx} {}
 };
 
 struct _pi_buffer;
@@ -987,9 +955,7 @@ struct _pi_buffer final : _pi_mem {
   // Buffer constructor
   _pi_buffer(pi_context Context, size_t Size, char *HostPtr,
              bool ImportedHostPtr = false)
-      : _pi_mem(Context, HostPtr, nullptr /* NotOwnZeMemHandle */, false,
-                ImportedHostPtr),
-        Size(Size), SubBuffer{nullptr, 0} {
+      : _pi_mem(Context), Size(Size), SubBuffer{nullptr, 0} {
 
     // We treat integrated devices (physical memory shared with the CPU)
     // differently from discrete devices (those with distinct memories).
@@ -999,6 +965,18 @@ struct _pi_buffer final : _pi_mem {
     OnHost = Context->Devices.size() == 1 &&
              Context->Devices[0]->ZeDeviceProperties->flags &
                  ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
+
+    // Fill the host allocation data.
+    if (HostPtr) {
+      MapHostPtr = HostPtr;
+      // If this host ptr is imported to USM then use this as a host
+      // allocation for this buffer.
+      if (ImportedHostPtr) {
+        Allocations[nullptr].ZeHandle = HostPtr;
+        Allocations[nullptr].Valid = true;
+        Allocations[nullptr].ReleaseAction = _pi_buffer::allocation_t::unimport;
+      }
+    }
 
     // Make first device in the context be the master. Mark that
     // allocation (yet to be made) having "valid" data. And real
@@ -1010,37 +988,30 @@ struct _pi_buffer final : _pi_mem {
 
   // Sub-buffer constructor
   _pi_buffer(pi_buffer Parent, size_t Origin, size_t Size)
-      : _pi_mem(Parent->Context, nullptr, nullptr /* NotOwnZeMemHandle */,
-                Parent->OnHost, false),
-        Size(Size), SubBuffer{Parent, Origin} {}
+      : _pi_mem(Parent->Context), Size(Size), SubBuffer{Parent, Origin} {}
 
   // Interop-buffer constructor
   _pi_buffer(pi_context Context, size_t Size, pi_device Device,
-             bool AllocationOnHost, char *ZeMemHandle, bool OwnZeMemHandle)
-      : _pi_mem(Context, nullptr /* HostPtr */,
-                OwnZeMemHandle ? nullptr : ZeMemHandle, false /* OnHost */,
-                false /* ImportedHostPtr */),
-        Size(Size), SubBuffer{nullptr, 0} {
+             char *ZeMemHandle, bool OwnZeMemHandle)
+      : _pi_mem(Context), Size(Size), SubBuffer{nullptr, 0} {
 
-    // Re-use the given device allocation.
-    // If it is not a device allocation then still mark it as valid, and
-    // expect caller to initialize it right after buffer construction.
-    auto D = Device ? Device : Context->Devices[0];
-    LastDeviceWithValidAllocation = D;
-    Allocations[D].Valid = true;
-    if (D == Device) {
-      Allocations[D].ZeHandle = ZeMemHandle;
-    }
+    // Device == nullptr means host allocation
+    Allocations[Device].ZeHandle = ZeMemHandle;
+    Allocations[Device].Valid = true;
+    Allocations[Device].ReleaseAction =
+        OwnZeMemHandle ? allocation_t::free_native : allocation_t::keep;
 
     // Check if this buffer can always stay on host
-    if (AllocationOnHost) {
+    OnHost = false;
+    if (!Device) { // Host allocation
       if (Context->Devices.size() == 1 &&
           Context->Devices[0]->ZeDeviceProperties->flags &
               ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) {
         OnHost = true;
-        MapHostPtr = ZeMemHandle;
+        MapHostPtr = ZeMemHandle; // map to this allocation
       }
     }
+    LastDeviceWithValidAllocation = Device;
   }
 
   // Returns a pointer to the USM allocation representing this PI buffer
@@ -1062,21 +1033,52 @@ struct _pi_buffer final : _pi_mem {
   // Frees all allocations made for the buffer.
   pi_result free();
 
-  struct device_allocation_t {
+  // Information about a single allocation representing this buffer.
+  struct allocation_t {
     // Level Zero memory handle is really just a naked pointer.
     // It is just convenient to have it char * to simplify offset arithmetics.
     char *ZeHandle{nullptr};
     // Indicates if this allocation's data is valid.
     bool Valid{false};
+    // Specifies the action that needs to be taken for this
+    // allocation at buffer destruction.
+    enum {
+      keep,       // do nothing, the allocation is not owned by us
+      unimport,   // release of the imported allocation
+      free,       // free from the pooling context (default)
+      free_native // free with a native call
+    } ReleaseAction{free};
   };
 
   // We maintain multiple allocations on possibly all devices in the context.
+  // The "nullptr" device identifies a host allocation representing buffer.
   // Sub-buffers don't maintain own allocations but rely on parent buffer.
-  std::unordered_map<pi_device, device_allocation_t> Allocations;
+  std::unordered_map<pi_device, allocation_t> Allocations;
   pi_device LastDeviceWithValidAllocation{nullptr};
 
-  // The size of the buffer
+  // Flag to indicate that this memory is allocated in host memory.
+  // Integrated device accesses this memory.
+  bool OnHost{false};
+
+  // Tells the host allocation to use for buffer map operations.
+  char *MapHostPtr{nullptr};
+
+  // Supplementary data to keep track of the mappings of this buffer
+  // created with piEnqueueMemBufferMap.
+  struct Mapping {
+    // The offset in the buffer giving the start of the mapped region.
+    size_t Offset;
+    // The size of the mapped region.
+    size_t Size;
+  };
+
+  // The key is the host pointer representing an active mapping.
+  // The value is the information needed to maintain/undo the mapping.
+  std::unordered_map<void *, Mapping> Mappings;
+
+  // The size and alignment of the buffer
   size_t Size;
+  size_t getAlignment() const;
 
   struct {
     _pi_mem *Parent;
@@ -1087,9 +1089,8 @@ struct _pi_buffer final : _pi_mem {
 // TODO: add proper support for images on context with multiple devices.
 struct _pi_image final : _pi_mem {
   // Image constructor
-  _pi_image(pi_context Ctx, ze_image_handle_t Image, char *HostPtr)
-      : _pi_mem(Ctx, HostPtr, nullptr /* NotOwnZeMemHandle */), ZeImage{Image} {
-  }
+  _pi_image(pi_context Ctx, ze_image_handle_t Image)
+      : _pi_mem(Ctx), ZeImage{Image} {}
 
   virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
                                 pi_device = nullptr) override {
