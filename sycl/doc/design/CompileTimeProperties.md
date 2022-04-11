@@ -467,6 +467,8 @@ variable, it emits a call to the LLVM intrinsic function
 variables, similar to the way the existing `[[clang::annotate()]]` attribute
 works.
 
+[10]: <https://llvm.org/docs/LangRef.html#llvm-ptr-annotation-intrinsic>
+
 The front-end encodes the properties from the C++ attribute
 `[[__sycl_detail__::add_ir_annotations_member()]]` into the
 `@llvm.ptr.annotation` call as follows:
