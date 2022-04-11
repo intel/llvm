@@ -9,10 +9,10 @@ declare i32 @llvm.ctlz.i32(i32, i1)
 define i32 @ctlz_i32(i32 %a) nounwind {
 ; RV32I-LABEL: ctlz_i32:
 ; RV32I:       # %bb.0:
-; RV32I-NEXT:    beqz a0, .LBB0_2
-; RV32I-NEXT:  # %bb.1: # %cond.false
 ; RV32I-NEXT:    addi sp, sp, -16
 ; RV32I-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32I-NEXT:    beqz a0, .LBB0_2
+; RV32I-NEXT:  # %bb.1: # %cond.false
 ; RV32I-NEXT:    srli a1, a0, 1
 ; RV32I-NEXT:    or a0, a0, a1
 ; RV32I-NEXT:    srli a1, a0, 2
@@ -44,11 +44,12 @@ define i32 @ctlz_i32(i32 %a) nounwind {
 ; RV32I-NEXT:    addi a1, a1, 257
 ; RV32I-NEXT:    call __mulsi3@plt
 ; RV32I-NEXT:    srli a0, a0, 24
-; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
-; RV32I-NEXT:    addi sp, sp, 16
-; RV32I-NEXT:    ret
+; RV32I-NEXT:    j .LBB0_3
 ; RV32I-NEXT:  .LBB0_2:
 ; RV32I-NEXT:    li a0, 32
+; RV32I-NEXT:  .LBB0_3: # %cond.end
+; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32I-NEXT:    addi sp, sp, 16
 ; RV32I-NEXT:    ret
 ;
 ; RV32ZBB-LABEL: ctlz_i32:
@@ -171,10 +172,10 @@ declare i32 @llvm.cttz.i32(i32, i1)
 define i32 @cttz_i32(i32 %a) nounwind {
 ; RV32I-LABEL: cttz_i32:
 ; RV32I:       # %bb.0:
-; RV32I-NEXT:    beqz a0, .LBB2_2
-; RV32I-NEXT:  # %bb.1: # %cond.false
 ; RV32I-NEXT:    addi sp, sp, -16
 ; RV32I-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32I-NEXT:    beqz a0, .LBB2_2
+; RV32I-NEXT:  # %bb.1: # %cond.false
 ; RV32I-NEXT:    addi a1, a0, -1
 ; RV32I-NEXT:    not a0, a0
 ; RV32I-NEXT:    and a0, a0, a1
@@ -198,11 +199,12 @@ define i32 @cttz_i32(i32 %a) nounwind {
 ; RV32I-NEXT:    addi a1, a1, 257
 ; RV32I-NEXT:    call __mulsi3@plt
 ; RV32I-NEXT:    srli a0, a0, 24
-; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
-; RV32I-NEXT:    addi sp, sp, 16
-; RV32I-NEXT:    ret
+; RV32I-NEXT:    j .LBB2_3
 ; RV32I-NEXT:  .LBB2_2:
 ; RV32I-NEXT:    li a0, 32
+; RV32I-NEXT:  .LBB2_3: # %cond.end
+; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32I-NEXT:    addi sp, sp, 16
 ; RV32I-NEXT:    ret
 ;
 ; RV32ZBB-LABEL: cttz_i32:
@@ -732,8 +734,8 @@ define i32 @abs_i32(i32 %x) {
 ; RV32I-LABEL: abs_i32:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    srai a1, a0, 31
-; RV32I-NEXT:    add a0, a0, a1
 ; RV32I-NEXT:    xor a0, a0, a1
+; RV32I-NEXT:    sub a0, a0, a1
 ; RV32I-NEXT:    ret
 ;
 ; RV32ZBB-LABEL: abs_i32:

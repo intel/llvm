@@ -10,22 +10,16 @@ set(SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR "/opt/rocm/hsa/include" CACHE STRING "HSA 
 set(HIP_HEADERS "${SYCL_BUILD_PI_HIP_INCLUDE_DIR};${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}")
 
 # Create pi_hip library
-add_library(pi_hip SHARED
-  "${sycl_inc_dir}/CL/sycl/detail/pi.h"
-  "${sycl_inc_dir}/CL/sycl/detail/pi.hpp"
-  "pi_hip.hpp"
-  "pi_hip.cpp"
+add_sycl_plugin(hip
+  SOURCES
+    "${sycl_inc_dir}/CL/sycl/detail/pi.h"
+    "${sycl_inc_dir}/CL/sycl/detail/pi.hpp"
+    "pi_hip.hpp"
+    "pi_hip.cpp"
+  INCLUDE_DIRS
+    ${sycl_plugin_dir}
 )
-add_dependencies(sycl-toolchain pi_hip)
 set_target_properties(pi_hip PROPERTIES LINKER_LANGUAGE CXX)
-target_link_libraries(pi_hip PUBLIC OpenCL-Headers)
-
-# Setup include directories
-target_include_directories(pi_hip
-  PRIVATE
-  ${sycl_inc_dir}
-  ${sycl_plugin_dir}
-)
 
 if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
   # Import HIP runtime library
@@ -76,9 +70,3 @@ else()
   message(FATAL_ERROR "Unspecified PI HIP platform please set SYCL_BUILD_PI_HIP_PLATFORM to 'AMD' or 'NVIDIA'")
 endif()
 
-add_common_options(pi_hip)
-
-install(TARGETS pi_hip
-  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_hip
-  RUNTIME DESTINATION "bin" COMPONENT pi_hip
-)

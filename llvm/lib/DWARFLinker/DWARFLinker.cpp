@@ -10,7 +10,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/NonRelocatableStringpool.h"
 #include "llvm/DWARFLinker/DWARFLinkerDeclContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFAbbreviationDeclaration.h"
@@ -19,9 +18,11 @@
 #include "llvm/DebugInfo/DWARF/DWARFDebugLine.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugRangeList.h"
 #include "llvm/DebugInfo/DWARF/DWARFDie.h"
+#include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
 #include "llvm/DebugInfo/DWARF/DWARFSection.h"
 #include "llvm/DebugInfo/DWARF/DWARFUnit.h"
+#include "llvm/MC/MCDwarf.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -132,9 +133,9 @@ static bool isTypeTag(uint16_t Tag) {
   return false;
 }
 
-AddressesMap::~AddressesMap() {}
+AddressesMap::~AddressesMap() = default;
 
-DwarfEmitter::~DwarfEmitter() {}
+DwarfEmitter::~DwarfEmitter() = default;
 
 static Optional<StringRef> StripTemplateParameters(StringRef Name) {
   // We are looking for template parameters to strip from Name. e.g.
@@ -2362,6 +2363,10 @@ bool DWARFLinker::link() {
 
     if (!OptContext.File.Dwarf)
       continue;
+
+    if (Options.VerifyInputDWARF)
+      verify(OptContext.File);
+
     // Look for relocations that correspond to address map entries.
 
     // there was findvalidrelocations previously ... probably we need to gather
@@ -2628,6 +2633,17 @@ bool DWARFLinker::link() {
               "---------------\n\n";
   }
 
+  return true;
+}
+
+bool DWARFLinker::verify(const DWARFFile &File) {
+  assert(File.Dwarf);
+
+  DIDumpOptions DumpOpts;
+  if (!File.Dwarf->verify(llvm::outs(), DumpOpts.noImplicitRecursion())) {
+    reportWarning("input verification failed", File);
+    return false;
+  }
   return true;
 }
 

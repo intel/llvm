@@ -11,6 +11,7 @@
 #include "bolt/Passes/Aligner.h"
 #include "bolt/Passes/AllocCombiner.h"
 #include "bolt/Passes/AsmDump.h"
+#include "bolt/Passes/CMOVConversion.h"
 #include "bolt/Passes/FrameOptimizer.h"
 #include "bolt/Passes/IdenticalCodeFolding.h"
 #include "bolt/Passes/IndirectCallPromotion.h"
@@ -247,6 +248,11 @@ ThreeWayBranchFlag("three-way-branch",
   cl::desc("reorder three way branches"),
   cl::ZeroOrMore, cl::ReallyHidden, cl::cat(BoltOptCategory));
 
+static cl::opt<bool> CMOVConversionFlag("cmov-conversion",
+                                        cl::desc("fold jcc+mov into cmov"),
+                                        cl::ZeroOrMore, cl::ReallyHidden,
+                                        cl::cat(BoltOptCategory));
+
 } // namespace opts
 
 namespace llvm {
@@ -393,6 +399,9 @@ void BinaryFunctionPassManager::runAllPasses(BinaryContext &BC) {
   Manager.registerPass(std::make_unique<TailDuplication>(),
                        opts::TailDuplicationFlag);
 
+  Manager.registerPass(std::make_unique<CMOVConversion>(),
+                       opts::CMOVConversionFlag);
+
   // This pass syncs local branches with CFG. If any of the following
   // passes breaks the sync - they either need to re-run the pass or
   // fix branches consistency internally.
@@ -408,7 +417,7 @@ void BinaryFunctionPassManager::runAllPasses(BinaryContext &BC) {
   Manager.registerPass(
       std::make_unique<DynoStatsPrintPass>(
           InitialDynoStats, "after all optimizations before SCTC and FOP"),
-      opts::PrintDynoStats | opts::DynoStatsAll);
+      opts::PrintDynoStats || opts::DynoStatsAll);
 
   // Add the StokeInfo pass, which extract functions for stoke optimization and
   // get the liveness information for them

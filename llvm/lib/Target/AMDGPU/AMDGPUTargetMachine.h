@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 /// \file
-/// The AMDGPU TargetMachine interface definition for hw codgen targets.
+/// The AMDGPU TargetMachine interface definition for hw codegen targets.
 //
 //===----------------------------------------------------------------------===//
 
@@ -84,7 +84,7 @@ public:
 
   const TargetSubtargetInfo *getSubtargetImpl(const Function &) const override;
 
-  TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   bool useIPRA() const override {
     return true;

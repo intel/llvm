@@ -18,6 +18,7 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/SubtargetFeature.h"
+#include "llvm/Support/RISCVISAInfo.h"
 
 namespace llvm {
 
@@ -87,6 +88,13 @@ enum {
   // Pseudos.
   IsRVVWideningReductionShift = HasVecPolicyOpShift + 1,
   IsRVVWideningReductionMask = 1 << IsRVVWideningReductionShift,
+
+  // Does this instruction care about mask policy. If it is not, the mask policy
+  // could be either agnostic or undisturbed. For example, unmasked, store, and
+  // reduction operations result would not be affected by mask policy, so
+  // compiler has free to select either one.
+  UsesMaskPolicyShift = IsRVVWideningReductionShift + 1,
+  UsesMaskPolicyMask = 1 << UsesMaskPolicyShift,
 };
 
 // Match with the definitions in RISCVInstrFormatsV.td
@@ -109,8 +117,8 @@ enum VLMUL : uint8_t {
 };
 
 enum {
-  TAIL_UNDISTURBED = 0,
   TAIL_AGNOSTIC = 1,
+  MASK_AGNOSTIC = 2,
 };
 
 // Helper functions to read TSFlags.
@@ -154,6 +162,10 @@ static inline bool hasVecPolicyOp(uint64_t TSFlags) {
 /// \returns true if it is a vector widening reduction instruction.
 static inline bool isRVVWideningReduction(uint64_t TSFlags) {
   return TSFlags & IsRVVWideningReductionMask;
+}
+/// \returns true if mask policy is valid for the instruction.
+static inline bool UsesMaskPolicy(uint64_t TSFlags) {
+  return TSFlags & UsesMaskPolicyMask;
 }
 
 // RISC-V Specific Machine Operand Flags
@@ -344,9 +356,8 @@ namespace RISCVFeatures {
 // triple. Exits with report_fatal_error if not.
 void validate(const Triple &TT, const FeatureBitset &FeatureBits);
 
-// Convert FeatureBitset to FeatureVector.
-void toFeatureVector(std::vector<std::string> &FeatureVector,
-                     const FeatureBitset &FeatureBits);
+llvm::Expected<std::unique_ptr<RISCVISAInfo>>
+parseFeatureBits(bool IsRV64, const FeatureBitset &FeatureBits);
 
 } // namespace RISCVFeatures
 
@@ -375,6 +386,11 @@ std::pair<unsigned, bool> decodeVLMUL(RISCVII::VLMUL VLMUL);
 inline static unsigned decodeVSEW(unsigned VSEW) {
   assert(VSEW < 8 && "Unexpected VSEW value");
   return 1 << (VSEW + 3);
+}
+
+inline static unsigned encodeSEW(unsigned SEW) {
+  assert(isValidSEW(SEW) && "Unexpected SEW value");
+  return Log2_32(SEW) - 3;
 }
 
 inline static unsigned getSEW(unsigned VType) {

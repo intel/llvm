@@ -38,6 +38,7 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StringExtractor.h"
@@ -311,7 +312,7 @@ NativeProcessLinux::NativeProcessLinux(::pid_t pid, int terminal_fd,
                                        const ArchSpec &arch, MainLoop &mainloop,
                                        llvm::ArrayRef<::pid_t> tids)
     : NativeProcessELF(pid, terminal_fd, delegate), m_arch(arch),
-      m_main_loop(mainloop), m_intel_pt_manager(pid) {
+      m_main_loop(mainloop), m_intel_pt_collector(pid) {
   if (m_terminal_fd != -1) {
     Status status = EnsureFDFlags(m_terminal_fd, O_NONBLOCK);
     assert(status.Success());
@@ -429,7 +430,7 @@ Status NativeProcessLinux::SetDefaultPtraceOpts(lldb::pid_t pid) {
 // Handles all waitpid events from the inferior process.
 void NativeProcessLinux::MonitorCallback(NativeThreadLinux &thread,
                                          WaitStatus status) {
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
 
   // Certain activities differ based on whether the pid is the tid of the main
   // thread.
@@ -714,8 +715,7 @@ void NativeProcessLinux::MonitorTrace(NativeThreadLinux &thread) {
 }
 
 void NativeProcessLinux::MonitorBreakpoint(NativeThreadLinux &thread) {
-  Log *log(
-      GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS | LIBLLDB_LOG_BREAKPOINTS));
+  Log *log = GetLog(LLDBLog::Process | LLDBLog::Breakpoints);
   LLDB_LOG(log, "received breakpoint event, pid = {0}", thread.GetID());
 
   // Mark the thread as stopped at breakpoint.
@@ -731,8 +731,7 @@ void NativeProcessLinux::MonitorBreakpoint(NativeThreadLinux &thread) {
 
 void NativeProcessLinux::MonitorWatchpoint(NativeThreadLinux &thread,
                                            uint32_t wp_index) {
-  Log *log(
-      GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS | LIBLLDB_LOG_WATCHPOINTS));
+  Log *log = GetLog(LLDBLog::Process | LLDBLog::Watchpoints);
   LLDB_LOG(log, "received watchpoint event, pid = {0}, wp_index = {1}",
            thread.GetID(), wp_index);
 
@@ -984,7 +983,7 @@ Status NativeProcessLinux::Detach() {
           e; // Save the error, but still attempt to detach from other threads.
   }
 
-  m_intel_pt_manager.Clear();
+  m_intel_pt_collector.Clear();
 
   return error;
 }
@@ -1667,7 +1666,7 @@ void NativeProcessLinux::StopTrackingThread(NativeThreadLinux &thread) {
 
 Status NativeProcessLinux::NotifyTracersOfNewThread(lldb::tid_t tid) {
   Log *log = GetLog(POSIXLog::Thread);
-  Status error(m_intel_pt_manager.OnThreadCreated(tid));
+  Status error(m_intel_pt_collector.OnThreadCreated(tid));
   if (error.Fail())
     LLDB_LOG(log, "Failed to trace a new thread with intel-pt, tid = {0}. {1}",
              tid, error.AsCString());
@@ -1676,7 +1675,7 @@ Status NativeProcessLinux::NotifyTracersOfNewThread(lldb::tid_t tid) {
 
 Status NativeProcessLinux::NotifyTracersOfThreadDestroyed(lldb::tid_t tid) {
   Log *log = GetLog(POSIXLog::Thread);
-  Status error(m_intel_pt_manager.OnThreadDestroyed(tid));
+  Status error(m_intel_pt_collector.OnThreadDestroyed(tid));
   if (error.Fail())
     LLDB_LOG(log,
              "Failed to stop a destroyed thread with intel-pt, tid = {0}. {1}",
@@ -1828,8 +1827,7 @@ void NativeProcessLinux::SignalIfAllThreadsStopped() {
   }
 
   // We have a pending notification and all threads have stopped.
-  Log *log(
-      GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS | LIBLLDB_LOG_BREAKPOINTS));
+  Log *log = GetLog(LLDBLog::Process | LLDBLog::Breakpoints);
 
   // Clear any temporary breakpoints we used to implement software single
   // stepping.
@@ -1940,7 +1938,7 @@ Status NativeProcessLinux::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
 }
 
 llvm::Expected<TraceSupportedResponse> NativeProcessLinux::TraceSupported() {
-  if (IntelPTManager::IsSupported())
+  if (IntelPTCollector::IsSupported())
     return TraceSupportedResponse{"intel-pt", "Intel Processor Trace"};
   return NativeProcessProtocol::TraceSupported();
 }
@@ -1953,7 +1951,7 @@ Error NativeProcessLinux::TraceStart(StringRef json_request, StringRef type) {
       std::vector<lldb::tid_t> process_threads;
       for (auto &thread : m_threads)
         process_threads.push_back(thread->GetID());
-      return m_intel_pt_manager.TraceStart(*request, process_threads);
+      return m_intel_pt_collector.TraceStart(*request, process_threads);
     } else
       return request.takeError();
   }
@@ -1963,19 +1961,19 @@ Error NativeProcessLinux::TraceStart(StringRef json_request, StringRef type) {
 
 Error NativeProcessLinux::TraceStop(const TraceStopRequest &request) {
   if (request.type == "intel-pt")
-    return m_intel_pt_manager.TraceStop(request);
+    return m_intel_pt_collector.TraceStop(request);
   return NativeProcessProtocol::TraceStop(request);
 }
 
 Expected<json::Value> NativeProcessLinux::TraceGetState(StringRef type) {
   if (type == "intel-pt")
-    return m_intel_pt_manager.GetState();
+    return m_intel_pt_collector.GetState();
   return NativeProcessProtocol::TraceGetState(type);
 }
 
 Expected<std::vector<uint8_t>> NativeProcessLinux::TraceGetBinaryData(
     const TraceGetBinaryDataRequest &request) {
   if (request.type == "intel-pt")
-    return m_intel_pt_manager.GetBinaryData(request);
+    return m_intel_pt_collector.GetBinaryData(request);
   return NativeProcessProtocol::TraceGetBinaryData(request);
 }

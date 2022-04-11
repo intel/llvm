@@ -74,9 +74,9 @@ private:
   AllocatorIdTy MaxAllocatorId = 0;
 
   /// We encode Index and Value into a 64-bit immediate operand value.
-  static int64_t encodeAnnotationImm(unsigned Index, int64_t Value) {
-    assert(Index < 256 && "annotation index max value exceeded");
-    assert((Value == (Value << 8) >> 8) && "annotation value out of range");
+  static int64_t encodeAnnotationImm(uint8_t Index, int64_t Value) {
+    if (LLVM_UNLIKELY(Value != extractAnnotationValue(Value)))
+      report_fatal_error("annotation value out of range");
 
     Value &= 0xff'ffff'ffff'ffff;
     Value |= (int64_t)Index << 56;
@@ -85,14 +85,13 @@ private:
   }
 
   /// Extract annotation index from immediate operand value.
-  static unsigned extractAnnotationIndex(int64_t ImmValue) {
+  static uint8_t extractAnnotationIndex(int64_t ImmValue) {
     return ImmValue >> 56;
   }
 
   /// Extract annotation value from immediate operand value.
   static int64_t extractAnnotationValue(int64_t ImmValue) {
-    ImmValue &= 0xff'ffff'ffff'ffff;
-    return (ImmValue << 8) >> 8;
+    return SignExtend64<56>(ImmValue & 0xff'ffff'ffff'ffffULL);
   }
 
   MCInst *getAnnotationInst(const MCInst &Inst) const {
@@ -425,9 +424,7 @@ public:
 
   /// Return a register number that is guaranteed to not match with
   /// any real register on the underlying architecture.
-  virtual MCPhysReg getNoRegister() const {
-    llvm_unreachable("not implemented");
-  }
+  MCPhysReg getNoRegister() const { return MCRegister::NoRegister; }
 
   /// Return a register corresponding to a function integer argument \p ArgNo
   /// if the argument is passed in a register. Or return the result of
@@ -525,11 +522,6 @@ public:
   }
 
   virtual bool isLEA64r(const MCInst &Inst) const {
-    llvm_unreachable("not implemented");
-    return false;
-  }
-
-  virtual bool isMOVSX64rm32(const MCInst &Inst) const {
     llvm_unreachable("not implemented");
     return false;
   }
@@ -1290,7 +1282,18 @@ public:
 
   /// Replace instruction with a shorter version that could be relaxed later
   /// if needed.
-  virtual bool shortenInstruction(MCInst &Inst) const {
+  virtual bool shortenInstruction(MCInst &Inst,
+                                  const MCSubtargetInfo &STI) const {
+    llvm_unreachable("not implemented");
+    return false;
+  }
+
+  /// Convert a move instruction into a conditional move instruction, given a
+  /// condition code.
+  virtual bool
+  convertMoveToConditionalMove(MCInst &Inst, unsigned CC,
+                               bool AllowStackMemOp = false,
+                               bool AllowBasePtrStackMemOp = false) const {
     llvm_unreachable("not implemented");
     return false;
   }
@@ -1326,6 +1329,16 @@ public:
                         const MCExpr *&DispExpr, MCInst *&PCRelBaseOut) const {
     llvm_unreachable("not implemented");
     return IndirectBranchType::UNKNOWN;
+  }
+
+  /// Analyze branch \p Instruction in PLT section and try to determine
+  /// associated got entry address.
+  virtual uint64_t analyzePLTEntry(MCInst &Instruction,
+                                   InstructionIterator Begin,
+                                   InstructionIterator End,
+                                   uint64_t BeginPC) const {
+    llvm_unreachable("not implemented");
+    return 0;
   }
 
   virtual bool analyzeVirtualMethodCall(InstructionIterator Begin,

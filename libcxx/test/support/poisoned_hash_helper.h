@@ -60,7 +60,7 @@ using LibraryHashTypes = TypeList<
 #ifndef TEST_HAS_NO_WIDE_CHARACTERS
       wchar_t,
 #endif
-#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
+#ifndef TEST_HAS_NO_UNICODE_CHARS
       char16_t,
       char32_t,
 #endif
@@ -79,12 +79,8 @@ using LibraryHashTypes = TypeList<
       float,
       double,
       long double,
-#if TEST_STD_VER >= 14
-      // Enum types
       PoisonedHashDetail::Enum,
       PoisonedHashDetail::EnumClass,
-#endif
-      // pointer types
       void*,
       void const*,
       PoisonedHashDetail::Class*

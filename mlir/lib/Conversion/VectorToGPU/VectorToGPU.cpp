@@ -21,8 +21,8 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/Dialect/Vector/VectorUtils.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -60,13 +60,18 @@ getMemrefConstantHorizontalStride(ShapedType type) {
   auto memrefType = type.dyn_cast<MemRefType>();
   if (!memrefType)
     return false;
+  // If the memref is 0 or 1D the horizontal stride is 0.
+  if(memrefType.getRank() < 2)
+    return 0;
   int64_t offset = 0;
   SmallVector<int64_t, 2> strides;
-  if (failed(getStridesAndOffset(memrefType, strides, offset)))
+  if (failed(getStridesAndOffset(memrefType, strides, offset)) ||
+      strides.back() != 1)
     return llvm::None;
-  if (strides[0] == ShapedType::kDynamicStrideOrOffset)
+  int64_t stride = strides[strides.size() - 2];
+  if (stride == ShapedType::kDynamicStrideOrOffset)
     return llvm::None;
-  return strides[0];
+  return stride;
 }
 
 // Return true if the transfer op can be converted to a MMA matrix load.
@@ -499,15 +504,13 @@ static void convertElementwiseOp(Operation *op, gpu::MMAElementwiseOp opType,
   valueMapping[op->getResult(0)] = newOp;
 }
 
-namespace mlir {
-
-void populatePrepareVectorToMMAPatterns(RewritePatternSet &patterns) {
+void mlir::populatePrepareVectorToMMAPatterns(RewritePatternSet &patterns) {
   patterns.add<PrepareContractToGPUMMA, CombineTransferReadOpTranspose>(
       patterns.getContext());
 }
 
-void convertVectorToMMAOps(FuncOp funcOp) {
-  SetVector<Operation *> ops = getOpToConvert(funcOp);
+void mlir::convertVectorToMMAOps(Operation *rootOp) {
+  SetVector<Operation *> ops = getOpToConvert(rootOp);
   llvm::DenseMap<Value, Value> valueMapping;
   for (Operation *op : ops) {
     if (auto transferRead = dyn_cast<vector::TransferReadOp>(op)) {
@@ -530,13 +533,12 @@ void convertVectorToMMAOps(FuncOp funcOp) {
   }
 }
 
-} // namespace mlir
 namespace {
 
 struct ConvertVectorToGPUPass
     : public ConvertVectorToGPUBase<ConvertVectorToGPUPass> {
   void runOnOperation() override {
-    RewritePatternSet patterns(getOperation().getContext());
+    RewritePatternSet patterns(&getContext());
     populatePrepareVectorToMMAPatterns(patterns);
     (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
 

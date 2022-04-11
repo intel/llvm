@@ -12,7 +12,9 @@
 
 #include "bolt/Core/Relocation.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/MC/MCSymbol.h"
 #include "llvm/Object/ELF.h"
 
 using namespace llvm;
@@ -252,7 +254,9 @@ uint64_t adjustValueAArch64(uint64_t Type, uint64_t Value, uint64_t PC) {
 
 uint64_t extractValueX86(uint64_t Type, uint64_t Contents, uint64_t PC) {
   if (Type == ELF::R_X86_64_32S)
-    return SignExtend64<32>(Contents & 0xffffffff);
+    return SignExtend64<32>(Contents);
+  if (Relocation::isPCRelative(Type))
+    return SignExtend64(Contents, 8 * Relocation::getSizeForType(Type));
   return Contents;
 }
 
@@ -440,6 +444,8 @@ bool isPCRelativeX86(uint64_t Type) {
   case ELF::R_X86_64_PC64:
   case ELF::R_X86_64_GOTPCREL:
   case ELF::R_X86_64_PLT32:
+  case ELF::R_X86_64_GOTOFF64:
+  case ELF::R_X86_64_GOTPC32:
   case ELF::R_X86_64_GOTTPOFF:
   case ELF::R_X86_64_GOTPCRELX:
   case ELF::R_X86_64_REX_GOTPCRELX:
@@ -531,11 +537,7 @@ bool Relocation::isGOT(uint64_t Type) {
   return isGOTX86(Type);
 }
 
-bool Relocation::isNone(uint64_t Type) {
-  if (Arch == Triple::aarch64)
-    return Type == ELF::R_AARCH64_NONE;
-  return Type == ELF::R_X86_64_NONE;
-}
+bool Relocation::isNone(uint64_t Type) { return Type == getNone(); }
 
 bool Relocation::isRelative(uint64_t Type) {
   if (Arch == Triple::aarch64)
@@ -555,10 +557,10 @@ bool Relocation::isTLS(uint64_t Type) {
   return isTLSX86(Type);
 }
 
-bool Relocation::isPCRelative(uint64_t Type) {
+uint64_t Relocation::getNone() {
   if (Arch == Triple::aarch64)
-    return isPCRelativeAArch64(Type);
-  return isPCRelativeX86(Type);
+    return ELF::R_AARCH64_NONE;
+  return ELF::R_X86_64_NONE;
 }
 
 uint64_t Relocation::getPC32() {
@@ -571,6 +573,12 @@ uint64_t Relocation::getPC64() {
   if (Arch == Triple::aarch64)
     return ELF::R_AARCH64_PREL64;
   return ELF::R_X86_64_PC64;
+}
+
+bool Relocation::isPCRelative(uint64_t Type) {
+  if (Arch == Triple::aarch64)
+    return isPCRelativeAArch64(Type);
+  return isPCRelativeX86(Type);
 }
 
 size_t Relocation::emit(MCStreamer *Streamer) const {

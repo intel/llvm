@@ -8,6 +8,7 @@
 #include "ConfigFragment.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
@@ -349,8 +350,7 @@ private:
     if (auto Scalar = scalarValue(N, Desc)) {
       if (auto Bool = llvm::yaml::parseBool(**Scalar))
         return Located<bool>(*Bool, Scalar->Range);
-      else
-        warning(Desc + " should be a boolean", N);
+      warning(Desc + " should be a boolean", N);
     }
     return llvm::None;
   }

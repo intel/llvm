@@ -5,6 +5,7 @@ import("//llvm/lib/Target/targets_with_disassemblers.gni")
 import("//llvm/lib/Target/targets_with_mcas.gni")
 import("//llvm/triples.gni")
 import("//llvm/utils/gn/build/buildflags.gni")
+import("//llvm/utils/gn/build/libs/curl/enable.gni")
 import("//llvm/utils/gn/build/libs/edit/enable.gni")
 import("//llvm/utils/gn/build/libs/pthread/enable.gni")
 import("//llvm/utils/gn/build/libs/terminfo/enable.gni")
@@ -313,12 +314,6 @@ write_cmake_config("config") {
     values += [ "LLVM_ENABLE_DIA_SDK=" ]
   }
 
-  if (llvm_enable_zlib) {
-    values += [ "LLVM_ENABLE_ZLIB=1" ]
-  } else {
-    values += [ "LLVM_ENABLE_ZLIB=" ]
-  }
-
   if (llvm_enable_libxml2) {
     values += [ "LLVM_ENABLE_LIBXML2=1" ]
   } else {
@@ -339,10 +334,10 @@ write_cmake_config("llvm-config") {
     "LLVM_BUILD_LLVM_DYLIB=",
     "LLVM_BUILD_SHARED_LIBS=",
     "LLVM_DEFAULT_TARGET_TRIPLE=$llvm_target_triple",
-    "LLVM_ENABLE_CURL=",
     "LLVM_ENABLE_DUMP=",
     "LLVM_ENABLE_NEW_PASS_MANAGER=1",
     "LLVM_FORCE_ENABLE_STATS=",
+    "LLVM_FORCE_USE_OLD_TOOLCHAIN=",
     "LLVM_HAS_ATOMICS=1",
     "LLVM_HAVE_TF_API=",
     "LLVM_HOST_TRIPLE=$llvm_current_triple",
@@ -354,6 +349,7 @@ write_cmake_config("llvm-config") {
     "LLVM_NATIVE_TARGETINFO=1",
     "LLVM_NATIVE_TARGETMC=1",
     "LLVM_NATIVE_TARGETMCA=1",
+    "LLVM_UNREACHABLE_OPTIMIZE=1",
     "LLVM_USE_INTEL_JITEVENTS=",
     "LLVM_USE_OPROFILE=",
     "LLVM_USE_PERF=",
@@ -386,6 +382,18 @@ write_cmake_config("llvm-config") {
     values += [ "LLVM_ENABLE_THREADS=1" ]
   } else {
     values += [ "LLVM_ENABLE_THREADS=" ]
+  }
+
+  if (llvm_enable_zlib) {
+    values += [ "LLVM_ENABLE_ZLIB=1" ]
+  } else {
+    values += [ "LLVM_ENABLE_ZLIB=" ]
+  }
+
+  if (llvm_enable_libcurl) {
+    values += [ "LLVM_ENABLE_CURL=1" ]
+  } else {
+    values += [ "LLVM_ENABLE_CURL=" ]
   }
 }
 

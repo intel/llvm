@@ -11,29 +11,24 @@ define void @t1_mergeable_invoke() personality i8* bitcast (i32 (...)* @__gxx_pe
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[C0:%.*]] = call i1 @cond(), !dbg [[DBG12:![0-9]+]]
 ; CHECK-NEXT:    call void @llvm.dbg.value(metadata i1 [[C0]], metadata [[META9:![0-9]+]], metadata !DIExpression()), !dbg [[DBG12]]
-; CHECK-NEXT:    br i1 [[C0]], label [[IF_THEN0:%.*]], label [[IF_ELSE:%.*]], !dbg [[DBG13:![0-9]+]]
-; CHECK:       if.then0:
-; CHECK-NEXT:    invoke void @simple_throw()
-; CHECK-NEXT:    to label [[INVOKE_CONT0:%.*]] unwind label [[LPAD:%.*]], !dbg [[DBG14:![0-9]+]]
-; CHECK:       invoke.cont0:
-; CHECK-NEXT:    unreachable, !dbg [[DBG15:![0-9]+]]
+; CHECK-NEXT:    br i1 [[C0]], label [[IF_THEN1_INVOKE:%.*]], label [[IF_ELSE:%.*]], !dbg [[DBG13:![0-9]+]]
 ; CHECK:       lpad:
 ; CHECK-NEXT:    [[EH:%.*]] = landingpad { i8*, i32 }
-; CHECK-NEXT:    cleanup, !dbg [[DBG16:![0-9]+]]
-; CHECK-NEXT:    call void @destructor(), !dbg [[DBG17:![0-9]+]]
-; CHECK-NEXT:    resume { i8*, i32 } [[EH]], !dbg [[DBG18:![0-9]+]]
+; CHECK-NEXT:    cleanup, !dbg [[DBG14:![0-9]+]]
+; CHECK-NEXT:    call void @destructor(), !dbg [[DBG15:![0-9]+]]
+; CHECK-NEXT:    resume { i8*, i32 } [[EH]], !dbg [[DBG16:![0-9]+]]
 ; CHECK:       if.else:
-; CHECK-NEXT:    [[C1:%.*]] = call i1 @cond(), !dbg [[DBG19:![0-9]+]]
-; CHECK-NEXT:    call void @llvm.dbg.value(metadata i1 [[C1]], metadata [[META11:![0-9]+]], metadata !DIExpression()), !dbg [[DBG19]]
-; CHECK-NEXT:    br i1 [[C1]], label [[IF_THEN1:%.*]], label [[IF_END:%.*]], !dbg [[DBG20:![0-9]+]]
-; CHECK:       if.then1:
+; CHECK-NEXT:    [[C1:%.*]] = call i1 @cond(), !dbg [[DBG17:![0-9]+]]
+; CHECK-NEXT:    call void @llvm.dbg.value(metadata i1 [[C1]], metadata [[META11:![0-9]+]], metadata !DIExpression()), !dbg [[DBG17]]
+; CHECK-NEXT:    br i1 [[C1]], label [[IF_THEN1_INVOKE]], label [[IF_END:%.*]], !dbg [[DBG18:![0-9]+]]
+; CHECK:       if.then1.invoke:
 ; CHECK-NEXT:    invoke void @simple_throw()
-; CHECK-NEXT:    to label [[INVOKE_CONT2:%.*]] unwind label [[LPAD]], !dbg [[DBG21:![0-9]+]]
-; CHECK:       invoke.cont2:
-; CHECK-NEXT:    unreachable, !dbg [[DBG22:![0-9]+]]
+; CHECK-NEXT:    to label [[IF_THEN1_CONT:%.*]] unwind label [[LPAD:%.*]], !dbg [[DBG19:![0-9]+]]
+; CHECK:       if.then1.cont:
+; CHECK-NEXT:    unreachable
 ; CHECK:       if.end:
-; CHECK-NEXT:    call void @sideeffect(), !dbg [[DBG23:![0-9]+]]
-; CHECK-NEXT:    ret void, !dbg [[DBG24:![0-9]+]]
+; CHECK-NEXT:    call void @sideeffect(), !dbg [[DBG20:![0-9]+]]
+; CHECK-NEXT:    ret void, !dbg [[DBG21:![0-9]+]]
 ;
 entry:
   %c0 = call i1 @cond()
@@ -73,7 +68,7 @@ declare void @destructor()
 declare dso_local i32 @__gxx_personality_v0(...)
 ;.
 ; CHECK: attributes #[[ATTR0:[0-9]+]] = { noreturn }
-; CHECK: attributes #[[ATTR1:[0-9]+]] = { nofree nosync nounwind readnone speculatable willreturn }
+; CHECK: attributes #[[ATTR1:[0-9]+]] = { nocallback nofree nosync nounwind readnone speculatable willreturn }
 ;.
 ; CHECK: [[META0:![0-9]+]] = distinct !DICompileUnit(language: DW_LANG_C, file: !1, producer: "debugify", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug)
 ; CHECK: [[META1:![0-9]+]] = !DIFile(filename: "<stdin>", directory: "/")
@@ -89,15 +84,12 @@ declare dso_local i32 @__gxx_personality_v0(...)
 ; CHECK: [[META11]] = !DILocalVariable(name: "2", scope: !5, file: !1, line: 8, type: !10)
 ; CHECK: [[DBG12]] = !DILocation(line: 1, column: 1, scope: !5)
 ; CHECK: [[DBG13]] = !DILocation(line: 2, column: 1, scope: !5)
-; CHECK: [[DBG14]] = !DILocation(line: 3, column: 1, scope: !5)
-; CHECK: [[DBG15]] = !DILocation(line: 4, column: 1, scope: !5)
-; CHECK: [[DBG16]] = !DILocation(line: 5, column: 1, scope: !5)
-; CHECK: [[DBG17]] = !DILocation(line: 6, column: 1, scope: !5)
-; CHECK: [[DBG18]] = !DILocation(line: 7, column: 1, scope: !5)
-; CHECK: [[DBG19]] = !DILocation(line: 8, column: 1, scope: !5)
-; CHECK: [[DBG20]] = !DILocation(line: 9, column: 1, scope: !5)
-; CHECK: [[DBG21]] = !DILocation(line: 10, column: 1, scope: !5)
-; CHECK: [[DBG22]] = !DILocation(line: 11, column: 1, scope: !5)
-; CHECK: [[DBG23]] = !DILocation(line: 12, column: 1, scope: !5)
-; CHECK: [[DBG24]] = !DILocation(line: 13, column: 1, scope: !5)
+; CHECK: [[DBG14]] = !DILocation(line: 5, column: 1, scope: !5)
+; CHECK: [[DBG15]] = !DILocation(line: 6, column: 1, scope: !5)
+; CHECK: [[DBG16]] = !DILocation(line: 7, column: 1, scope: !5)
+; CHECK: [[DBG17]] = !DILocation(line: 8, column: 1, scope: !5)
+; CHECK: [[DBG18]] = !DILocation(line: 9, column: 1, scope: !5)
+; CHECK: [[DBG19]] = !DILocation(line: 0, scope: !5)
+; CHECK: [[DBG20]] = !DILocation(line: 12, column: 1, scope: !5)
+; CHECK: [[DBG21]] = !DILocation(line: 13, column: 1, scope: !5)
 ;.

@@ -280,10 +280,14 @@ define void @func3() {
 }
 
 ; Requires the saving of r4 due to variable sized
-; object in stack frame. (Eg: VLA)
-; CHECK64: stmg  4, 8, 1856(4)
+; object in stack frame. (Eg: VLA) Sets up frame pointer in r8
+; CHECK64: stmg  4, 9, 1856(4)
 ; CHECK64: aghi  4, -192
-; CHECK64: lmg	4, 8, 2048(4)
+; CHECK64: lgr     8, 4
+; TODO Will change to basr with ADA introduction.
+; CHECK64: brasl   7, @@ALCAXP
+; CHECK64-NEXT: bcr     0, 3
+; CHECK64: lmg	4, 9, 2048(4)
 define i64 @func4(i64 %n) {
   %vla = alloca i64, i64 %n, align 8
   %call = call i64 @fun2(i64 %n, i64* nonnull %vla, i64* nonnull %vla)
@@ -294,14 +298,34 @@ define i64 @func4(i64 %n) {
 ; to force use of agfi before stmg.
 ; CHECK64: lgr	0, 4
 ; CHECK64: agfi	4, -1040192
-; CHECK64: stmg  4, 8, 2048(4)
-; CHECK64: lmg 4, 8, 2048(4)
+; CHECK64: stmg  4, 9, 2048(4)
+; CHECK64: lgr     8, 4
+; TODO Will change to basr with ADA introduction.
+; CHECK64: brasl   7, @@ALCAXP
+; CHECK64-NEXT: bcr     0, 3
+;; CHECK64: lmg 4, 9, 2048(4)
 define i64 @func5(i64 %n) {
   %vla = alloca i64, i64 %n, align 8
   %arr = alloca [130000 x i64], align 8
   %ptr = bitcast [130000 x i64]* %arr to i64*
   %call = call i64 @fun2(i64 %n, i64* nonnull %vla, i64* %ptr)
   ret i64 %call
+}
+
+; CHECK-LABEL: large_stack
+; CHECK64: agfi  4, -1048768
+; CHECK64-NEXT: llgt  3, 1208
+; CHECK64-NEXT: cg  4, 64(3)
+; CHECK64-NEXT: jhe
+; CHECK64: * %bb.1:
+; CHECK64: lg  3, 72(3)
+; CHECK64: basr  3, 3
+; CHECK64: stmg  6, 7, 2064(4)
+define void @large_stack() {
+  %arr = alloca [131072 x i64], align 8
+  %ptr = bitcast [131072 x i64]* %arr to i8*
+  call i64 (i8*) @fun1(i8* %ptr)
+  ret void
 }
 
 declare i64 @fun(i64 %arg0)

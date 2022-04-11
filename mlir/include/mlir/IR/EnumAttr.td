@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef ENUM_ATTR
-#define ENUM_ATTR
+#ifndef ENUMATTR_TD
+#define ENUMATTR_TD
 
-include "mlir/IR/OpBase.td"
+include "mlir/IR/AttrTypeBase.td"
 
 // A C++ enum as an attribute parameter. The parameter implements a parser and
 // printer for the enum by dispatching calls to `stringToSymbol` and
@@ -28,7 +28,7 @@ class EnumParameter<EnumAttrInfo enumInfo>
                           enumInfo.stringToSymbolFnName # [{(enumKeyword);
     if (maybeEnum)
       return *maybeEnum;
-    return {$_parser.emitError(loc, "expected }] #
+    return {(::mlir::LogicalResult)$_parser.emitError(loc, "expected }] #
     cppType # [{ to be one of: }] #
     !interleave(!foreach(enum, enumInfo.enumerants, enum.str), ", ") # [{")};
   }()}];
@@ -69,6 +69,9 @@ class EnumAttr<Dialect dialect, EnumAttrInfo enumInfo, string name = "",
     : AttrDef<dialect, enumInfo.className, traits> {
   let summary = enumInfo.summary;
 
+  // The backing enumeration.
+  EnumAttrInfo enum = enumInfo;
+
   // Inherit the C++ namespace from the enum.
   let cppNamespace = enumInfo.cppNamespace;
 
@@ -93,4 +96,4 @@ class EnumAttr<Dialect dialect, EnumAttrInfo enumInfo, string name = "",
   let assemblyFormat = "$value";
 }
 
-#endif // ENUM_ATTR
+#endif // ENUMATTR_TD

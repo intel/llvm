@@ -334,6 +334,10 @@ public:
     return false;
   }
 
+  bool operator!=(const VSETVLIInfo &Other) const {
+    return !(*this == Other);
+  }
+
   // Calculate the VSETVLIInfo visible to a block assuming this and Other are
   // both predecessors.
   VSETVLIInfo intersect(const VSETVLIInfo &Other) const {
@@ -400,7 +404,7 @@ struct BlockData {
   // Keeps track of whether the block is already in the queue.
   bool InQueue = false;
 
-  BlockData() {}
+  BlockData() = default;
 };
 
 class RISCVInsertVSETVLI : public MachineFunctionPass {
@@ -442,6 +446,12 @@ char RISCVInsertVSETVLI::ID = 0;
 
 INITIALIZE_PASS(RISCVInsertVSETVLI, DEBUG_TYPE, RISCV_INSERT_VSETVLI_NAME,
                 false, false)
+
+static bool isVectorConfigInstr(const MachineInstr &MI) {
+  return MI.getOpcode() == RISCV::PseudoVSETVLI ||
+         MI.getOpcode() == RISCV::PseudoVSETVLIX0 ||
+         MI.getOpcode() == RISCV::PseudoVSETIVLI;
+}
 
 static MachineInstr *elideCopies(MachineInstr *MI,
                                  const MachineRegisterInfo *MRI) {
@@ -492,29 +502,46 @@ static VSETVLIInfo computeInfoForInstr(const MachineInstr &MI, uint64_t TSFlags,
   unsigned NumOperands = MI.getNumExplicitOperands();
   bool HasPolicy = RISCVII::hasVecPolicyOp(TSFlags);
 
-  // Default to tail agnostic unless the destination is tied to a source.
-  // Unless the source is undef. In that case the user would have some control
-  // over the tail values. Some pseudo instructions force a tail agnostic policy
-  // despite having a tied def.
+  // If the instruction has policy argument, use the argument.
+  // If there is no policy argument, default to tail agnostic unless the
+  // destination is tied to a source. Unless the source is undef. In that case
+  // the user would have some control over the policy values. Some pseudo
+  // instructions force a tail agnostic policy despite having a tied def.
   bool ForceTailAgnostic = RISCVII::doesForceTailAgnostic(TSFlags);
   bool TailAgnostic = true;
-  // If the instruction has policy argument, use the argument.
+  bool UsesMaskPolicy = RISCVII::UsesMaskPolicy(TSFlags);
+  // FIXME: Could we look at the above or below instructions to choose the
+  // matched mask policy to reduce vsetvli instructions? Default mask policy is
+  // agnostic if instructions use mask policy, otherwise is undisturbed. Because
+  // most mask operations are mask undisturbed, so we could possibly reduce the
+  // vsetvli between mask and nomasked instruction sequence.
+  bool MaskAgnostic = UsesMaskPolicy;
+  unsigned UseOpIdx;
   if (HasPolicy) {
     const MachineOperand &Op = MI.getOperand(MI.getNumExplicitOperands() - 1);
-    TailAgnostic = Op.getImm() & 0x1;
-  }
-
-  unsigned UseOpIdx;
-  if (!(ForceTailAgnostic || (HasPolicy && TailAgnostic)) &&
-      MI.isRegTiedToUseOperand(0, &UseOpIdx)) {
+    uint64_t Policy = Op.getImm();
+    assert(Policy <= (RISCVII::TAIL_AGNOSTIC | RISCVII::MASK_AGNOSTIC) &&
+           "Invalid Policy Value");
+    // Although in some cases, mismatched passthru/maskedoff with policy value
+    // does not make sense (ex. tied operand is IMPLICIT_DEF with non-TAMA
+    // policy, or tied operand is not IMPLICIT_DEF with TAMA policy), but users
+    // have set the policy value explicitly, so compiler would not fix it.
+    TailAgnostic = Policy & RISCVII::TAIL_AGNOSTIC;
+    MaskAgnostic = Policy & RISCVII::MASK_AGNOSTIC;
+  } else if (!ForceTailAgnostic && MI.isRegTiedToUseOperand(0, &UseOpIdx)) {
     TailAgnostic = false;
+    if (UsesMaskPolicy)
+      MaskAgnostic = false;
     // If the tied operand is an IMPLICIT_DEF we can keep TailAgnostic.
     const MachineOperand &UseMO = MI.getOperand(UseOpIdx);
     MachineInstr *UseMI = MRI->getVRegDef(UseMO.getReg());
     if (UseMI) {
       UseMI = elideCopies(UseMI, MRI);
-      if (UseMI && UseMI->isImplicitDef())
+      if (UseMI && UseMI->isImplicitDef()) {
         TailAgnostic = true;
+        if (UsesMaskPolicy)
+          MaskAgnostic = true;
+      }
     }
   }
 
@@ -549,8 +576,8 @@ static VSETVLIInfo computeInfoForInstr(const MachineInstr &MI, uint64_t TSFlags,
     }
   } else
     InstrInfo.setAVLReg(RISCV::NoRegister);
-  InstrInfo.setVTYPE(VLMul, SEW, /*TailAgnostic*/ TailAgnostic,
-                     /*MaskAgnostic*/ false, MaskRegOp, StoreOp, ScalarMovOp);
+  InstrInfo.setVTYPE(VLMul, SEW, TailAgnostic, MaskAgnostic, MaskRegOp, StoreOp,
+                     ScalarMovOp);
 
   return InstrInfo;
 }
@@ -651,9 +678,7 @@ bool RISCVInsertVSETVLI::needVSETVLI(const VSETVLIInfo &Require,
       Require.getAVLReg().isVirtual() && !CurInfo.hasSEWLMULRatioOnly() &&
       CurInfo.hasCompatibleVTYPE(Require, /*Strict*/ false)) {
     if (MachineInstr *DefMI = MRI->getVRegDef(Require.getAVLReg())) {
-      if (DefMI->getOpcode() == RISCV::PseudoVSETVLI ||
-          DefMI->getOpcode() == RISCV::PseudoVSETVLIX0 ||
-          DefMI->getOpcode() == RISCV::PseudoVSETIVLI) {
+      if (isVectorConfigInstr(*DefMI)) {
         VSETVLIInfo DefInfo = getInfoForVSETVLI(*DefMI);
         if (DefInfo.hasSameAVL(CurInfo) && DefInfo.hasSameVTYPE(CurInfo))
           return false;
@@ -866,9 +891,7 @@ bool RISCVInsertVSETVLI::computeVLVTYPEChanges(const MachineBasicBlock &MBB) {
   BlockData &BBInfo = BlockInfo[MBB.getNumber()];
   for (const MachineInstr &MI : MBB) {
     // If this is an explicit VSETVLI or VSETIVLI, update our state.
-    if (MI.getOpcode() == RISCV::PseudoVSETVLI ||
-        MI.getOpcode() == RISCV::PseudoVSETVLIX0 ||
-        MI.getOpcode() == RISCV::PseudoVSETIVLI) {
+    if (isVectorConfigInstr(MI)) {
       HadVectorOp = true;
       BBInfo.Change = getInfoForVSETVLI(MI);
       continue;
@@ -979,9 +1002,7 @@ bool RISCVInsertVSETVLI::needVSETVLIPHI(const VSETVLIInfo &Require,
 
     // We need the PHI input to the be the output of a VSET(I)VLI.
     MachineInstr *DefMI = MRI->getVRegDef(InReg);
-    if (!DefMI || (DefMI->getOpcode() != RISCV::PseudoVSETVLI &&
-                   DefMI->getOpcode() != RISCV::PseudoVSETVLIX0 &&
-                   DefMI->getOpcode() != RISCV::PseudoVSETIVLI))
+    if (!DefMI || !isVectorConfigInstr(*DefMI))
       return true;
 
     // We found a VSET(I)VLI make sure it matches the output of the
@@ -1004,9 +1025,7 @@ void RISCVInsertVSETVLI::emitVSETVLIs(MachineBasicBlock &MBB) {
 
   for (MachineInstr &MI : MBB) {
     // If this is an explicit VSETVLI or VSETIVLI, update our state.
-    if (MI.getOpcode() == RISCV::PseudoVSETVLI ||
-        MI.getOpcode() == RISCV::PseudoVSETVLIX0 ||
-        MI.getOpcode() == RISCV::PseudoVSETIVLI) {
+    if (isVectorConfigInstr(MI)) {
       // Conservatively, mark the VL and VTYPE as live.
       assert(MI.getOperand(3).getReg() == RISCV::VL &&
              MI.getOperand(4).getReg() == RISCV::VTYPE &&
@@ -1095,6 +1114,17 @@ void RISCVInsertVSETVLI::emitVSETVLIs(MachineBasicBlock &MBB) {
         MI.modifiesRegister(RISCV::VTYPE)) {
       CurInfo = VSETVLIInfo::getUnknown();
       PrevVSETVLIMI = nullptr;
+    }
+
+    // If we reach the end of the block and our current info doesn't match the
+    // expected info, insert a vsetvli to correct.
+    if (MI.isTerminator()) {
+      const VSETVLIInfo &ExitInfo = BlockInfo[MBB.getNumber()].Exit;
+      if (CurInfo.isValid() && ExitInfo.isValid() && !ExitInfo.isUnknown() &&
+          CurInfo != ExitInfo) {
+        insertVSETVLI(MBB, MI, ExitInfo, CurInfo);
+        CurInfo = ExitInfo;
+      }
     }
   }
 }

@@ -145,10 +145,10 @@ public:
 
   Options *GetOptions() override { return &m_all_options; }
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
+  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                               uint32_t index) override {
     // No repeat for "process launch"...
-    return "";
+    return std::string("");
   }
 
 protected:
@@ -1214,7 +1214,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : m_requested_save_core_style(eSaveCoreUnspecified) {}
+    CommandOptions() {}
 
     ~CommandOptions() override = default;
 
@@ -1250,7 +1250,7 @@ public:
     }
 
     // Instance variables to hold the values for command options.
-    SaveCoreStyle m_requested_save_core_style;
+    SaveCoreStyle m_requested_save_core_style = eSaveCoreUnspecified;
     std::string m_requested_plugin_name;
   };
 

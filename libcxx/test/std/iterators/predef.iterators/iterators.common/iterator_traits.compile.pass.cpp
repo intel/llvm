@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // template<input_iterator I, class S>
 //   struct iterator_traits<common_iterator<I, S>>;
@@ -59,7 +58,7 @@ void test() {
   }
   // Test with an output_iterator that has a void value_type
   {
-    using Iter = output_iterator<int*>;
+    using Iter = cpp17_output_iterator<int*>;
     using CommonIter = std::common_iterator<Iter, sentinel_type<int*>>;
     using IterTraits = std::iterator_traits<CommonIter>;
 
@@ -91,7 +90,7 @@ void test() {
     static_assert(std::same_as<IterTraits::iterator_category, std::input_iterator_tag>);
     static_assert(std::same_as<IterTraits::value_type, int>);
     static_assert(std::same_as<IterTraits::difference_type, std::ptrdiff_t>);
-    static_assert(std::same_as<IterTraits::pointer, const Iter&>);
+    static_assert(std::same_as<IterTraits::pointer, int*>);
     static_assert(std::same_as<IterTraits::reference, int&>);
   }
   {
@@ -103,7 +102,7 @@ void test() {
     static_assert(std::same_as<IterTraits::iterator_category, std::forward_iterator_tag>);
     static_assert(std::same_as<IterTraits::value_type, int>);
     static_assert(std::same_as<IterTraits::difference_type, std::ptrdiff_t>);
-    static_assert(std::same_as<IterTraits::pointer, const Iter&>);
+    static_assert(std::same_as<IterTraits::pointer, int*>);
     static_assert(std::same_as<IterTraits::reference, int&>);
   }
   {
@@ -115,7 +114,7 @@ void test() {
     static_assert(std::same_as<IterTraits::iterator_category, std::forward_iterator_tag>);
     static_assert(std::same_as<IterTraits::value_type, int>);
     static_assert(std::same_as<IterTraits::difference_type, std::ptrdiff_t>);
-    static_assert(std::same_as<IterTraits::pointer, const Iter&>);
+    static_assert(std::same_as<IterTraits::pointer, int*>);
     static_assert(std::same_as<IterTraits::reference, int&>);
   }
 

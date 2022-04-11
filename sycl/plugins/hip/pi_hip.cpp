@@ -1409,6 +1409,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
   }
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
+  }
   case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
@@ -1450,6 +1454,17 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     cl::sycl::detail::pi::assertion(
         hipDeviceGetName(name, MAX_DEVICE_NAME_LENGTH, device->get()) ==
         hipSuccess);
+
+    // On AMD GPUs hipDeviceGetName returns an empty string, so return the arch
+    // name instead, this is also what AMD OpenCL devices return.
+    if (strlen(name) == 0) {
+      hipDeviceProp_t props;
+      cl::sycl::detail::pi::assertion(
+          hipGetDeviceProperties(&props, device->get()) == hipSuccess);
+
+      return getInfoArray(strlen(props.gcnArchName) + 1, param_value_size,
+                          param_value, param_value_size_ret, props.gcnArchName);
+    }
     return getInfoArray(strlen(name) + 1, param_value_size, param_value,
                         param_value_size_ret, name);
   }
@@ -2068,7 +2083,7 @@ pi_result hip_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   return PI_SUCCESS;
 }
 
-pi_result hip_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
+pi_result hip_piMemGetInfo(pi_mem memObj, pi_mem_info queriedInfo,
                            size_t expectedQuerySize, void *queryOutput,
                            size_t *writtenQuerySize) {
   (void)memObj;
@@ -2092,12 +2107,19 @@ pi_result hip_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI mem object from.
+/// \param[in] context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
+/// it came from interop that asked to not transfer the ownership to SYCL RT.
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
 pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_context context,
+                                             bool ownNativeHandle,
                                              pi_mem *mem) {
   (void)nativeHandle;
+  (void)context;
+  (void)ownNativeHandle;
   (void)mem;
 
   cl::sycl::detail::pi::die(
@@ -4738,7 +4760,7 @@ pi_result hip_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 /// \param param_value is the result
 /// \param param_value_ret is how many bytes were written
 pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
-                                      pi_mem_info param_name,
+                                      pi_mem_alloc_info param_name,
                                       size_t param_value_size,
                                       void *param_value,
                                       size_t *param_value_size_ret) {

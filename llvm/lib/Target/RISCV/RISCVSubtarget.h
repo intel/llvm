@@ -20,7 +20,7 @@
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DataLayout.h"
@@ -65,6 +65,7 @@ private:
   bool HasStdExtF = false;
   bool HasStdExtD = false;
   bool HasStdExtC = false;
+  bool HasStdExtZihintpause = false;
   bool HasStdExtZba = false;
   bool HasStdExtZbb = false;
   bool HasStdExtZbc = false;
@@ -81,8 +82,13 @@ private:
   bool HasStdExtZve64x = false;
   bool HasStdExtZve64f = false;
   bool HasStdExtZve64d = false;
+  bool HasStdExtZvfh = false;
   bool HasStdExtZfhmin = false;
   bool HasStdExtZfh = false;
+  bool HasStdExtZfinx = false;
+  bool HasStdExtZdinx = false;
+  bool HasStdExtZhinxmin = false;
+  bool HasStdExtZhinx = false;
   bool HasStdExtZbkb = false;
   bool HasStdExtZbkc = false;
   bool HasStdExtZbkx = false;
@@ -157,6 +163,7 @@ public:
   bool hasStdExtD() const { return HasStdExtD; }
   bool hasStdExtC() const { return HasStdExtC; }
   bool hasStdExtV() const { return HasStdExtV; }
+  bool hasStdExtZihintpause() const { return HasStdExtZihintpause; }
   bool hasStdExtZba() const { return HasStdExtZba; }
   bool hasStdExtZbb() const { return HasStdExtZbb; }
   bool hasStdExtZbc() const { return HasStdExtZbc; }
@@ -168,8 +175,13 @@ public:
   bool hasStdExtZbs() const { return HasStdExtZbs; }
   bool hasStdExtZbt() const { return HasStdExtZbt; }
   bool hasStdExtZvl() const { return ZvlLen != ExtZvl::NotSet; }
+  bool hasStdExtZvfh() const { return HasStdExtZvfh; }
   bool hasStdExtZfhmin() const { return HasStdExtZfhmin; }
   bool hasStdExtZfh() const { return HasStdExtZfh; }
+  bool hasStdExtZfinx() const { return HasStdExtZfinx; }
+  bool hasStdExtZdinx() const { return HasStdExtZdinx; }
+  bool hasStdExtZhinxmin() const { return HasStdExtZhinxmin; }
+  bool hasStdExtZhinx() const { return HasStdExtZhinx; }
   bool hasStdExtZbkb() const { return HasStdExtZbkb; }
   bool hasStdExtZbkc() const { return HasStdExtZbkc; }
   bool hasStdExtZbkx() const { return HasStdExtZbkx; }
@@ -195,6 +207,16 @@ public:
 
     return 0;
   }
+  unsigned getMinVLen() const { return ZvlLen; }
+  unsigned getMaxVLen() const { return Zvl65536b; }
+  unsigned getRealMinVLen() const {
+    unsigned VLen = getMinRVVVectorSizeInBits();
+    return VLen == 0 ? getMinVLen() : VLen;
+  }
+  unsigned getRealMaxVLen() const {
+    unsigned VLen = getMaxRVVVectorSizeInBits();
+    return VLen == 0 ? getMaxVLen() : VLen;
+  }
   RISCVABI::ABI getTargetABI() const { return TargetABI; }
   bool isRegisterReservedByUser(Register i) const {
     assert(i < RISCV::NUM_TARGET_REGS && "Register out of range");
@@ -202,19 +224,13 @@ public:
   }
 
   // Vector codegen related methods.
-  bool hasVInstructions() const { return HasStdExtV || HasStdExtZve32x; }
-  bool hasVInstructionsI64() const { return HasStdExtV || HasStdExtZve64x; }
-  bool hasVInstructionsF16() const {
-    return (HasStdExtV || HasStdExtZve32f) && HasStdExtZfh;
-  }
+  bool hasVInstructions() const { return HasStdExtZve32x; }
+  bool hasVInstructionsI64() const { return HasStdExtZve64x; }
+  bool hasVInstructionsF16() const { return HasStdExtZvfh && HasStdExtZfh; }
   // FIXME: Consider Zfinx in the future
-  bool hasVInstructionsF32() const {
-    return HasStdExtV || (HasStdExtZve32f && HasStdExtF);
-  }
+  bool hasVInstructionsF32() const { return HasStdExtZve32f && HasStdExtF; }
   // FIXME: Consider Zdinx in the future
-  bool hasVInstructionsF64() const {
-    return HasStdExtV || (HasStdExtZve64d && HasStdExtD);
-  }
+  bool hasVInstructionsF64() const { return HasStdExtZve64d && HasStdExtD; }
   // F16 and F64 both require F32.
   bool hasVInstructionsAnyF() const { return hasVInstructionsF32(); }
   unsigned getMaxInterleaveFactor() const {

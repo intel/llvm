@@ -8,34 +8,27 @@
 define i32 @sadd_add_imm(i32 %x, i32 %y) {
 ; X64-LABEL: sadd_add_imm:
 ; X64:       # %bb.0:
-; X64-NEXT:    # kill: def $esi killed $esi def $rsi
 ; X64-NEXT:    # kill: def $edi killed $edi def $rdi
-; X64-NEXT:    leal (%rdi,%rsi), %eax
-; X64-NEXT:    addl $100, %eax
 ; X64-NEXT:    addl %esi, %edi
+; X64-NEXT:    leal 100(%rdi), %eax
 ; X64-NEXT:    cmovnol %edi, %eax
 ; X64-NEXT:    retq
 ;
 ; CMOV-LABEL: sadd_add_imm:
 ; CMOV:       # %bb.0:
-; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; CMOV-NEXT:    leal (%eax,%ecx), %edx
-; CMOV-NEXT:    addl $100, %edx
-; CMOV-NEXT:    addl %ecx, %eax
-; CMOV-NEXT:    cmovol %edx, %eax
+; CMOV-NEXT:    addl {{[0-9]+}}(%esp), %ecx
+; CMOV-NEXT:    leal 100(%ecx), %eax
+; CMOV-NEXT:    cmovnol %ecx, %eax
 ; CMOV-NEXT:    retl
 ;
 ; NOCMOV-LABEL: sadd_add_imm:
 ; NOCMOV:       # %bb.0:
 ; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %edx
-; NOCMOV-NEXT:    leal (%eax,%edx), %ecx
-; NOCMOV-NEXT:    addl %edx, %eax
+; NOCMOV-NEXT:    addl {{[0-9]+}}(%esp), %eax
 ; NOCMOV-NEXT:    jno .LBB0_2
 ; NOCMOV-NEXT:  # %bb.1:
-; NOCMOV-NEXT:    addl $100, %ecx
-; NOCMOV-NEXT:    movl %ecx, %eax
+; NOCMOV-NEXT:    addl $100, %eax
 ; NOCMOV-NEXT:  .LBB0_2:
 ; NOCMOV-NEXT:    retl
   %o = tail call { i32, i1 } @llvm.sadd.with.overflow.i32(i32 %x, i32 %y)
@@ -95,34 +88,27 @@ define i32 @sadd_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
 define i32 @uadd_add_imm(i32 %x, i32 %y) {
 ; X64-LABEL: uadd_add_imm:
 ; X64:       # %bb.0:
-; X64-NEXT:    # kill: def $esi killed $esi def $rsi
 ; X64-NEXT:    # kill: def $edi killed $edi def $rdi
-; X64-NEXT:    leal (%rdi,%rsi), %eax
-; X64-NEXT:    addl $100, %eax
 ; X64-NEXT:    addl %esi, %edi
+; X64-NEXT:    leal 100(%rdi), %eax
 ; X64-NEXT:    cmovael %edi, %eax
 ; X64-NEXT:    retq
 ;
 ; CMOV-LABEL: uadd_add_imm:
 ; CMOV:       # %bb.0:
-; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; CMOV-NEXT:    leal (%eax,%ecx), %edx
-; CMOV-NEXT:    addl $100, %edx
-; CMOV-NEXT:    addl %ecx, %eax
-; CMOV-NEXT:    cmovbl %edx, %eax
+; CMOV-NEXT:    addl {{[0-9]+}}(%esp), %ecx
+; CMOV-NEXT:    leal 100(%ecx), %eax
+; CMOV-NEXT:    cmovael %ecx, %eax
 ; CMOV-NEXT:    retl
 ;
 ; NOCMOV-LABEL: uadd_add_imm:
 ; NOCMOV:       # %bb.0:
 ; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %edx
-; NOCMOV-NEXT:    leal (%eax,%edx), %ecx
-; NOCMOV-NEXT:    addl %edx, %eax
+; NOCMOV-NEXT:    addl {{[0-9]+}}(%esp), %eax
 ; NOCMOV-NEXT:    jae .LBB2_2
 ; NOCMOV-NEXT:  # %bb.1:
-; NOCMOV-NEXT:    addl $100, %ecx
-; NOCMOV-NEXT:    movl %ecx, %eax
+; NOCMOV-NEXT:    addl $100, %eax
 ; NOCMOV-NEXT:  .LBB2_2:
 ; NOCMOV-NEXT:    retl
   %o = tail call { i32, i1 } @llvm.uadd.with.overflow.i32(i32 %x, i32 %y)
@@ -182,35 +168,27 @@ define i32 @uadd_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
 define i32 @ssub_add_imm(i32 %x, i32 %y) {
 ; X64-LABEL: ssub_add_imm:
 ; X64:       # %bb.0:
-; X64-NEXT:    movl %edi, %eax
-; X64-NEXT:    subl %esi, %eax
-; X64-NEXT:    addl $100, %eax
+; X64-NEXT:    # kill: def $edi killed $edi def $rdi
 ; X64-NEXT:    subl %esi, %edi
+; X64-NEXT:    leal 100(%rdi), %eax
 ; X64-NEXT:    cmovnol %edi, %eax
 ; X64-NEXT:    retq
 ;
 ; CMOV-LABEL: ssub_add_imm:
 ; CMOV:       # %bb.0:
-; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; CMOV-NEXT:    movl %eax, %edx
-; CMOV-NEXT:    subl %ecx, %edx
-; CMOV-NEXT:    addl $100, %edx
-; CMOV-NEXT:    subl %ecx, %eax
-; CMOV-NEXT:    cmovol %edx, %eax
+; CMOV-NEXT:    subl {{[0-9]+}}(%esp), %ecx
+; CMOV-NEXT:    leal 100(%ecx), %eax
+; CMOV-NEXT:    cmovnol %ecx, %eax
 ; CMOV-NEXT:    retl
 ;
 ; NOCMOV-LABEL: ssub_add_imm:
 ; NOCMOV:       # %bb.0:
 ; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %edx
-; NOCMOV-NEXT:    movl %eax, %ecx
-; NOCMOV-NEXT:    subl %edx, %ecx
-; NOCMOV-NEXT:    subl %edx, %eax
+; NOCMOV-NEXT:    subl {{[0-9]+}}(%esp), %eax
 ; NOCMOV-NEXT:    jno .LBB4_2
 ; NOCMOV-NEXT:  # %bb.1:
-; NOCMOV-NEXT:    addl $100, %ecx
-; NOCMOV-NEXT:    movl %ecx, %eax
+; NOCMOV-NEXT:    addl $100, %eax
 ; NOCMOV-NEXT:  .LBB4_2:
 ; NOCMOV-NEXT:    retl
   %o = tail call { i32, i1 } @llvm.ssub.with.overflow.i32(i32 %x, i32 %y)
@@ -271,35 +249,27 @@ define i32 @ssub_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
 define i32 @usub_add_imm(i32 %x, i32 %y) {
 ; X64-LABEL: usub_add_imm:
 ; X64:       # %bb.0:
-; X64-NEXT:    movl %edi, %eax
-; X64-NEXT:    subl %esi, %eax
-; X64-NEXT:    addl $100, %eax
+; X64-NEXT:    # kill: def $edi killed $edi def $rdi
 ; X64-NEXT:    subl %esi, %edi
+; X64-NEXT:    leal 100(%rdi), %eax
 ; X64-NEXT:    cmovael %edi, %eax
 ; X64-NEXT:    retq
 ;
 ; CMOV-LABEL: usub_add_imm:
 ; CMOV:       # %bb.0:
-; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; CMOV-NEXT:    movl %eax, %edx
-; CMOV-NEXT:    subl %ecx, %edx
-; CMOV-NEXT:    addl $100, %edx
-; CMOV-NEXT:    subl %ecx, %eax
-; CMOV-NEXT:    cmovbl %edx, %eax
+; CMOV-NEXT:    subl {{[0-9]+}}(%esp), %ecx
+; CMOV-NEXT:    leal 100(%ecx), %eax
+; CMOV-NEXT:    cmovael %ecx, %eax
 ; CMOV-NEXT:    retl
 ;
 ; NOCMOV-LABEL: usub_add_imm:
 ; NOCMOV:       # %bb.0:
 ; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %edx
-; NOCMOV-NEXT:    movl %eax, %ecx
-; NOCMOV-NEXT:    subl %edx, %ecx
-; NOCMOV-NEXT:    subl %edx, %eax
+; NOCMOV-NEXT:    subl {{[0-9]+}}(%esp), %eax
 ; NOCMOV-NEXT:    jae .LBB6_2
 ; NOCMOV-NEXT:  # %bb.1:
-; NOCMOV-NEXT:    addl $100, %ecx
-; NOCMOV-NEXT:    movl %ecx, %eax
+; NOCMOV-NEXT:    addl $100, %eax
 ; NOCMOV-NEXT:  .LBB6_2:
 ; NOCMOV-NEXT:    retl
   %o = tail call { i32, i1 } @llvm.usub.with.overflow.i32(i32 %x, i32 %y)
@@ -357,7 +327,170 @@ define i32 @usub_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
   ret i32 %r
 }
 
+define i32 @smul_add_imm(i32 %x, i32 %y) {
+; X64-LABEL: smul_add_imm:
+; X64:       # %bb.0:
+; X64-NEXT:    # kill: def $edi killed $edi def $rdi
+; X64-NEXT:    imull %esi, %edi
+; X64-NEXT:    leal 100(%rdi), %eax
+; X64-NEXT:    cmovnol %edi, %eax
+; X64-NEXT:    retq
+;
+; CMOV-LABEL: smul_add_imm:
+; CMOV:       # %bb.0:
+; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; CMOV-NEXT:    imull {{[0-9]+}}(%esp), %ecx
+; CMOV-NEXT:    leal 100(%ecx), %eax
+; CMOV-NEXT:    cmovnol %ecx, %eax
+; CMOV-NEXT:    retl
+;
+; NOCMOV-LABEL: smul_add_imm:
+; NOCMOV:       # %bb.0:
+; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; NOCMOV-NEXT:    imull {{[0-9]+}}(%esp), %eax
+; NOCMOV-NEXT:    jno .LBB8_2
+; NOCMOV-NEXT:  # %bb.1:
+; NOCMOV-NEXT:    addl $100, %eax
+; NOCMOV-NEXT:  .LBB8_2:
+; NOCMOV-NEXT:    retl
+  %o = tail call { i32, i1 } @llvm.smul.with.overflow.i32(i32 %x, i32 %y)
+  %v1 = extractvalue { i32, i1 } %o, 1
+  %v2 = extractvalue { i32, i1 } %o, 0
+  %a = add i32 %v2, 100
+  %r = select i1 %v1, i32 %a, i32 %v2
+  ret i32 %r
+}
+
+define i32 @smul_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
+; X64-LABEL: smul_add_load:
+; X64:       # %bb.0:
+; X64-NEXT:    movl %edi, %eax
+; X64-NEXT:    imull %esi, %eax
+; X64-NEXT:    addl (%rdx), %eax
+; X64-NEXT:    imull %esi, %edi
+; X64-NEXT:    cmovnol %edi, %eax
+; X64-NEXT:    retq
+;
+; CMOV-LABEL: smul_add_load:
+; CMOV:       # %bb.0:
+; CMOV-NEXT:    pushl %esi
+; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %edx
+; CMOV-NEXT:    movl %eax, %esi
+; CMOV-NEXT:    imull %edx, %esi
+; CMOV-NEXT:    addl (%ecx), %esi
+; CMOV-NEXT:    imull %edx, %eax
+; CMOV-NEXT:    cmovol %esi, %eax
+; CMOV-NEXT:    popl %esi
+; CMOV-NEXT:    retl
+;
+; NOCMOV-LABEL: smul_add_load:
+; NOCMOV:       # %bb.0:
+; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %edx
+; NOCMOV-NEXT:    movl %eax, %ecx
+; NOCMOV-NEXT:    imull %edx, %ecx
+; NOCMOV-NEXT:    imull %edx, %eax
+; NOCMOV-NEXT:    jno .LBB9_2
+; NOCMOV-NEXT:  # %bb.1:
+; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; NOCMOV-NEXT:    addl (%eax), %ecx
+; NOCMOV-NEXT:    movl %ecx, %eax
+; NOCMOV-NEXT:  .LBB9_2:
+; NOCMOV-NEXT:    retl
+  %o = tail call { i32, i1 } @llvm.smul.with.overflow.i32(i32 %x, i32 %y)
+  %v1 = extractvalue { i32, i1 } %o, 1
+  %v2 = extractvalue { i32, i1 } %o, 0
+  %z = load i32, i32* %pz
+  %a = add i32 %v2, %z
+  %r = select i1 %v1, i32 %a, i32 %v2
+  ret i32 %r
+}
+
+define i32 @umul_add_imm(i32 %x, i32 %y) {
+; X64-LABEL: umul_add_imm:
+; X64:       # %bb.0:
+; X64-NEXT:    movl %edi, %eax
+; X64-NEXT:    mull %esi
+; X64-NEXT:    # kill: def $eax killed $eax def $rax
+; X64-NEXT:    leal 100(%rax), %ecx
+; X64-NEXT:    cmovol %ecx, %eax
+; X64-NEXT:    # kill: def $eax killed $eax killed $rax
+; X64-NEXT:    retq
+;
+; CMOV-LABEL: umul_add_imm:
+; CMOV:       # %bb.0:
+; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; CMOV-NEXT:    mull {{[0-9]+}}(%esp)
+; CMOV-NEXT:    leal 100(%eax), %ecx
+; CMOV-NEXT:    cmovol %ecx, %eax
+; CMOV-NEXT:    retl
+;
+; NOCMOV-LABEL: umul_add_imm:
+; NOCMOV:       # %bb.0:
+; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; NOCMOV-NEXT:    mull {{[0-9]+}}(%esp)
+; NOCMOV-NEXT:    jno .LBB10_2
+; NOCMOV-NEXT:  # %bb.1:
+; NOCMOV-NEXT:    addl $100, %eax
+; NOCMOV-NEXT:  .LBB10_2:
+; NOCMOV-NEXT:    retl
+  %o = tail call { i32, i1 } @llvm.umul.with.overflow.i32(i32 %x, i32 %y)
+  %v1 = extractvalue { i32, i1 } %o, 1
+  %v2 = extractvalue { i32, i1 } %o, 0
+  %a = add i32 %v2, 100
+  %r = select i1 %v1, i32 %a, i32 %v2
+  ret i32 %r
+}
+
+define i32 @umul_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
+; X64-LABEL: umul_add_load:
+; X64:       # %bb.0:
+; X64-NEXT:    movq %rdx, %rcx
+; X64-NEXT:    movl %edi, %eax
+; X64-NEXT:    mull %esi
+; X64-NEXT:    seto %dl
+; X64-NEXT:    movl (%rcx), %ecx
+; X64-NEXT:    addl %eax, %ecx
+; X64-NEXT:    testb %dl, %dl
+; X64-NEXT:    cmovnel %ecx, %eax
+; X64-NEXT:    retq
+;
+; CMOV-LABEL: umul_add_load:
+; CMOV:       # %bb.0:
+; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; CMOV-NEXT:    mull {{[0-9]+}}(%esp)
+; CMOV-NEXT:    seto %dl
+; CMOV-NEXT:    movl (%ecx), %ecx
+; CMOV-NEXT:    addl %eax, %ecx
+; CMOV-NEXT:    testb %dl, %dl
+; CMOV-NEXT:    cmovnel %ecx, %eax
+; CMOV-NEXT:    retl
+;
+; NOCMOV-LABEL: umul_add_load:
+; NOCMOV:       # %bb.0:
+; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; NOCMOV-NEXT:    mull {{[0-9]+}}(%esp)
+; NOCMOV-NEXT:    jno .LBB11_2
+; NOCMOV-NEXT:  # %bb.1:
+; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; NOCMOV-NEXT:    addl (%ecx), %eax
+; NOCMOV-NEXT:  .LBB11_2:
+; NOCMOV-NEXT:    retl
+  %o = tail call { i32, i1 } @llvm.umul.with.overflow.i32(i32 %x, i32 %y)
+  %v1 = extractvalue { i32, i1 } %o, 1
+  %v2 = extractvalue { i32, i1 } %o, 0
+  %z = load i32, i32* %pz
+  %a = add i32 %v2, %z
+  %r = select i1 %v1, i32 %a, i32 %v2
+  ret i32 %r
+}
+
 declare { i32, i1 } @llvm.sadd.with.overflow.i32(i32, i32)
 declare { i32, i1 } @llvm.uadd.with.overflow.i32(i32, i32)
 declare { i32, i1 } @llvm.ssub.with.overflow.i32(i32, i32)
 declare { i32, i1 } @llvm.usub.with.overflow.i32(i32, i32)
+declare { i32, i1 } @llvm.smul.with.overflow.i32(i32, i32)
+declare { i32, i1 } @llvm.umul.with.overflow.i32(i32, i32)

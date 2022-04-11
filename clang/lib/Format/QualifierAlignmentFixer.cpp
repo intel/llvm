@@ -37,7 +37,7 @@ QualifierAlignmentFixer::QualifierAlignmentFixer(
   PrepareLeftRightOrdering(Style.QualifierOrder, LeftOrder, RightOrder,
                            ConfiguredQualifierTokens);
 
-  // Handle the left and right Alignment Seperately
+  // Handle the left and right alignment separately.
   for (const auto &Qualifier : LeftOrder) {
     Passes.emplace_back(
         [&, Qualifier, ConfiguredQualifierTokens](const Environment &Env) {
@@ -59,8 +59,9 @@ QualifierAlignmentFixer::QualifierAlignmentFixer(
 }
 
 std::pair<tooling::Replacements, unsigned> QualifierAlignmentFixer::analyze(
-    TokenAnnotator &Annotator, SmallVectorImpl<AnnotatedLine *> &AnnotatedLines,
-    FormatTokenLexer &Tokens) {
+    TokenAnnotator & /*Annotator*/,
+    SmallVectorImpl<AnnotatedLine *> & /*AnnotatedLines*/,
+    FormatTokenLexer & /*Tokens*/) {
   auto Env = Environment::make(Code, FileName, Ranges, FirstStartColumn,
                                NextStartColumn, LastStartColumn);
   if (!Env)
@@ -149,16 +150,14 @@ static void insertQualifierBefore(const SourceManager &SourceMgr,
 }
 
 static bool endsWithSpace(const std::string &s) {
-  if (s.empty()) {
+  if (s.empty())
     return false;
-  }
   return isspace(s.back());
 }
 
 static bool startsWithSpace(const std::string &s) {
-  if (s.empty()) {
+  if (s.empty())
     return false;
-  }
   return isspace(s.front());
 }
 
@@ -182,9 +181,8 @@ static void rotateTokens(const SourceManager &SourceMgr,
   // Then move through the other tokens.
   auto *Tok = Begin;
   while (Tok != End) {
-    if (!NewText.empty() && !endsWithSpace(NewText)) {
+    if (!NewText.empty() && !endsWithSpace(NewText))
       NewText += " ";
-    }
 
     NewText += Tok->TokenText;
     Tok = Tok->Next;
@@ -192,9 +190,8 @@ static void rotateTokens(const SourceManager &SourceMgr,
 
   // If we are rotating to the right we move the first token to the back.
   if (!Left) {
-    if (!NewText.empty() && !startsWithSpace(NewText)) {
+    if (!NewText.empty() && !startsWithSpace(NewText))
       NewText += " ";
-    }
     NewText += First->TokenText;
   }
 
@@ -227,6 +224,12 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeRight(
     rotateTokens(SourceMgr, Fixes, Tok, LastQual, /*Left=*/false);
     Tok = LastQual;
   } else if (Tok->startsSequence(QualifierType, tok::identifier,
+                                 TT_TemplateCloser)) {
+    FormatToken *Closer = Tok->Next->Next;
+    rotateTokens(SourceMgr, Fixes, Tok, Tok->Next, /*Left=*/false);
+    Tok = Closer;
+    return Tok;
+  } else if (Tok->startsSequence(QualifierType, tok::identifier,
                                  TT_TemplateOpener)) {
     // Read from the TemplateOpener to
     // TemplateCloser as in const ArrayRef<int> a; const ArrayRef<int> &a;
@@ -253,9 +256,8 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeRight(
     // The case  `const Foo &&` -> `Foo const &&`
     // The case  `const std::Foo &&` -> `std::Foo const &&`
     // The case  `const std::Foo<T> &&` -> `std::Foo<T> const &&`
-    while (Next && Next->isOneOf(tok::identifier, tok::coloncolon)) {
+    while (Next && Next->isOneOf(tok::identifier, tok::coloncolon))
       Next = Next->Next;
-    }
     if (Next && Next->is(TT_TemplateOpener)) {
       Next = Next->MatchingParen;
       // Move to the end of any template class members e.g.
@@ -296,9 +298,8 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeLeft(
       break;
   }
 
-  if (!Qual) {
+  if (!Qual)
     return Tok;
-  }
 
   if (LastQual && Qual != LastQual && Qual->is(QualifierType)) {
     rotateTokens(SourceMgr, Fixes, Tok, Qual, /*Left=*/true);
@@ -312,18 +313,21 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeLeft(
         rotateTokens(SourceMgr, Fixes, Tok, Tok->Next, /*Left=*/true);
         Tok = Tok->Next;
       }
+    } else if (Tok->startsSequence(tok::identifier, QualifierType,
+                                   TT_TemplateCloser)) {
+      FormatToken *Closer = Tok->Next->Next;
+      rotateTokens(SourceMgr, Fixes, Tok, Tok->Next, /*Left=*/true);
+      Tok = Closer;
     }
   }
   if (Tok->is(TT_TemplateOpener) && Tok->Next &&
       (Tok->Next->is(tok::identifier) || Tok->Next->isSimpleTypeSpecifier()) &&
-      Tok->Next->Next && Tok->Next->Next->is(QualifierType)) {
+      Tok->Next->Next && Tok->Next->Next->is(QualifierType))
     rotateTokens(SourceMgr, Fixes, Tok->Next, Tok->Next->Next, /*Left=*/true);
-  }
   if (Tok->startsSequence(tok::identifier) && Tok->Next) {
     if (Tok->Previous &&
-        Tok->Previous->isOneOf(tok::star, tok::ampamp, tok::amp)) {
+        Tok->Previous->isOneOf(tok::star, tok::ampamp, tok::amp))
       return Tok;
-    }
     const FormatToken *Next = Tok->Next;
     // The case  `std::Foo<T> const` -> `const std::Foo<T> &&`
     while (Next && Next->isOneOf(tok::identifier, tok::coloncolon))
@@ -335,14 +339,21 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeLeft(
       if (Next->is(tok::comment) && Next->getNextNonComment())
         Next = Next->getNextNonComment();
       assert(Next->MatchingParen && "Missing template closer");
-      Next = Next->MatchingParen->Next;
+      Next = Next->MatchingParen;
+
+      // If the template closer is closing the requires clause,
+      // then stop and go back to the TemplateOpener and do whatever is
+      // inside the <>.
+      if (Next->ClosesRequiresClause)
+        return Next->MatchingParen;
+      Next = Next->Next;
 
       // Move to the end of any template class members e.g.
       // `Foo<int>::iterator`.
       if (Next && Next->startsSequence(tok::coloncolon, tok::identifier))
         Next = Next->Next->Next;
       if (Next && Next->is(QualifierType)) {
-        // Remove the const.
+        // Move the qualifier.
         insertQualifierBefore(SourceMgr, Fixes, Tok, Qualifier);
         removeToken(SourceMgr, Fixes, Next);
         return Next;
@@ -351,7 +362,7 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeLeft(
     if (Next && Next->Next &&
         Next->Next->isOneOf(tok::amp, tok::ampamp, tok::star)) {
       if (Next->is(QualifierType)) {
-        // Remove the qualifier.
+        // Move the qualifier.
         insertQualifierBefore(SourceMgr, Fixes, Tok, Qualifier);
         removeToken(SourceMgr, Fixes, Next);
         return Next;
@@ -384,7 +395,8 @@ LeftRightQualifierAlignmentFixer::LeftRightQualifierAlignmentFixer(
 
 std::pair<tooling::Replacements, unsigned>
 LeftRightQualifierAlignmentFixer::analyze(
-    TokenAnnotator &Annotator, SmallVectorImpl<AnnotatedLine *> &AnnotatedLines,
+    TokenAnnotator & /*Annotator*/,
+    SmallVectorImpl<AnnotatedLine *> &AnnotatedLines,
     FormatTokenLexer &Tokens) {
   tooling::Replacements Fixes;
   const AdditionalKeywords &Keywords = Tokens.getKeywords();
@@ -396,6 +408,10 @@ LeftRightQualifierAlignmentFixer::analyze(
 
   for (AnnotatedLine *Line : AnnotatedLines) {
     FormatToken *First = Line->First;
+    assert(First);
+    if (First->Finalized)
+      continue;
+
     const auto *Last = Line->Last;
 
     for (const auto *Tok = First; Tok && Tok != Last && Tok->Next;
@@ -435,9 +451,8 @@ void QualifierAlignmentFixer::PrepareLeftRightOrdering(
 
     tok::TokenKind QualifierToken =
         LeftRightQualifierAlignmentFixer::getTokenFromQualifier(s);
-    if (QualifierToken != tok::kw_typeof && QualifierToken != tok::identifier) {
+    if (QualifierToken != tok::kw_typeof && QualifierToken != tok::identifier)
       Qualifiers.push_back(QualifierToken);
-    }
 
     if (left)
       // Reverse the order for left aligned items.
@@ -461,7 +476,8 @@ bool LeftRightQualifierAlignmentFixer::isPossibleMacro(const FormatToken *Tok) {
   if (!Tok->is(tok::identifier))
     return false;
   if (Tok->TokenText.upper() == Tok->TokenText.str())
-    return true;
+    // T,K,U,V likely could be template arguments
+    return (Tok->TokenText.size() != 1);
   return false;
 }
 

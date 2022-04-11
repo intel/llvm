@@ -21,13 +21,18 @@
 #include "llvm/IR/IntrinsicsNVPTX.h"
 
 #include "mlir/Dialect/LLVMIR/NVVMOpsEnums.h.inc"
+#include "mlir/Dialect/LLVMIR/NVVMOpsStructs.h.inc"
 
+namespace mlir {
+namespace NVVM {
 /// Return the element type and number of elements associated with a wmma matrix
 /// of given chracteristics. This matches the logic in IntrinsicsNVVM.td
 /// WMMA_REGS structure.
 std::pair<mlir::Type, unsigned> inferMMAType(mlir::NVVM::MMATypes type,
                                              mlir::NVVM::MMAFrag frag,
                                              mlir::MLIRContext *context);
+} // namespace NVVM
+} // namespace mlir
 
 ///// Ops /////
 #define GET_ATTRDEF_CLASSES
