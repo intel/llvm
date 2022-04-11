@@ -88,8 +88,9 @@ func @proc_bind_once() {
 // -----
 
 func @inclusive_not_a_clause(%lb : index, %ub : index, %step : index) {
-  // expected-error @below {{inclusive is not a valid clause}}
-  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step) nowait inclusive {
+  // expected-error @below {{expected 'for'}}
+  omp.wsloop nowait inclusive
+  for (%iv) : index = (%lb) to (%ub) step (%step) {
     omp.yield
   }
 }
@@ -97,8 +98,9 @@ func @inclusive_not_a_clause(%lb : index, %ub : index, %step : index) {
 // -----
 
 func @order_value(%lb : index, %ub : index, %step : index) {
-  // expected-error @below {{invalid order kind}}
-  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step) order(default) {
+  // expected-error @below {{invalid clause value: 'default'}}
+  omp.wsloop order(default)
+  for (%iv) : index = (%lb) to (%ub) step (%step) {
     omp.yield
   }
 }
@@ -106,8 +108,9 @@ func @order_value(%lb : index, %ub : index, %step : index) {
 // -----
 
 func @if_not_allowed(%lb : index, %ub : index, %step : index, %bool_var : i1) {
-  // expected-error @below {{if is not a valid clause for the omp.wsloop operation}}
-  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step) if(%bool_var: i1) {
+  // expected-error @below {{expected 'for'}}
+  omp.wsloop if(%bool_var: i1)
+  for (%iv) : index = (%lb) to (%ub) step (%step) {
     omp.yield
   }
 }
@@ -115,8 +118,9 @@ func @if_not_allowed(%lb : index, %ub : index, %step : index, %bool_var : i1) {
 // -----
 
 func @num_threads_not_allowed(%lb : index, %ub : index, %step : index, %int_var : i32) {
-  // expected-error @below {{num_threads is not a valid clause for the omp.wsloop operation}}
-  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step) num_threads(%int_var: i32) {
+  // expected-error @below {{expected 'for'}}
+  omp.wsloop num_threads(%int_var: i32)
+  for (%iv) : index = (%lb) to (%ub) step (%step) {
     omp.yield
   }
 }
@@ -124,10 +128,79 @@ func @num_threads_not_allowed(%lb : index, %ub : index, %step : index, %int_var 
 // -----
 
 func @proc_bind_not_allowed(%lb : index, %ub : index, %step : index) {
-  // expected-error @below {{proc_bind is not a valid clause for the omp.wsloop operation}}
-  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step) proc_bind(close) {
+  // expected-error @below {{expected 'for'}}
+  omp.wsloop proc_bind(close)
+  for (%iv) : index = (%lb) to (%ub) step (%step) {
     omp.yield
   }
+}
+
+// -----
+
+llvm.func @test_omp_wsloop_dynamic_bad_modifier(%lb : i64, %ub : i64, %step : i64) -> () {
+  // expected-error @+1 {{unknown modifier type: ginandtonic}}
+  omp.wsloop schedule(dynamic, ginandtonic)
+  for (%iv) : i64 = (%lb) to (%ub) step (%step) {
+    omp.yield
+  }
+  llvm.return
+}
+
+// -----
+
+llvm.func @test_omp_wsloop_dynamic_many_modifier(%lb : i64, %ub : i64, %step : i64) -> () {
+  // expected-error @+1 {{unexpected modifier(s)}}
+  omp.wsloop schedule(dynamic, monotonic, monotonic, monotonic)
+  for (%iv) : i64 = (%lb) to (%ub) step (%step) {
+    omp.yield
+  }
+  llvm.return
+}
+
+// -----
+
+llvm.func @test_omp_wsloop_dynamic_wrong_modifier(%lb : i64, %ub : i64, %step : i64) -> () {
+  // expected-error @+1 {{incorrect modifier order}}
+  omp.wsloop schedule(dynamic, simd, monotonic)
+  for (%iv) : i64 = (%lb) to (%ub) step (%step) {
+    omp.yield
+  }
+  llvm.return
+}
+
+// -----
+
+llvm.func @test_omp_wsloop_dynamic_wrong_modifier2(%lb : i64, %ub : i64, %step : i64) -> () {
+  // expected-error @+1 {{incorrect modifier order}}
+  omp.wsloop schedule(dynamic, monotonic, monotonic)
+  for (%iv) : i64 = (%lb) to (%ub) step (%step) {
+    omp.yield
+  }
+  llvm.return
+}
+
+// -----
+
+llvm.func @test_omp_wsloop_dynamic_wrong_modifier3(%lb : i64, %ub : i64, %step : i64) -> () {
+  // expected-error @+1 {{incorrect modifier order}}
+  omp.wsloop schedule(dynamic, simd, simd)
+  for (%iv) : i64 = (%lb) to (%ub) step (%step) {
+    omp.yield
+  }
+  llvm.return
+}
+
+// -----
+
+func @omp_simdloop(%lb : index, %ub : index, %step : i32) -> () {
+  // expected-error @below {{op failed to verify that all of {lowerBound, upperBound, step} have same type}}
+  "omp.simdloop" (%lb, %ub, %step) ({
+    ^bb0(%iv: index):
+      omp.yield
+  }) {operand_segment_sizes = dense<[1,1,1]> : vector<3xi32>} :
+    (index, index, i32) -> () 
+
+  return
 }
 
 // -----
@@ -248,8 +321,8 @@ func @foo(%lb : index, %ub : index, %step : index) {
   %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
   %1 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
 
-  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step)
-  reduction(@add_f32 -> %0 : !llvm.ptr<f32>) {
+  omp.wsloop reduction(@add_f32 -> %0 : !llvm.ptr<f32>)
+  for (%iv) : index = (%lb) to (%ub) step (%step) {
     %2 = arith.constant 2.0 : f32
     // expected-error @below {{accumulator is not used by the parent}}
     omp.reduction %2, %1 : !llvm.ptr<f32>
@@ -266,8 +339,8 @@ func @foo(%lb : index, %ub : index, %step : index) {
   %1 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
 
   // expected-error @below {{expected symbol reference @foo to point to a reduction declaration}}
-  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step)
-  reduction(@foo -> %0 : !llvm.ptr<f32>) {
+  omp.wsloop reduction(@foo -> %0 : !llvm.ptr<f32>)
+  for (%iv) : index = (%lb) to (%ub) step (%step) {
     %2 = arith.constant 2.0 : f32
     omp.reduction %2, %1 : !llvm.ptr<f32>
     omp.yield
@@ -294,8 +367,8 @@ func @foo(%lb : index, %ub : index, %step : index) {
   %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
 
   // expected-error @below {{accumulator variable used more than once}}
-  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step)
-  reduction(@add_f32 -> %0 : !llvm.ptr<f32>, @add_f32 -> %0 : !llvm.ptr<f32>) {
+  omp.wsloop reduction(@add_f32 -> %0 : !llvm.ptr<f32>, @add_f32 -> %0 : !llvm.ptr<f32>)
+  for (%iv) : index = (%lb) to (%ub) step (%step) {
     %2 = arith.constant 2.0 : f32
     omp.reduction %2, %0 : !llvm.ptr<f32>
     omp.yield
@@ -327,8 +400,8 @@ func @foo(%lb : index, %ub : index, %step : index, %mem : memref<1xf32>) {
   %c1 = arith.constant 1 : i32
 
   // expected-error @below {{expected accumulator ('memref<1xf32>') to be the same type as reduction declaration ('!llvm.ptr<f32>')}}
-  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step)
-  reduction(@add_f32 -> %mem : memref<1xf32>) {
+  omp.wsloop reduction(@add_f32 -> %mem : memref<1xf32>)
+  for (%iv) : index = (%lb) to (%ub) step (%step) {
     %2 = arith.constant 2.0 : f32
     omp.reduction %2, %mem : memref<1xf32>
     omp.yield
@@ -364,7 +437,8 @@ omp.critical.declare @mutex hint(invalid_hint)
 // -----
 
 func @omp_ordered1(%arg1 : i32, %arg2 : i32, %arg3 : i32) -> () {
-  omp.wsloop (%0) : i32 = (%arg1) to (%arg2) step (%arg3) ordered(1) {
+  omp.wsloop ordered(1)
+  for (%0) : i32 = (%arg1) to (%arg2) step (%arg3) {
     // expected-error @below {{ordered region must be closely nested inside a worksharing-loop region with an ordered clause without parameter present}}
     omp.ordered_region {
       omp.terminator
@@ -377,7 +451,7 @@ func @omp_ordered1(%arg1 : i32, %arg2 : i32, %arg3 : i32) -> () {
 // -----
 
 func @omp_ordered2(%arg1 : i32, %arg2 : i32, %arg3 : i32) -> () {
-  omp.wsloop (%0) : i32 = (%arg1) to (%arg2) step (%arg3) {
+  omp.wsloop for (%0) : i32 = (%arg1) to (%arg2) step (%arg3) {
     // expected-error @below {{ordered region must be closely nested inside a worksharing-loop region with an ordered clause without parameter present}}
     omp.ordered_region {
       omp.terminator
@@ -398,7 +472,8 @@ func @omp_ordered3(%vec0 : i64) -> () {
 // -----
 
 func @omp_ordered4(%arg1 : i32, %arg2 : i32, %arg3 : i32, %vec0 : i64) -> () {
-  omp.wsloop (%0) : i32 = (%arg1) to (%arg2) step (%arg3) ordered(0) {
+  omp.wsloop ordered(0)
+  for (%0) : i32 = (%arg1) to (%arg2) step (%arg3) {
     // expected-error @below {{ordered depend directive must be closely nested inside a worksharing-loop with ordered clause with parameter present}}
     omp.ordered depend_type(dependsink) depend_vec(%vec0 : i64) {num_loops_val = 1 : i64}
 
@@ -409,7 +484,8 @@ func @omp_ordered4(%arg1 : i32, %arg2 : i32, %arg3 : i32, %vec0 : i64) -> () {
 // -----
 
 func @omp_ordered5(%arg1 : i32, %arg2 : i32, %arg3 : i32, %vec0 : i64, %vec1 : i64) -> () {
-  omp.wsloop (%0) : i32 = (%arg1) to (%arg2) step (%arg3) ordered(1) {
+  omp.wsloop ordered(1)
+  for (%0) : i32 = (%arg1) to (%arg2) step (%arg3) {
     // expected-error @below {{number of variables in depend clause does not match number of iteration variables in the doacross loop}}
     omp.ordered depend_type(dependsource) depend_vec(%vec0, %vec1 : i64, i64) {num_loops_val = 2 : i64}
 
@@ -429,7 +505,7 @@ func @omp_atomic_read1(%x: memref<i32>, %v: memref<i32>) {
 // -----
 
 func @omp_atomic_read2(%x: memref<i32>, %v: memref<i32>) {
-  // expected-error @below {{invalid memory order kind}}
+  // expected-error @below {{invalid clause value: 'xyz'}}
   omp.atomic.read %v = %x memory_order(xyz) : memref<i32>
   return
 }
@@ -453,7 +529,7 @@ func @omp_atomic_read4(%x: memref<i32>, %v: memref<i32>) {
 // -----
 
 func @omp_atomic_read5(%x: memref<i32>, %v: memref<i32>) {
-  // expected-error @below {{at most one memory_order clause can appear on the omp.atomic.read operation}}
+  // expected-error @below {{`memory_order` clause can appear at most once in the expansion of the oilist directive}}
   omp.atomic.read %v = %x memory_order(acquire) memory_order(relaxed) : memref<i32>
   return
 }
@@ -461,7 +537,7 @@ func @omp_atomic_read5(%x: memref<i32>, %v: memref<i32>) {
 // -----
 
 func @omp_atomic_read6(%x: memref<i32>, %v: memref<i32>) {
-  // expected-error @below {{at most one hint clause can appear on the omp.atomic.read operation}}
+  // expected-error @below {{`hint` clause can appear at most once in the expansion of the oilist directive}}
   omp.atomic.read %v =  %x hint(speculative) hint(contended) : memref<i32>
   return
 }
@@ -501,7 +577,7 @@ func @omp_atomic_write3(%addr : memref<i32>, %val : i32) {
 // -----
 
 func @omp_atomic_write4(%addr : memref<i32>, %val : i32) {
-  // expected-error @below {{at most one memory_order clause can appear on the omp.atomic.write operation}}
+  // expected-error @below {{`memory_order` clause can appear at most once in the expansion of the oilist directive}}
   omp.atomic.write  %addr = %val memory_order(release) memory_order(seq_cst) : memref<i32>, i32
   return
 }
@@ -509,7 +585,7 @@ func @omp_atomic_write4(%addr : memref<i32>, %val : i32) {
 // -----
 
 func @omp_atomic_write5(%addr : memref<i32>, %val : i32) {
-  // expected-error @below {{at most one hint clause can appear on the omp.atomic.write operation}}
+  // expected-error @below {{`hint` clause can appear at most once in the expansion of the oilist directive}}
   omp.atomic.write  %addr = %val hint(contended) hint(speculative) : memref<i32>, i32
   return
 }
@@ -517,7 +593,7 @@ func @omp_atomic_write5(%addr : memref<i32>, %val : i32) {
 // -----
 
 func @omp_atomic_write6(%addr : memref<i32>, %val : i32) {
-  // expected-error @below {{invalid memory order kind}}
+  // expected-error @below {{invalid clause value: 'xyz'}}
   omp.atomic.write  %addr = %val memory_order(xyz) : memref<i32>, i32
   return
 }
@@ -573,9 +649,8 @@ func @omp_atomic_update4(%x: memref<i32>, %expr: i32) {
 
 // -----
 
-// expected-note @below {{prior use here}}
 func @omp_atomic_update5(%x: memref<i32>, %expr: i32) {
-  // expected-error @below {{use of value '%x' expects different type than prior uses: 'i32' vs 'memref<i32>'}}
+  // expected-error @below {{invalid kind of type specified}}
   omp.atomic.update %x : i32 {
   ^bb0(%xval: i32):
     %newval = llvm.add %xval, %expr : i32
@@ -616,6 +691,17 @@ func @omp_atomic_update8(%x: memref<i32>, %expr: i32) {
   ^bb0(%xval: i32, %tmp: i32):
     %newval = llvm.add %xval, %expr : i32
     omp.yield (%newval : i32)
+  }
+  return
+}
+
+// -----
+
+func @omp_atomic_update9(%x: memref<i32>, %expr: i32) {
+  // expected-error @below {{the update region must have at least two operations (binop and terminator)}}
+  omp.atomic.update %x : memref<i32> {
+  ^bb0(%xval: i32):
+    omp.yield (%xval : i32)
   }
   return
 }
@@ -882,5 +968,15 @@ func @omp_sections() {
   ^bb2:
     omp.terminator
   }
+  return
+}
+
+// -----
+
+func @omp_single(%data_var : memref<i32>) -> () {
+  // expected-error @below {{expected equal sizes for allocate and allocator variables}}
+  "omp.single" (%data_var) ({
+    omp.barrier
+  }) {operand_segment_sizes = dense<[1,0]> : vector<2xi32>} : (memref<i32>) -> ()
   return
 }

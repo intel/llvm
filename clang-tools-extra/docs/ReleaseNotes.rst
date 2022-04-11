@@ -96,6 +96,9 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- Added trace code to help narrow down any checks and the relevant source code
+  that result in crashes.
+
 New checks
 ^^^^^^^^^^
 
@@ -108,6 +111,16 @@ New check aliases
 
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Fixed a false positive in :doc:`readability-non-const-parameter
+  <clang-tidy/checks/readability-non-const-parameter>` when the parameter is referenced by an lvalue
+
+- Fixed a crash in :doc:`readability-const-return-type
+  <clang-tidy/checks/readability-const-return-type>` when a pure virtual function
+  overrided has a const return type. Removed the fix for a virtual function.
+
+- Fixed a false positive in :doc:`misc-redundant-expression <clang-tidy/checks/misc-redundant-expression>`
+  involving overloaded comparison operators.
 
 Removed checks
 ^^^^^^^^^^^^^^

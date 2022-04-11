@@ -62,12 +62,26 @@ static pi_result redefinedMemRetain(pi_mem mem) { return PI_SUCCESS; }
 static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
 
 static pi_context InteropPiContext = nullptr;
-static pi_result redefinedMemGetInfo(pi_mem mem, cl_mem_info param_name,
+static pi_result redefinedMemGetInfo(pi_mem mem, pi_mem_info param_name,
                                      size_t param_value_size, void *param_value,
                                      size_t *param_value_size_ret) {
-  EXPECT_EQ(param_name, static_cast<cl_mem_info>(CL_MEM_CONTEXT));
   auto *Result = reinterpret_cast<pi_context *>(param_value);
   *Result = InteropPiContext;
+  return PI_SUCCESS;
+
+  if (param_name == PI_MEM_CONTEXT) {
+    auto *Result = reinterpret_cast<pi_context *>(param_value);
+    *Result = InteropPiContext;
+  } else if (param_name == PI_MEM_SIZE) {
+    auto *Result = reinterpret_cast<size_t *>(param_value);
+    *Result = 8;
+  }
+}
+static pi_result
+redefinedMemCreateWithNativeHandle(pi_native_handle native_handle,
+                                   pi_context context, bool own_native_handle,
+                                   pi_mem *mem) {
+  *mem = detail::pi::cast<pi_mem>(native_handle);
   return PI_SUCCESS;
 }
 
@@ -89,6 +103,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
   Mock.redefine<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
   Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
   Mock.redefine<detail::PiApiKind::piMemGetInfo>(redefinedMemGetInfo);
+  Mock.redefine<detail::PiApiKind::piextMemCreateWithNativeHandle>(
+      redefinedMemCreateWithNativeHandle);
   cl::sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
   device HostDevice;
@@ -206,9 +222,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     std::shared_ptr<detail::buffer_impl> BufI = std::make_shared<
         detail::buffer_impl>(
         detail::pi::cast<pi_native_handle>(MockInteropBuffer), Q.get_context(),
-        /*BufSize*/ 8,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<buffer_allocator>>(),
-        event());
+        /* OwnNativeHandle */ true, event());
 
     detail::Requirement Req = getMockRequirement();
     Req.MSYCLMemObj = BufI.get();

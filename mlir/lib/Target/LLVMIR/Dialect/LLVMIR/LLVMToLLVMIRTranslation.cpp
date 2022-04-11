@@ -303,9 +303,7 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
     // TODO: refactor function type creation which usually occurs in std-LLVM
     // conversion.
     SmallVector<Type, 8> operandTypes;
-    operandTypes.reserve(inlineAsmOp.getOperands().size());
-    for (auto t : inlineAsmOp.getOperands().getTypes())
-      operandTypes.push_back(t);
+    llvm::append_range(operandTypes, inlineAsmOp.getOperands().getTypes());
 
     Type resultType;
     if (inlineAsmOp.getNumResults() == 0) {
@@ -503,8 +501,9 @@ public:
 
 void mlir::registerLLVMDialectTranslation(DialectRegistry &registry) {
   registry.insert<LLVM::LLVMDialect>();
-  registry.addDialectInterface<LLVM::LLVMDialect,
-                               LLVMDialectLLVMIRTranslationInterface>();
+  registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
+    dialect->addInterfaces<LLVMDialectLLVMIRTranslationInterface>();
+  });
 }
 
 void mlir::registerLLVMDialectTranslation(MLIRContext &context) {

@@ -65,6 +65,9 @@ public:
   /// equal to the queue associated with the handler if the corresponding
   /// submission is a fallback from a previous submission.
   std::shared_ptr<queue_impl> MSubmissionSecondaryQueue;
+
+  // Stores auxiliary resources used by internal operations.
+  std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
 };
 
 } // namespace detail

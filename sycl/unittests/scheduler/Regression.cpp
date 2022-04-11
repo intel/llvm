@@ -86,6 +86,7 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
       /*KernelName*/ "",
       /*OSModuleHandle*/ detail::OSUtil::ExeModuleHandle,
       /*Streams*/ {},
+      /*AuxiliaryResources*/ {},
       /*Type*/ detail::CG::RunOnHostIntel)};
 
   context Ctx{Plt};

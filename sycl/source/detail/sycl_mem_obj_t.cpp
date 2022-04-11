@@ -23,13 +23,18 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
                   SizeInBytes, AvailableEvent, std::move(Allocator)) {}
 
 SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
-                         const size_t SizeInBytes, event AvailableEvent,
+                         const size_t, event AvailableEvent,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator)
+    : SYCLMemObjT(MemObject, SyclContext, true, AvailableEvent,
+                  std::move(Allocator)) {}
+
+SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+                         bool OwnNativeHandle, event AvailableEvent,
                          std::unique_ptr<SYCLMemObjAllocator> Allocator)
     : MAllocator(std::move(Allocator)), MProps(),
       MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
-      MInteropMemObject(pi::cast<cl_mem>(MemObject)), MOpenCLInterop(true),
-      MHostPtrReadOnly(false), MNeedWriteBack(true), MSizeInBytes(SizeInBytes),
+      MOpenCLInterop(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
       MSharedPtrStorage(nullptr) {
   if (MInteropContext->is_host())
@@ -38,17 +43,27 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
         "not allowed",
         PI_INVALID_CONTEXT);
 
-  RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
   RT::PiContext Context = nullptr;
   const plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piMemGetInfo>(Mem, CL_MEM_CONTEXT, sizeof(Context),
-                                       &Context, nullptr);
+
+  Plugin.call<detail::PiApiKind::piextMemCreateWithNativeHandle>(
+      MemObject, MInteropContext->getHandleRef(), OwnNativeHandle,
+      &MInteropMemObject);
+
+  // Get the size of the buffer in bytes
+  Plugin.call<detail::PiApiKind::piMemGetInfo>(
+      MInteropMemObject, PI_MEM_SIZE, sizeof(size_t), &MSizeInBytes, nullptr);
+
+  Plugin.call<PiApiKind::piMemGetInfo>(MInteropMemObject, PI_MEM_CONTEXT,
+                                       sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw cl::sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_mem",
         PI_INVALID_CONTEXT);
-  Plugin.call<PiApiKind::piMemRetain>(Mem);
+
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piMemRetain>(MInteropMemObject);
 }
 
 void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
@@ -106,7 +121,7 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
   const detail::plugin &Plugin = Context->getPlugin();
   // TODO is there something required to support non-OpenCL backends?
   Plugin.call<detail::PiApiKind::piMemGetInfo>(
-      detail::pi::cast<detail::RT::PiMem>(MemObject), CL_MEM_SIZE,
+      detail::pi::cast<detail::RT::PiMem>(MemObject), PI_MEM_SIZE,
       sizeof(size_t), &BufSize, nullptr);
   return BufSize;
 }

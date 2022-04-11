@@ -10,17 +10,18 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "AllocationOrder.h"
 #include "RegAllocEvictionAdvisor.h"
 #include "RegAllocGreedy.h"
-#include "RegAllocScore.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/MLModelRunner.h"
+#if defined(LLVM_HAVE_TF_AOT_REGALLOCEVICTMODEL) || defined(LLVM_HAVE_TF_API) 
 #include "llvm/Analysis/ModelUnderTrainingRunner.h"
 #include "llvm/Analysis/NoInferenceModelRunner.h"
+#endif
 #include "llvm/Analysis/ReleaseModeModelRunner.h"
-#include "llvm/Analysis/Utils/TFUtils.h"
 #include "llvm/CodeGen/CalcSpillWeights.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/CodeGen/LiveRegMatrix.h"
 #include "llvm/CodeGen/MachineBlockFrequencyInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
@@ -28,13 +29,11 @@
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/RegisterClassInfo.h"
 #include "llvm/CodeGen/VirtRegMap.h"
-#include "llvm/Config/config.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/PassRegistry.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Target/TargetMachine.h"
 
 #include <array>
 #include <memory>
@@ -53,6 +52,9 @@ using CompiledModelType = NoopSavedModelImpl;
 
 // Options that only make sense in development mode
 #ifdef LLVM_HAVE_TF_API
+#include "RegAllocScore.h"
+#include "llvm/Analysis/Utils/TFUtils.h"
+
 static cl::opt<std::string> TrainingLog(
     "regalloc-training-log", cl::Hidden,
     cl::desc("Training log for the register allocator eviction model"));

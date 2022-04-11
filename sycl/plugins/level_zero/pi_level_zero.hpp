@@ -266,13 +266,18 @@ struct _pi_object {
 // Record for a memory allocation. This structure is used to keep information
 // for each memory allocation.
 struct MemAllocRecord : _pi_object {
-  MemAllocRecord(pi_context Context) : Context(Context) {}
+  MemAllocRecord(pi_context Context, bool OwnZeMemHandle = true)
+      : Context(Context), OwnZeMemHandle(OwnZeMemHandle) {}
   // Currently kernel can reference memory allocations from different contexts
   // and we need to know the context of a memory allocation when we release it
   // in piKernelRelease.
   // TODO: this should go away when memory isolation issue is fixed in the Level
   // Zero runtime.
   pi_context Context;
+
+  // Indicates if we own the native memory handle or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeMemHandle;
 };
 
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
@@ -336,7 +341,7 @@ public:
       : Context{Ctx}, Device{Dev} {}
   void *allocate(size_t Size) override final;
   void *allocate(size_t Size, size_t Alignment) override final;
-  void deallocate(void *Ptr) override final;
+  void deallocate(void *Ptr, bool OwnZeMemHandle) override final;
   MemType getMemType() override final;
 };
 
@@ -349,6 +354,18 @@ protected:
 
 public:
   USMSharedMemoryAlloc(pi_context Ctx, pi_device Dev)
+      : USMMemoryAllocBase(Ctx, Dev) {}
+};
+
+// Allocation routines for shared memory type that is only modified from host.
+class USMSharedReadOnlyMemoryAlloc : public USMMemoryAllocBase {
+protected:
+  pi_result allocateImpl(void **ResultPtr, size_t Size,
+                         pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override { return SystemMemory::SharedReadOnly; }
+
+public:
+  USMSharedReadOnlyMemoryAlloc(pi_context Ctx, pi_device Dev)
       : USMMemoryAllocBase(Ctx, Dev) {}
 };
 
@@ -513,6 +530,10 @@ struct _pi_context : _pi_object {
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(
               new USMSharedMemoryAlloc(this, Device))));
+      SharedReadOnlyMemAllocContexts.emplace(
+          std::piecewise_construct, std::make_tuple(Device),
+          std::make_tuple(std::unique_ptr<SystemMemory>(
+              new USMSharedReadOnlyMemoryAlloc(this, Device))));
       DeviceMemAllocContexts.emplace(
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(
@@ -644,8 +665,15 @@ struct _pi_context : _pi_object {
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
   // per each pair of (context, device) per each memory type.
-  std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
   std::unordered_map<pi_device, USMAllocContext> DeviceMemAllocContexts;
+  std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
+  std::unordered_map<pi_device, USMAllocContext> SharedReadOnlyMemAllocContexts;
+
+  // Since L0 native runtime does not distinguisg "shared device_read_only"
+  // vs regular "shared" allocations, we have keep track of it to use
+  // proper USMAllocContext when freeing allocations.
+  std::unordered_set<void *> SharedReadOnlyAllocs;
+
   // Store the host allocator context. It does not depend on any device.
   std::unique_ptr<USMAllocContext> HostMemAllocContext;
 
@@ -900,6 +928,10 @@ struct _pi_mem : _pi_object {
   // piEnqueueMemBufferMap for details).
   char *MapHostPtr;
 
+  // Indicates if we own the native memory handle or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeMemHandle;
+
   // Flag to indicate that this memory is allocated in host memory
   const bool OnHost;
 
@@ -933,19 +965,19 @@ struct _pi_mem : _pi_object {
   virtual ~_pi_mem() = default;
 
 protected:
-  _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false,
-          bool ImportedHostPtr = false)
-      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost},
-        HostPtrImported{ImportedHostPtr}, Mappings{} {}
+  _pi_mem(pi_context Ctx, char *HostPtr, bool OwnZeMemHandle,
+          bool MemOnHost = false, bool ImportedHostPtr = false)
+      : Context{Ctx}, MapHostPtr{HostPtr}, OwnZeMemHandle{OwnZeMemHandle},
+        OnHost{MemOnHost}, HostPtrImported{ImportedHostPtr}, Mappings{} {}
 };
 
 struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
-  _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr,
+  _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr, bool OwnZeMemHandle,
              _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0,
              bool MemOnHost = false, bool ImportedHostPtr = false)
-      : _pi_mem(Ctx, HostPtr, MemOnHost, ImportedHostPtr), ZeMem{Mem},
-        SubBuffer{Parent, Origin, Size} {}
+      : _pi_mem(Ctx, HostPtr, OwnZeMemHandle, MemOnHost, ImportedHostPtr),
+        ZeMem{Mem}, SubBuffer{Parent, Origin, Size} {}
 
   void *getZeHandle() override { return ZeMem; }
 
@@ -968,8 +1000,9 @@ struct _pi_buffer final : _pi_mem {
 
 struct _pi_image final : _pi_mem {
   // Image constructor
-  _pi_image(pi_context Ctx, ze_image_handle_t Image, char *HostPtr)
-      : _pi_mem(Ctx, HostPtr), ZeImage{Image} {}
+  _pi_image(pi_context Ctx, ze_image_handle_t Image, char *HostPtr,
+            bool OwnZeMemHandle)
+      : _pi_mem(Ctx, HostPtr, OwnZeMemHandle), ZeImage{Image} {}
 
   void *getZeHandle() override { return ZeImage; }
 
@@ -1100,6 +1133,12 @@ struct _pi_event : _pi_object {
   // actions are performed only once.
   //
   bool CleanedUp = {false};
+
+  // Indicates that this PI event had already completed in the sense
+  // that no other synchromization is needed. Note that the underlying
+  // L0 event (if any) is not guranteed to have been signalled, or
+  // being visible to the host at all.
+  bool Completed = {false};
 };
 
 struct _pi_program : _pi_object {

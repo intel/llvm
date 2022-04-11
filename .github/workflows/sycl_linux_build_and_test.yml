@@ -32,14 +32,14 @@ on:
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --cuda"
+        default: "--hip --cuda --enable-esimd-emulator"
       build_artifact_suffix:
         type: string
         required: true
       intel_drivers_image:
         type: string
         required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:unstable"
+        default: "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest"
       lts_config:
         type: string
         required: false
@@ -172,10 +172,13 @@ jobs:
     outputs:
       lts: ${{ steps.work.outputs.lts }}
     steps:
-    - name: Download scripts
+    - name: Download scripts and configs
       run: |
         wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/generate_test_matrix.js
         wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/test_configs.json
+        wget raw.githubusercontent.com/intel/llvm/sycl/devops/dependencies.json
+        mv dependencies.json dependencies.sycl.json
+        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/dependencies.json
     - id: work
       uses: actions/github-script@v6
       name: Generate matrix
@@ -196,13 +199,28 @@ jobs:
         include: ${{ fromJSON(needs.resolve_matrix.outputs.lts) }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runs-on }}
+    env: ${{ matrix.env }}
     container:
       image: ${{ matrix.image }}
       options: ${{ matrix.container_options }}
     steps:
+    - name: Reset GPU
+      if: ${{ contains(matrix.config, 'gen9') }}
+      run: |
+        sudo mount -t debugfs none /sys/kernel/debug
+        sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
     - run: cp -r /actions .
     - name: Register cleanup after job is finished
       uses: ./actions/cleanup
+    - name: Install drivers
+      if: env.compute_runtime_tag != ''
+      run: |
+        if [ -e /opt/install_drivers.sh ]; then
+          # TODO pack this script into container
+          wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/get_release.py
+          sudo mv get_release.py /opt/
+          sudo -E /opt/install_drivers.sh --all
+        fi
     # FIXME cached_checkout fails here, but works everywhere else
     - uses: actions/checkout@v2
       with:
