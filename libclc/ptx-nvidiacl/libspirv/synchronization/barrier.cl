@@ -11,7 +11,11 @@
 
 _CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(unsigned int memory,
                                                   unsigned int semantics) {
-  __nvvm_membar_cta();
+  if (memory == CrossDevice) {
+    __nvvm_membar_sys();
+  } else {
+    __nvvm_membar_cta();
+  }
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT void
