@@ -113,7 +113,7 @@ Memory order is stored in the lowest 5 bits */                                  
       } else {                                                                                                               \
         __spirv_MemoryBarrier(scope, Release);                                                                               \
         __CLC_NVVM_ATOMIC_IMPL_ACQUIRE_FENCE(TYPE, TYPE_NV, TYPE_MANGLED_NV,                                                 \
-                                             OP, ADDR_SPACE, ADDR_SPACE_NV)                                                \
+                                             OP, ADDR_SPACE, ADDR_SPACE_NV)                                                  \
       }                                                                                                                      \
       break;                                                                                                                 \
     }                                                                                                                        \
