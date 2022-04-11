@@ -1310,7 +1310,7 @@ detail::enable_if_t<detail::is_gentype<T>::value, T> bitselect(T a, T b,
 template <typename T>
 detail::enable_if_t<detail::is_sgentype<T>::value, T> select(T a, T b,
                                                              bool c) __NOEXC {
-  return __sycl_std::__invoke_select<T>(a, b, (int) c);
+  return __sycl_std::__invoke_select<T>(a, b, static_cast<int>(c));
 }
 
 // geninteger select (geninteger a, geninteger b, igeninteger c)
