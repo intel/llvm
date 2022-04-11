@@ -18,6 +18,8 @@ constexpr int MASKED_LANE_NUM_REV = 1;
 constexpr int NUM_RGBA_CHANNELS =
     get_num_channels_enabled(sycl::ext::intel::esimd::rgba_channel_mask::ABGR);
 
+template <class T> inline constexpr T marker = (T)0xcafebabe;
+
 template <typename T, unsigned VL, auto CH_MASK> struct Kernel {
   T *bufOut;
   Kernel(T *bufOut) : bufOut(bufOut) {}
@@ -44,8 +46,8 @@ template <typename T, unsigned VL, auto CH_MASK> struct Kernel {
     }
 
     // Prepare values to store into SLM in a SOA manner, e.g.:
-    // R  R  R  R   ... G  G  G  G   ... B  B  B   B   ... A  A  A   A  ...
-    // 0, 4, 8, 12, ... 1, 5, 9, 13, ... 2, 6, 10, 14, ... 3, 7, 11, 15 ...
+    // R  R  R  R  R ...G  G  G  G  G ...B  B  B  B  B ...A  A  A  A  A ...
+    // 00,04,08,12,16...01,05,09,13,17...02,06,10,14,18...03,07,11,15,19...
     simd<T, VL * numChannels> valsIn;
     for (unsigned i = 0; i < numChannels; i++)
       for (unsigned j = 0; j < VL; j++)
@@ -58,10 +60,15 @@ template <typename T, unsigned VL, auto CH_MASK> struct Kernel {
     slm_scatter_rgba<T, VL, CH_MASK>(byteOffsets, valsIn);
 
     // Load back values from SLM. They will be transposed back to SOA.
+    // "_" = "undefined" (masked out lane/pixel in each channel)
+    // 00,04,08,12,...,_,01,05,09,13,...,_,02,06,10,14,...,_,03,07,11,19,...,_
     simd_mask<VL> pred = 1;
     pred[VL - MASKED_LANE_NUM_REV] = 0; // mask out the last lane
     simd<T, VL *numChannels> valsOut =
         slm_gather_rgba<T, VL, CH_MASK>(byteOffsets, pred);
+    // replace undefined values in the masked out lane with something verifiable
+    valsOut.template select<NUM_RGBA_CHANNELS, VL>(VL - MASKED_LANE_NUM_REV) =
+        marker<T>;
 
     // Copy results to the output USM buffer. Maximum write block size must be
     // at most 8 owords, so conservatively write in chunks of 8 elements.
@@ -109,13 +116,14 @@ template <typename T, unsigned VL, auto CH_MASK> bool test(queue q) {
   // R  R  R  R   ... G  G  G  G   ... B  B  B   B   ... A  A  A   A  ...
   // 0, 4, 8, 12, ... 1, 5, 9, 13, ... 2, 6, 10, 14, ... 3, 7, 11, 15 ...
   for (unsigned i = 0; i < numChannels; i++)
-    for (unsigned j = 0; j < VL; j++)
-      gold[i * VL + j] = j * numChannels + i;
-
-  // Account for masked out last lanes (with pred argument to slm_gather_rgba).
-  unsigned maskedIndex = VL - 1;
-  for (unsigned i = 0; i < numChannels; i++, maskedIndex += VL)
-    gold[maskedIndex] = 0;
+    for (unsigned j = 0; j < VL; j++) {
+      // masked lane is assigned/verified separately:
+      if (j == VL - MASKED_LANE_NUM_REV) {
+        gold[i * VL + j] = marker<T>;
+      } else {
+        gold[i * VL + j] = j * numChannels + i;
+      }
+    }
 
   try {
     // We need that many workitems
@@ -137,7 +145,7 @@ template <typename T, unsigned VL, auto CH_MASK> bool test(queue q) {
   }
 
   int err_cnt = 0;
-  for (unsigned i = 0; i < size; ++i) {
+  for (unsigned i = 0; i < size; i++) {
     if (A[i] != gold[i]) {
       if (++err_cnt < 35) {
         std::cerr << "failed at index " << i << ": " << A[i]
