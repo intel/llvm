@@ -17,4 +17,3 @@ github issues mechanism.
   For now the check is only if FD is '()' operator. Works OK for today's
   handler::kernel_parallel_for/... implementations as no other '()' operators
   are invoked except the kernel body.
-
