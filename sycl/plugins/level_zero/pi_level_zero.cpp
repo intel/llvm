@@ -6304,6 +6304,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
     *RetMap = Buffer->MapHostPtr + Offset;
   } else {
     // TODO: use USM host allocator here
+    // TODO: Do we even need every map to allocate new host memory?
+    //       In the case when the buffer is "OnHost" we use single allocation.
     if (auto Res = ZeHostMemAllocHelper(RetMap, Queue->Context, Size))
       return Res;
   }
