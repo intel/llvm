@@ -821,8 +821,8 @@ are supported during translation from LLVM IR to SPIR-V the corresponding
 decorations will be generated, and otherwise it will fall back to creating a
 single **UserSemantic** decoration. In general these decorations occur in the
 annotation string as a series of **{X}** and **{X:Y}** where **X** is a reserved
-name and **Y** is one or more words and numbers separated by **,** or **:**,
-depending on the decoration.
+name and **Y** is one or more words and numbers separated by a comma (**,**) or
+a colon (**:**), depending on the decoration.
 
 As such we propose an extension to this functionality with the following
 changes:
@@ -832,7 +832,7 @@ changes:
   rather than reserved names. With this there need not be any agreement between
   the translator and LLVM IR producer, as the identifiers are specified by the
   SPIR-V specification.
-* For decorations parsed with decoration identifiers, only the **,** delimiter
+* For decorations parsed with decoration identifiers, only the comma delimiter
   is valid for separating decoration values.
 * In addition to words and numbers, string literals enclosed by quotation marks
   are allowed as decoration values. No escapes are planned for this, so all
