@@ -3034,8 +3034,7 @@ pi_result ContextReleaseHelper(pi_context Context) {
   if (--(Context->RefCount) == 0) {
     // Release all imported pointers
     if (ZeImportHostPtr && ZeUSMImport.Enabled) {
-      ze_driver_handle_t driverHandle =
-          Context->Devices[0]->Platform->ZeDriver;
+      ze_driver_handle_t driverHandle = Context->Devices[0]->Platform->ZeDriver;
       for (auto ImportedPtr : Context->ImportedHostPtrs) {
         ZeUSMImport.doZeUSMRelease(driverHandle, ImportedPtr.first);
         zePrint("Note: Releasing %x\n", ImportedPtr.first);
