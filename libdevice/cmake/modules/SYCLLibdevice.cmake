@@ -7,6 +7,8 @@ else()
   set(spv_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 endif()
 set(clang $<TARGET_FILE:clang>)
+set(llvm-link $<TARGET_FILE:llvm-link>)
+set(llc $<TARGET_FILE:llc>)
 
 string(CONCAT sycl_targets_opt
   "-fsycl-targets="
@@ -79,6 +81,25 @@ add_custom_command(OUTPUT ${devicelib-obj-cmath-fp64}
                            ${CMAKE_CURRENT_SOURCE_DIR}/cmath_wrapper_fp64.cpp
                            -o ${devicelib-obj-cmath-fp64}
                    MAIN_DEPENDENCY cmath_wrapper_fp64.cpp
+                   DEPENDS device_math.h device.h sycl-compiler
+                   VERBATIM)
+
+set(devicelib-obj-imf ${obj_binary_dir}/libsycl-imf.${lib-suffix})
+add_custom_command(OUTPUT ${devicelib-obj-imf}
+                   COMMAND ${clang} -fsycl -c
+                           ${compile_opts} ${sycl_targets_opt}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
+                           -o ${devicelib-obj-imf}
+                   MAIN_DEPENDENCY imf_wrapper.cpp
+                   DEPENDS device_math.h device.h sycl-compiler
+                   VERBATIM)
+
+set(devicelib-host-imf-wrapper-bc ${obj_binary_dir}/sycl-libdevice-host-imf-wrapper.bc)
+add_custom_command(OUTPUT ${devicelib-host-imf-wrapper-bc}
+                   COMMAND ${clang} -c -emit-llvm -D__LIBDEVICE_HOST_IMPL__ -O2
+                           ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
+                           -o ${devicelib-host-imf-wrapper-bc}
+                   MAIN_DEPENDENCY imf_wrapper.cpp
                    DEPENDS device_math.h device.h sycl-compiler
                    VERBATIM)
 
@@ -190,6 +211,33 @@ add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-su
                    DEPENDS device_math.h device.h sycl-compiler
                    VERBATIM)
 
+add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-imf.spv
+                   COMMAND ${clang} -fsycl-device-only -fno-sycl-use-bitcode
+                           ${compile_opts}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-imf.cpp
+                           -o ${spv_binary_dir}/libsycl-fallback-imf.spv
+                   MAIN_DEPENDENCY fallback-imf.cpp
+                   DEPENDS device_math.h device.h sycl-compiler
+                   VERBATIM)
+
+add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
+                   COMMAND ${clang} -fsycl -c
+                           ${compile_opts} ${sycl_targets_opt}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-imf.cpp
+                           -o ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
+                   MAIN_DEPENDENCY fallback-imf.cpp
+                   DEPENDS device_math.h device.h sycl-compiler
+                   VERBATIM)
+
+set(devicelib-host-imf-fallback-bc ${obj_binary_dir}/sycl-libdevice-host-imf-fallback.bc)
+add_custom_command(OUTPUT ${devicelib-host-imf-fallback-bc}
+                   COMMAND ${clang} -c -emit-llvm -D__LIBDEVICE_HOST_IMPL__ -O2
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-imf.cpp
+                           -o ${devicelib-host-imf-fallback-bc}
+                   MAIN_DEPENDENCY fallback-imf.cpp
+                   DEPENDS device_math.h device.h sycl-compiler
+                   VERBATIM)
+
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-itt-stubs.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
@@ -217,6 +265,30 @@ add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-itt-user-wrappers.${lib-suff
                    DEPENDS device_itt.h spirv_vars.h device.h sycl-compiler
                    VERBATIM)
 
+
+set(devicelib-host-imf-bc ${obj_binary_dir}/sycl-devicelib-host-imf.bc)
+set(devicelib-host-imf-obj ${obj_binary_dir}/sycl-devicelib-host-imf.${lib-suffix})
+add_custom_command(OUTPUT ${devicelib-host-imf-bc}
+                   COMMAND ${llvm-link} ${devicelib-host-imf-wrapper-bc} ${devicelib-host-imf-fallback-bc}
+                           -o ${devicelib-host-imf-bc}
+                   DEPENDS ${devicelib-host-imf-wrapper-bc} ${devicelib-host-imf-fallback-bc} sycl-compiler
+                   VERBATIM)
+
+add_custom_command(OUTPUT ${devicelib-host-imf-obj}
+                   COMMAND ${llc} -filetype=obj ${devicelib-host-imf-bc} -o ${devicelib-host-imf-obj}
+                   DEPENDS ${devicelib-host-imf-bc}  sycl-compiler
+                   VERBATIM)
+
+if (WIN32)
+else()
+set(devicelib-host ${obj_binary_dir}/libsycl-devicelib-host.a)
+add_custom_command(OUTPUT ${devicelib-host}
+                   COMMAND ar rcs ${devicelib-host}
+                           ${devicelib-host-imf-obj}
+                   DEPENDS ${devicelib-host-imf-obj} sycl-compiler
+                   VERBATIM)
+endif()
+
 set(devicelib-obj-itt-files
   ${obj_binary_dir}/libsycl-itt-stubs.${lib-suffix}
   ${obj_binary_dir}/libsycl-itt-compiler-wrappers.${lib-suffix}
@@ -230,7 +302,13 @@ add_custom_target(libsycldevice-obj DEPENDS
   ${devicelib-obj-cmath}
   ${devicelib-obj-cmath-fp64}
   ${devicelib-obj-itt-files}
+  ${devicelib-obj-imf}
 )
+
+add_custom_target(libsycldevice-host DEPENDS
+ ${devicelib-host}
+)
+
 add_custom_target(libsycldevice-spv DEPENDS
   ${spv_binary_dir}/libsycl-fallback-cassert.spv
   ${spv_binary_dir}/libsycl-fallback-cstring.spv
@@ -238,6 +316,7 @@ add_custom_target(libsycldevice-spv DEPENDS
   ${spv_binary_dir}/libsycl-fallback-complex-fp64.spv
   ${spv_binary_dir}/libsycl-fallback-cmath.spv
   ${spv_binary_dir}/libsycl-fallback-cmath-fp64.spv
+  ${spv_binary_dir}/libsycl-fallback-imf.spv
   )
 add_custom_target(libsycldevice-fallback-obj DEPENDS
   ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
@@ -246,11 +325,13 @@ add_custom_target(libsycldevice-fallback-obj DEPENDS
   ${obj_binary_dir}/libsycl-fallback-complex-fp64.${lib-suffix}
   ${obj_binary_dir}/libsycl-fallback-cmath.${lib-suffix}
   ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
+  ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
 )
 add_custom_target(libsycldevice DEPENDS
   libsycldevice-obj
   libsycldevice-fallback-obj
-  libsycldevice-spv)
+  libsycldevice-spv
+  libsycldevice-host)
 
 # Place device libraries near the libsycl.so library in an install
 # directory as well
@@ -274,6 +355,9 @@ install(FILES ${devicelib-obj-file}
               ${devicelib-obj-cmath-fp64}
               ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
               ${devicelib-obj-itt-files}
+              ${devicelib-obj-imf}
+              ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
+              ${devicelib-host}
         DESTINATION ${install_dest_lib}
         COMPONENT libsycldevice)
 
@@ -283,5 +367,6 @@ install(FILES ${spv_binary_dir}/libsycl-fallback-cassert.spv
               ${spv_binary_dir}/libsycl-fallback-complex-fp64.spv
               ${spv_binary_dir}/libsycl-fallback-cmath.spv
               ${spv_binary_dir}/libsycl-fallback-cmath-fp64.spv
+              ${spv_binary_dir}/libsycl-fallback-imf.spv
         DESTINATION ${install_dest_spv}
         COMPONENT libsycldevice)
