@@ -103,6 +103,27 @@ public:
   }
 
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
+  size_t __SYCL_ALWAYS_INLINE get(int dimension) const {
+    base::check_dimension(dimension);
+    size_t Result = this->common_array[dimension];
+    __SYCL_ASSUME_INT(Result);
+    return Result;
+  }
+
+  size_t __SYCL_ALWAYS_INLINE &operator[](int dimension) {
+    base::check_dimension(dimension);
+    size_t &Result = this->common_array[dimension];
+    __SYCL_ASSUME_INT(Result);
+    return Result;
+  }
+
+  size_t __SYCL_ALWAYS_INLINE operator[](int dimension) const {
+    base::check_dimension(dimension);
+    size_t Result = this->common_array[dimension];
+    __SYCL_ASSUME_INT(Result);
+    return Result;
+  }
+
   /* Template operator is not allowed because it disables further type
    * conversion. For example, the next code will not work in case of template
    * conversion:

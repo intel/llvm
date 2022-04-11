@@ -43,3 +43,39 @@ SYCL_EXTERNAL void testNDItem(nd_item<1> TestNDItem) {
   // CHECK: call void @llvm.assume(i1 {{.*}})
   int OffsetConferted = TestNDItem.get_offset();
 }
+
+// CHECK-LABEL: _Z10TestIdDim1N2cl4sycl2idILi1EEE
+SYCL_EXTERNAL void TestIdDim1(id<1> TestId) {
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int Id0Get = TestId.get(0);
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int Id0 = TestId[0];
+}
+
+// CHECK-LABEL: _Z10TestIdDim2N2cl4sycl2idILi2EEE
+SYCL_EXTERNAL void TestIdDim2(id<2> TestId) {
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int Id0Get = TestId.get(0);
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int Id1Get = TestId.get(1);
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int Id0 = TestId[0];
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int Id1 = TestId[1];
+}
+
+// CHECK-LABEL: _Z10TestIdDim3N2cl4sycl2idILi3EEE
+SYCL_EXTERNAL void TestIdDim3(id<3> TestId) {
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int Id0Get = TestId.get(0);
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int Id1Get = TestId.get(1);
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int Id2Get = TestId.get(2);
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int Id0 = TestId[0];
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int Id1 = TestId[1];
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int Id2 = TestId[2];
+}

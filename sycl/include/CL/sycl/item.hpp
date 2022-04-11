@@ -50,15 +50,11 @@ public:
   id<dimensions> get_id() const { return MImpl.MIndex; }
 
   size_t __SYCL_ALWAYS_INLINE get_id(int dimension) const {
-    size_t Id = MImpl.MIndex[dimension];
-    __SYCL_ASSUME_INT(Id);
-    return Id;
+    return MImpl.MIndex[dimension];
   }
 
   size_t __SYCL_ALWAYS_INLINE operator[](int dimension) const {
-    size_t Id = MImpl.MIndex[dimension];
-    __SYCL_ASSUME_INT(Id);
-    return Id;
+    return MImpl.MIndex[dimension];
   }
 
   range<dimensions> get_range() const { return MImpl.MExtent; }
