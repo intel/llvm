@@ -145,7 +145,7 @@ parameters when the current function performs as a non-anchor, where:
 
 ### Implementation
 ```c++
-// Added in version 3 of this extension.
+// Added in version 2 of this extension.
 #include <sycl/ext/oneapi/latency_control/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 ...
@@ -259,7 +259,7 @@ private:
 
 ### Usage
 ```c++
-// Added in version 3 of this extension.
+// Added in version 2 of this extension.
 #include <sycl/ext/intel/fpga_extensions.hpp>
 ...
 sycl::buffer<int, 1> output_buffer(output_data, 1);

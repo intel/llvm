@@ -654,7 +654,7 @@ In the experimental API version, read/write methods take in a property list as f
 
 [source,c++]
 ----
-// Added in version 3 of this extension.
+// Added in version 2 of this extension.
 #include <sycl/ext/oneapi/latency_control/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 //***********sycl/ext/oneapi/latency_control/properties.hpp***************
@@ -714,7 +714,7 @@ class pipe {
 
 [source,c++]
 ----
-// Added in version 3 of this extension.
+// Added in version 2 of this extension.
 #include <sycl/ext/intel/fpga_extensions.hpp>
 ...
 using Pipe1 = ext::intel::experimental::pipe<class PipeClass1, int, 8>;
