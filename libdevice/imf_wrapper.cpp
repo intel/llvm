@@ -13,8 +13,6 @@ DEVICE_EXTERN_C
 float __devicelib_imf_saturatef(float x);
 
 DEVICE_EXTERN_C
-float __imf_saturatef(float x) {
-  return __devicelib_imf_saturatef(x);
-}
+float __imf_saturatef(float x) { return __devicelib_imf_saturatef(x); }
 
 #endif // __LIBDEVICE_IMF_ENABLED__

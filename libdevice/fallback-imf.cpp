@@ -19,8 +19,6 @@ static inline float __fclamp(float x, float y, float z) {
 }
 
 DEVICE_EXTERN_C
-float __devicelib_imf_saturatef(float x) {
-  return __fclamp(x, .0f, 1.f);
-}
+float __devicelib_imf_saturatef(float x) { return __fclamp(x, .0f, 1.f); }
 
 #endif // __LIBDEVICE_IMF_ENABLED__
