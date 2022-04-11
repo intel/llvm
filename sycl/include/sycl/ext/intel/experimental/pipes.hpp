@@ -12,9 +12,6 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/stl.hpp>
-#include <sycl/ext/oneapi/latency_control/properties.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
-#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -39,38 +36,32 @@ public:
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  template <typename _functionPropertiesT =
-                decltype(sycl::ext::oneapi::experimental::properties{})>
-  static _dataT read(bool &_Success) {
+  template <typename _functionPropertiesT>
+  static _dataT read(bool &_Success, _functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
-    using _latency_anchor_id_prop = typename GetOrDefaultValT<
-        _functionPropertiesT,
-        sycl::ext::oneapi::experimental::latency_anchor_id_key,
-        sycl::ext::oneapi::experimental::latency_anchor_id_key::value_t<-1>>::
-        type;
-    using _latency_constraint_prop = typename GetOrDefaultValT<
-        _functionPropertiesT,
-        sycl::ext::oneapi::experimental::latency_constraint_key,
-        sycl::ext::oneapi::experimental::latency_constraint_key::value_t<
-            0, sycl::ext::oneapi::experimental::latency_control_type::none,
-            0>>::type;
+    using _latency_anchor_id_prop =
+        typename GetOrDefaultValT<_functionPropertiesT,
+                                  oneapi::experimental::latency_anchor_id_key,
+                                  defaultLatencyAnchorIdProperty>::type;
+    using _latency_constraint_prop =
+        typename GetOrDefaultValT<_functionPropertiesT,
+                                  oneapi::experimental::latency_constraint_key,
+                                  defaultLatencyConstraintProperty>::type;
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
-    static constexpr sycl::ext::oneapi::experimental::latency_control_type
-        _control_type = _latency_constraint_prop::type;
+    static constexpr oneapi::experimental::latency_control_type _control_type =
+        _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
-    int32_t _control_type_code =
-        0; // Default
-           // sycl::ext::oneapi::experimental::latency_control_type::none
-    if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                       latency_control_type::exact) {
+    int32_t _control_type_code = 0; // latency_control_type::none
+    if constexpr (_control_type ==
+                  oneapi::experimental::latency_control_type::exact) {
       _control_type_code = 1;
-    } else if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                              latency_control_type::max) {
+    } else if constexpr (_control_type ==
+                         oneapi::experimental::latency_control_type::max) {
       _control_type_code = 2;
-    } else if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                              latency_control_type::min) {
+    } else if constexpr (_control_type ==
+                         oneapi::experimental::latency_control_type::min) {
       _control_type_code = 3;
     }
 
@@ -87,45 +78,39 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  template <typename _functionPropertiesT>
-  static _dataT read(bool &_Success, _functionPropertiesT Properties) {
-    return read<_functionPropertiesT>(_Success);
+  static _dataT read(bool &_Success) {
+    return read(_Success, oneapi::experimental::properties{});
   }
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  template <typename _functionPropertiesT =
-                decltype(sycl::ext::oneapi::experimental::properties{})>
-  static void write(const _dataT &_Data, bool &_Success) {
+  template <typename _functionPropertiesT>
+  static void write(const _dataT &_Data, bool &_Success,
+                    _functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
-    using _latency_anchor_id_prop = typename GetOrDefaultValT<
-        _functionPropertiesT,
-        sycl::ext::oneapi::experimental::latency_anchor_id_key,
-        sycl::ext::oneapi::experimental::latency_anchor_id_key::value_t<-1>>::
-        type;
-    using _latency_constraint_prop = typename GetOrDefaultValT<
-        _functionPropertiesT,
-        sycl::ext::oneapi::experimental::latency_constraint_key,
-        sycl::ext::oneapi::experimental::latency_constraint_key::value_t<
-            0, sycl::ext::oneapi::experimental::latency_control_type::none,
-            0>>::type;
+    using _latency_anchor_id_prop =
+        typename GetOrDefaultValT<_functionPropertiesT,
+                                  oneapi::experimental::latency_anchor_id_key,
+                                  defaultLatencyAnchorIdProperty>::type;
+    using _latency_constraint_prop =
+        typename GetOrDefaultValT<_functionPropertiesT,
+                                  oneapi::experimental::latency_constraint_key,
+                                  defaultLatencyConstraintProperty>::type;
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
-    static constexpr sycl::ext::oneapi::experimental::latency_control_type
-        _control_type = _latency_constraint_prop::type;
+    static constexpr oneapi::experimental::latency_control_type _control_type =
+        _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
-    int32_t _control_type_code =
-        0; // Default
-           // sycl::ext::oneapi::experimental::latency_control_type::none
-    if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                       latency_control_type::exact) {
+    int32_t _control_type_code = 0; // latency_control_type::none
+    if constexpr (_control_type ==
+                  oneapi::experimental::latency_control_type::exact) {
       _control_type_code = 1;
-    } else if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                              latency_control_type::max) {
+    } else if constexpr (_control_type ==
+                         oneapi::experimental::latency_control_type::max) {
       _control_type_code = 2;
-    } else if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                              latency_control_type::min) {
+    } else if constexpr (_control_type ==
+                         oneapi::experimental::latency_control_type::min) {
       _control_type_code = 3;
     }
 
@@ -141,47 +126,39 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  template <typename _functionPropertiesT>
-  static void write(const _dataT &_Data, bool &_Success,
-                    _functionPropertiesT Properties) {
-    write<_functionPropertiesT>(_Data, _Success);
+  static void write(const _dataT &_Data, bool &_Success) {
+    write(_Data, _Success, oneapi::experimental::properties{});
   }
 
   // Blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  template <typename _functionPropertiesT =
-                decltype(sycl::ext::oneapi::experimental::properties{})>
-  static _dataT read() {
+  template <typename _functionPropertiesT>
+  static _dataT read(_functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
-    using _latency_anchor_id_prop = typename GetOrDefaultValT<
-        _functionPropertiesT,
-        sycl::ext::oneapi::experimental::latency_anchor_id_key,
-        sycl::ext::oneapi::experimental::latency_anchor_id_key::value_t<-1>>::
-        type;
-    using _latency_constraint_prop = typename GetOrDefaultValT<
-        _functionPropertiesT,
-        sycl::ext::oneapi::experimental::latency_constraint_key,
-        sycl::ext::oneapi::experimental::latency_constraint_key::value_t<
-            0, sycl::ext::oneapi::experimental::latency_control_type::none,
-            0>>::type;
+    using _latency_anchor_id_prop =
+        typename GetOrDefaultValT<_functionPropertiesT,
+                                  oneapi::experimental::latency_anchor_id_key,
+                                  defaultLatencyAnchorIdProperty>::type;
+    using _latency_constraint_prop =
+        typename GetOrDefaultValT<_functionPropertiesT,
+                                  oneapi::experimental::latency_constraint_key,
+                                  defaultLatencyConstraintProperty>::type;
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
-    static constexpr sycl::ext::oneapi::experimental::latency_control_type
-        _control_type = _latency_constraint_prop::type;
+    static constexpr oneapi::experimental::latency_control_type _control_type =
+        _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
-    int32_t _control_type_code =
-        0; // Default
-           // sycl::ext::oneapi::experimental::latency_control_type::none
-    if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                       latency_control_type::exact) {
+    int32_t _control_type_code = 0; // latency_control_type::none
+    if constexpr (_control_type ==
+                  oneapi::experimental::latency_control_type::exact) {
       _control_type_code = 1;
-    } else if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                              latency_control_type::max) {
+    } else if constexpr (_control_type ==
+                         oneapi::experimental::latency_control_type::max) {
       _control_type_code = 2;
-    } else if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                              latency_control_type::min) {
+    } else if constexpr (_control_type ==
+                         oneapi::experimental::latency_control_type::min) {
       _control_type_code = 3;
     }
 
@@ -197,45 +174,36 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  template <typename _functionPropertiesT>
-  static _dataT read(_functionPropertiesT Properties) {
-    return read<_functionPropertiesT>();
-  }
+  static _dataT read() { return read(oneapi::experimental::properties{}); }
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  template <typename _functionPropertiesT =
-                decltype(sycl::ext::oneapi::experimental::properties{})>
-  static void write(const _dataT &_Data) {
+  template <typename _functionPropertiesT>
+  static void write(const _dataT &_Data, _functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
-    using _latency_anchor_id_prop = typename GetOrDefaultValT<
-        _functionPropertiesT,
-        sycl::ext::oneapi::experimental::latency_anchor_id_key,
-        sycl::ext::oneapi::experimental::latency_anchor_id_key::value_t<-1>>::
-        type;
-    using _latency_constraint_prop = typename GetOrDefaultValT<
-        _functionPropertiesT,
-        sycl::ext::oneapi::experimental::latency_constraint_key,
-        sycl::ext::oneapi::experimental::latency_constraint_key::value_t<
-            0, sycl::ext::oneapi::experimental::latency_control_type::none,
-            0>>::type;
+    using _latency_anchor_id_prop =
+        typename GetOrDefaultValT<_functionPropertiesT,
+                                  oneapi::experimental::latency_anchor_id_key,
+                                  defaultLatencyAnchorIdProperty>::type;
+    using _latency_constraint_prop =
+        typename GetOrDefaultValT<_functionPropertiesT,
+                                  oneapi::experimental::latency_constraint_key,
+                                  defaultLatencyConstraintProperty>::type;
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
-    static constexpr sycl::ext::oneapi::experimental::latency_control_type
-        _control_type = _latency_constraint_prop::type;
+    static constexpr oneapi::experimental::latency_control_type _control_type =
+        _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
-    int32_t _control_type_code =
-        0; // Default
-           // sycl::ext::oneapi::experimental::latency_control_type::none
-    if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                       latency_control_type::exact) {
+    int32_t _control_type_code = 0; // latency_control_type::none
+    if constexpr (_control_type ==
+                  oneapi::experimental::latency_control_type::exact) {
       _control_type_code = 1;
-    } else if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                              latency_control_type::max) {
+    } else if constexpr (_control_type ==
+                         oneapi::experimental::latency_control_type::max) {
       _control_type_code = 2;
-    } else if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                              latency_control_type::min) {
+    } else if constexpr (_control_type ==
+                         oneapi::experimental::latency_control_type::min) {
       _control_type_code = 3;
     }
 
@@ -250,9 +218,8 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  template <typename _functionPropertiesT>
-  static void write(const _dataT &_Data, _functionPropertiesT Properties) {
-    write<_functionPropertiesT>(_Data);
+  static void write(const _dataT &_Data) {
+    write(_Data, oneapi::experimental::properties{});
   }
 
 private:

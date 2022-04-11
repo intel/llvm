@@ -11,7 +11,10 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/stl.hpp>
+#include <sycl/ext/oneapi/latency_control/properties.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
 #include <tuple>
+#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -109,6 +112,12 @@ struct GetOrDefaultValT<
     std::enable_if_t<PropListT::template has_property<PropKeyT>()>> {
   using type = decltype(PropListT::template get_property<PropKeyT>());
 };
+
+using defaultLatencyAnchorIdProperty =
+    oneapi::experimental::latency_anchor_id_key::value_t<-1>;
+using defaultLatencyConstraintProperty =
+    oneapi::experimental::latency_constraint_key::value_t<
+        0, oneapi::experimental::latency_control_type::none, 0>;
 
 } // namespace experimental
 } // namespace intel

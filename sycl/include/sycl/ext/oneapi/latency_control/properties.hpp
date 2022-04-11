@@ -59,13 +59,6 @@ inline constexpr latency_constraint_key::value_t<Target, Type, Cycle>
 template <> struct is_property_key<latency_anchor_id_key> : std::true_type {};
 template <> struct is_property_key<latency_constraint_key> : std::true_type {};
 
-template <typename syclObjectT>
-struct is_property_key_of<latency_anchor_id_key, syclObjectT> : std::true_type {
-};
-template <typename syclObjectT>
-struct is_property_key_of<latency_constraint_key, syclObjectT>
-    : std::true_type {};
-
 namespace detail {
 template <> struct PropertyToKind<latency_anchor_id_key> {
   static constexpr PropKind Kind = PropKind::LatencyAnchorID;

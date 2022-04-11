@@ -10,8 +10,6 @@
 #include "fpga_utils.hpp"
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/pointers.hpp>
-#include <sycl/ext/oneapi/latency_control/properties.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -52,39 +50,34 @@ template <class... _mem_access_params> class lsu final {
 public:
   lsu() = delete;
 
-  template <typename _T, access::address_space _space,
-            typename _propertiesT =
-                decltype(sycl::ext::oneapi::experimental::properties{})>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
+  template <typename _T, access::address_space _space, typename _propertiesT>
+  static _T load(sycl::multi_ptr<_T, _space> Ptr, _propertiesT Properties) {
     check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    using _latency_anchor_id_prop = typename GetOrDefaultValT<
-        _propertiesT, sycl::ext::oneapi::experimental::latency_anchor_id_key,
-        sycl::ext::oneapi::experimental::latency_anchor_id_key::value_t<-1>>::
-        type;
-    using _latency_constraint_prop = typename GetOrDefaultValT<
-        _propertiesT, sycl::ext::oneapi::experimental::latency_constraint_key,
-        sycl::ext::oneapi::experimental::latency_constraint_key::value_t<
-            0, sycl::ext::oneapi::experimental::latency_control_type::none,
-            0>>::type;
+    using _latency_anchor_id_prop =
+        typename GetOrDefaultValT<_propertiesT,
+                                  oneapi::experimental::latency_anchor_id_key,
+                                  defaultLatencyAnchorIdProperty>::type;
+    using _latency_constraint_prop =
+        typename GetOrDefaultValT<_propertiesT,
+                                  oneapi::experimental::latency_constraint_key,
+                                  defaultLatencyConstraintProperty>::type;
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
-    static constexpr sycl::ext::oneapi::experimental::latency_control_type
-        _control_type = _latency_constraint_prop::type;
+    static constexpr oneapi::experimental::latency_control_type _control_type =
+        _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
-    int32_t _control_type_code =
-        0; // Default
-           // sycl::ext::oneapi::experimental::latency_control_type::none
-    if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                       latency_control_type::exact) {
+    int32_t _control_type_code = 0; // latency_control_type::none
+    if constexpr (_control_type ==
+                  oneapi::experimental::latency_control_type::exact) {
       _control_type_code = 1;
-    } else if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                              latency_control_type::max) {
+    } else if constexpr (_control_type ==
+                         oneapi::experimental::latency_control_type::max) {
       _control_type_code = 2;
-    } else if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                              latency_control_type::min) {
+    } else if constexpr (_control_type ==
+                         oneapi::experimental::latency_control_type::min) {
       _control_type_code = 3;
     }
 
@@ -95,44 +88,40 @@ public:
 #endif
   }
 
-  template <typename _T, access::address_space _space, typename _propertiesT>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr, _propertiesT Properties) {
-    return load<_T, _space, _propertiesT>(Ptr);
+  template <typename _T, access::address_space _space>
+  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
+    return load<_T, _space>(Ptr, oneapi::experimental::properties{});
   }
 
-  template <typename _T, access::address_space _space,
-            typename _propertiesT =
-                decltype(sycl::ext::oneapi::experimental::properties{})>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
+  template <typename _T, access::address_space _space, typename _propertiesT>
+  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val,
+                    _propertiesT Properties) {
     check_space<_space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    using _latency_anchor_id_prop = typename GetOrDefaultValT<
-        _propertiesT, sycl::ext::oneapi::experimental::latency_anchor_id_key,
-        sycl::ext::oneapi::experimental::latency_anchor_id_key::value_t<-1>>::
-        type;
-    using _latency_constraint_prop = typename GetOrDefaultValT<
-        _propertiesT, sycl::ext::oneapi::experimental::latency_constraint_key,
-        sycl::ext::oneapi::experimental::latency_constraint_key::value_t<
-            0, sycl::ext::oneapi::experimental::latency_control_type::none,
-            0>>::type;
+    using _latency_anchor_id_prop =
+        typename GetOrDefaultValT<_propertiesT,
+                                  oneapi::experimental::latency_anchor_id_key,
+                                  defaultLatencyAnchorIdProperty>::type;
+    using _latency_constraint_prop =
+        typename GetOrDefaultValT<_propertiesT,
+                                  oneapi::experimental::latency_constraint_key,
+                                  defaultLatencyConstraintProperty>::type;
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
-    static constexpr sycl::ext::oneapi::experimental::latency_control_type
-        _control_type = _latency_constraint_prop::type;
+    static constexpr oneapi::experimental::latency_control_type _control_type =
+        _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
-    int32_t _control_type_code =
-        0; // Default
-           // sycl::ext::oneapi::experimental::latency_control_type::none
-    if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                       latency_control_type::exact) {
+    int32_t _control_type_code = 0; // latency_control_type::none
+    if constexpr (_control_type ==
+                  oneapi::experimental::latency_control_type::exact) {
       _control_type_code = 1;
-    } else if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                              latency_control_type::max) {
+    } else if constexpr (_control_type ==
+                         oneapi::experimental::latency_control_type::max) {
       _control_type_code = 2;
-    } else if constexpr (_control_type == sycl::ext::oneapi::experimental::
-                                              latency_control_type::min) {
+    } else if constexpr (_control_type ==
+                         oneapi::experimental::latency_control_type::min) {
       _control_type_code = 3;
     }
 
@@ -143,10 +132,9 @@ public:
 #endif
   }
 
-  template <typename _T, access::address_space _space, typename _propertiesT>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val,
-                    _propertiesT Properties) {
-    store<_T, _space, _propertiesT>(Ptr, Val);
+  template <typename _T, access::address_space _space>
+  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
+    store<_T, _space>(Ptr, Val, oneapi::experimental::properties{});
   }
 
 private:
