@@ -679,6 +679,11 @@ struct _pi_context : _pi_object {
   // when kernel has finished execution.
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
+  // For all non-USM host pointers used in device code, we store the size
+  // of memory that has been imported to the device.
+  // This will be used to guide the process of importing the host pointers.
+  std::unordered_map<const void *, size_t> ImportedHostPtrs;
+
 private:
   // Following member variables are used to manage assignment of events
   // to event pools.

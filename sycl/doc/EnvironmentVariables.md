@@ -22,7 +22,8 @@ compiler and runtime.
 | `SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE` | Positive integer | Maximum size of device image in bytes which is cached. Too big kernels may overload disk too fast. Default value is 1 GB. |
 | `SYCL_ENABLE_DEFAULT_CONTEXTS` | '1' or '0' | Enable ('1') or disable ('0') creation of default platform contexts in SYCL runtime. The default context for each platform contains all devices in the platform. Refer to [Platform Default Contexts](extensions/supported/sycl_ext_oneapi_default_context.asciidoc) extension to learn more. Enabled by default on Linux and disabled on Windows. |
 | `SYCL_RT_WARNING_LEVEL` | Positive integer | The higher warning level is used the more warnings and performance hints the runtime library may print. Default value is '0', which means no warning/hint messages from the runtime library are allowed. The value '1' enables performance warnings from device runtime/codegen. The values greater than 1 are reserved for future use. |
-| `SYCL_USM_HOSTPTR_IMPORT` | Integer | Enable by specifying non-zero value. Buffers created with a host pointer will result in host data promotion to USM, improving data transfer performance. To use this feature, also set SYCL_HOST_UNIFIED_MEMORY=1. |
+| `SYCL_PI_LEVEL_ZERO_IMPORT_HOSTPTR`  (experimental) | Integer | Enable by specifying non-zero value. Non USM host pointers when used in memory copy operations will result in host data promotion to USM, improving data transfer performance. To use this feature, also set SYCL_HOST_UNIFIED_MEMORY=1. |
+| `SYCL_PI_LEVEL_ZERO_IMPORT_BUFFER_HOSTPTR` | Integer | Enable by specifying non-zero value. Buffers created with a host pointer will result in host data promotion to USM, improving data transfer performance. To use this feature, also set SYCL_HOST_UNIFIED_MEMORY=1. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 

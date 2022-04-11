@@ -72,16 +72,27 @@ static const bool UseCopyEngineForInOrderQueue = [] {
           (std::stoi(CopyEngineForInOrderQueue) != 0));
 }();
 
-// This is an experimental option that lets user to optimize use of non-USM
-// host pointers. Instead of importing host pointer every time it is used, we
+// This is an experimental option that enables import of host pointers.
+// Instead of importing host pointer every time it is used, we
 // import it during its first use and release it during context deletion.
-// By default, it is turned off
-static const pi_uint32 ZeOptImportNonUSMHostPointer = [] {
-  const char *OptImportNonUSMHostPointer =
-      std::getenv("SYCL_PI_LEVEL_ZERO_OPT_IMPORT_NONUSM_HOST_POINTER");
-  const pi_uint32 OptImportNonUSMHostPointerValue =
-      OptImportNonUSMHostPointer ? std::atoi(OptImportNonUSMHostPointer) : 0;
-  return OptImportNonUSMHostPointerValue;
+// By default, this flag is turned off
+static const pi_uint32 ZeImportHostPtr = [] {
+  const char *ImportHostPtr = std::getenv("SYCL_PI_LEVEL_ZERO_IMPORT_HOSTPTR");
+  const pi_uint32 ImportHostPtrValue =
+      ImportHostPtr ? std::atoi(ImportHostPtr) : 0;
+  return ImportHostPtrValue;
+}();
+
+// This is an experimental option that enables import of host pointers
+// when it is used in buffer creation.
+// It is released during buffer deletion.
+// By default, this flag is turned off
+static const pi_uint32 ZeImportBufferHostPtr = [] {
+  const char *ImportBufferHostPtr =
+      std::getenv("SYCL_PI_LEVEL_ZERO_IMPORT_BUFFER_HOSTPTR");
+  const pi_uint32 ImportBufferHostPtrValue =
+      ImportBufferHostPtr ? std::atoi(ImportBufferHostPtr) : 0;
+  return ImportBufferHostPtrValue;
 }();
 
 // This class encapsulates actions taken along with a call to Level Zero API.
@@ -1712,8 +1723,9 @@ static bool setEnvVar(const char *name, const char *value) {
 static class ZeUSMImportExtension {
   // Pointers to functions that import/release host memory into USM
   ze_result_t (*zexDriverImportExternalPointer)(ze_driver_handle_t hDriver,
-                                                void *, size_t);
-  ze_result_t (*zexDriverReleaseImportedPointer)(ze_driver_handle_t, void *);
+                                                const void *, size_t);
+  ze_result_t (*zexDriverReleaseImportedPointer)(ze_driver_handle_t,
+                                                 const void *);
 
 public:
   // Whether user has requested Import/Release, and platform supports it.
@@ -1722,12 +1734,6 @@ public:
   ZeUSMImportExtension() : Enabled{false} {}
 
   void setZeUSMImport(pi_platform Platform) {
-    // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
-    // host ptr import during buffer creation.
-    const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
-    if (!USMHostPtrImportStr || std::atoi(USMHostPtrImportStr) == 0)
-      return;
-
     // Check if USM hostptr import feature is available.
     ze_driver_handle_t driverHandle = Platform->ZeDriver;
     if (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
@@ -1747,12 +1753,12 @@ public:
       setEnvVar("SYCL_HOST_UNIFIED_MEMORY", "1");
     }
   }
-  void doZeUSMImport(ze_driver_handle_t driverHandle, void *HostPtr,
-                     size_t Size) {
-    ZE_CALL_NOCHECK(zexDriverImportExternalPointer,
-                    (driverHandle, HostPtr, Size));
+  pi_result doZeUSMImport(ze_driver_handle_t driverHandle, const void *HostPtr,
+                          size_t Size) {
+    ZE_CALL(zexDriverImportExternalPointer, (driverHandle, HostPtr, Size));
+    return PI_SUCCESS;
   }
-  void doZeUSMRelease(ze_driver_handle_t driverHandle, void *HostPtr) {
+  void doZeUSMRelease(ze_driver_handle_t driverHandle, const void *HostPtr) {
     ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (driverHandle, HostPtr));
   }
 } ZeUSMImport;
@@ -3026,6 +3032,16 @@ pi_result ContextReleaseHelper(pi_context Context) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
   if (--(Context->RefCount) == 0) {
+    // Release all imported pointers
+    if (ZeImportHostPtr && ZeUSMImport.Enabled) {
+      ze_driver_handle_t driverHandle =
+          Context->Devices[0]->Platform->ZeDriver;
+      for (auto ImportedPtr : Context->ImportedHostPtrs) {
+        ZeUSMImport.doZeUSMRelease(driverHandle, ImportedPtr.first);
+        zePrint("Note: Releasing %x\n", ImportedPtr.first);
+      }
+    }
+
     if (IndirectAccessTrackingEnabled) {
       pi_platform Plt = Context->Devices[0]->Platform;
       auto &Contexts = Plt->Contexts;
@@ -3033,6 +3049,7 @@ pi_result ContextReleaseHelper(pi_context Context) {
       if (It != Contexts.end())
         Contexts.erase(It);
     }
+
     ze_context_handle_t DestoryZeContext =
         Context->OwnZeContext ? Context->ZeContext : nullptr;
 
@@ -3465,7 +3482,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   // are USM pointers. Promotion of the host pointer to USM thus
   // optimizes data transfer performance.
   bool HostPtrImported = false;
-  if (ZeUSMImport.Enabled && HostPtr != nullptr &&
+  if (ZeImportBufferHostPtr && ZeUSMImport.Enabled && HostPtr != nullptr &&
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
     // Query memory type of the host pointer
     ze_device_handle_t ZeDeviceHandle;
@@ -3478,7 +3495,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
       // Promote the host ptr to USM host memory
       ze_driver_handle_t driverHandle = Context->Devices[0]->Platform->ZeDriver;
-      ZeUSMImport.doZeUSMImport(driverHandle, HostPtr, Size);
+      if (auto Res = ZeUSMImport.doZeUSMImport(driverHandle, HostPtr, Size))
+        return Res;
       HostPtrImported = true;
     }
   }
@@ -5780,6 +5798,112 @@ bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
          (!isInOrderQueue() || UseCopyEngineForInOrderQueue);
 }
 
+// This enum is used for determining overlaps between addresses
+// pointed to by a pair of non-USM pointers A and B.
+// NO_OVERLAP - addresses do not overlap
+// PART_OVERLAP - some addresses overlap
+// FULL_OVERLAP - all addresses of A overlap with those of B
+typedef enum { NO_OVERLAP, PART_OVERLAP, FULL_OVERLAP } OverlapType;
+
+// This function is used for determining overlaps between addresses
+// pointed to by a pair of non-USM pointers A and B.
+// Arguments are:
+// 1. Starting address for A
+// 2. Size of addresses pointed to by A (in bytes)
+// 3. Starting address for B
+// 4. Size of addresses pointed to by B (in bytes)
+// Result is of type OverlapType.
+static OverlapType overlapWithAlreadyImportedPtrs(const void *Src1,
+                                                  size_t Size1,
+                                                  const void *Src2,
+                                                  size_t Size2) {
+  auto Start1 = pi_cast<const char *>(Src1);
+  auto End1 = pi_cast<const char *>(Src1) + Size1;
+  auto Start2 = pi_cast<const char *>(Src2);
+  auto End2 = pi_cast<const char *>(Src2) + Size2;
+  // All addresses in A are also in B
+  if (Start1 >= Start2 && End1 <= End2)
+    return FULL_OVERLAP;
+  // Some addresses in A are in B as well
+  if ((Start1 >= Start2 && Start1 <= End2 && End1 >= Start2) ||
+      (Start2 >= Start1 && Start2 <= End1 && End2 >= Start1))
+    return PART_OVERLAP;
+  // No address overlap between A and B
+  return NO_OVERLAP;
+}
+
+// This function takes a pointer and its associated size as input.
+// If the pointer is a non_USM pointer and USM import is enabled,
+// then, the function tries to import the pointer.
+// An existing map of all imported pointers helps in determining
+// what has already been imported and guides the import process.
+static pi_result importNonUSMHostPtr(const void *Ptr, size_t Size,
+                                     pi_queue Queue) {
+  if (ZeImportHostPtr && ZeUSMImport.Enabled && Ptr != nullptr) {
+    ze_device_handle_t ZeDeviceHandle;
+    ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
+    ZE_CALL(zeMemGetAllocProperties,
+            (Queue->Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
+             &ZeDeviceHandle));
+    // If not shared of any type, we can import the ptr
+    if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
+      ze_driver_handle_t driverHandle =
+          Queue->Context->Devices[0]->Platform->ZeDriver;
+      // Temporary data structure to hold all pointers that
+      // will be removed from ImportedHostPtrs.
+      std::vector<const void *> PtrsToErase;
+      // Flag that determines if the incoming pointer will be imported.
+      bool NeedImport = Queue->Context->ImportedHostPtrs.empty();
+
+      // This loop parses through all the imported pointers and
+      // checks for overlaps with incoming pointer
+      for (auto ImportedPtr : Queue->Context->ImportedHostPtrs) {
+        auto Overlap = overlapWithAlreadyImportedPtrs(
+            Ptr, Size, ImportedPtr.first, ImportedPtr.second);
+        if (Overlap == PART_OVERLAP) {
+          // Here, the existing entry in ImportedHostPtrs is released and
+          // marked for removal.
+          // Starting address and size for incoming pointer are modified.
+          ZeUSMImport.doZeUSMRelease(driverHandle, ImportedPtr.first);
+          zePrint("Note: Releasing %x\n", ImportedPtr.first);
+          auto NewPtr = pi_cast<const void *>(
+              std::min(pi_cast<const char *>(Ptr),
+                       pi_cast<const char *>(ImportedPtr.first)));
+          Size = std::max(pi_cast<const char *>(Ptr) + Size,
+                          pi_cast<const char *>(ImportedPtr.first) +
+                              ImportedPtr.second) -
+                 pi_cast<const char *>(NewPtr);
+          Ptr = NewPtr;
+          if (Ptr != ImportedPtr.first)
+            PtrsToErase.push_back(ImportedPtr.first);
+          NeedImport = true;
+        }
+        if (Overlap == NO_OVERLAP) {
+          // No release is needed
+          NeedImport = true;
+        }
+        if (Overlap == FULL_OVERLAP) {
+          // All addresses from incoming pointer have been imported already.
+          // So, incoming pointer need not be imported.
+          NeedImport = false;
+          break;
+        }
+      }
+      // Import incoming pointer if needed.
+      if (NeedImport) {
+        if (auto Res = ZeUSMImport.doZeUSMImport(driverHandle, Ptr, Size))
+          return Res;
+        zePrint("Note: Importing %x (%d) \n", Ptr, Size);
+        Queue->Context->ImportedHostPtrs[Ptr] = Size;
+      }
+      // Remove all 'released' pointers from ImportedHostPtrs.
+      for (auto Ptr : PtrsToErase)
+        Queue->Context->ImportedHostPtrs.erase(Ptr);
+    }
+  }
+  return PI_SUCCESS;
+}
+
 // Shared by all memory read/write/copy PI interfaces.
 // PI interfaces must have queue's and destination buffer's mutexes locked for
 // exclusive use and source buffer's mutex locked for shared use on entry.
@@ -5792,24 +5916,6 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
                                       pi_event *Event, bool PreferCopyEngine) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
-
-  // Import src pointer the first time it is used here.
-  if (ZeUSMImport.Enabled && Src != nullptr &&
-      ZeOptImportNonUSMHostPointer) {
-    // Query memory type of the pointer
-    ze_device_handle_t ZeDeviceHandle;
-    ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
-    ZE_CALL(zeMemGetAllocProperties,
-            (Queue->Context->ZeContext, Src, &ZeMemoryAllocationProperties,
-             &ZeDeviceHandle));
-
-    // If not shared of any type, we can import the ptr
-    if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
-      // Promote the host ptr to USM host memory
-      ze_driver_handle_t driverHandle = Queue->Context->Devices[0]->Platform->ZeDriver;
-      ZeUSMImport.doZeUSMImport(driverHandle, Src, Size);
-    }
-  }
 
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
@@ -5842,6 +5948,11 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
     ZE_CALL(zeCommandListAppendWaitOnEvents,
             (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
   }
+  // Try to import Src and Dst pointers
+  if (auto Res = importNonUSMHostPtr(Src, Size, Queue))
+    return Res;
+  if (auto Res = importNonUSMHostPtr(Dst, Size, Queue))
+    return Res;
 
   ZE_CALL(zeCommandListAppendMemoryCopy,
           (ZeCommandList, Dst, Src, Size, ZeEvent, 0, nullptr));
