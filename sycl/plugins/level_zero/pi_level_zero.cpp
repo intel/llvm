@@ -8012,12 +8012,6 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
 }
 
 pi_result _pi_buffer::free() {
-  pi_platform Plt = Context->getPlatform();
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
-  if (IndirectAccessTrackingEnabled)
-    ContextsLock.lock();
-
   for (auto &Alloc : Allocations) {
     auto &ZeHandle = Alloc.second.ZeHandle;
     // It is possible that the real allocation wasn't made if the buffer
@@ -8028,11 +8022,18 @@ pi_result _pi_buffer::free() {
     switch (Alloc.second.ReleaseAction) {
     case allocation_t::keep:
       break;
-    case allocation_t::free:
+    case allocation_t::free: {
+      pi_platform Plt = Context->getPlatform();
+      std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
+                                                std::defer_lock);
+      if (IndirectAccessTrackingEnabled)
+        ContextsLock.lock();
+
       PI_CALL(USMFreeHelper(Context, ZeHandle, true));
       break;
+    }
     case allocation_t::free_native:
-      ZE_CALL(zeMemFree, (Context->ZeContext, ZeHandle))
+      PI_CALL(ZeMemFreeHelper(Context, ZeHandle, true));
       break;
     case allocation_t::unimport:
       ZeUSMImport.doZeUSMRelease(Context->getPlatform()->ZeDriver, ZeHandle);
