@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/device_selector.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
 #include <detail/plugin.hpp>
@@ -86,9 +87,21 @@ void event_impl::setComplete() {
 const RT::PiEvent &event_impl::getHandleRef() const { return MEvent; }
 RT::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
-const ContextImplPtr &event_impl::getContextImpl() { return MContext; }
+const ContextImplPtr &event_impl::getContextImpl() const {
+  if (!MContext) {
+    // Initialize context of the event to be the default context from the
+    // platform of the default device.
+    platform DefaultPlatform = device{default_selector()}.get_platform();
+    MContext = getSyclObjImpl(DefaultPlatform.ext_oneapi_get_default_context());
+    MHostEvent = MContext->is_host();
+    MOpenCLInterop = !MHostEvent;
+  }
+  return MContext;
+}
 
-const plugin &event_impl::getPlugin() const { return MContext->getPlugin(); }
+const plugin &event_impl::getPlugin() const {
+  return getContextImpl()->getPlugin();
+}
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MHostEvent = Context->is_host();
@@ -342,17 +355,11 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 pi_native_handle event_impl::getNative() const {
-  if (!MContext) {
-    static context SyclContext;
-    MContext = getSyclObjImpl(SyclContext);
-    MHostEvent = MContext->is_host();
-    MOpenCLInterop = !MHostEvent;
-  }
   auto Plugin = getPlugin();
   if (!MIsInitialized) {
     MIsInitialized = true;
-    auto TempContext = MContext.get()->getHandleRef();
-    Plugin.call<PiApiKind::piEventCreate>(TempContext, &MEvent);
+    RT::PiContext ContextHandle = getContextImpl()->getHandleRef();
+    Plugin.call<PiApiKind::piEventCreate>(ContextHandle, &MEvent);
   }
   if (Plugin.getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piEventRetain>(getHandleRef());

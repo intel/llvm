@@ -129,9 +129,11 @@ public:
   const RT::PiEvent &getHandleRef() const;
 
   /// Returns context that is associated with this event.
+  /// If the context has not been set, the event will be associated with the
+  /// default context for the backend of the default device.
   ///
   /// \return a shared pointer to a valid context_impl.
-  const ContextImplPtr &getContextImpl();
+  const ContextImplPtr &getContextImpl() const;
 
   /// \return the Plugin associated with the context of this event.
   /// Should be called when this is not a Host Event.
