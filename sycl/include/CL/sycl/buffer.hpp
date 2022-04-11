@@ -26,8 +26,10 @@ template <int dimensions> class range;
 namespace detail {
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
-make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt) {
-  return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, Evt);
+make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt = {},
+                   bool OwnNativeHandle = true) {
+  return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, OwnNativeHandle,
+                                                 Evt);
 }
 } // namespace detail
 
@@ -314,14 +316,11 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : Range{0} {
 
-    size_t BufSize = detail::SYCLMemObjT::getBufSizeForContext(
-        detail::getSyclObjImpl(SyclContext), MemObject);
-
-    Range[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl>(
-        detail::pi::cast<pi_native_handle>(MemObject), SyclContext, BufSize,
+        detail::pi::cast<pi_native_handle>(MemObject), SyclContext,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
-        AvailableEvent);
+        /* OwnNativeHandle */ true, AvailableEvent);
+    Range[0] = impl->getSize() / sizeof(T);
     impl->constructorNotification(CodeLoc, (void *)impl.get(), &MemObject,
                                   (const void *)typeid(T).name(), dimensions,
                                   sizeof(T), rangeToArray(Range).data());
@@ -531,7 +530,7 @@ private:
   friend class accessor;
   template <typename HT, int HDims, typename HAllocT>
   friend buffer<HT, HDims, HAllocT, void>
-  detail::make_buffer_helper(pi_native_handle, const context &, event);
+  detail::make_buffer_helper(pi_native_handle, const context &, event, bool);
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent
   // buffer
@@ -541,18 +540,15 @@ private:
   // Interop constructor
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
   buffer(pi_native_handle MemObject, const context &SyclContext,
-         event AvailableEvent = {},
+         bool OwnNativeHandle, event AvailableEvent = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : Range{0} {
 
-    size_t BufSize = detail::SYCLMemObjT::getBufSizeForContext(
-        detail::getSyclObjImpl(SyclContext), MemObject);
-
-    Range[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl>(
-        MemObject, SyclContext, BufSize,
+        MemObject, SyclContext,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
-        AvailableEvent);
+        OwnNativeHandle, AvailableEvent);
+    Range[0] = impl->getSize() / sizeof(T);
     impl->constructorNotification(CodeLoc, (void *)impl.get(), &MemObject,
                                   (const void *)typeid(T).name(), dimensions,
                                   sizeof(T), rangeToArray(Range).data());
