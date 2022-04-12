@@ -20,7 +20,6 @@ int main() {
   queue q;
 
   q.submit([&](handler &cgh) {
-
     sycl::accessor<bfloat16, 1, sycl::access::mode::read_write,
                    sycl::target::device>
         accA(bufA, cgh);
