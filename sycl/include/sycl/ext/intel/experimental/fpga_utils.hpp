@@ -12,9 +12,7 @@
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/stl.hpp>
 #include <sycl/ext/oneapi/latency_control/properties.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
 #include <tuple>
-#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
