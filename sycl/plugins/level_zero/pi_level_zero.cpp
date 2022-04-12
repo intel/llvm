@@ -5147,8 +5147,15 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
       Event->Queue
           ? Event->Queue->Device->ZeDeviceProperties->timerResolution
           : Event->Context->Devices[0]->ZeDeviceProperties->timerResolution;
-  // Get timestamp frequency
-  const double ZeTimerFreq = 1E09 / ZeTimerResolution;
+
+  const uint64_t TimestampMaxValue =
+      Event->Queue
+          ? ((1ULL << Event->Queue->Device->ZeDeviceProperties
+                          ->kernelTimestampValidBits) -
+             1ULL)
+          : ((1ULL << Event->Context->Devices[0]
+                          ->ZeDeviceProperties->kernelTimestampValidBits) -
+             1ULL);
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
@@ -5157,14 +5164,17 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   switch (ParamName) {
   case PI_PROFILING_INFO_COMMAND_START: {
     ZE_CALL(zeEventQueryKernelTimestamp, (Event->ZeEvent, &tsResult));
-    uint64_t ContextStartTime = tsResult.context.kernelStart * ZeTimerFreq;
+    uint64_t ContextStartTime =
+        (tsResult.context.kernelStart & TimestampMaxValue) * ZeTimerResolution;
     return ReturnValue(ContextStartTime);
   }
   case PI_PROFILING_INFO_COMMAND_END: {
     ZE_CALL(zeEventQueryKernelTimestamp, (Event->ZeEvent, &tsResult));
 
-    uint64_t ContextStartTime = tsResult.context.kernelStart;
-    uint64_t ContextEndTime = tsResult.context.kernelEnd;
+    uint64_t ContextStartTime =
+        (tsResult.context.kernelStart & TimestampMaxValue);
+    uint64_t ContextEndTime = (tsResult.context.kernelEnd & TimestampMaxValue);
+
     //
     // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
     // Note, it will not report correct time if there were multiple wrap
@@ -5172,12 +5182,9 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
     // HW timestamps.
     //
     if (ContextEndTime <= ContextStartTime) {
-      pi_device Device = Event->Context->Devices[0];
-      const uint64_t TimestampMaxValue =
-          (1LL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1;
-      ContextEndTime += TimestampMaxValue - ContextStartTime;
+      ContextEndTime += TimestampMaxValue;
     }
-    ContextEndTime *= ZeTimerFreq;
+    ContextEndTime *= ZeTimerResolution;
     return ReturnValue(ContextEndTime);
   }
   case PI_PROFILING_INFO_COMMAND_QUEUED:
