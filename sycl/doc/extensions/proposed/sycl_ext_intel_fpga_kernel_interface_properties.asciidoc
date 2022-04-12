@@ -16,33 +16,19 @@
 // docbook uses c++ and html5 uses cpp.
 :language: {basebackend@docbook:c++:cpp}
 
-== Introduction
-IMPORTANT: This specification is a draft.
-
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
-trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
-used by permission by Khronos.
-
-This extension introduces new kernel properties that can be applied to kernels
-using the mechanism defined in sycl_ext_oneapi_kernel_properties.
-
 == Notice
 
+[%hardbreaks]
 Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
 
-== Status
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
-Working Draft
+== Contact
 
-This is a proposed extension specification, intended to gather community
-feedback. Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state. The specification itself may also change in
-incompatible ways before it is finalized. *Shipping software products should not
-rely on APIs defined in this specification.*
-
-== Version
-
-Revision: 1
+To report problems with this extension, please open a new issue at:
+https://github.com/intel/llvm/issues
 
 == Contributors
 
@@ -56,6 +42,22 @@ the following extensions:
 
 - link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
 - link:sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback. Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state. The specification itself may also change in
+incompatible ways before it is finalized. *Shipping software products should not
+rely on APIs defined in this specification.*
+
+== Overview
+
+This extension introduces kernel properties to specify how or when control and
+data signals can be passed in to or out of an FPGA kernel. These properties are
+meaningless on non-FPGA devices and can be ignored on such devices.
+
+== Specification
 
 == Feature Test Macro
 
@@ -74,13 +76,12 @@ supports.
 |1     |Initial extension version.  Base features are supported.
 |===
 
-== Overview
+=== Introduction
 
-This extension introduces kernel properties to specify how or when control and
-data signals can be passed in to or out of an FPGA kernel. These properties are
-meaningless on non-FPGA devices and can be ignored on such devices.
+This extension introduces new kernel properties that can be applied to kernels
+using the mechanism defined in sycl_ext_oneapi_kernel_properties.
 
-== Kernel Properties
+=== Kernel Interface Properties
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
@@ -209,7 +210,7 @@ inline constexpr pipelined_key::value_t<pipeline_directive,
  successive invocations of the kernel. The `initiation_interval` property should
  be used to specify this:
 
- * `true, intiation_interval<N>`: The compiler will pipeline multiple kernel
+ * `true, initiation_interval<N>`: The compiler will pipeline multiple kernel
    invocations such that an invocation is launched every N cycles.
  
  If the `initiation_interval` property argument is not specified, the compiler
@@ -223,7 +224,7 @@ inline constexpr pipelined_key::value_t<pipeline_directive,
 Device compilers that do not support this extension may accept and ignore these
  properties.
 
-== Adding a Property List to a Kernel Launch
+=== Adding a Property List to a Kernel Launch
 
 A simple example of using this extension to launch a kernel with a streaming
  interface is shown below.
@@ -261,7 +262,7 @@ using sycl::ext::oneapi::experimental;
 }
 ```
 
-== Embedding Properties into a Kernel
+=== Embedding Properties into a Kernel
 
 The example below shows how the kernel from the previous section could be
 rewritten to leverage an embedded property list:
