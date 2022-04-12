@@ -6,15 +6,7 @@
 #include "mem_alloc_events.inc"
 
 // CHECK:      xptiTraceInit: Stream Name = sycl.experimental.mem_alloc
-// CHECK:      Mem Alloc Begin :   mem_obj_handle: {{.*}}
-// CHECK-NEXT:  alloc_pointer : 0
-// CHECK-NEXT:  alloc_size    : 400
-// CHECK:      Mem Alloc End :   mem_obj_handle: {{.*}}
-// CHECK-NEXT:  alloc_pointer : {{.*}}
-// CHECK-NEXT:  alloc_size    : 400
-// CHECK:      Mem Release Begin :   mem_obj_handle: {{.*}}
-// CHECK-NEXT:  alloc_pointer : {{.*}}
-// CHECK-NEXT:  alloc_size    : 0
-// CHECK:      Mem Release End :   mem_obj_handle: {{.*}}
-// CHECK-NEXT:  alloc_pointer : {{.*}}
-// CHECK-NEXT:  alloc_size    : 0
+// CHECK:      Mem Alloc Begin : mem_obj_handle:{{.*}}|alloc_pointer:0x0|alloc_size:400
+// CHECK:      Mem Alloc End : mem_obj_handle:{{.*}}|alloc_pointer:{{.*}}|alloc_size:400
+// CHECK:      Mem Release Begin : mem_obj_handle:{{.*}}|alloc_pointer:{{.*}}|alloc_size:0
+// CHECK:      Mem Release End :   mem_obj_handle:{{.*}}|alloc_pointer:{{.*}}|alloc_size:0
