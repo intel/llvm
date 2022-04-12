@@ -14,7 +14,7 @@
 // raise the batch size up 3 times.
 //
 // Then the test starts enqueueing only 4 kernels before doing a wait, and
-// it does that 20 times.  That should cause the batch size to
+// it does that 25 times.  That should cause the batch size to
 // be lowered to be less than 4.
 //
 // CKDYN: Raising QueueBatchSize to 5
@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
   validate(Y1, Z7, M * N);
   validate(Y1, Z8, M * N);
 
-  for (size_t i = 0; i < 20; i++) {
+  for (size_t i = 0; i < 25; i++) {
     q.submit([&](sycl::handler &h) {
       h.parallel_for<class u32_copy9>(sycl::range<2>{M, N},
                                       [=](sycl::id<2> it) {
