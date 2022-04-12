@@ -59,7 +59,7 @@ meaningless on non-FPGA devices and can be ignored on such devices.
 
 == Specification
 
-== Feature Test Macro
+=== Feature Test Macro
 
 This extension provides a feature-test macro as described in the core SYCL
 specification section 6.3.3 "Feature test macros".  Therefore, an
