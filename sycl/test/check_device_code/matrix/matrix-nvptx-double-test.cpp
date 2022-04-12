@@ -31,13 +31,17 @@ int main() {
 
   q.submit([&](handler &cgh) {
 
-    sycl::accessor<double, 1, sycl::access::mode::read_write, sycl::target::device>
+    sycl::accessor<double, 1, sycl::access::mode::read_write,
+                   sycl::target::device>
         accA(bufA, cgh);
-    sycl::accessor<double, 1, sycl::access::mode::read_write, sycl::target::device>
+    sycl::accessor<double, 1, sycl::access::mode::read_write,
+                   sycl::target::device>
         accB(bufB, cgh);
-    sycl::accessor<double, 1, sycl::access::mode::read_write, sycl::target::device>
+    sycl::accessor<double, 1, sycl::access::mode::read_write,
+                   sycl::target::device>
         accC(bufC, cgh);
-    sycl::accessor<double, 1, sycl::access::mode::read_write, sycl::target::device>
+    sycl::accessor<double, 1, sycl::access::mode::read_write,
+                   sycl::target::device>
         accD(bufD, cgh);
 
     cgh.parallel_for<class row_row>(
