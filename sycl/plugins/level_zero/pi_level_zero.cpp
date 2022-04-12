@@ -1325,6 +1325,21 @@ void _pi_queue::CaptureIndirectAccesses() {
 pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
                                         bool IsBlocking,
                                         bool OKToBatchCommand) {
+  bool UseCopyEngine = CommandList->second.isCopy(this);
+
+  // If the current LastCommandEvent is the nullptr, then it means
+  // either that no command has ever been issued to the queue
+  // or it means that the LastCommandEvent has been signalled and
+  // therefore that this Queue is idle.
+  //
+  // NOTE: this behavior adds some flakyness to the batching
+  // since last command's event may or may not be completed by the
+  // time we get here depending on timings and system/gpu load.
+  // So, disable it for modes where we print PI traces. Printing
+  // traces incurs much different timings than real execution
+  // ansyway, and many regression tests use it.
+  //
+  bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
   // events.
@@ -1332,22 +1347,6 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     this->LastCommandEvent = CommandList->second.EventList.back();
 
   if (!UseImmediateCommandLists) {
-    bool UseCopyEngine = CommandList->second.isCopy(this);
-
-    // If the current LastCommandEvent is the nullptr, then it means
-    // either that no command has ever been issued to the queue
-    // or it means that the LastCommandEvent has been signalled and
-    // therefore that this Queue is idle.
-    //
-    // NOTE: this behavior adds some flakyness to the batching
-    // since last command's event may or may not be completed by the
-    // time we get here depending on timings and system/gpu load.
-    // So, disable it for modes where we print PI traces. Printing
-    // traces incurs much different timings than real execution
-    // anyway, and many regression tests use it.
-    //
-    bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
-
     // Batch if allowed to, but don't batch if we know there are no kernels
     // from this queue that are currently executing.  This is intended to get
     // kernels started as soon as possible when there are no kernels from this
