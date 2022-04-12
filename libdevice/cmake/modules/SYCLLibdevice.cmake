@@ -280,6 +280,11 @@ add_custom_command(OUTPUT ${devicelib-host-imf-obj}
                    VERBATIM)
 
 if (WIN32)
+set(devicelib-host ${obj_binary_dir}/sycl-devicelib-host.lib)
+add_custom_command(OUTPUT ${devicelib-host}
+                   COMMAND lib ${devicelib-host-imf-obj} /OUT:${devicelib-host}
+                   DEPENDS ${devicelib-host-imf-obj} sycl-compiler
+                   VERBATIM)
 else()
 set(devicelib-host ${obj_binary_dir}/libsycl-devicelib-host.a)
 add_custom_command(OUTPUT ${devicelib-host}

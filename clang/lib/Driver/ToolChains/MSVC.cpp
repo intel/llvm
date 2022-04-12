@@ -139,6 +139,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-defaultlib:sycld.lib");
     else
       CmdArgs.push_back("-defaultlib:sycl.lib");
+    CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
 
   for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ))
