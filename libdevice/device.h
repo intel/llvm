@@ -17,7 +17,8 @@
 
 #ifdef __SPIR__
 #ifdef __SYCL_DEVICE_ONLY__
-#define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((weak))
+#define DEVICE_EXTERNAL                                                        \
+  SYCL_EXTERNAL __attribute__((weak)) __attribute__((always_inline))
 #else // __SYCL_DEVICE_ONLY__
 #define DEVICE_EXTERNAL __attribute__((weak))
 #endif // __SYCL_DEVICE_ONLY__
