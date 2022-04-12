@@ -64,6 +64,10 @@ add_custom_target(check-sycl)
 add_dependencies(check-sycl check-sycl-spirv)
 set_target_properties(check-sycl PROPERTIES FOLDER "SYCL tests")
 
+if (TARGET check-all)
+  add_dependencies(check-all check-sycl)
+endif()
+
 if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuite(check-sycl-ptx "Running device-agnostic SYCL regression tests for NVidia PTX"
     ${CMAKE_CURRENT_BINARY_DIR}
