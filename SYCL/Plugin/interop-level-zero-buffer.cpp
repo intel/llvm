@@ -90,11 +90,6 @@ int main() {
     Queue.wait();
 
     {
-      char *Ptr = (char *)HostBuffer1;
-      for (int i = 0; i < 10; i++) {
-        assert(Ptr[i] == 'a');
-      }
-
       auto HostAcc1 = HostBufferInterop1.get_host_access();
       for (int i = 0; i < 10; i++) {
         assert(HostAcc1[i] == 'a');

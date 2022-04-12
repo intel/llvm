@@ -9,6 +9,9 @@
 // 2. User-provided memory allocation is freed by DPCPP RT if
 // "transfer" ownership is specified.
 
+// NOTE: SYCL RT will see unbalanced count of alloc/free,
+// so this test will fail with ZE_DEBUG=4.
+
 // Keep ownership
 // CHECK: zeMemFree
 

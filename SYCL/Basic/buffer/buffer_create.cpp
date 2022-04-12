@@ -15,20 +15,17 @@ int main() {
   buffer<::cl_int, 1> Buffer(Size);
   Queue.submit([&](handler &cgh) {
     accessor Accessor{Buffer, cgh, read_write};
-    if (NumOfDevices > 1)
-      // Currently the Level Zero plugin uses host allocations for multi-device
-      // contexts because such allocations are accessible by all devices.
-      std::cerr << "Multi GPU should use zeMemAllocHost\n";
-    else if (D.get_info<info::device::host_unified_memory>())
+    if (D.get_info<info::device::host_unified_memory>())
       std::cerr << "Integrated GPU should use zeMemAllocHost\n";
     else
       std::cerr << "Discrete GPU should use zeMemAllocDevice\n";
-    cgh.parallel_for<class CreateBuffer>(range<1>(Size), [=](id<1> ID) {});
+    cgh.parallel_for<class CreateBuffer>(range<1>(Size),
+                                         [=](id<1> ID) { Accessor[ID] = 0; });
   });
   Queue.wait();
 
   return 0;
 }
 
-// CHECK: {{Integrated|Multi|Discrete}} GPU should use [[API:zeMemAllocHost|zeMemAllocHost|zeMemAllocDevice]]
+// CHECK: {{Integrated|Discrete}} GPU should use [[API:zeMemAllocHost|zeMemAllocDevice]]
 // CHECK: ZE ---> [[API]](
