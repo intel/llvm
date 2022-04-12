@@ -176,7 +176,7 @@ fabs(sycl::marray<T, N> x) {
   for (size_t i = 0; i < N / 2; i++)
     res_storage[i] = __clc_fabs(x_storage[i]);
 
-  if (N % 2) {
+  if constexpr (N % 2) {
     res[N - 1] = bfloat16::from_bits(__clc_fabs(x[N - 1].raw()));
   }
 
@@ -225,7 +225,7 @@ fmin(sycl::marray<T, N> x, sycl::marray<T, N> y) {
   for (size_t i = 0; i < N / 2; i++)
     res_storage[i] = __clc_fmin(x_storage[i], y_storage[i]);
 
-  if (N % 2) {
+  if constexpr (N % 2) {
     res[N - 1] =
         bfloat16::from_bits(__clc_fmin(x[N - 1].raw(), y[N - 1].raw()));
   }
@@ -276,7 +276,7 @@ fmax(sycl::marray<T, N> x, sycl::marray<T, N> y) {
   for (size_t i = 0; i < N / 2; i++)
     res_storage[i] = __clc_fmax(x_storage[i], y_storage[i]);
 
-  if (N % 2) {
+  if constexpr (N % 2) {
     res[N - 1] =
         bfloat16::from_bits(__clc_fmax(x[N - 1].raw(), y[N - 1].raw()));
   }
@@ -330,7 +330,7 @@ fma(sycl::marray<T, N> x, sycl::marray<T, N> y, sycl::marray<T, N> z) {
   for (size_t i = 0; i < N / 2; i++)
     res_storage[i] = __clc_fma(x_storage[i], y_storage[i], z_storage[i]);
 
-  if (N % 2) {
+  if constexpr (N % 2) {
     res[N - 1] = bfloat16::from_bits(
         __clc_fma(x[N - 1].raw(), y[N - 1].raw(), z[N - 1].raw()));
   }
