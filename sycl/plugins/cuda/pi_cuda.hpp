@@ -380,18 +380,20 @@ struct _pi_mem {
 struct _pi_queue {
   using native_type = CUstream;
 
-  std::vector<native_type> streams_;
+  std::vector<native_type> compute_streams_;
+  std::vector<native_type> transfer_streams_;
   _pi_context *context_;
   _pi_device *device_;
   pi_queue_properties properties_;
   std::atomic_uint32_t refCount_;
   std::atomic_uint32_t eventCount_;
-  std::atomic_uint32_t stream_idx_;
+  std::atomic_uint32_t compute_stream_idx_;
+  std::atomic_uint32_t transfer_stream_idx_;
 
-  _pi_queue(std::vector<CUstream> &&streams, _pi_context *context,
+  _pi_queue(std::vector<CUstream> &&compute_streams_, std::vector<CUstream> &&transfer_streams, _pi_context *context,
             _pi_device *device, pi_queue_properties properties)
-      : streams_{std::move(streams)}, context_{context}, device_{device},
-        properties_{properties}, refCount_{1}, eventCount_{0}, stream_idx_{0} {
+      : compute_streams_{std::move(compute_streams_)}, transfer_streams_{std::move(transfer_streams)}, context_{context}, device_{device},
+        properties_{properties}, refCount_{1}, eventCount_{0}, compute_stream_idx_{0}, transfer_stream_idx_{0} {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -401,10 +403,14 @@ struct _pi_queue {
     cuda_piDeviceRelease(device_);
   }
 
-  native_type get() noexcept {
-    return streams_[stream_idx_++ % streams_.size()];
+  native_type get_compute() noexcept {
+    return compute_streams_[compute_stream_idx_++ % compute_streams_.size()];
   };
-  const std::vector<native_type> &get_all() const noexcept { return streams_; };
+  const std::vector<native_type> &get_all_compute() const noexcept { return compute_streams_; };
+  native_type get_transfer() noexcept {
+    return transfer_streams_[transfer_stream_idx_++ % transfer_streams_.size()];
+  };
+  const std::vector<native_type> &get_all_transfer() const noexcept { return transfer_streams_; };
 
   _pi_context *get_context() const { return context_; };
 
