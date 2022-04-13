@@ -13,6 +13,7 @@
 #pragma once
 
 #include <sycl/ext/intel/esimd/detail/atomic_intrin.hpp>
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
 
 // generic work-group split barrier
@@ -576,8 +577,8 @@ void __esimd_emu_write_2d(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 
 /// Helper function for zero-source LSC-atomic operation accessing BTI
 /// or SLM
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op, uint16_t AddressScale,
-          int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
           __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
 auto __esimd_emu_lsc_xatomic_offset_access_0(
@@ -609,10 +610,10 @@ auto __esimd_emu_lsc_xatomic_offset_access_0(
 
       if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
         Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
-        if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::iinc) {
+        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::inc) {
           __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                             static_cast<Ty>(1));
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::idec) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::dec) {
           __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                             static_cast<Ty>(1));
         }
@@ -624,8 +625,8 @@ auto __esimd_emu_lsc_xatomic_offset_access_0(
 
 /// Helper function for one-source LSC-atomic operation accessing BTI
 /// or SLM
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op, uint16_t AddressScale,
-          int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
           __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
 auto __esimd_emu_lsc_xatomic_offset_access_1(
@@ -665,60 +666,64 @@ auto __esimd_emu_lsc_xatomic_offset_access_1(
         // Keeping original values for return
         Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
 
-        if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::store) {
+        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::store) {
           __ESIMD_DNS::atomic_store<Ty>((Ty *)(BaseAddr + ByteDistance),
                                         src0[VecIdx]);
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::iadd) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::add) {
           __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                             src0[VecIdx]);
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::isub) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::sub) {
           __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                             src0[VecIdx]);
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::smin) {
+        } else if constexpr (Op ==
+                             __ESIMD_NS::native::lsc::atomic_op::minsint) {
           __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx]);
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::smax) {
+        } else if constexpr (Op ==
+                             __ESIMD_NS::native::lsc::atomic_op::maxsint) {
           __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx]);
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::umin) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::min) {
           if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
             __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
                                         src0[VecIdx]);
           }
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::umax) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::max) {
           if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
             __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
                                         src0[VecIdx]);
           }
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fadd) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fadd) {
           if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
             __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                               src0[VecIdx]);
           }
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fsub) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fsub) {
           if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
             __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                               src0[VecIdx]);
           }
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fmin) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fmin) {
           if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
             __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
                                         src0[VecIdx]);
           }
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fmax) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fmax) {
           if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
             __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
                                         src0[VecIdx]);
           }
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::bit_and) {
+        } else if constexpr (Op ==
+                             __ESIMD_NS::native::lsc::atomic_op::bit_and) {
           // TODO : Type Check? Integral type only?
           __ESIMD_DNS::atomic_and_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                             src0[VecIdx]);
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::bit_or) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::bit_or) {
           // TODO : Type Check? Integral type only?
           __ESIMD_DNS::atomic_or_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                            src0[VecIdx]);
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::bit_xor) {
+        } else if constexpr (Op ==
+                             __ESIMD_NS::native::lsc::atomic_op::bit_xor) {
           // TODO : Type Check? Integral type only?
           __ESIMD_DNS::atomic_xor_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                             src0[VecIdx]);
@@ -731,8 +736,8 @@ auto __esimd_emu_lsc_xatomic_offset_access_1(
 
 /// Helper function for two-source LSC-atomic operation accessing BTI
 /// or SLM
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op, uint16_t AddressScale,
-          int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
           __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
 auto __esimd_emu_lsc_xatomic_offset_access_2(
@@ -773,10 +778,10 @@ auto __esimd_emu_lsc_xatomic_offset_access_2(
         // Keeping original values for return
         Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
 
-        if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::icas) {
+        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg) {
           __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx], src1[VecIdx]);
-        } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fcas) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpwr) {
           if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
             __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
                                         src0[VecIdx], src1[VecIdx]);
@@ -1327,7 +1332,7 @@ __esimd_lsc_store2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
           __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
@@ -1365,7 +1370,7 @@ __esimd_lsc_xatomic_slm_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
           __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
@@ -1406,7 +1411,7 @@ __esimd_lsc_xatomic_slm_1(
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param src1 is the second atomic operand.
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
           __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
@@ -1448,11 +1453,12 @@ __esimd_lsc_xatomic_slm_2(
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param surf_ind is the surface index.
-template <
-    typename Ty, __ESIMD_EDNS::lsc_atomic_op Op, __ESIMD_ENS::cache_hint L1H,
-    __ESIMD_ENS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-    __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
-    __ESIMD_EDNS::lsc_data_order _Transposed, int N, typename SurfIndAliasTy>
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_bti_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                           __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
@@ -1498,11 +1504,12 @@ __esimd_lsc_xatomic_bti_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param surf_ind is the surface index.
-template <
-    typename Ty, __ESIMD_EDNS::lsc_atomic_op Op, __ESIMD_ENS::cache_hint L1H,
-    __ESIMD_ENS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-    __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
-    __ESIMD_EDNS::lsc_data_order _Transposed, int N, typename SurfIndAliasTy>
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_bti_1(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
@@ -1552,11 +1559,12 @@ __esimd_lsc_xatomic_bti_1(
 /// @param src0 is the first atomic operand.
 /// @param src1 is the second atomic operand.
 /// @param surf_ind is the surface index.
-template <
-    typename Ty, __ESIMD_EDNS::lsc_atomic_op Op, __ESIMD_ENS::cache_hint L1H,
-    __ESIMD_ENS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-    __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
-    __ESIMD_EDNS::lsc_data_order _Transposed, int N, typename SurfIndAliasTy>
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_bti_2(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
@@ -1603,7 +1611,7 @@ __esimd_lsc_xatomic_bti_2(
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
           __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
@@ -1644,10 +1652,10 @@ __esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
       // Keeping original values for return + 'load'
       Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
 
-      if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::iinc) {
+      if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::inc) {
         __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                           static_cast<Ty>(1));
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::idec) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::dec) {
         __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                           static_cast<Ty>(1));
       }
@@ -1674,7 +1682,7 @@ __esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 /// @param src0 is the first atomic operand.
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
           __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
@@ -1717,60 +1725,60 @@ __esimd_lsc_xatomic_stateless_1(
       // Keeping original values for return
       Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
 
-      if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::store) {
+      if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::store) {
         __ESIMD_DNS::atomic_store<Ty>((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx]);
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::iadd) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::add) {
         __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                           src0[VecIdx]);
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::isub) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::sub) {
         __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                           src0[VecIdx]);
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::smin) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::minsint) {
         __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
                                     src0[VecIdx]);
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::smax) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::maxsint) {
         __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
                                     src0[VecIdx]);
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::umin) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::min) {
         if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
           __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx]);
         }
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::umax) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::max) {
         if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
           __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx]);
         }
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fadd) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fadd) {
         if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
           __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                             src0[VecIdx]);
         }
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fsub) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fsub) {
         if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
           __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                             src0[VecIdx]);
         }
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fmin) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fmin) {
         if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
           __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx]);
         }
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fmax) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fmax) {
         if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
           __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx]);
         }
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::bit_and) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::bit_and) {
         // TODO : Type Check? Integral type only?
         __ESIMD_DNS::atomic_and_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                           src0[VecIdx]);
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::bit_or) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::bit_or) {
         // TODO : Type Check? Integral type only?
         __ESIMD_DNS::atomic_or_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                          src0[VecIdx]);
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::bit_xor) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::bit_xor) {
         // TODO : Type Check? Integral type only?
         __ESIMD_DNS::atomic_xor_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                           src0[VecIdx]);
@@ -1798,7 +1806,7 @@ __esimd_lsc_xatomic_stateless_1(
 /// @param addrs is the prefetch addresses.
 /// @param src0 is the first atomic operand.
 /// @param src1 is the second atomic operand.
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
           __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
@@ -1842,10 +1850,10 @@ __esimd_lsc_xatomic_stateless_2(
       // Keeping original values for return
       Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
 
-      if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::icas) {
+      if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg) {
         __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
                                     src0[VecIdx], src1[VecIdx]);
-      } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fcas) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpwr) {
         if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
           __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx], src1[VecIdx]);

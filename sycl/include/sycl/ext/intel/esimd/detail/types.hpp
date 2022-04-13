@@ -36,8 +36,6 @@ template <typename BaseTy, typename RegionTy> class simd_view;
 
 namespace detail {
 
-namespace sd = sycl::detail;
-
 template <int N>
 using uint_type_t = std::conditional_t<
     N == 1, uint8_t,
@@ -82,7 +80,8 @@ static inline constexpr bool is_clang_vector_type_v =
 // @}
 
 template <typename T>
-using remove_cvref_t = sd::remove_cv_t<sd::remove_reference_t<T>>;
+using remove_cvref_t =
+    sycl::detail::remove_cv_t<sycl::detail::remove_reference_t<T>>;
 
 // is_esimd_arithmetic_type
 template <class...> struct make_esimd_void {
@@ -353,18 +352,9 @@ std::enable_if_t<is_clang_vector_type_v<To> && is_clang_vector_type_v<From>, To>
   }
 }
 
-/// Base case for checking if a type U is one of the types.
-template <typename U> constexpr bool is_type() { return false; }
-
-template <typename U, typename T, typename... Ts> constexpr bool is_type() {
-  using UU = typename sd::remove_const_t<U>;
-  using TT = typename sd::remove_const_t<T>;
-  return std::is_same<UU, TT>::value || is_type<UU, Ts...>();
-}
-
 // calculates the number of elements in "To" type
 template <typename ToEltTy, typename FromEltTy, int FromN,
-          typename = sd::enable_if_t<is_vectorizable<ToEltTy>::value>>
+          typename = std::enable_if_t<is_vectorizable<ToEltTy>::value>>
 struct bitcast_helper {
   static inline constexpr int nToElems() {
     constexpr int R1 = sizeof(ToEltTy) / sizeof(FromEltTy);
@@ -376,8 +366,8 @@ struct bitcast_helper {
 
 // Change the element type of a simd vector.
 template <typename ToEltTy, typename FromEltTy, int FromN,
-          typename = sd::enable_if_t<is_vectorizable<ToEltTy>::value>>
-ESIMD_INLINE typename sd::conditional_t<
+          typename = std::enable_if_t<is_vectorizable<ToEltTy>::value>>
+ESIMD_INLINE typename std::conditional_t<
     std::is_same<FromEltTy, ToEltTy>::value, vector_type_t<FromEltTy, FromN>,
     vector_type_t<ToEltTy,
                   bitcast_helper<ToEltTy, FromEltTy, FromN>::nToElems()>>
