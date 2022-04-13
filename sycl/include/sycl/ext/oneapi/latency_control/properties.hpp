@@ -12,10 +12,7 @@
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace sycl::ext::oneapi::experimental {
 
 enum class latency_control_type {
   none, // default
@@ -72,8 +69,5 @@ struct IsCompileTimeProperty<latency_anchor_id_key> : std::true_type {};
 template <>
 struct IsCompileTimeProperty<latency_constraint_key> : std::true_type {};
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
+} // namespace sycl::ext::oneapi::experimental
 } // __SYCL_INLINE_NAMESPACE(cl)
