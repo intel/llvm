@@ -290,7 +290,7 @@ underlying pointer is initialized to `nullptr`.
 a|
 [source,c++]
 ----
-explicit annotated_ptr(T *Ptr, const properties &P);
+explicit annotated_ptr(T *Ptr, const properties<PropertyListT> &P) noexcept;
 ----
 |
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
