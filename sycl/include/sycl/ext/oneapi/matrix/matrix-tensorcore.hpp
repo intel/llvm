@@ -32,6 +32,10 @@ struct joint_matrix;
       typename std::enable_if_t<Layout == matrix_layout::row_major ||          \
                                 Layout == matrix_layout::col_major>> {         \
     sycl::marray<type, size> data;                                             \
+    size_t num_elements = size;                                                \
+    inline __SYCL_ALWAYS_INLINE sycl::marray<type, size> &get_wi_data() {      \
+      return data;                                                             \
+    }                                                                          \
   };
 
 // m8n32k16
