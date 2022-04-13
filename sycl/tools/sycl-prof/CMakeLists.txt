@@ -23,8 +23,6 @@ target_include_directories(sycl_profiler_collector PRIVATE
     "${sycl_src_dir}"
 )
 
-target_compile_options(sycl_profiler_collector PRIVATE -g)
-
 add_dependencies(sycl-prof sycl_profiler_collector)
 add_dependencies(sycl-toolchain sycl-prof)
 
