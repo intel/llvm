@@ -166,9 +166,9 @@ since:
   burden of maintaining them and of preparing diagnostic checks.
   * Compilers are not required to preserve information propagated as attributes.
   Hence this method is only suitable for hints, and not functional directives.
-  Further, from a given load/store call a compiler may not be able to observe a
-  particular pointer load/store call and successfully trace back to the
-  declaration to deduce which annotation was applied to it.
+  Further, from a given load/store call a compiler may not be able to
+  successfully trace back to the declaration to deduce which annotation was
+  applied to it.
 
 The `annotated_ptr` class described in this document is a class template that
 encapsulates a pointer. The template accepts a list of compile-time constant
