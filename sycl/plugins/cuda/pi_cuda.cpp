@@ -2246,10 +2246,7 @@ pi_result cuda_piQueueCreate(pi_context context, pi_device device,
 
     ScopedContext active(context);
 
-    std::vector<CUstream> computeCuStreams(128);
-    std::vector<CUstream> transferCuStreams(64);
     unsigned int flags = 0;
-
     if (properties == __SYCL_PI_CUDA_USE_DEFAULT_STREAM) {
       flags = CU_STREAM_DEFAULT;
     } else if (properties == __SYCL_PI_CUDA_SYNC_WITH_DEFAULT) {
@@ -2258,16 +2255,23 @@ pi_result cuda_piQueueCreate(pi_context context, pi_device device,
       flags = CU_STREAM_NON_BLOCKING;
     }
 
+    const bool is_ooo =
+        properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+
+    std::vector<CUstream> computeCuStreams(is_ooo ? 128 : 1);
+    std::vector<CUstream> transferCuStreams(is_ooo ? 64 : 0);
     for(CUstream& s : computeCuStreams){
       err = PI_CHECK_ERROR(cuStreamCreate(&s, flags));
       if (err != PI_SUCCESS) {
         return err;
       }
     }
-    for(CUstream& s : transferCuStreams){
-      err = PI_CHECK_ERROR(cuStreamCreate(&s, flags));
-      if (err != PI_SUCCESS) {
-        return err;
+    if(is_ooo){
+      for(CUstream& s : transferCuStreams){
+        err = PI_CHECK_ERROR(cuStreamCreate(&s, flags));
+        if (err != PI_SUCCESS) {
+          return err;
+        }
       }
     }
 

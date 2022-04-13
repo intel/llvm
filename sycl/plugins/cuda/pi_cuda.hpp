@@ -408,9 +408,14 @@ struct _pi_queue {
   };
   const std::vector<native_type> &get_all_compute() const noexcept { return compute_streams_; };
   native_type get_transfer() noexcept {
+    if(!(properties_ & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)){
+      return get_compute();
+    }
     return transfer_streams_[transfer_stream_idx_++ % transfer_streams_.size()];
   };
-  const std::vector<native_type> &get_all_transfer() const noexcept { return transfer_streams_; };
+  const std::vector<native_type> &get_all_transfer() const noexcept {
+    return transfer_streams_; 
+    };
 
   _pi_context *get_context() const { return context_; };
 
