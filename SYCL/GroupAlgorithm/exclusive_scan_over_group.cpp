@@ -1,6 +1,7 @@
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: ze_debug4,ze_debug-1
 
 #include <CL/sycl.hpp>
 #include <algorithm>
