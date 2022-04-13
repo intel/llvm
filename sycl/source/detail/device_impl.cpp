@@ -193,6 +193,7 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
       CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
   std::vector<cl_device_partition_property> Properties(P, P + 3);
 
+  // Fill the properties vector with counts and validate it
   auto It = Properties.begin() + 1;
   size_t TotalCounts = 0;
   size_t NonZeroCounts = 0;
