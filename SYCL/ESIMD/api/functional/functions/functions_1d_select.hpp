@@ -109,8 +109,7 @@ class run_test {
   static constexpr int NumSelectedElems = NumSelectedElemsT::value;
   static constexpr int Stride = StrideT::value;
   static constexpr int Offset = OffsetT::value;
-  using TestDescriptionT =
-      TestDescription<NumElems, NumSelectedElems, Stride, Offset, TestCaseT>;
+  using TestDescriptionT = TestDescription<NumElems, TestCaseT>;
 
 public:
   bool operator()(sycl::queue &queue, const std::string &data_type) {
@@ -198,7 +197,9 @@ private:
   bool fail_test(size_t i, DataT expected, DataT retrieved,
                  const std::string &data_type) {
     log::fail(TestDescriptionT(data_type), "Unexpected value at index ", i,
-              ", retrieved: ", retrieved, ", expected: ", expected);
+              ", retrieved: ", retrieved, ", expected: ", expected,
+              ", with size selected elems: ", NumSelectedElems,
+              ", with stride: ", Stride, ", with offset: ", Offset);
 
     return false;
   }
