@@ -21,12 +21,12 @@ namespace oneapi {
 namespace cuda {
 
 // Implementation of cuda::make<device>
-__SYCL_EXPORT device make_device(pi_native_handle NativeHandle) {
+inline __SYCL_EXPORT device make_device(pi_native_handle NativeHandle) {
   return detail::make_device(NativeHandle, backend::cuda);
 }
 
 // Implementation of cuda::make<platform>
-__SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
+inline __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
   return detail::make_platform(NativeHandle, backend::cuda);
 }
 
@@ -36,7 +36,7 @@ __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
 
 // CUDA context specialization
 template <>
-auto get_native<backend::ext_oneapi_cuda, context>(const context &C)
+inline auto get_native<backend::ext_oneapi_cuda, context>(const context &C)
     -> backend_return_t<backend::ext_oneapi_cuda, context> {
   // create a vector to be returned
   backend_return_t<backend::ext_oneapi_cuda, context> ret;
@@ -52,7 +52,7 @@ auto get_native<backend::ext_oneapi_cuda, context>(const context &C)
 
 // CUDA device specialization
 template <>
-device make_device<backend::ext_oneapi_cuda>(
+inline device make_device<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, device> &BackendObject) {
   pi_native_handle NativeHandle = static_cast<pi_native_handle>(BackendObject);
   return ext::oneapi::cuda::make_device(NativeHandle);
@@ -60,7 +60,7 @@ device make_device<backend::ext_oneapi_cuda>(
 
 // CUDA platform specialization
 template <>
-auto get_native<backend::ext_oneapi_cuda, platform>(const platform &C)
+inline auto get_native<backend::ext_oneapi_cuda, platform>(const platform &C)
     -> backend_return_t<backend::ext_oneapi_cuda, platform> {
   // get list of platform devices, and transfer to native platform type
   std::vector<device> platform_devices = C.get_devices();
@@ -75,7 +75,7 @@ auto get_native<backend::ext_oneapi_cuda, platform>(const platform &C)
 }
 
 template <>
-platform make_platform<backend::ext_oneapi_cuda>(
+inline platform make_platform<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, platform> &BackendObject) {
   pi_native_handle NativeHandle =
       detail::pi::cast<pi_native_handle>(&BackendObject);
@@ -84,7 +84,7 @@ platform make_platform<backend::ext_oneapi_cuda>(
 
 // Specialisation of interop_handles get_native_context
 template <>
-backend_return_t<backend::ext_oneapi_cuda, context>
+inline backend_return_t<backend::ext_oneapi_cuda, context>
 interop_handle::get_native_context<backend::ext_oneapi_cuda>() const {
 #ifndef __SYCL_DEVICE_ONLY__
   return std::vector{reinterpret_cast<CUcontext>(getNativeContext())};
