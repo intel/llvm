@@ -2611,16 +2611,21 @@ void CastOperation::checkAddressSpaceCast(QualType SrcType, QualType DestType) {
     bool Nested = false;
     unsigned DiagID = diag::err_typecheck_incompatible_address_space;
     DestPtr = Self.getASTContext().getCanonicalType(DestType.getTypePtr()),
-    SrcPtr  = Self.getASTContext().getCanonicalType(SrcType.getTypePtr());
+    SrcPtr = Self.getASTContext().getCanonicalType(SrcType.getTypePtr());
+    const LangASMap &ASMap =
+        Self.getASTContext().getTargetInfo().getAddressSpaceMap();
 
     while (isa<PointerType>(DestPtr) && isa<PointerType>(SrcPtr)) {
       const PointerType *DestPPtr = cast<PointerType>(DestPtr);
       const PointerType *SrcPPtr = cast<PointerType>(SrcPtr);
       QualType DestPPointee = DestPPtr->getPointeeType();
       QualType SrcPPointee = SrcPPtr->getPointeeType();
-      if (Nested
-              ? DestPPointee.getAddressSpace() != SrcPPointee.getAddressSpace()
-              : !DestPPointee.isAddressSpaceOverlapping(SrcPPointee)) {
+      LangAS DestAS = DestPPointee.getAddressSpace();
+      LangAS SrcAS = SrcPPointee.getAddressSpace();
+      const bool OverlappingAS =
+          Qualifiers::isAddressSpaceSupersetOf(DestAS, SrcAS, &ASMap, true) ||
+          Qualifiers::isAddressSpaceSupersetOf(SrcAS, DestAS, &ASMap, true);
+      if (Nested ? DestAS != SrcAS : !OverlappingAS) {
         Self.Diag(OpRange.getBegin(), DiagID)
             << SrcType << DestType << Sema::AA_Casting
             << SrcExpr.get()->getSourceRange();

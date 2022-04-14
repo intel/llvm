@@ -477,7 +477,46 @@ public:
   ///   every address space is a superset of itself.
   /// CL2.0 adds:
   ///   __generic is a superset of any address space except for __constant.
-  static bool isAddressSpaceSupersetOf(LangAS A, LangAS B) {
+  /// If ASMap is provided and address spaces are provided in both language and
+  /// target form the function will attempt to convert language to
+  /// target address space.
+  static bool isAddressSpaceSupersetOf(LangAS A, LangAS B,
+                                       const LangASMap *ASMap = nullptr,
+                                       bool IsSYCLOrOpenCL = false) {
+    if (ASMap) {
+      bool IsATargetAS = false;
+      bool IsBTargetAS = false;
+      if (A > LangAS::FirstTargetAddressSpace)
+        IsATargetAS = true;
+      if (B > LangAS::FirstTargetAddressSpace)
+        IsBTargetAS = true;
+      if (IsATargetAS ^ IsBTargetAS) {
+        LangAS Generic = static_cast<LangAS>(
+            (*ASMap)[static_cast<unsigned>(LangAS::opencl_generic)] +
+            static_cast<unsigned>(LangAS::FirstTargetAddressSpace));
+        LangAS Constant = static_cast<LangAS>(
+            (*ASMap)[static_cast<unsigned>(LangAS::opencl_constant)] +
+            static_cast<unsigned>(LangAS::FirstTargetAddressSpace));
+        if (IsATargetAS)
+          B = static_cast<LangAS>(
+              (*ASMap)[static_cast<unsigned>(B)] +
+              static_cast<unsigned>(LangAS::FirstTargetAddressSpace));
+        else
+          A = static_cast<LangAS>(
+              (*ASMap)[static_cast<unsigned>(A)] +
+              static_cast<unsigned>(LangAS::FirstTargetAddressSpace));
+        // When dealing with target AS return true iff:
+        // * A is equal to B, or
+        // * in OpenCL or SYCL and A is generic and B is not constant (making
+        // sure that constant and generic are in target address spaces).
+        if (IsSYCLOrOpenCL)
+          return A == B ||
+                 (A == Generic && B != Constant && Generic != Constant);
+        else
+          return A == B;
+      }
+    }
+
     // Address spaces must match exactly.
     return A == B ||
            // Otherwise in OpenCLC v2.0 s6.5.5: every address space except
@@ -514,8 +553,11 @@ public:
   /// Determines if these qualifiers compatibly include another set.
   /// Generally this answers the question of whether an object with the other
   /// qualifiers can be safely used as an object with these qualifiers.
-  bool compatiblyIncludes(Qualifiers other) const {
-    return isAddressSpaceSupersetOf(other) &&
+  bool compatiblyIncludes(Qualifiers other, const LangASMap *ASMap = nullptr,
+                          bool IsSYCLOrOpenCL = false) {
+    return isAddressSpaceSupersetOf(this->getAddressSpace(),
+                                    other.getAddressSpace(), ASMap,
+                                    IsSYCLOrOpenCL) &&
            // ObjC GC qualifiers can match, be added, or be removed, but can't
            // be changed.
            (getObjCGCAttr() == other.getObjCGCAttr() || !hasObjCGCAttr() ||

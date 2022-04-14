@@ -9234,9 +9234,14 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
     rhq.removeObjCLifetime();
   }
 
-  if (!lhq.compatiblyIncludes(rhq)) {
+  const bool IsSYCLOrOpenCL =
+      S.getLangOpts().OpenCL || S.getLangOpts().SYCLIsDevice;
+  const LangASMap &ASMap = S.Context.getTargetInfo().getAddressSpaceMap();
+  if (!lhq.compatiblyIncludes(rhq, &ASMap)) {
     // Treat address-space mismatches as fatal.
-    if (!lhq.isAddressSpaceSupersetOf(rhq))
+    if (!Qualifiers::isAddressSpaceSupersetOf(lhq.getAddressSpace(),
+                                              rhq.getAddressSpace(), &ASMap,
+                                              IsSYCLOrOpenCL))
       return Sema::IncompatiblePointerDiscardsQualifiers;
 
     // It's okay to add or remove GC or lifetime qualifiers when converting to

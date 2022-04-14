@@ -2,7 +2,7 @@
 // RUN: %clang_cc1 -cl-std=CL2.0 -triple amdgcn-amd-amdhsa -verify -pedantic -fsyntax-only %s
 
 void test_numeric_as_to_generic_implicit_cast(__attribute__((address_space(3))) int *as3_ptr, float src) {
-  generic int* generic_ptr = as3_ptr; // FIXME: This should error
+  generic int *generic_ptr = as3_ptr; // expected-warning {{initializing '__generic int *__private' with an expression of type '__attribute__((address_space(3))) int *__private' discards qualifiers}}
 }
 
 void test_numeric_as_to_generic_explicit_cast(__attribute__((address_space(3))) int *as3_ptr, float src) {
@@ -20,12 +20,12 @@ void test_generic_to_numeric_as_explicit_cast(void) {
 }
 
 void test_generic_as_to_builtin_parameter_explicit_cast_numeric(__attribute__((address_space(3))) int *as3_ptr, float src) {
-  generic int* generic_ptr = as3_ptr; // FIXME: This should error
-  volatile float result = __builtin_amdgcn_ds_fmaxf((__attribute__((address_space(3))) float*) generic_ptr, src, 0, 0, false); // expected-error {{passing '__attribute__((address_space(3))) float *' to parameter of type '__local float *' changes address space of pointer}}
+  generic int *generic_ptr = as3_ptr; // expected-warning {{initializing '__generic int *__private' with an expression of type '__attribute__((address_space(3))) int *__private' discards qualifiers}}
+  // This is legal, as address_space(3) correspongs to local on amdgpu.
+  volatile float result = __builtin_amdgcn_ds_fmaxf((__attribute__((address_space(3))) float *)generic_ptr, src, 0, 0, false);
 }
 
 void test_generic_as_to_builtin_parameterimplicit_cast_numeric(__attribute__((address_space(3))) int *as3_ptr, float src) {
-  generic int* generic_ptr = as3_ptr;
+  generic int *generic_ptr = as3_ptr;                                               // expected-warning {{initializing '__generic int *__private' with an expression of type '__attribute__((address_space(3))) int *__private' discards qualifiers}}
   volatile float result = __builtin_amdgcn_ds_fmaxf(generic_ptr, src, 0, 0, false); // expected-error {{passing '__generic int *__private' to parameter of type '__local float *' changes address space of pointer}}
 }
-
