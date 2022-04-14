@@ -184,6 +184,36 @@ inline kernel make_kernel<backend::ext_oneapi_level_zero>(
       backend::ext_oneapi_level_zero);
 }
 
+// Specialization of sycl::make_buffer with event for Level-Zero backend.
+template <backend Backend, typename T, int Dimensions = 1,
+          typename AllocatorT = buffer_allocator>
+typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
+                        buffer<T, Dimensions, AllocatorT>>::type
+make_buffer(
+    const backend_input_t<backend::ext_oneapi_level_zero,
+                          buffer<T, Dimensions, AllocatorT>> &BackendObject,
+    const context &TargetContext, event AvailableEvent) {
+  return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      TargetContext, AvailableEvent,
+      !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
+}
+
+// Specialization of sycl::make_buffer for Level-Zero backend.
+template <backend Backend, typename T, int Dimensions = 1,
+          typename AllocatorT = buffer_allocator>
+typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
+                        buffer<T, Dimensions, AllocatorT>>::type
+make_buffer(
+    const backend_input_t<backend::ext_oneapi_level_zero,
+                          buffer<T, Dimensions, AllocatorT>> &BackendObject,
+    const context &TargetContext) {
+  return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      TargetContext, event{},
+      !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
+}
+
 // TODO: remove this specialization when generic is changed to call
 // .GetNative() instead of .get_native() member of kernel_bundle.
 template <>

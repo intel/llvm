@@ -30,16 +30,12 @@ class StringFile : public __llvm_libc::File {
   static int str_close(__llvm_libc::File *f) { return 0; }
   static int str_flush(__llvm_libc::File *f) { return 0; }
 
-  // TODO: Add a proper locking system and tests which exercise that.
-  static void str_lock(__llvm_libc::File *f) {}
-  static void str_unlock(__llvm_libc::File *f) {}
-
 public:
   explicit StringFile(char *buffer, size_t buflen, int bufmode, bool owned,
                       ModeFlags modeflags)
       : __llvm_libc::File(&str_write, &str_read, &str_seek, &str_close,
-                          &str_flush, &str_lock, &str_unlock, buffer, buflen,
-                          bufmode, owned, modeflags),
+                          &str_flush, buffer, buflen, bufmode, owned,
+                          modeflags),
         pos(0), eof_marker(0), write_append(false) {
     if (modeflags & static_cast<ModeFlags>(__llvm_libc::File::OpenMode::APPEND))
       write_append = true;
@@ -48,8 +44,7 @@ public:
   void init(char *buffer, size_t buflen, int bufmode, bool owned,
             ModeFlags modeflags) {
     File::init(this, &str_write, &str_read, &str_seek, &str_close, &str_flush,
-               &str_lock, &str_unlock, buffer, buflen, bufmode, owned,
-               modeflags);
+               buffer, buflen, bufmode, owned, modeflags);
     pos = eof_marker = 0;
     if (modeflags & static_cast<ModeFlags>(__llvm_libc::File::OpenMode::APPEND))
       write_append = true;
@@ -196,6 +191,27 @@ TEST(LlvmLibcFileTest, ReadOnly) {
   EXPECT_NE(errno, 0);
   errno = 0;
 
+  ASSERT_EQ(f->close(), 0);
+}
+
+TEST(LlvmLibcFileTest, ReadSeekCurAndRead) {
+  const char initial_content[] = "1234567890987654321";
+  constexpr size_t FILE_BUFFER_SIZE = sizeof(initial_content);
+  char file_buffer[FILE_BUFFER_SIZE];
+  StringFile *f = new_string_file(file_buffer, FILE_BUFFER_SIZE, 0, false, "r");
+  f->reset_and_fill(initial_content, sizeof(initial_content));
+
+  constexpr size_t READ_SIZE = 5;
+  char data[READ_SIZE];
+  data[READ_SIZE - 1] = '\0';
+  ASSERT_EQ(f->read(data, READ_SIZE - 1), READ_SIZE - 1);
+  ASSERT_STREQ(data, "1234");
+  ASSERT_EQ(f->seek(5, SEEK_CUR), 0);
+  ASSERT_EQ(f->read(data, READ_SIZE - 1), READ_SIZE - 1);
+  ASSERT_STREQ(data, "0987");
+  ASSERT_EQ(f->seek(-5, SEEK_CUR), 0);
+  ASSERT_EQ(f->read(data, READ_SIZE - 1), READ_SIZE - 1);
+  ASSERT_STREQ(data, "9098");
   ASSERT_EQ(f->close(), 0);
 }
 

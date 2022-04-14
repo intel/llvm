@@ -42,12 +42,15 @@ namespace __ESIMD_DNS {
 // Provides access to sycl accessor class' private members.
 class AccessorPrivateProxy {
 public:
-#ifdef __SYCL_DEVICE_ONLY__
   template <typename AccessorTy>
   static auto getNativeImageObj(const AccessorTy &Acc) {
+#ifdef __SYCL_DEVICE_ONLY__
     return Acc.getNativeImageObj();
-  }
 #else  // __SYCL_DEVICE_ONLY__
+    return Acc;
+#endif // __SYCL_DEVICE_ONLY__
+  }
+#ifndef __SYCL_DEVICE_ONLY__
   static void *getPtr(const sycl::detail::AccessorBaseHost &Acc) {
     return Acc.getPtr();
   }
@@ -222,10 +225,9 @@ __esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind, uint32_t offset)
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (offset >= width) {
@@ -267,10 +269,9 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &writeBase, &width,
-                                           &mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (offset < width) {
@@ -378,7 +379,7 @@ __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
   static_assert(N == 1 || N == 8 || N == 16 || N == 32);
   static_assert(TySizeLog2 <= 2 && Scale == 0);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -421,8 +422,21 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
   static_assert(TySizeLog2 <= 2);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
 
+  // determine the original element's type size (as __esimd_scatter_scaled
+  // requires vals to be a vector of 4-byte integers)
+  constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
+  using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
+
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
+
+  __ESIMD_DNS::vector_type_t<RestoredTy, N> TypeAdjustedVals;
+  if constexpr (OrigSize == 4) {
+    TypeAdjustedVals = __ESIMD_DNS::bitcast<RestoredTy, Ty, N>(vals);
+  } else {
+    static_assert(OrigSize == 1 || OrigSize == 2);
+    TypeAdjustedVals = __ESIMD_DNS::convert_vector<RestoredTy, Ty, N>(vals);
+  }
 
   if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
     // Scattered-store for Shared Local Memory
@@ -431,8 +445,9 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     char *SlmBase = I->__cm_emu_get_slm_ptr();
     for (int i = 0; i < N; ++i) {
       if (pred[i]) {
-        Ty *addr = reinterpret_cast<Ty *>(elem_offsets[i] + SlmBase);
-        *addr = vals[i];
+        RestoredTy *addr =
+            reinterpret_cast<RestoredTy *>(elem_offsets[i] + SlmBase);
+        *addr = TypeAdjustedVals[i];
       }
     }
   } else {
@@ -441,16 +456,16 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &writeBase, &width,
-                                           &mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
     writeBase += global_offset;
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(elem_offsets[idx] + writeBase);
-        *addr = vals[idx];
+        RestoredTy *addr =
+            reinterpret_cast<RestoredTy *>(elem_offsets[idx] + writeBase);
+        *addr = TypeAdjustedVals[idx];
       }
     }
 
@@ -469,7 +484,7 @@ __esimd_svm_atomic0(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -493,7 +508,7 @@ __esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
         retv[i] = atomic_add_fetch<Ty>(p, src0[i]);
         break;
       default:
-        throw cl::sycl::feature_not_supported();
+        __ESIMD_UNSUPPORTED_ON_HOST;
       }
     }
   }
@@ -512,7 +527,7 @@ __esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -576,11 +591,10 @@ __esimd_gather_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
     readBase += global_offset;
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
@@ -629,7 +643,12 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 {
   static_assert(Scale == 0);
 
-  __ESIMD_DNS::vector_type_t<Ty, N> retv = 0;
+  // determine the original element's type size (as __esimd_scatter_scaled
+  // requires vals to be a vector of 4-byte integers)
+  constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
+  using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
+
+  __ESIMD_DNS::vector_type_t<RestoredTy, N> retv = 0;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
@@ -639,7 +658,8 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     char *SlmBase = I->__cm_emu_get_slm_ptr();
     for (int idx = 0; idx < N; ++idx) {
       if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[idx] + SlmBase);
+        RestoredTy *addr =
+            reinterpret_cast<RestoredTy *>(offsets[idx] + SlmBase);
         retv[idx] = *addr;
       }
     }
@@ -648,14 +668,14 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
 
     readBase += global_offset;
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[idx] + readBase);
+        RestoredTy *addr =
+            reinterpret_cast<RestoredTy *>(offsets[idx] + readBase);
         retv[idx] = *addr;
       }
     }
@@ -663,7 +683,12 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     // TODO : Optimize
     I->cm_fence_ptr();
   }
-  return retv;
+
+  if constexpr (OrigSize == 4) {
+    return __ESIMD_DNS::bitcast<Ty, RestoredTy, N>(retv);
+  } else {
+    return __ESIMD_DNS::convert_vector<Ty, RestoredTy, N>(retv);
+  }
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -697,10 +722,9 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (addr >= width) {
@@ -738,9 +762,8 @@ __ESIMD_INTRIN
   } else {
     uint32_t width;
     std::mutex *mutexLock;
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &ReadBase, &width,
-                                           &mutexLock);
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &ReadBase, &width, &mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
   }
 
   ReadBase += global_offset;
@@ -782,9 +805,8 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
   } else {
     uint32_t width;
     std::mutex *mutexLock;
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &WriteBase, &width,
-                                           &mutexLock);
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &WriteBase, &width, &mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
   }
 
   WriteBase += global_offset;
@@ -828,12 +850,12 @@ __esimd_dword_atomic0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
           retv[i] = atomic_add_fetch<Ty>(p, 1);
           break;
         default:
-          throw cl::sycl::feature_not_supported();
+          __ESIMD_UNSUPPORTED_ON_HOST;
         }
       }
     }
   } else {
-    throw cl::sycl::feature_not_supported();
+    __ESIMD_UNSUPPORTED_ON_HOST;
   }
   return retv;
 }
@@ -849,7 +871,7 @@ __esimd_dword_atomic1(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -864,7 +886,7 @@ __esimd_dword_atomic2(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -901,10 +923,10 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
   assert((handle != __ESIMD_NS::detail::SLM_BTI) &&
          "__esimd_media_ld cannot access SLM");
 
-  sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_image_params_index_ptr(
+  sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_image_params_ptr(
       handle, &readBase, &imgWidth, &imgHeight, &bpp, &mutexLock);
 
-  std::unique_lock<std::mutex> lock(*mutexLock);
+  std::lock_guard<std::mutex> lock(*mutexLock);
 
   int x_pos_a, y_pos_a, offset, index;
 
@@ -1031,8 +1053,8 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
   assert((handle != __ESIMD_NS::detail::SLM_BTI) &&
          "__esimd_media_ld cannot access SLM");
 
-  I->sycl_get_cm_image_params_index_ptr(handle, &writeBase, &imgWidth,
-                                        &imgHeight, &bpp, &mutexLock);
+  I->sycl_get_cm_image_params_ptr(handle, &writeBase, &imgWidth, &imgHeight,
+                                  &bpp, &mutexLock);
 
   int x_pos_a, y_pos_a, offset;
 
@@ -1042,7 +1064,7 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
   // TODO : Remove intermediate 'out' matrix
   std::vector<std::vector<Ty>> out(M, std::vector<Ty>(N));
 
-  std::unique_lock<std::mutex> lock(*mutexLock);
+  std::lock_guard<std::mutex> lock(*mutexLock);
 
   for (int i = 0, k = 0; i < M; i++) {
     for (int j = 0; j < N; j++) {

@@ -11,20 +11,20 @@
 #include "mlir/Support/MathExtras.h"
 #include "llvm/ADT/Optional.h"
 
-namespace mlir {
+using namespace mlir;
+using namespace presburger;
 
-using namespace presburger_utils;
 using Direction = Simplex::Direction;
 
 const int nullIndex = std::numeric_limits<int>::max();
 
 SimplexBase::SimplexBase(unsigned nVar, bool mustUseBigM)
-    : usingBigM(mustUseBigM), nRow(0), nCol(getNumFixedCols() + nVar),
-      nRedundant(0), tableau(0, nCol), empty(false) {
-  colUnknown.insert(colUnknown.begin(), getNumFixedCols(), nullIndex);
+    : usingBigM(mustUseBigM), numFixedCols(mustUseBigM ? 3 : 2), nRow(0),
+      nCol(numFixedCols + nVar), nRedundant(0), tableau(0, nCol), empty(false) {
+  colUnknown.insert(colUnknown.begin(), numFixedCols, nullIndex);
   for (unsigned i = 0; i < nVar; ++i) {
     var.emplace_back(Orientation::Column, /*restricted=*/false,
-                     /*pos=*/getNumFixedCols() + i);
+                     /*pos=*/numFixedCols + i);
     colUnknown.push_back(i);
   }
 }
@@ -66,6 +66,7 @@ unsigned SimplexBase::addZeroRow(bool makeRestricted) {
     tableau.resizeVertically(nRow);
   rowUnknown.push_back(~con.size());
   con.emplace_back(Orientation::Row, makeRestricted, nRow - 1);
+  undoLog.push_back(UndoLogEntry::RemoveLastConstraint);
 
   // Zero out the new row.
   tableau.fillRow(nRow - 1, 0);
@@ -131,7 +132,6 @@ unsigned SimplexBase::addRow(ArrayRef<int64_t> coeffs, bool makeRestricted) {
 
   normalizeRow(nRow - 1);
   // Push to undo log along with the index of the new constraint.
-  undoLog.push_back(UndoLogEntry::RemoveLastConstraint);
   return con.size() - 1;
 }
 
@@ -180,7 +180,7 @@ LogicalResult LexSimplex::addCut(unsigned row) {
   return moveRowUnknownToColumn(nRow - 1);
 }
 
-Optional<unsigned> LexSimplex::maybeGetNonIntegeralVarRow() const {
+Optional<unsigned> LexSimplex::maybeGetNonIntegralVarRow() const {
   for (const Unknown &u : var) {
     if (u.orientation == Orientation::Column)
       continue;
@@ -200,7 +200,7 @@ MaybeOptimum<SmallVector<int64_t, 8>> LexSimplex::findIntegerLexMin() {
     if (empty)
       return OptimumKind::Empty;
 
-    if (Optional<unsigned> maybeRow = maybeGetNonIntegeralVarRow()) {
+    if (Optional<unsigned> maybeRow = maybeGetNonIntegralVarRow()) {
       // Failure occurs when the polytope is integer empty.
       if (failed(addCut(*maybeRow)))
         return OptimumKind::Empty;
@@ -309,7 +309,7 @@ void LexSimplex::restoreRationalConsistency() {
 // minimizes the change in sample value.
 LogicalResult LexSimplex::moveRowUnknownToColumn(unsigned row) {
   Optional<unsigned> maybeColumn;
-  for (unsigned col = 3; col < nCol; ++col) {
+  for (unsigned col = getNumFixedCols(); col < nCol; ++col) {
     if (tableau(row, col) <= 0)
       continue;
     maybeColumn =
@@ -648,7 +648,7 @@ void Simplex::addInequality(ArrayRef<int64_t> coeffs) {
 ///
 /// We simply add two opposing inequalities, which force the expression to
 /// be zero.
-void SimplexBase::addEquality(ArrayRef<int64_t> coeffs) {
+void Simplex::addEquality(ArrayRef<int64_t> coeffs) {
   addInequality(coeffs);
   SmallVector<int64_t, 8> negatedCoeffs;
   for (int64_t coeff : coeffs)
@@ -702,6 +702,15 @@ Optional<unsigned> SimplexBase::findAnyPivotRow(unsigned col) {
   for (unsigned row = nRedundant; row < nRow; ++row)
     if (tableau(row, col) != 0)
       return row;
+  return {};
+}
+
+// This doesn't find a pivot column only if the row has zero coefficients for
+// every column not marked as an equality.
+Optional<unsigned> SimplexBase::findAnyPivotCol(unsigned row) {
+  for (unsigned col = getNumFixedCols(); col < nCol; ++col)
+    if (tableau(row, col) != 0)
+      return col;
   return {};
 }
 
@@ -780,6 +789,10 @@ void SimplexBase::undo(UndoLogEntry entry) {
     empty = false;
   } else if (entry == UndoLogEntry::UnmarkLastRedundant) {
     nRedundant--;
+  } else if (entry == UndoLogEntry::UnmarkLastEquality) {
+    numFixedCols--;
+    assert(getNumFixedCols() >= 2 + usingBigM &&
+           "The denominator, constant, big M and symbols are always fixed!");
   } else if (entry == UndoLogEntry::RestoreBasis) {
     assert(!savedBases.empty() && "No bases saved!");
 
@@ -818,6 +831,28 @@ void SimplexBase::rollback(unsigned snapshot) {
   }
 }
 
+/// We add the usual floor division constraints:
+/// `0 <= coeffs - denom*q <= denom - 1`, where `q` is the new division
+/// variable.
+///
+/// This constrains the remainder `coeffs - denom*q` to be in the
+/// range `[0, denom - 1]`, which fixes the integer value of the quotient `q`.
+void SimplexBase::addDivisionVariable(ArrayRef<int64_t> coeffs, int64_t denom) {
+  assert(denom != 0 && "Cannot divide by zero!\n");
+  appendVariable();
+
+  SmallVector<int64_t, 8> ineq(coeffs.begin(), coeffs.end());
+  int64_t constTerm = ineq.back();
+  ineq.back() = -denom;
+  ineq.push_back(constTerm);
+  addInequality(ineq);
+
+  for (int64_t &coeff : ineq)
+    coeff = -coeff;
+  ineq.back() += denom - 1;
+  addInequality(ineq);
+}
+
 void SimplexBase::appendVariable(unsigned count) {
   if (count == 0)
     return;
@@ -833,14 +868,14 @@ void SimplexBase::appendVariable(unsigned count) {
   undoLog.insert(undoLog.end(), count, UndoLogEntry::RemoveLastVariable);
 }
 
-/// Add all the constraints from the given IntegerPolyhedron.
-void SimplexBase::intersectIntegerPolyhedron(const IntegerPolyhedron &poly) {
-  assert(poly.getNumIds() == getNumVariables() &&
-         "IntegerPolyhedron must have same dimensionality as simplex");
-  for (unsigned i = 0, e = poly.getNumInequalities(); i < e; ++i)
-    addInequality(poly.getInequality(i));
-  for (unsigned i = 0, e = poly.getNumEqualities(); i < e; ++i)
-    addEquality(poly.getEquality(i));
+/// Add all the constraints from the given IntegerRelation.
+void SimplexBase::intersectIntegerRelation(const IntegerRelation &rel) {
+  assert(rel.getNumIds() == getNumVariables() &&
+         "IntegerRelation must have same dimensionality as simplex");
+  for (unsigned i = 0, e = rel.getNumInequalities(); i < e; ++i)
+    addInequality(rel.getInequality(i));
+  for (unsigned i = 0, e = rel.getNumEqualities(); i < e; ++i)
+    addEquality(rel.getEquality(i));
 }
 
 MaybeOptimum<Fraction> Simplex::computeRowOptimum(Direction direction,
@@ -866,11 +901,11 @@ MaybeOptimum<Fraction> Simplex::computeOptimum(Direction direction,
                                                ArrayRef<int64_t> coeffs) {
   if (empty)
     return OptimumKind::Empty;
-  unsigned snapshot = getSnapshot();
+
+  SimplexRollbackScopeExit scopeExit(*this);
   unsigned conIndex = addRow(coeffs);
   unsigned row = con[conIndex].pos;
   MaybeOptimum<Fraction> optimum = computeRowOptimum(direction, row);
-  rollback(snapshot);
   return optimum;
 }
 
@@ -1088,6 +1123,26 @@ Optional<SmallVector<Fraction, 8>> Simplex::getRationalSample() const {
   return sample;
 }
 
+void LexSimplex::addInequality(ArrayRef<int64_t> coeffs) {
+  addRow(coeffs, /*makeRestricted=*/true);
+}
+
+/// Try to make the equality a fixed column by finding any pivot and performing
+/// it. The only time this is not possible is when the given equality's
+/// direction is already in the span of the existing fixed column equalities. In
+/// that case, we just leave it in row position.
+void LexSimplex::addEquality(ArrayRef<int64_t> coeffs) {
+  const Unknown &u = con[addRow(coeffs, /*makeRestricted=*/true)];
+  Optional<unsigned> pivotCol = findAnyPivotCol(u.pos);
+  if (!pivotCol)
+    return;
+
+  pivot(u.pos, *pivotCol);
+  swapColumns(*pivotCol, getNumFixedCols());
+  numFixedCols++;
+  undoLog.push_back(UndoLogEntry::UnmarkLastEquality);
+}
+
 MaybeOptimum<SmallVector<Fraction, 8>> LexSimplex::getRationalSample() const {
   if (empty)
     return OptimumKind::Empty;
@@ -1146,7 +1201,7 @@ Optional<SmallVector<int64_t, 8>> Simplex::getSamplePointIfIntegral() const {
 /// also supports rolling back this addition, by maintaining a snapshot stack
 /// that contains a snapshot of the Simplex's state for each equality, just
 /// before that equality was added.
-class GBRSimplex {
+class presburger::GBRSimplex {
   using Orientation = Simplex::Orientation;
 
 public:
@@ -1183,7 +1238,7 @@ public:
     // tableau before returning. We instead add a row for the objective function
     // ourselves, call into computeOptimum, compute the duals from the tableau
     // state, and finally rollback the addition of the row before returning.
-    unsigned snap = simplex.getSnapshot();
+    SimplexRollbackScopeExit scopeExit(simplex);
     unsigned conIndex = simplex.addRow(getCoeffsForDirection(dir));
     unsigned row = simplex.con[conIndex].pos;
     MaybeOptimum<Fraction> maybeWidth =
@@ -1226,7 +1281,6 @@ public:
       else
         dual.push_back(0);
     }
-    simplex.rollback(snap);
     return *maybeWidth;
   }
 
@@ -1655,16 +1709,16 @@ void SimplexBase::print(raw_ostream &os) const {
 
 void SimplexBase::dump() const { print(llvm::errs()); }
 
-bool Simplex::isRationalSubsetOf(const IntegerPolyhedron &poly) {
+bool Simplex::isRationalSubsetOf(const IntegerRelation &rel) {
   if (isEmpty())
     return true;
 
-  for (unsigned i = 0, e = poly.getNumInequalities(); i < e; ++i)
-    if (findIneqType(poly.getInequality(i)) != IneqType::Redundant)
+  for (unsigned i = 0, e = rel.getNumInequalities(); i < e; ++i)
+    if (findIneqType(rel.getInequality(i)) != IneqType::Redundant)
       return false;
 
-  for (unsigned i = 0, e = poly.getNumEqualities(); i < e; ++i)
-    if (!isRedundantEquality(poly.getEquality(i)))
+  for (unsigned i = 0, e = rel.getNumEqualities(); i < e; ++i)
+    if (!isRedundantEquality(rel.getEquality(i)))
       return false;
 
   return true;
@@ -1719,5 +1773,3 @@ bool Simplex::isRedundantEquality(ArrayRef<int64_t> coeffs) {
   return minimum.isBounded() && maximum.isBounded() &&
          *maximum == Fraction(0, 1) && *minimum == Fraction(0, 1);
 }
-
-} // namespace mlir

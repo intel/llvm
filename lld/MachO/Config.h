@@ -170,10 +170,6 @@ struct Configuration {
   std::vector<SectionAlign> sectionAlignments;
   std::vector<SegmentProtection> segmentProtections;
 
-  llvm::DenseMap<llvm::StringRef, SymbolPriorityEntry> priorities;
-  llvm::MapVector<std::pair<const InputSection *, const InputSection *>,
-                  uint64_t>
-      callGraphProfile;
   bool callGraphProfileSort = false;
   llvm::StringRef printSymbolOrder;
 
@@ -182,6 +178,7 @@ struct Configuration {
 
   SymbolPatterns exportedSymbols;
   SymbolPatterns unexportedSymbols;
+  SymbolPatterns whyLive;
 
   bool zeroModTime = false;
 

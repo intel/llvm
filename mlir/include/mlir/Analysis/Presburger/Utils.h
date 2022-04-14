@@ -17,10 +17,9 @@
 #include "llvm/ADT/STLExtras.h"
 
 namespace mlir {
+namespace presburger {
 
-class IntegerPolyhedron;
-
-namespace presburger_utils {
+class IntegerRelation;
 
 /// This class represents the result of operations optimizing something subject
 /// to some constraints. If the constraints were not satisfiable the, kind will
@@ -110,7 +109,7 @@ struct MaybeLocalRepr {
 /// the representation could be computed, `dividend` and `denominator` are set.
 /// If the representation could not be computed, the kind attribute in
 /// `MaybeLocalRepr` is set to None.
-MaybeLocalRepr computeSingleVarRepr(const IntegerPolyhedron &cst,
+MaybeLocalRepr computeSingleVarRepr(const IntegerRelation &cst,
                                     ArrayRef<bool> foundRepr, unsigned pos,
                                     SmallVector<int64_t, 8> &dividend,
                                     unsigned &divisor);
@@ -125,13 +124,23 @@ MaybeLocalRepr computeSingleVarRepr(const IntegerPolyhedron &cst,
 /// `true`, the divisions are merged i.e. `j^th` division gets eliminated and
 /// it's each instance is replaced by `i^th` division. If it returns `false`,
 /// the divisions are not merged. `merge` can also do side effects, For example
-/// it can merge the local identifiers in IntegerPolyhedron.
+/// it can merge the local identifiers in IntegerRelation.
 void removeDuplicateDivs(
     std::vector<SmallVector<int64_t, 8>> &divs,
     SmallVectorImpl<unsigned> &denoms, unsigned localOffset,
     llvm::function_ref<bool(unsigned i, unsigned j)> merge);
 
-} // namespace presburger_utils
+/// Return `coeffs` with all the elements negated.
+SmallVector<int64_t, 8> getNegatedCoeffs(ArrayRef<int64_t> coeffs);
+
+/// Return the complement of the given inequality.
+///
+/// The complement of a_1 x_1 + ... + a_n x_ + c >= 0 is
+/// a_1 x_1 + ... + a_n x_ + c < 0, i.e., -a_1 x_1 - ... - a_n x_ - c - 1 >= 0,
+/// since all the variables are constrained to be integers.
+SmallVector<int64_t, 8> getComplementIneq(ArrayRef<int64_t> ineq);
+
+} // namespace presburger
 } // namespace mlir
 
 #endif // MLIR_ANALYSIS_PRESBURGER_UTILS_H

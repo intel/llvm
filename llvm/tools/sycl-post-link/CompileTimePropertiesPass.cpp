@@ -20,7 +20,7 @@ using namespace llvm;
 
 namespace {
 
-constexpr StringRef SYCL_HOST_ACCESS_ATTR = "host_access";
+constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 // The corresponding SPIR-V OpCode for the host_access property is documented

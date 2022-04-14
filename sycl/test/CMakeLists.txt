@@ -34,6 +34,7 @@ list(APPEND SYCL_TEST_DEPS
   get_device_count_by_type
   llvm-config
   llvm-cxxdump
+  llvm-dis
   llvm-readobj
   )
 
@@ -62,6 +63,10 @@ add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression test
 add_custom_target(check-sycl)
 add_dependencies(check-sycl check-sycl-spirv)
 set_target_properties(check-sycl PROPERTIES FOLDER "SYCL tests")
+
+if (TARGET check-all)
+  add_dependencies(check-all check-sycl)
+endif()
 
 if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuite(check-sycl-ptx "Running device-agnostic SYCL regression tests for NVidia PTX"
