@@ -27,10 +27,7 @@
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace sycl::ext::oneapi::experimental {
 
 // Provides functionality to print data from kernels in a C way:
 // - On non-host devices this function is directly mapped to printf from
@@ -155,7 +152,7 @@ fabs(T x) {
 }
 
 template <typename T>
-std::enable_if_t<std::is_same_v<T, bfloat16>, T> fabs(T x) {
+std::enable_if_t<sycl::detail::is_same_v<T, bfloat16>, T> fabs(T x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return bfloat16::from_bits(__clc_fabs(x.raw()));
 #else
@@ -166,7 +163,7 @@ std::enable_if_t<std::is_same_v<T, bfloat16>, T> fabs(T x) {
 }
 
 template <typename T, size_t N>
-std::enable_if_t<std::is_same_v<T, bfloat16>, sycl::marray<T, N>>
+std::enable_if_t<sycl::detail::is_same_v<T, bfloat16>, sycl::marray<T, N>>
 fabs(sycl::marray<T, N> x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
@@ -179,7 +176,6 @@ fabs(sycl::marray<T, N> x) {
   if constexpr (N % 2) {
     res[N - 1] = bfloat16::from_bits(__clc_fabs(x[N - 1].raw()));
   }
-
   return res;
 #else
   (void)x;
@@ -202,7 +198,7 @@ fmin(T x, T y) {
 }
 
 template <typename T>
-std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmin(T x, T y) {
+std::enable_if_t<sycl::detail::is_same_v<T, bfloat16>, T> fmin(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return bfloat16::from_bits(__clc_fmin(x.raw(), y.raw()));
 #else
@@ -214,7 +210,7 @@ std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmin(T x, T y) {
 }
 
 template <typename T, size_t N>
-std::enable_if_t<std::is_same_v<T, bfloat16>, sycl::marray<T, N>>
+std::enable_if_t<sycl::detail::is_same_v<T, bfloat16>, sycl::marray<T, N>>
 fmin(sycl::marray<T, N> x, sycl::marray<T, N> y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
@@ -253,7 +249,7 @@ fmax(T x, T y) {
 }
 
 template <typename T>
-std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmax(T x, T y) {
+std::enable_if_t<sycl::detail::is_same_v<T, bfloat16>, T> fmax(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return bfloat16::from_bits(__clc_fmax(x.raw(), y.raw()));
 #else
@@ -265,7 +261,7 @@ std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmax(T x, T y) {
 }
 
 template <typename T, size_t N>
-std::enable_if_t<std::is_same_v<T, bfloat16>, sycl::marray<T, N>>
+std::enable_if_t<sycl::detail::is_same_v<T, bfloat16>, sycl::marray<T, N>>
 fmax(sycl::marray<T, N> x, sycl::marray<T, N> y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
@@ -280,7 +276,6 @@ fmax(sycl::marray<T, N> x, sycl::marray<T, N> y) {
     res[N - 1] =
         bfloat16::from_bits(__clc_fmax(x[N - 1].raw(), y[N - 1].raw()));
   }
-
   return res;
 #else
   (void)x;
@@ -305,7 +300,7 @@ fma(T x, T y, T z) {
 }
 
 template <typename T>
-std::enable_if_t<std::is_same_v<T, bfloat16>, T> fma(T x, T y, T z) {
+std::enable_if_t<sycl::detail::is_same_v<T, bfloat16>, T> fma(T x, T y, T z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return bfloat16::from_bits(__clc_fma(x.raw(), y.raw(), z.raw()));
 #else
@@ -318,7 +313,7 @@ std::enable_if_t<std::is_same_v<T, bfloat16>, T> fma(T x, T y, T z) {
 }
 
 template <typename T, size_t N>
-std::enable_if_t<std::is_same_v<T, bfloat16>, sycl::marray<T, N>>
+std::enable_if_t<sycl::detail::is_same_v<T, bfloat16>, sycl::marray<T, N>>
 fma(sycl::marray<T, N> x, sycl::marray<T, N> y, sycl::marray<T, N> z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
@@ -334,7 +329,6 @@ fma(sycl::marray<T, N> x, sycl::marray<T, N> y, sycl::marray<T, N> z) {
     res[N - 1] = bfloat16::from_bits(
         __clc_fma(x[N - 1].raw(), y[N - 1].raw(), z[N - 1].raw()));
   }
-
   return res;
 #else
   (void)x;
@@ -344,11 +338,7 @@ fma(sycl::marray<T, N> x, sycl::marray<T, N> y, sycl::marray<T, N> z) {
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
-
-} // namespace sycl
+} // namespace sycl::ext::oneapi::experimental
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef __SYCL_CONSTANT_AS

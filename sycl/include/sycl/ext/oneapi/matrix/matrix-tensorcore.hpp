@@ -10,9 +10,7 @@
 #include <sycl/ext/oneapi/experimental/bfloat16.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace oneapi {
+namespace sycl::ext::oneapi {
 namespace experimental::matrix {
 
 enum class matrix_use { a, b, accumulator };
@@ -32,10 +30,6 @@ struct joint_matrix;
       typename std::enable_if_t<Layout == matrix_layout::row_major ||          \
                                 Layout == matrix_layout::col_major>> {         \
     sycl::marray<type, size> data;                                             \
-    size_t num_elements = size;                                                \
-    inline __SYCL_ALWAYS_INLINE sycl::marray<type, size> &get_wi_data() {      \
-      return data;                                                             \
-    }                                                                          \
   };
 
 // m8n32k16
@@ -147,8 +141,8 @@ struct joint_matrix_load_impl<
   void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
                 T, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
             multi_ptr<T, Space> src, size_t stride) {
-    if constexpr (std::is_same_v<T, uint16_t> ||
-                  std::is_same_v<T,
+    if constexpr (sycl::detail::is_same_v<T, uint16_t> ||
+                  sycl::detail::is_same_v<T,
                                  sycl::ext::oneapi::experimental::bfloat16>) {
       auto tileptr = reinterpret_cast<int32_t const *>(src.get());
       auto destptr = reinterpret_cast<int32_t *>(&res.data);
@@ -175,7 +169,7 @@ struct joint_matrix_load_impl<
         __mma_bf16_m32n8k16_ld_b(destptr, tileptr, stride,
                                  get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same_v<T, uint8_t>) {
+    } else if constexpr (sycl::detail::is_same_v<T, uint8_t>) {
       auto tileptr = reinterpret_cast<int32_t const *>(src.get());
       auto destptr = reinterpret_cast<int32_t *>(&res.data);
       if constexpr (NumRows == 16 && NumCols == 16) {
@@ -201,7 +195,7 @@ struct joint_matrix_load_impl<
         __imma_m32n8k16_ld_b_u8(destptr, tileptr, stride,
                                 get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same_v<T, int8_t>) {
+    } else if constexpr (sycl::detail::is_same_v<T, int8_t>) {
       auto tileptr = reinterpret_cast<int32_t const *>(src.get());
       auto destptr = reinterpret_cast<int32_t *>(&res.data);
       if constexpr (NumRows == 16 && NumCols == 16) {
@@ -227,7 +221,7 @@ struct joint_matrix_load_impl<
         __imma_m32n8k16_ld_b_s8(destptr, tileptr, stride,
                                 get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same_v<T, half>) {
+    } else if constexpr (sycl::detail::is_same_v<T, half>) {
       auto tileptr = reinterpret_cast<int32_t const *>(src.get());
       auto dstptr = reinterpret_cast<int32_t *>(&res.data);
       if constexpr (NumRows == 16 && NumCols == 16) {
@@ -260,7 +254,7 @@ struct joint_matrix_load_impl<
                                  get_layout_id<Layout>());
       }
 
-    } else if constexpr (std::is_same_v<T, int32_t>) {
+    } else if constexpr (sycl::detail::is_same_v<T, int32_t>) {
       auto destptr = reinterpret_cast<int32_t *>(&res.data);
       if constexpr (NumRows == 16 && NumCols == 16) {
         __imma_m16n16k16_ld_c(destptr, src.get(), stride,
@@ -272,7 +266,7 @@ struct joint_matrix_load_impl<
         __imma_m32n8k16_ld_c(destptr, src.get(), stride,
                              get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same_v<T, float>) {
+    } else if constexpr (sycl::detail::is_same_v<T, float>) {
       auto dstptr = reinterpret_cast<float *>(&res.data);
       if constexpr (NumRows == 16 && NumCols == 16) {
         __hmma_m16n16k16_ld_c_f32(dstptr, src.get(), stride,
@@ -284,7 +278,7 @@ struct joint_matrix_load_impl<
         __hmma_m32n8k16_ld_c_f32(dstptr, src.get(), stride,
                                  get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same_v<T, double>) {
+    } else if constexpr (sycl::detail::is_same_v<T, double>) {
       auto dstptr = reinterpret_cast<double *>(&res.data);
       if constexpr (Use ==
                     sycl::ext::oneapi::experimental::matrix::matrix_use::a) {
@@ -326,52 +320,51 @@ struct joint_matrix_store_impl<
             NumRows, NumCols, Layout, sycl::sub_group> &src,
         multi_ptr<T, Space> dst, size_t stride) {
     if (NumRows == 16 && NumCols == 16) {
-
-      if constexpr (std::is_same_v<T, float>) {
+      if constexpr (sycl::detail::is_same_v<T, float>) {
         auto srcptr = reinterpret_cast<float *>(&src.data);
         __hmma_m16n16k16_st_c_f32(dst.get(), srcptr, stride,
                                   get_layout_id<Layout>());
-      } else if constexpr (std::is_same_v<T, int32_t>) {
+      } else if constexpr (sycl::detail::is_same_v<T, int32_t>) {
         auto srcptr = reinterpret_cast<int32_t *>(&src.data);
         __imma_m16n16k16_st_c_i32(dst.get(), srcptr, stride,
                                   get_layout_id<Layout>());
-      } else if constexpr (std::is_same_v<T, half>) {
+      } else if constexpr (sycl::detail::is_same_v<T, half>) {
         auto tileptr = reinterpret_cast<int32_t *>(dst.get());
         auto srcptr = reinterpret_cast<int32_t *>(&src.data);
         __hmma_m16n16k16_st_c_f16(tileptr, srcptr, stride,
                                   get_layout_id<Layout>());
       }
     } else if (NumRows == 8 && NumCols == 32) {
-      if constexpr (std::is_same_v<T, float>) {
+      if constexpr (sycl::detail::is_same_v<T, float>) {
         auto srcptr = reinterpret_cast<float *>(&src.data);
         __hmma_m8n32k16_st_c_f32(dst.get(), srcptr, stride,
                                  get_layout_id<Layout>());
-      } else if constexpr (std::is_same_v<T, int32_t>) {
+      } else if constexpr (sycl::detail::is_same_v<T, int32_t>) {
         auto srcptr = reinterpret_cast<int32_t *>(&src.data);
         __imma_m8n32k16_st_c_i32(dst.get(), srcptr, stride,
                                  get_layout_id<Layout>());
-      } else if constexpr (std::is_same_v<T, half>) {
+      } else if constexpr (sycl::detail::is_same_v<T, half>) {
         auto tileptr = reinterpret_cast<int32_t *>(dst.get());
         auto srcptr = reinterpret_cast<int32_t *>(&src.data);
         __hmma_m8n32k16_st_c_f16(tileptr, srcptr, stride,
                                  get_layout_id<Layout>());
       }
     } else if (NumRows == 32 && NumCols == 8) {
-      if constexpr (std::is_same_v<T, float>) {
+      if constexpr (sycl::detail::is_same_v<T, float>) {
         auto srcptr = reinterpret_cast<float *>(&src.data);
         __hmma_m32n8k16_st_c_f32(dst.get(), srcptr, stride,
                                  get_layout_id<Layout>());
-      } else if constexpr (std::is_same_v<T, int32_t>) {
+      } else if constexpr (sycl::detail::is_same_v<T, int32_t>) {
         auto srcptr = reinterpret_cast<int32_t *>(&src.data);
         __imma_m32n8k16_st_c_i32(dst.get(), srcptr, stride,
                                  get_layout_id<Layout>());
-      } else if constexpr (std::is_same_v<T, half>) {
+      } else if constexpr (sycl::detail::is_same_v<T, half>) {
         auto tileptr = reinterpret_cast<int32_t *>(dst.get());
         auto srcptr = reinterpret_cast<int32_t *>(&src.data);
         __hmma_m32n8k16_st_c_f16(tileptr, srcptr, stride,
                                  get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same_v<T, double>) {
+    } else if constexpr (sycl::detail::is_same_v<T, double>) {
       auto srcptr = reinterpret_cast<double *>(&src.data);
       __dmma_m8n8k4_st_c_f64(dst.get(), srcptr, stride,
                              get_layout_id<Layout>());
@@ -473,19 +466,19 @@ struct joint_matrix_mad_impl<
         N, LayoutC, sycl::sub_group>
         D;
     if constexpr (M == 16 && N == 16 && K == 16) {
-      if constexpr (std::is_same_v<T2, int32_t>) {
+      if constexpr (sycl::detail::is_same_v<T2, int32_t>) {
         auto ptrA = reinterpret_cast<int32_t const *>(&A.data);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.data);
         auto ptrC = reinterpret_cast<int32_t const *>(&C.data);
         auto ptrD = reinterpret_cast<int32_t *>(&D.data);
-        if constexpr (std::is_same_v<T1, int8_t>) {
+        if constexpr (sycl::detail::is_same_v<T1, int8_t>) {
           __imma_m16n16k16_mma_s8(ptrD, ptrA, ptrB, ptrC,
                                   get_layout_pair_id<LayoutA, LayoutB>(), 0);
-        } else if constexpr (std::is_same_v<T1, uint8_t>) {
+        } else if constexpr (sycl::detail::is_same_v<T1, uint8_t>) {
           __imma_m16n16k16_mma_u8(ptrD, ptrA, ptrB, ptrC,
                                   get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
-      } else if constexpr (std::is_same_v<T1, half>) {
+      } else if constexpr (sycl::detail::is_same_v<T1, half>) {
         auto ptrA = reinterpret_cast<int32_t const *>(&A.data);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.data);
         if constexpr (std::is_same<T2, float>::value) {
@@ -494,15 +487,15 @@ struct joint_matrix_mad_impl<
           __hmma_m16n16k16_mma_f32f32(ptrD, ptrA, ptrB, ptrC,
                                       get_layout_pair_id<LayoutA, LayoutB>(),
                                       0);
-        } else if constexpr (std::is_same_v<T2, half>) {
+        } else if constexpr (sycl::detail::is_same_v<T2, half>) {
           auto ptrC = reinterpret_cast<int32_t const *>(&C.data);
           auto ptrD = reinterpret_cast<int32_t *>(&D.data);
           __hmma_m16n16k16_mma_f16f16(ptrD, ptrA, ptrB, ptrC,
                                       get_layout_pair_id<LayoutA, LayoutB>(),
                                       0);
         }
-      } else if constexpr (std::is_same_v<T1, uint16_t> ||
-                           std::is_same_v<
+      } else if constexpr (sycl::detail::is_same_v<T1, uint16_t> ||
+                           sycl::detail::is_same_v<
                                T1, sycl::ext::oneapi::experimental::bfloat16>) {
         auto ptrA = reinterpret_cast<int32_t const *>(&A.data);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.data);
@@ -512,34 +505,34 @@ struct joint_matrix_mad_impl<
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
     } else if constexpr (M == 8 && N == 32 && K == 16) {
-      if constexpr (std::is_same_v<T2, int32_t>) {
+      if constexpr (sycl::detail::is_same_v<T2, int32_t>) {
         auto ptrA = reinterpret_cast<int32_t const *>(&A.data);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.data);
         auto ptrC = reinterpret_cast<int32_t const *>(&C.data);
         auto ptrD = reinterpret_cast<int32_t *>(&D.data);
-        if constexpr (std::is_same_v<T1, int8_t>) {
+        if constexpr (sycl::detail::is_same_v<T1, int8_t>) {
           __imma_m8n32k16_mma_s8(ptrD, ptrA, ptrB, ptrC,
                                  get_layout_pair_id<LayoutA, LayoutB>(), 0);
-        } else if constexpr (std::is_same_v<T1, uint8_t>) {
+        } else if constexpr (sycl::detail::is_same_v<T1, uint8_t>) {
           __imma_m8n32k16_mma_u8(ptrD, ptrA, ptrB, ptrC,
                                  get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
-      } else if constexpr (std::is_same_v<T1, half>) {
+      } else if constexpr (sycl::detail::is_same_v<T1, half>) {
         auto ptrA = reinterpret_cast<int32_t const *>(&A.data);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.data);
-        if constexpr (std::is_same_v<T2, float>) {
+        if constexpr (sycl::detail::is_same_v<T2, float>) {
           auto ptrC = reinterpret_cast<float const *>(&C.data);
           auto ptrD = reinterpret_cast<float *>(&D.data);
           __hmma_m8n32k16_mma_f32f32(ptrD, ptrA, ptrB, ptrC,
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
-        } else if constexpr (std::is_same_v<T2, half>) {
+        } else if constexpr (sycl::detail::is_same_v<T2, half>) {
           auto ptrC = reinterpret_cast<int32_t const *>(&C.data);
           auto ptrD = reinterpret_cast<int32_t *>(&D.data);
           __hmma_m8n32k16_mma_f16f16(ptrD, ptrA, ptrB, ptrC,
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
-      } else if constexpr (std::is_same_v<T1, uint16_t> ||
-                           std::is_same_v<
+      } else if constexpr (sycl::detail::is_same_v<T1, uint16_t> ||
+                           sycl::detail::is_same_v<
                                T1, sycl::ext::oneapi::experimental::bfloat16>) {
         auto ptrA = reinterpret_cast<int32_t const *>(&A.data);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.data);
@@ -549,20 +542,20 @@ struct joint_matrix_mad_impl<
                                     get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
     } else if constexpr (M == 32 && N == 8 && K == 16) {
-      if constexpr (std::is_same_v<T2, int32_t>) {
+      if constexpr (sycl::detail::is_same_v<T2, int32_t>) {
         auto ptrA = reinterpret_cast<int32_t const *>(&A.data);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.data);
         auto ptrC = reinterpret_cast<int32_t const *>(&C.data);
         auto ptrD = reinterpret_cast<int32_t *>(&D.data);
-        if constexpr (std::is_same_v<T1, int8_t>) {
+        if constexpr (sycl::detail::is_same_v<T1, int8_t>) {
           __imma_m32n8k16_mma_s8(ptrD, ptrA, ptrB, ptrC,
                                  get_layout_pair_id<LayoutA, LayoutB>(), 0);
-        } else if constexpr (std::is_same_v<T1, uint8_t>) {
+        } else if constexpr (sycl::detail::is_same_v<T1, uint8_t>) {
           __imma_m32n8k16_mma_u8(ptrD, ptrA, ptrB, ptrC,
                                  get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
-      } else if constexpr (std::is_same_v<T1, uint16_t> ||
-                           std::is_same_v<
+      } else if constexpr (sycl::detail::is_same_v<T1, uint16_t> ||
+                           sycl::detail::is_same_v<
                                T1, sycl::ext::oneapi::experimental::bfloat16>) {
         auto ptrA = reinterpret_cast<int32_t const *>(&A.data);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.data);
@@ -570,22 +563,22 @@ struct joint_matrix_mad_impl<
         auto ptrD = reinterpret_cast<float *>(&D.data);
         __mma_bf16_m32n8k16_mma_f32(ptrD, ptrA, ptrB, ptrC,
                                     get_layout_pair_id<LayoutA, LayoutB>(), 0);
-      } else if constexpr (std::is_same_v<T1, half>) {
+      } else if constexpr (sycl::detail::is_same_v<T1, half>) {
         auto ptrA = reinterpret_cast<int32_t const *>(&A.data);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.data);
-        if constexpr (std::is_same_v<T2, float>) {
+        if constexpr (sycl::detail::is_same_v<T2, float>) {
           auto ptrC = reinterpret_cast<float const *>(&C.data);
           auto ptrD = reinterpret_cast<float *>(&D.data);
           __hmma_m32n8k16_mma_f32f32(ptrD, ptrA, ptrB, ptrC,
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
-        } else if constexpr (std::is_same_v<T2, half>) {
+        } else if constexpr (sycl::detail::is_same_v<T2, half>) {
           auto ptrC = reinterpret_cast<int32_t const *>(&C.data);
           auto ptrD = reinterpret_cast<int32_t *>(&D.data);
           __hmma_m32n8k16_mma_f16f16(ptrD, ptrA, ptrB, ptrC,
                                      get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
       }
-    } else if constexpr (std::is_same_v<T1, double>) {
+    } else if constexpr (sycl::detail::is_same_v<T1, double>) {
       auto ptrA = reinterpret_cast<double const *>(&A.data);
       auto ptrB = reinterpret_cast<double const *>(&B.data);
       auto ptrC = reinterpret_cast<double const *>(&C.data);
@@ -668,7 +661,5 @@ joint_matrix_mad(
 }
 
 } // namespace experimental::matrix
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
+} // namespace sycl::ext::oneapi
 } // __SYCL_INLINE_NAMESPACE(cl)
