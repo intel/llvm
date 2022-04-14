@@ -927,14 +927,11 @@ private:
   }
 
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-    using type = typename std::conditional_t<
-        detail::is_same_v<id<Dims>, LambdaArgType>, LambdaArgType,
-        typename std::conditional_t<
-            detail::is_convertible_v<nd_item<Dims>, LambdaArgType>,
-            nd_item<Dims>,
-            typename std::conditional_t<
-                detail::is_convertible_v<item<Dims>, LambdaArgType>, item<Dims>,
-                LambdaArgType>>>;
+    using type = typename std::conditional<
+        std::is_convertible<nd_item<Dims>, LambdaArgType>::value, nd_item<Dims>,
+        typename std::conditional<
+            std::is_convertible<item<Dims>, LambdaArgType>::value, item<Dims>,
+            LambdaArgType>::type>::type;
   };
 
   /// Defines and invokes a SYCL kernel function for the specified range.
