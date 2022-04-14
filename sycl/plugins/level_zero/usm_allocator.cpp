@@ -1070,7 +1070,7 @@ void USMAllocContext::deallocate(void *ptr, bool OwnZeMemHandle) {
   return;
 }
 
-// Define destructor for its usage with unique_ptr
+// Define destructor for use with unique_ptr
 USMAllocContext::~USMAllocContext() {
   bool TitlePrinted = false;
   if (USMSettings.PoolTrace > 1) {
