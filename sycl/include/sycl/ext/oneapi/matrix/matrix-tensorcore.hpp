@@ -142,8 +142,8 @@ struct joint_matrix_load_impl<
                 T, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
             multi_ptr<T, Space> src, size_t stride) {
     if constexpr (sycl::detail::is_same_v<T, uint16_t> ||
-                  sycl::detail::is_same_v<T,
-                                 sycl::ext::oneapi::experimental::bfloat16>) {
+                  sycl::detail::is_same_v<
+                      T, sycl::ext::oneapi::experimental::bfloat16>) {
       auto tileptr = reinterpret_cast<int32_t const *>(src.get());
       auto destptr = reinterpret_cast<int32_t *>(&res.data);
       if constexpr (NumRows == 16 && NumCols == 16) {
