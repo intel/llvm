@@ -604,7 +604,9 @@ joint_matrix_mad(
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-float float_to_tf32(float a) {
+// This function rounds the bottom 13 bits up or down, and then zeros out the
+// bottom bits
+float round_to_tf32(float a) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   int32_t tmp_int = __nvvm_f2tf32_rna(a);
   return __nvvm_bitcast_i2f(tmp_int);
@@ -618,7 +620,7 @@ float float_to_tf32(float a) {
 }
 
 // This function just zeros out the bottom 13 bits of the tf32 type
-float tf32_to_float(float a) {
+float truncate_to_tf32(float a) {
   uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
   tmp_uint &= 0xFFFFE000u;
   float ret = reinterpret_cast<float &>(tmp_uint);
