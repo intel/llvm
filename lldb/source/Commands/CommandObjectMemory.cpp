@@ -33,7 +33,6 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/DataBufferHeap.h"
-#include "lldb/Utility/DataBufferLLVM.h"
 #include "lldb/Utility/StreamString.h"
 #include "llvm/Support/MathExtras.h"
 #include <cinttypes>
@@ -1186,7 +1185,7 @@ class CommandObjectMemoryWrite : public CommandObjectParsed {
 public:
   class OptionGroupWriteMemory : public OptionGroup {
   public:
-    OptionGroupWriteMemory() {}
+    OptionGroupWriteMemory() = default;
 
     ~OptionGroupWriteMemory() override = default;
 

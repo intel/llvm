@@ -53,6 +53,26 @@ protected:
 /// members used to implement virtual inheritance.
 enum class MSVtorDispMode { Never, ForVBaseOverride, ForVFTable };
 
+/// Shader programs run in specific pipeline stages.
+enum class ShaderStage {
+  Pixel = 0,
+  Vertex,
+  Geometry,
+  Hull,
+  Domain,
+  Compute,
+  Library,
+  RayGeneration,
+  Intersection,
+  AnyHit,
+  ClosestHit,
+  Miss,
+  Callable,
+  Mesh,
+  Amplification,
+  Invalid,
+};
+
 /// Keeps track of the various options that can be
 /// enabled, which controls the dialect of C or C++ that is accepted.
 class LangOptions : public LangOptionsBase {
@@ -143,6 +163,16 @@ public:
   enum class SYCLVersionList {
     sycl_1_2_1,
     undefined
+  };
+
+  enum HLSLLangStd {
+    HLSL_Unset = 0,
+    HLSL_2015 = 2015,
+    HLSL_2016 = 2016,
+    HLSL_2017 = 2017,
+    HLSL_2018 = 2018,
+    HLSL_2021 = 2021,
+    HLSL_202x = 2029,
   };
 
   /// Clang versions with different platform ABI conformance.

@@ -205,8 +205,8 @@ CallInst *SPIRVToOCL20Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
           Type *PtrArgTy = PtrArg->getType();
           if (PtrArgTy->isPointerTy()) {
             if (PtrArgTy->getPointerAddressSpace() != SPIRAS_Generic) {
-              Type *FixedPtr = PtrArgTy->getPointerElementType()->getPointerTo(
-                  SPIRAS_Generic);
+              Type *FixedPtr = PointerType::getWithSamePointeeType(
+                  cast<PointerType>(PtrArgTy), SPIRAS_Generic);
               Args[I] = CastInst::CreatePointerBitCastOrAddrSpaceCast(
                   PtrArg, FixedPtr, PtrArg->getName() + ".as", CI);
             }
@@ -259,9 +259,8 @@ Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
             Align(CI->getType()->getScalarSizeInBits() / 8));
         new StoreInst(Args[1], PExpected, PInsertBefore);
         unsigned AddrSpc = SPIRAS_Generic;
-        Type *PtrTyAS =
-            PExpected->getType()->getPointerElementType()->getPointerTo(
-                AddrSpc);
+        Type *PtrTyAS = PointerType::getWithSamePointeeType(
+            cast<PointerType>(PExpected->getType()), AddrSpc);
         Args[1] = CastInst::CreatePointerBitCastOrAddrSpaceCast(
             PExpected, PtrTyAS, PExpected->getName() + ".as", PInsertBefore);
         std::swap(Args[3], Args[4]);

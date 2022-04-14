@@ -1935,10 +1935,6 @@ static llvm::StringRef getGCCToolchainDir(const ArgList &Args,
   if (A)
     return A->getValue();
 
-  if (const Arg *X = Args.getLastArg(
-          clang::driver::options::OPT__overlay_platform_toolchain_EQ))
-    return X->getValue();
-
   // If we have a SysRoot, ignore GCC_INSTALL_PREFIX.
   // GCC_INSTALL_PREFIX specifies the gcc installation for the default
   // sysroot and is likely not valid with a different sysroot.
@@ -2818,6 +2814,9 @@ bool Generic_GCC::IsIntegratedAssemblerDefault() const {
   case llvm::Triple::ppc64le:
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
+  case llvm::Triple::sparc:
+  case llvm::Triple::sparcel:
+  case llvm::Triple::sparcv9:
   case llvm::Triple::systemz:
   case llvm::Triple::mips:
   case llvm::Triple::mipsel:
@@ -2826,13 +2825,6 @@ bool Generic_GCC::IsIntegratedAssemblerDefault() const {
   case llvm::Triple::msp430:
   case llvm::Triple::m68k:
     return true;
-  case llvm::Triple::sparc:
-  case llvm::Triple::sparcel:
-  case llvm::Triple::sparcv9:
-    if (getTriple().isOSFreeBSD() || getTriple().isOSOpenBSD() ||
-        getTriple().isOSSolaris())
-      return true;
-    return false;
   default:
     return false;
   }

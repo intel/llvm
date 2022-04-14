@@ -2049,9 +2049,12 @@ static llvm::Value *dumpRecord(CodeGenFunction &CGF, QualType RType,
   ASTContext &Context = CGF.getContext();
   RecordDecl *RD = RType->castAs<RecordType>()->getDecl()->getDefinition();
   std::string Pad = std::string(Lvl * 4, ' ');
+  std::string ElementPad = std::string((Lvl + 1) * 4, ' ');
 
-  Value *GString =
-      CGF.Builder.CreateGlobalStringPtr(RType.getAsString() + " {\n");
+  PrintingPolicy Policy(Context.getLangOpts());
+  Policy.AnonymousTagLocations = false;
+  Value *GString = CGF.Builder.CreateGlobalStringPtr(
+    llvm::Twine(Pad).concat(RType.getAsString(Policy)).concat(" {\n").str());
   Value *Res = CGF.Builder.CreateCall(Func, {GString});
 
   static llvm::DenseMap<QualType, const char *> Types;
@@ -2079,7 +2082,7 @@ static llvm::Value *dumpRecord(CodeGenFunction &CGF, QualType RType,
   for (const auto *FD : RD->fields()) {
     Value *TmpRes = nullptr;
 
-    std::string Format = llvm::Twine(Pad)
+    std::string Format = llvm::Twine(ElementPad)
                              .concat(FD->getType().getAsString())
                              .concat(llvm::Twine(' '))
                              .concat(FD->getNameAsString())
@@ -5414,7 +5417,13 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
         assert(PTy->canLosslesslyBitCastTo(FTy->getParamType(i)) &&
                "Must be able to losslessly bit cast to param");
-        ArgValue = Builder.CreateBitCast(ArgValue, PTy);
+        // Cast vector type (e.g., v256i32) to x86_amx, this only happen
+        // in amx intrinsics.
+        if (PTy->isX86_AMXTy())
+          ArgValue = Builder.CreateIntrinsic(Intrinsic::x86_cast_vector_to_tile,
+                                             {ArgValue->getType()}, {ArgValue});
+        else
+          ArgValue = Builder.CreateBitCast(ArgValue, PTy);
       }
 
       Args.push_back(ArgValue);
@@ -5438,7 +5447,13 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
       assert(V->getType()->canLosslesslyBitCastTo(RetTy) &&
              "Must be able to losslessly bit cast result type");
-      V = Builder.CreateBitCast(V, RetTy);
+      // Cast x86_amx to vector type (e.g., v256i32), this only happen
+      // in amx intrinsics.
+      if (V->getType()->isX86_AMXTy())
+        V = Builder.CreateIntrinsic(Intrinsic::x86_cast_tile_to_vector, {RetTy},
+                                    {V});
+      else
+        V = Builder.CreateBitCast(V, RetTy);
     }
 
     return RValue::get(V);

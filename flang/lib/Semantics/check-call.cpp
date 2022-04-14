@@ -401,8 +401,7 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
   // 15.5.2.6 -- dummy is ALLOCATABLE
   bool dummyIsAllocatable{
       dummy.attrs.test(characteristics::DummyDataObject::Attr::Allocatable)};
-  bool actualIsAllocatable{
-      actualLastSymbol && IsAllocatable(*actualLastSymbol)};
+  bool actualIsAllocatable{evaluate::IsAllocatableDesignator(actual)};
   if (dummyIsAllocatable) {
     if (!actualIsAllocatable) {
       messages.Say(
@@ -666,7 +665,7 @@ static void CheckExplicitInterfaceArg(evaluate::ActualArgument &arg,
   }
   auto restorer{
       messages.SetLocation(arg.sourceLocation().value_or(messages.at()))};
-  common::visit(
+  std::visit(
       common::visitors{
           [&](const characteristics::DummyDataObject &object) {
             ConvertBOZLiteralArg(arg, object.type.type());

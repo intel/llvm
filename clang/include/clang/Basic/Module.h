@@ -527,6 +527,13 @@ public:
            Kind == ModulePartitionImplementation;
   }
 
+  /// Is this module a header unit.
+  bool isHeaderUnit() const { return Kind == ModuleHeaderUnit; }
+  // Is this a C++20 module interface or a partition.
+  bool isInterfaceOrPartition() const {
+    return Kind == ModuleInterfaceUnit || isModulePartition();
+  }
+
   /// Get the primary module interface name from a partition.
   StringRef getPrimaryModuleInterfaceName() const {
     if (isModulePartition()) {
