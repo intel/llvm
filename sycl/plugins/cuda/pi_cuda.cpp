@@ -495,12 +495,9 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
   // for native events, the cuStreamWaitEvent call is used.
   // This makes all future work submitted to stream wait for all
   // work captured in event.
-  for(CUstream s : queue->get_all_compute()){
-    PI_CHECK_ERROR(cuStreamWaitEvent(s, event->get(), 0));
-  }
-  for(CUstream s : queue->get_all_transfer()){
-    PI_CHECK_ERROR(cuStreamWaitEvent(s, event->get(), 0));
-  }
+  queue->for_each_stream([e=event->get()](CUstream s){
+    PI_CHECK_ERROR(cuStreamWaitEvent(s, e, 0));
+  });
   return PI_SUCCESS;
 }
 
@@ -2335,16 +2332,11 @@ pi_result cuda_piQueueRelease(pi_queue command_queue) {
     std::unique_ptr<_pi_queue> queueImpl(command_queue);
 
     ScopedContext active(command_queue->get_context());
-
-    for(CUstream s : queueImpl->get_all_compute()){
+    
+    command_queue->for_each_stream([](CUstream s){
       PI_CHECK_ERROR(cuStreamSynchronize(s));
       PI_CHECK_ERROR(cuStreamDestroy(s));
-    }
-
-    for(CUstream s : queueImpl->get_all_transfer()){
-      PI_CHECK_ERROR(cuStreamSynchronize(s));
-      PI_CHECK_ERROR(cuStreamDestroy(s));
-    }
+    });
 
     return PI_SUCCESS;
   } catch (pi_result err) {
@@ -2355,9 +2347,7 @@ pi_result cuda_piQueueRelease(pi_queue command_queue) {
 }
 
 pi_result cuda_piQueueFinish(pi_queue command_queue) {
-
-  // set default result to a negative result (avoid false-positve tests)
-  pi_result result = PI_OUT_OF_HOST_MEMORY;
+  pi_result result = PI_SUCCESS;
 
   try {
 
@@ -2365,12 +2355,9 @@ pi_result cuda_piQueueFinish(pi_queue command_queue) {
            nullptr); // need PI_ERROR_INVALID_EXTERNAL_HANDLE error code
     ScopedContext active(command_queue->get_context());
 
-    for(CUstream s : command_queue->get_all_compute()){
+    command_queue->for_each_stream([&result](CUstream s) mutable {
       result = PI_CHECK_ERROR(cuStreamSynchronize(s));
-    }
-    for(CUstream s : command_queue->get_all_transfer()){
-      result = PI_CHECK_ERROR(cuStreamSynchronize(s));
-    }
+    });
 
   } catch (pi_result err) {
 

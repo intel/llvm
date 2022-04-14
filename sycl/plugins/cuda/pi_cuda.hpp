@@ -406,16 +406,22 @@ struct _pi_queue {
   native_type get_compute() noexcept {
     return compute_streams_[compute_stream_idx_++ % compute_streams_.size()];
   };
-  const std::vector<native_type> &get_all_compute() const noexcept { return compute_streams_; };
   native_type get_transfer() noexcept {
     if(!(properties_ & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)){
       return get_compute();
     }
     return transfer_streams_[transfer_stream_idx_++ % transfer_streams_.size()];
   };
-  const std::vector<native_type> &get_all_transfer() const noexcept {
-    return transfer_streams_; 
-    };
+
+  template<typename T>
+  void for_each_stream(T&& f){
+    for(unsigned int i=0;i<compute_streams_.size();i++){
+      f(compute_streams_[i]);
+    }
+    for(unsigned int i=0;i<transfer_streams_.size();i++){
+      f(transfer_streams_[i]);
+    }
+  }
 
   _pi_context *get_context() const { return context_; };
 
