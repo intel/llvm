@@ -611,6 +611,7 @@ float float_to_tf32(float a) {
 #else
   uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
   tmp_uint += 0x1000u;
+  tmp_uint &= 0xFFFFE000u;
   float ret = reinterpret_cast<float &>(tmp_uint);
   return ret;
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
