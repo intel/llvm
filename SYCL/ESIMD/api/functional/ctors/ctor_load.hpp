@@ -46,12 +46,7 @@ struct vector {
   static constexpr auto get_value() { return esimd::vector_aligned; }
 };
 
-template <unsigned int size = 16 /*oword alignment*/> struct overal {
-  // Use 16 instead of std::max_align_t because of the fact that long double is
-  // not a native type in Intel GPUs. So 16 is not driven by any type, but
-  // rather the "oword alignment" requirement for all block loads. In that
-  // sense, std::max_align_t would give wrong idea.
-
+template <unsigned int size> struct overal {
   static std::string to_string() {
     return "overaligned<" + std::to_string(size) + ">";
   }

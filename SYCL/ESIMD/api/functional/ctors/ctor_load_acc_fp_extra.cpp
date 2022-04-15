@@ -47,12 +47,13 @@ int main(int, char **) {
   const auto offset_generators = ctors::coverage::get_all_offset_generators();
 
   // Run over all types with element and vector alignment
-  // Default tag for overaligned is configured in a way appropriate for any
-  // type from the type coverage, so run over it as well
+  // Using overaligned tag with alignment requirements appropriate for any
+  // type from the type coverage
   {
+    constexpr auto oword = 16;
     const auto alignments =
         named_type_pack<ctors::alignment::element, ctors::alignment::vector,
-                        ctors::alignment::overal<>>::generate();
+                        ctors::alignment::overal<oword>>::generate();
 
     // Run for all combinations possible
     passed &= for_all_combinations<ctors::run_test>(

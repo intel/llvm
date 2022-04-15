@@ -30,6 +30,8 @@ int main(int, char **) {
                     esimd_test::createExceptionHandler());
 
   bool passed = true;
+  constexpr auto oword = 16;
+
   const auto types = get_tested_types<tested_types::fp_extra>();
   const auto dims = get_all_dimensions();
 
@@ -38,7 +40,7 @@ int main(int, char **) {
                         ctors::rval_in_expr, ctors::const_ref>::generate();
   const auto alignments =
       named_type_pack<ctors::alignment::element, ctors::alignment::vector,
-                      ctors::alignment::overal<>>::generate();
+                      ctors::alignment::overal<oword>>::generate();
 
   passed &= for_all_combinations<ctors::run_test>(types, dims, contexts,
                                                   alignments, queue);
