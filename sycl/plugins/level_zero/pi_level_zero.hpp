@@ -484,6 +484,8 @@ struct _pi_device : _pi_object {
 // in the same context.
 struct pi_command_list_info_t {
   // The Level-Zero fence that will be signalled at completion.
+  // Immediate commandlists do not have an associated fence.
+  // A nullptr for the fence indicates that this is an immediate commandlist.
   ze_fence_handle_t ZeFence{nullptr};
   // Record if the fence is in use.
   // This is needed to avoid leak of the tracked command-list if the fence
@@ -648,6 +650,9 @@ struct _pi_context : _pi_object {
   // If AllowBatching is true, then the command list returned may already have
   // command in it, if AllowBatching is false, any open command lists that
   // already exist in Queue will be closed and executed.
+  // When using immediate commandlists, retrieves an immediate command list
+  // for executing on this device. Immediate commandlists are created only
+  // once for each SYCL Queue and after that they are reused.
   pi_result getAvailableCommandList(pi_queue Queue,
                                     pi_command_list_ptr_t &CommandList,
                                     bool UseCopyEngine = false,
@@ -754,10 +759,21 @@ struct _pi_queue : _pi_object {
     // Level Zero command queue handles.
     std::vector<ze_command_queue_handle_t> ZeQueues;
 
+    // Immediate commandlist handles, one per Level Zero command queue handle.
+    // These are created only once, along with the L0 queues (see above)
+    // and reused thereafter.
+    std::vector<pi_command_list_ptr_t> ImmCmdLists;
+
+    // Return the index of the next queue to use based on a
+    // round robin strategy and the queue group ordinal.
+    uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex);
+
     // This function will return one of possibly multiple available native
-    // queues. Currently, a round robin strategy is used. This function also
-    // sends back the value of the queue group ordinal.
+    // queues and the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
+
+    // This function returns the next immediate commandlist to use.
+    pi_command_list_ptr_t &getImmCmdList();
 
     // These indices are to filter specific range of the queues to use,
     // and to organize round-robin across them.
@@ -772,6 +788,9 @@ struct _pi_queue : _pi_object {
   // In this vector, main copy engine, if available, come first followed by
   // link copy engines, if available.
   pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
+
+  // Wait for all commandlists associated with this Queue to finish operations.
+  pi_result synchronize();
 
   pi_queue_group_t &getQueueGroup(bool UseCopyEngine) {
     return UseCopyEngine ? CopyQueueGroup : ComputeQueueGroup;
@@ -805,6 +824,9 @@ struct _pi_queue : _pi_object {
   // indirect access in the list at the moment when kernel is really submitted
   // for execution.
   std::vector<pi_kernel> KernelsToBeSubmitted;
+
+  // Update map of memory references made by the kernels about to be submitted
+  void CaptureIndirectAccesses();
 
   // Indicates if we own the ZeCommandQueue or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
@@ -877,7 +899,8 @@ struct _pi_queue : _pi_object {
     auto CommandBatch = (IsCopy) ? CopyCommandBatch : ComputeCommandBatch;
     return CommandBatch.OpenCommandList != CommandListMap.end();
   }
-  // Attach a command list to this queue, close, and execute it.
+  // Attach a command list to this queue.
+  // For non-immediate commandlist also close and execute it.
   // Note that this command list cannot be appended to after this.
   // The "IsBlocking" tells if the wait for completion is required.
   // If OKToBatchCommand is true, then this command list may be executed
@@ -885,6 +908,8 @@ struct _pi_queue : _pi_object {
   // batched into.
   // If IsBlocking is true, then batching will not be allowed regardless
   // of the value of OKToBatchCommand
+  //
+  // For immediate commandlists, no close and execute is necessary.
   pi_result executeCommandList(pi_command_list_ptr_t CommandList,
                                bool IsBlocking = false,
                                bool OKToBatchCommand = false);
