@@ -318,11 +318,11 @@ int main (int argc, char *argv[]) {
 
 == New bfloat16 math functions
 
-Many applications will require dedicated functions that take parameters of type `bfloat16`. This extension adds `bfloat16` support to the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions. These functions can be used as element wise operations on matrices, and as such can used together with the `bfloat16` implementation of the sycl_ext_oneapi_matrix extension.
+Many applications will require dedicated functions that take parameters of type `bfloat16`. This extension adds `bfloat16` support to the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions. These functions can be used as element wise operations on matrices, supplementing the `bfloat16` support in the sycl_ext_oneapi_matrix extension.
 
 The descriptions of the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions can be found in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions.
 
-The following functions are only available when `T` is `bfloat16` `or `sycl::marray<bfloat16, {N}>`, where {N} means any positive value of size_t type.
+The following functions are only available when `T` is `bfloat16` or `sycl::marray<bfloat16, {N}>`, where `{N}` means any positive value of `size_t` type.
 
 === fma
 
@@ -390,7 +390,7 @@ Compute absolute value of a `bfloat16`.
 
 == Issues
 
-1. The CUDA backend does not have a use case that would necessitate support of the `vec` class in bfloat16 math builtins, and `marray` would always be preferred over `vec` if there were to be added `vec` support in the CUDA backend. For portability reasons, support for the `vec` class can be easily added if other backends require it.
+1. The CUDA backend does not have a use case that would necessitate support of the `vec` class in bfloat16 math functions, and `marray` would always be preferred over `vec` if `vec` support were to be added in the CUDA backend. For portability reasons, support for the `vec` class can be easily added if other backends require it.
 
 2. We should decide on a roadmap to extend support of `bfloat16` to other SYCL 2020 math functions.
 
