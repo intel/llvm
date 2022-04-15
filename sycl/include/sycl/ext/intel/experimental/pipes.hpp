@@ -38,8 +38,9 @@ public:
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
   template <typename _functionPropertiesT>
-  static _dataT read(bool &_Success, _functionPropertiesT Properties) {
+  static _dataT read(bool &Success, _functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
+    // Get latency control properties
     using _latency_anchor_id_prop =
         typename GetOrDefaultValT<_functionPropertiesT,
                                   oneapi::experimental::latency_anchor_id_key,
@@ -48,13 +49,15 @@ public:
         typename GetOrDefaultValT<_functionPropertiesT,
                                   oneapi::experimental::latency_constraint_key,
                                   defaultLatencyConstraintProperty>::type;
+
+    // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
     static constexpr oneapi::experimental::latency_control_type _control_type =
         _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
-    int32_t _control_type_code = 0; // latency_control_type::none
+    int32_t _control_type_code = 0; // latency_control_type::none is default
     if constexpr (_control_type ==
                   oneapi::experimental::latency_control_type::exact) {
       _control_type_code = 1;
@@ -69,26 +72,28 @@ public:
     __ocl_RPipeTy<_dataT> _RPipe =
         __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
     _dataT TempData;
-    _Success = !static_cast<bool>(__latency_control_nb_read_wrapper(
+    Success = !static_cast<bool>(__latency_control_nb_read_wrapper(
         _RPipe, &TempData, _anchor_id, _target_anchor, _control_type_code,
         _relative_cycle));
     return TempData;
 #else
-    (void)_Success;
+    (void)Success;
+    (void)Properties;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  static _dataT read(bool &_Success) {
-    return read(_Success, oneapi::experimental::properties{});
+  static _dataT read(bool &Success) {
+    return read(Success, oneapi::experimental::properties{});
   }
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
   template <typename _functionPropertiesT>
-  static void write(const _dataT &_Data, bool &_Success,
+  static void write(const _dataT &Data, bool &Success,
                     _functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
+    // Get latency control properties
     using _latency_anchor_id_prop =
         typename GetOrDefaultValT<_functionPropertiesT,
                                   oneapi::experimental::latency_anchor_id_key,
@@ -97,13 +102,15 @@ public:
         typename GetOrDefaultValT<_functionPropertiesT,
                                   oneapi::experimental::latency_constraint_key,
                                   defaultLatencyConstraintProperty>::type;
+
+    // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
     static constexpr oneapi::experimental::latency_control_type _control_type =
         _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
-    int32_t _control_type_code = 0; // latency_control_type::none
+    int32_t _control_type_code = 0; // latency_control_type::none is default
     if constexpr (_control_type ==
                   oneapi::experimental::latency_control_type::exact) {
       _control_type_code = 1;
@@ -117,18 +124,19 @@ public:
 
     __ocl_WPipeTy<_dataT> _WPipe =
         __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
-    _Success = !static_cast<bool>(__latency_control_nb_write_wrapper(
-        _WPipe, &_Data, _anchor_id, _target_anchor, _control_type_code,
+    Success = !static_cast<bool>(__latency_control_nb_write_wrapper(
+        _WPipe, &Data, _anchor_id, _target_anchor, _control_type_code,
         _relative_cycle));
 #else
-    (void)_Success;
-    (void)_Data;
+    (void)Success;
+    (void)Data;
+    (void)Properties;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  static void write(const _dataT &_Data, bool &_Success) {
-    write(_Data, _Success, oneapi::experimental::properties{});
+  static void write(const _dataT &Data, bool &Success) {
+    write(Data, Success, oneapi::experimental::properties{});
   }
 
   // Blocking pipes
@@ -137,6 +145,7 @@ public:
   template <typename _functionPropertiesT>
   static _dataT read(_functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
+    // Get latency control properties
     using _latency_anchor_id_prop =
         typename GetOrDefaultValT<_functionPropertiesT,
                                   oneapi::experimental::latency_anchor_id_key,
@@ -145,13 +154,15 @@ public:
         typename GetOrDefaultValT<_functionPropertiesT,
                                   oneapi::experimental::latency_constraint_key,
                                   defaultLatencyConstraintProperty>::type;
+
+    // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
     static constexpr oneapi::experimental::latency_control_type _control_type =
         _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
-    int32_t _control_type_code = 0; // latency_control_type::none
+    int32_t _control_type_code = 0; // latency_control_type::none is default
     if constexpr (_control_type ==
                   oneapi::experimental::latency_control_type::exact) {
       _control_type_code = 1;
@@ -171,6 +182,7 @@ public:
                                       _relative_cycle);
     return TempData;
 #else
+    (void)Properties;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
@@ -180,8 +192,9 @@ public:
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
   template <typename _functionPropertiesT>
-  static void write(const _dataT &_Data, _functionPropertiesT Properties) {
+  static void write(const _dataT &Data, _functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
+    // Get latency control properties
     using _latency_anchor_id_prop =
         typename GetOrDefaultValT<_functionPropertiesT,
                                   oneapi::experimental::latency_anchor_id_key,
@@ -190,13 +203,15 @@ public:
         typename GetOrDefaultValT<_functionPropertiesT,
                                   oneapi::experimental::latency_constraint_key,
                                   defaultLatencyConstraintProperty>::type;
+
+    // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
     static constexpr oneapi::experimental::latency_control_type _control_type =
         _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
-    int32_t _control_type_code = 0; // latency_control_type::none
+    int32_t _control_type_code = 0; // latency_control_type::none is default
     if constexpr (_control_type ==
                   oneapi::experimental::latency_control_type::exact) {
       _control_type_code = 1;
@@ -210,17 +225,18 @@ public:
 
     __ocl_WPipeTy<_dataT> _WPipe =
         __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
-    __latency_control_bl_write_wrapper(_WPipe, &_Data, _anchor_id,
+    __latency_control_bl_write_wrapper(_WPipe, &Data, _anchor_id,
                                        _target_anchor, _control_type_code,
                                        _relative_cycle);
 #else
-    (void)_Data;
+    (void)Data;
+    (void)Properties;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  static void write(const _dataT &_Data) {
-    write(_Data, oneapi::experimental::properties{});
+  static void write(const _dataT &Data) {
+    write(Data, oneapi::experimental::properties{});
   }
 
 private:

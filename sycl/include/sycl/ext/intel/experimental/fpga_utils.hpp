@@ -99,6 +99,9 @@ public:
                  _T...>::value;
 };
 
+// Get the specified property from the given compile-time property list. If
+// the property is not provided in the property list, get the default version of
+// this property.
 template <typename PropListT, typename PropKeyT, typename DefaultPropValT,
           typename = void>
 struct GetOrDefaultValT {
@@ -111,8 +114,12 @@ struct GetOrDefaultValT<
   using type = decltype(PropListT::template get_property<PropKeyT>());
 };
 
+// Default latency_anchor_id property for latency control, indicating the
+// applied operation is not an anchor.
 using defaultLatencyAnchorIdProperty =
     oneapi::experimental::latency_anchor_id_key::value_t<-1>;
+// Default latency_constraint property for latency control, indicating the
+// applied operation is not a non-anchor.
 using defaultLatencyConstraintProperty =
     oneapi::experimental::latency_constraint_key::value_t<
         0, oneapi::experimental::latency_control_type::none, 0>;

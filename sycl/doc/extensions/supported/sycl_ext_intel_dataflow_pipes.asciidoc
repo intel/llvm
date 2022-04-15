@@ -110,9 +110,9 @@ A pipe type is a specialization of the pipe class:
 
 [source,c++,Pipe type def,linenums]
 ----
-template <typename name,
-          typename dataT,
-          size_t min_capacity = 0>
+template <typename _name,
+          typename _dataT,
+          size_t _min_capacity = 0>
 class pipe;
 ----
 
@@ -131,7 +131,7 @@ using pipe<class bar, float, 5>;
 
 The interface of a pipe is through static member functions, and instances of a pipe class cannot be instantiated.  Allowing instances of pipe objects, when their type defines connectivity, would introduce an error prone secondary mechanism of reference.
 
-The first template parameter, `name`, can be any type, and is typically expected to be a user defined class in a user namespace.  The type only needs to be forward declared, and not defined.
+The first template parameter, `_name`, can be any type, and is typically expected to be a user defined class in a user namespace.  The type only needs to be forward declared, and not defined.
 
 Above this basic mechanism of {cpp} type being used to identify a pipe, additional layers can be built on top to contain the type in an object that can be passed by value.  Because such mechanisms (e.g. `boost::hana::type`) can layer on top of the fundamental type-based mechanism described here, those mechanisms are not included in the extension specification.
 
@@ -166,27 +166,27 @@ myQueue.submit([&](handler& cgh) {
 
 == Read/write member functions, and pipe template parameters
 
-The pipe class exposes static member functions for writing a data word to a pipe, and for reading a data word from a pipe.  A data word in this context is the data type that the pipe contains (`dataT` pipe template argument).
+The pipe class exposes static member functions for writing a data word to a pipe, and for reading a data word from a pipe.  A data word in this context is the data type that the pipe contains (`_dataT` pipe template argument).
 
 Blocking and non-blocking forms of the read and write members are defined, with the form chosen based on overload resolution.
 
 [source,c++,Read write members,linenums]
 ----
-template <typename name,
-          typename dataT,
-          size_t min_capacity = 0>
+template <typename _name,
+          typename _dataT,
+          size_t _min_capacity = 0>
 class pipe {
   // Blocking
-  static dataT read();
-  static void write( const dataT &data );
+  static _dataT read();
+  static void write( const _dataT &Data );
 
   // Non-blocking
-  static dataT read( bool &success_code );
-  static void write( const dataT &data, bool &success_code );
+  static _dataT read( bool &Success );
+  static void write( const _dataT &Data, bool &Success );
 
   // Static members
-  using value_type = dataT;
-  size_t min_capacity = min_capacity;
+  using value_type = _dataT;
+  size_t min_capacity = _min_capacity;
 }
 ----
 
@@ -194,9 +194,9 @@ The read and write member functions may be invoked within device code, or within
 
 The template parameters of the device type are defined as:
 
-* `name`: Type that is the basis of pipe identification.  Typically a user-defined class, in a user namespace.  Forward declaration of the type is sufficient, and the type does not need to be defined.
-* `dataT`: The type of data word/packet contained within a pipe.  This is the data type that is read during a successful `pipe::read` operation, or written during a successful `pipe::write` operation.  The type must be standard layout and trivially copyable. This template parameter can be queried by using the `value_type` type alias.
-* `min_capacity`: User defined minimum number of words in units of `dataT` that the pipe must be able to store without any being read out.  A minimum capacity is required in some algorithms to avoid deadlock, or for performance tuning.  An implementation can include more capacity than this parameter, but not less. This template parameter can be queried by using the `min_capacity` static member.
+* `_name`: Type that is the basis of pipe identification.  Typically a user-defined class, in a user namespace.  Forward declaration of the type is sufficient, and the type does not need to be defined.
+* `_dataT`: The type of data word/packet contained within a pipe.  This is the data type that is read during a successful `pipe::read` operation, or written during a successful `pipe::write` operation.  The type must be standard layout and trivially copyable. This template parameter can be queried by using the `value_type` type alias.
+* `_min_capacity`: User defined minimum number of words in units of `_dataT` that the pipe must be able to store without any being read out.  A minimum capacity is required in some algorithms to avoid deadlock, or for performance tuning.  An implementation can include more capacity than this parameter, but not less. This template parameter can be queried by using the `min_capacity` static member.
 
 == Pipe types and {cpp} scope
 
@@ -260,12 +260,12 @@ Pipes expose two additional static member functions that are available within ho
 
 [source,c++,Read write members,linenums]
 ----
-template <typename name,
-          typename dataT,
-          size_t min_capacity = 0>
+template <typename _name,
+          typename _dataT,
+          size_t _min_capacity = 0>
 class pipe {
   template <pipe_property::writeable host_writeable>
-    static dataT* map(size_t requested_size, size_t &mapped_size);
+    static _dataT* map(size_t requested_size, size_t &mapped_size);
 
   static size_t unmap(T* mapped_ptr, size_t size_to_unmap);
 }
@@ -382,22 +382,22 @@ The pipe class described above exposes both read and write static member functio
 
 [source,c++,iopipes,linenums]
 ----
-template <typename name,
-          typename dataT,
-          size_t min_capacity = 0>
+template <typename _name,
+          typename _dataT,
+          size_t _min_capacity = 0>
 class kernel_readable_io_pipe {
   public:
-    static dataT read();  // Blocking
-    static dataT read( bool &success_code );  // Non-blocking
+    static _dataT read();  // Blocking
+    static _dataT read( bool &Success );  // Non-blocking
 };
 
-template <typename name,
-          typename dataT,
-          size_t min_capacity = 0>
+template <typename _name,
+          typename _dataT,
+          size_t _min_capacity = 0>
 class kernel_writeable_io_pipe {
   public:
-    static void write( dataT data );  // Blocking
-    static void write( dataT data, bool &success_code );  // Non-blocking
+    static void write( _dataT Data );  // Blocking
+    static void write( _dataT Data, bool &Success );  // Non-blocking
 }
 ----
 
@@ -687,31 +687,31 @@ inline constexpr latency_constraint_key::value_t<Target, Type, Cycle>
 } // namespace sycl::ext::oneapi::experimental
 
 namespace sycl::ext::intel::experimental {
-template <typename name,
-          typename dataT,
-          size_t min_capacity = 0>
+template <typename _name,
+          typename _dataT,
+          size_t _min_capacity = 0>
 class pipe {
   // Blocking
-  static dataT read();
+  static _dataT read();
 
   template <typename _propertiesT>
-  static dataT read( _propertiesT Properties );
+  static _dataT read( _propertiesT Properties );
 
-  static void write( const dataT &data);
+  static void write( const _dataT &Data);
 
   template <typename _propertiesT>
-  static void write( const dataT &data, _propertiesT Properties );
+  static void write( const _dataT &Data, _propertiesT Properties );
 
   // Non-blocking
-  static dataT read( bool &success_code );
+  static _dataT read( bool &Success );
 
   template <typename _propertiesT>
-  static dataT read( bool &success_code, _propertiesT Properties );
+  static _dataT read( bool &Success, _propertiesT Properties );
 
-  static void write( const dataT &data, bool &success_code );
+  static void write( const _dataT &Data, bool &Success );
 
   template <typename _propertiesT>
-  static void write( const dataT &data, bool &success_code, _propertiesT Properties );
+  static void write( const _dataT &Data, bool &Success, _propertiesT Properties );
 }
 } // namespace sycl::ext::intel::experimental
 ----

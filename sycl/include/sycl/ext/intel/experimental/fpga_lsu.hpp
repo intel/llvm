@@ -55,6 +55,7 @@ public:
     check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
+    // Get latency control properties
     using _latency_anchor_id_prop =
         typename GetOrDefaultValT<_propertiesT,
                                   oneapi::experimental::latency_anchor_id_key,
@@ -63,13 +64,15 @@ public:
         typename GetOrDefaultValT<_propertiesT,
                                   oneapi::experimental::latency_constraint_key,
                                   defaultLatencyConstraintProperty>::type;
+
+    // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
     static constexpr oneapi::experimental::latency_control_type _control_type =
         _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
-    int32_t _control_type_code = 0; // latency_control_type::none
+    int32_t _control_type_code = 0; // latency_control_type::none is default
     if constexpr (_control_type ==
                   oneapi::experimental::latency_control_type::exact) {
       _control_type_code = 1;
@@ -84,6 +87,7 @@ public:
     return *__latency_control_mem_wrapper((_T *)Ptr, _anchor_id, _target_anchor,
                                           _control_type_code, _relative_cycle);
 #else
+    (void)Properties;
     return *Ptr;
 #endif
   }
@@ -99,6 +103,7 @@ public:
     check_space<_space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
+    // Get latency control properties
     using _latency_anchor_id_prop =
         typename GetOrDefaultValT<_propertiesT,
                                   oneapi::experimental::latency_anchor_id_key,
@@ -107,13 +112,15 @@ public:
         typename GetOrDefaultValT<_propertiesT,
                                   oneapi::experimental::latency_constraint_key,
                                   defaultLatencyConstraintProperty>::type;
+
+    // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
     static constexpr oneapi::experimental::latency_control_type _control_type =
         _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
-    int32_t _control_type_code = 0; // latency_control_type::none
+    int32_t _control_type_code = 0; // latency_control_type::none is default
     if constexpr (_control_type ==
                   oneapi::experimental::latency_control_type::exact) {
       _control_type_code = 1;
@@ -128,6 +135,7 @@ public:
     *__latency_control_mem_wrapper((_T *)Ptr, _anchor_id, _target_anchor,
                                    _control_type_code, _relative_cycle) = Val;
 #else
+    (void)Properties;
     *Ptr = Val;
 #endif
   }
