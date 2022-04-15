@@ -13215,7 +13215,8 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
         }
         VarDecl *NewVD = getSema().createLambdaInitCaptureVarDecl(
             OldVD->getLocation(), InitQualType, NewC.EllipsisLoc,
-            OldVD->getIdentifier(), OldVD->getInitStyle(), Init.get());
+            OldVD->getIdentifier(), OldVD->getInitStyle(), Init.get(),
+            getSema().CurContext);
         if (!NewVD) {
           Invalid = true;
           break;

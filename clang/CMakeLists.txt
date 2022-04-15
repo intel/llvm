@@ -253,9 +253,7 @@ option(CLANG_DEFAULT_PIE_ON_LINUX "Default to -fPIE and -pie on linux-gnu" OFF)
 set(CLANG_ENABLE_OPAQUE_POINTERS "DEFAULT" CACHE STRING
     "Enable opaque pointers by default")
 if(CLANG_ENABLE_OPAQUE_POINTERS STREQUAL "DEFAULT")
-  # FIXME: Upstream default is ON, but llvm-spirv is broken after this change.
-  #        Override to OFF until fixed downstream.
-  set(CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL OFF)
+  set(CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL ON)
 elseif(CLANG_ENABLE_OPAQUE_POINTERS)
   set(CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL ON)
 else()
