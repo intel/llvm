@@ -47,6 +47,7 @@ runs:
       DEFAULT_BRANCH: ${{ inputs.default_branch }}
     run: |
       cd ${{ inputs.path }}
+      git config --global --add safe.directory ${{ inputs.path }}
       git fetch origin $DEFAULT_BRANCH
       # Set fake identity to fulfil git requirements
       git config --local user.email "actions@github.com"
