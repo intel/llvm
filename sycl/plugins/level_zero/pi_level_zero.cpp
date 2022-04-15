@@ -3271,12 +3271,6 @@ pi_result piQueueFinish(pi_queue Queue) {
     if (ZeQueue)
       ZE_CALL(zeHostSynchronize, (ZeQueue));
   }
-
-  // Lock automatically releases when this goes out of scope.
-  std::scoped_lock lock(Queue->Mutex);
-  // Prevent unneeded already finished events to show up in the wait list.
-  Queue->LastCommandEvent = nullptr;
-
   return PI_SUCCESS;
 }
 
