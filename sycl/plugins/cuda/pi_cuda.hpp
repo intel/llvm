@@ -389,11 +389,15 @@ struct _pi_queue {
   std::atomic_uint32_t eventCount_;
   std::atomic_uint32_t compute_stream_idx_;
   std::atomic_uint32_t transfer_stream_idx_;
+  std::atomic_uint32_t n_compute_streams_;
+  std::atomic_uint32_t n_transfer_streams_;
+  unsigned int flags_;
 
   _pi_queue(std::vector<CUstream> &&compute_streams_, std::vector<CUstream> &&transfer_streams, _pi_context *context,
-            _pi_device *device, pi_queue_properties properties)
+            _pi_device *device, pi_queue_properties properties, unsigned int flags)
       : compute_streams_{std::move(compute_streams_)}, transfer_streams_{std::move(transfer_streams)}, context_{context}, device_{device},
-        properties_{properties}, refCount_{1}, eventCount_{0}, compute_stream_idx_{0}, transfer_stream_idx_{0} {
+        properties_{properties}, refCount_{1}, eventCount_{0}, compute_stream_idx_{0}, transfer_stream_idx_{0}, 
+        n_compute_streams_{0}, n_transfer_streams_{0}, flags_(flags) {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -403,22 +407,17 @@ struct _pi_queue {
     cuda_piDeviceRelease(device_);
   }
 
-  native_type get_compute() noexcept {
-    return compute_streams_[compute_stream_idx_++ % compute_streams_.size()];
-  };
-  native_type get_transfer() noexcept {
-    if(!(properties_ & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)){
-      return get_compute();
-    }
-    return transfer_streams_[transfer_stream_idx_++ % transfer_streams_.size()];
-  };
+  native_type get_compute() noexcept;
+  native_type get_transfer() noexcept;
 
   template<typename T>
   void for_each_stream(T&& f){
-    for(unsigned int i=0;i<compute_streams_.size();i++){
+    unsigned int end = std::min(static_cast<unsigned int>(compute_streams_.size()), n_compute_streams_.load());
+    for(unsigned int i=0;i<end;i++){
       f(compute_streams_[i]);
     }
-    for(unsigned int i=0;i<transfer_streams_.size();i++){
+    end = std::min(static_cast<unsigned int>(transfer_streams_.size()), n_transfer_streams_.load());
+    for(unsigned int i=0;i<end;i++){
       f(transfer_streams_[i]);
     }
   }
