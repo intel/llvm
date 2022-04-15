@@ -6,6 +6,8 @@ runs:
   - name: Run clang-format for the patch
     shell: bash {0}
     run: |
+      # tell me you don't know anything about github actions, without mentioning you don't know anything about github actions
+      git config --global --add safe.directory /__w/llvm/llvm
       git clang-format ${GITHUB_SHA}^1
       git diff > ./clang-format.patch
   # Add patch with formatting fixes to CI job artifacts
