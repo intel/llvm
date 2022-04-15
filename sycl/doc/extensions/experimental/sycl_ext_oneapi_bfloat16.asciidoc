@@ -48,7 +48,7 @@ products.
 
 == Version
 
-Revision: 4
+Revision: 5
 
 == Introduction
 
@@ -318,9 +318,11 @@ int main (int argc, char *argv[]) {
 
 == New bfloat16 math functions
 
-Many applications will require dedicated functions that take parameters of type `bfloat16`. This extension adds `bfloat16` support to the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions. These functions can be used as element wise operations on matrices, and as such application developers can use these functions together with the `bfloat16` implementation of the sycl_ext_oneapi_matrix extension.
+Many applications will require dedicated functions that take parameters of type `bfloat16`. This extension adds `bfloat16` support to the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions. These functions can be used as element wise operations on matrices, and as such can used together with the `bfloat16` implementation of the sycl_ext_oneapi_matrix extension.
+
 The descriptions of the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions can be found in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions.
-The following functions are only available only when "T" is `bfloat16` `or `sycl::marray<bfloat16, {N}>`, where {N} means any positive value of size_t type.
+
+The following functions are only available when `T` is `bfloat16` `or `sycl::marray<bfloat16, {N}>`, where {N} means any positive value of size_t type.
 
 === fma
 
@@ -334,12 +336,8 @@ T fma(T a, T b, T c);
 
 ==== Description
 
-Returns the correctly rounded
-floating-point representation of the
-sum of `c` with the infinitely precise
-product of `a` and `b`. Rounding of
-intermediate products shall not
-occur.
+Returns the correctly rounded floating-point representation of the sum of `c` with the infinitely precise product of `a` and `b`.
+Rounding of intermediate products shall not occur. The mantissa LSB rounds to the nearest even. Subnormal numbers are supported.
 
 === fmax
 
@@ -392,9 +390,9 @@ Compute absolute value of a `bfloat16`.
 
 == Issues
 
-2. The CUDA backend has no use case that would necessitate support of the `vec` class in bfloat16 math builtins, since `marray` is always preferred. Support for the `vec` class can be added if other backends require it.
+1. The CUDA backend does not have a use case that would necessitate support of the `vec` class in bfloat16 math builtins, and `marray` would always be preferred over `vec` if there were to be added `vec` support in the CUDA backend. For portability reasons, support for the `vec` class can be easily added if other backends require it.
 
-3. Decide on a roadmap to extend support of `bfloat16` to more SYCL 2020 math functions.
+2. We should decide on a roadmap to extend support of `bfloat16` to other SYCL 2020 math functions.
 
 == Revision History
 
