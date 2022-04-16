@@ -25,7 +25,7 @@ runs:
     run: |
       mkdir -p ${{ inputs.cache_path }}/${{ inputs.repository }}
       cd ${{ inputs.cache_path }}/${{ inputs.repository }}
-      git config --global --add safe.directory ${{ inputs.cache_path }}/${{ inputs.repository }}
+      git config --global --add safe.directory ${{ inputs.cache_path }}${{ inputs.repository }}
       if [ -d ./.git ]; then
         git pull
       else
