@@ -25,6 +25,7 @@ runs:
     run: |
       mkdir -p ${{ inputs.cache_path }}/${{ inputs.repository }}
       cd ${{ inputs.cache_path }}/${{ inputs.repository }}
+      git config --global --add safe.directory ${{ inputs.cache_path }}/${{ inputs.repository }}
       if [ -d ./.git ]; then
         git pull
       else
@@ -47,7 +48,6 @@ runs:
       DEFAULT_BRANCH: ${{ inputs.default_branch }}
     run: |
       cd ${{ inputs.path }}
-      git config --global --add safe.directory ${{ inputs.cache_path }}/${{ inputs.repository }}
       git fetch origin $DEFAULT_BRANCH
       # Set fake identity to fulfil git requirements
       git config --local user.email "actions@github.com"
