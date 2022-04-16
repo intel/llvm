@@ -35,7 +35,7 @@ runs:
   steps:
   - run: |
       cp -r /actions .
-      git config --global --add safe.directory /__w/repo_cache/intel/llvm-test-suite
+      # git config --global --add safe.directory /__w/repo_cache/intel/llvm-test-suite
     shell: bash
   - name: Checkout LLVM Test Suite
     uses: ./actions/cached_checkout
