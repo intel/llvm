@@ -29,6 +29,11 @@ template <split_barrier_action flag> __ESIMD_API void split_barrier() {
   __esimd_sbarrier(flag);
 }
 
+__SYCL_DEPRECATED("use split_barrier<split_barrier_action>()")
+__ESIMD_API void split_barrier(split_barrier_action flag) {
+  __esimd_sbarrier(flag);
+}
+
 /// @} sycl_esimd_memory
 
 /// @addtogroup sycl_esimd_raw_send
