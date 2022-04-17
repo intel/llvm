@@ -6,9 +6,6 @@ using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
 void test_slm_init() SYCL_ESIMD_FUNCTION {
-  slm_init<1024>();
-  // expected-warning@+2 {{deprecated}}
-  // expected-note@sycl/ext/intel/esimd/memory.hpp:* {{has been explicitly marked deprecated here}}
   slm_init(1024);
 }
 

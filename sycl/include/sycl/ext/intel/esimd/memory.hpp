@@ -798,7 +798,7 @@ __ESIMD_API void barrier() {
 /// @{
 
 /// Declare per-work-group slm size.
-/// @tparam size slm size
+/// @param size slm size
 __ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 
 /// Gather operation over the Shared Local Memory.
