@@ -413,6 +413,7 @@ private:
 /// Specialization of 'reducer' class for array reductions accepting a span
 /// in cases where the identity value is not known.
 // TODO: Support alternative algorithms for different values of Extent
+#if __cplusplus >= 201703L
 template <typename T, size_t Extent, class BinaryOperation>
 class reducer<span<T, Extent>, BinaryOperation,
               enable_if_t<!IsKnownIdentityOp<T, BinaryOperation>::value>> {
@@ -571,6 +572,7 @@ public:
 private:
   marray<T, Extent> MValue;
 };
+#endif
 
 /// Base non-template class which is a base class for all reduction
 /// implementation classes. It is needed to detect the reduction classes.
@@ -1026,6 +1028,7 @@ private:
 /// Specialization of reduction_impl for spans
 // TODO: Consider hoisting some functionality into reduction_impl_base
 // TODO: Refactor to remove IsUSM and IsPlaceholder arguments?
+#if __cplusplus >= 201703L
 template <typename T, size_t Extent, class BinaryOperation, int Dims,
           bool IsUSM, access::placeholder IsPlaceholder>
 class reduction_impl<span<T, Extent>, BinaryOperation, Dims, IsUSM,
@@ -1273,6 +1276,7 @@ private:
 
   bool InitializeToIdentity;
 };
+#endif
 
 /// These are the forward declaration for the classes that help to create
 /// names for additional kernels. It is used only when there are

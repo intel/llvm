@@ -100,6 +100,7 @@ reduction(T *Var, const T &Identity, BinaryOperation Combiner,
   return {Var, Identity, Combiner, InitializeToIdentity};
 }
 
+#if __cplusplus >= 201703L
 /// Constructs a reduction object using the reduction variable referenced by
 /// the given sycl::span \p Span, reduction operation \p Combiner, and
 /// optional reduction properties.
@@ -149,6 +150,7 @@ reduction(span<T, Extent> Span, const T &Identity, BinaryOperation Combiner,
       PropList.has_property<property::reduction::initialize_to_identity>();
   return {Span, Identity, Combiner, InitializeToIdentity};
 }
+#endif
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
