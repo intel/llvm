@@ -165,6 +165,7 @@ public:
     combine(Partial);
   }
 
+  T &getElement(size_t E) { return MValue; }
   T MValue;
 
 private:
@@ -345,7 +346,230 @@ public:
         .fetch_max(MValue);
   }
 
+  T &getElement(size_t E) { return MValue; }
   T MValue;
+};
+
+/// Component of 'reducer' class for array reductions, representing a single
+/// element of the span (as returned by the subscript operator).
+// TODO: Support alternative algorithms for different values of Extent
+template <typename T, class BinaryOperation> class reducer_element {
+public:
+  // FIXME: This shouldn't be public :)
+  reducer_element(T *Ptr, BinaryOperation BOp)
+      : MElement(Ptr), MBinaryOp(BOp) {}
+
+  void combine(const T &Partial) { *MElement = MBinaryOp(*MElement, Partial); }
+
+  template <typename _T = T>
+  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value &&
+              sycl::detail::is_geninteger<_T>::value>
+  operator++() {
+    combine(static_cast<T>(1));
+  }
+
+  template <typename _T = T>
+  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value &&
+              sycl::detail::is_geninteger<_T>::value>
+  operator++(int) {
+    combine(static_cast<T>(1));
+  }
+
+  template <typename _T = T>
+  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value>
+  operator+=(const _T &Partial) {
+    combine(Partial);
+  }
+
+  template <typename _T = T>
+  enable_if_t<sycl::detail::IsMultiplies<_T, BinaryOperation>::value>
+  operator*=(const _T &Partial) {
+    combine(Partial);
+  }
+
+  template <typename _T = T>
+  enable_if_t<sycl::detail::IsBitOR<_T, BinaryOperation>::value>
+  operator|=(const _T &Partial) {
+    combine(Partial);
+  }
+
+  template <typename _T = T>
+  enable_if_t<sycl::detail::IsBitXOR<_T, BinaryOperation>::value>
+  operator^=(const _T &Partial) {
+    combine(Partial);
+  }
+
+  template <typename _T = T>
+  enable_if_t<sycl::detail::IsBitAND<_T, BinaryOperation>::value>
+  operator&=(const _T &Partial) {
+    combine(Partial);
+  }
+
+private:
+  T *MElement;
+  BinaryOperation MBinaryOp;
+};
+
+/// Specialization of 'reducer' class for array reductions accepting a span
+/// in cases where the identity value is not known.
+// TODO: Support alternative algorithms for different values of Extent
+template <typename T, size_t Extent, class BinaryOperation>
+class reducer<span<T, Extent>, BinaryOperation,
+              enable_if_t<!IsKnownIdentityOp<T, BinaryOperation>::value>> {
+public:
+  reducer(const T &Identity, BinaryOperation BOp)
+      : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
+
+  // SYCL 2020 revision 4 says this should be const, but this is a bug
+  // see https://github.com/KhronosGroup/SYCL-Docs/pull/252
+  reducer_element<T, BinaryOperation> operator[](size_t index) {
+    T *ElementPtr = &MValue[index];
+    return {ElementPtr, MBinaryOp};
+  }
+
+  T getIdentity() const { return MIdentity; }
+  T &getElement(size_t E) { return MValue[E]; }
+
+private:
+  marray<T, Extent> MValue;
+  const T MIdentity;
+  BinaryOperation MBinaryOp;
+};
+
+/// Specialization of 'reducer' class for array reductions accepting a span
+/// in cases where the identity value is known.
+// TODO: Support alternative algorithms for different values of Extent
+template <typename T, size_t Extent, class BinaryOperation>
+class reducer<span<T, Extent>, BinaryOperation,
+              enable_if_t<IsKnownIdentityOp<T, BinaryOperation>::value>> {
+public:
+  reducer() : MValue(getIdentity()) {}
+  reducer(const T &, BinaryOperation) : MValue(getIdentity()) {}
+
+  // SYCL 2020 revision 4 says this should be const, but this is a bug
+  // see https://github.com/KhronosGroup/SYCL-Docs/pull/252
+  reducer_element<T, BinaryOperation> operator[](size_t index) /*const*/ {
+    T *ElementPtr = &MValue[index];
+    return {ElementPtr, BinaryOperation()};
+  }
+
+  template <typename _T = T, class _BinaryOperation = BinaryOperation>
+  static enable_if_t<has_known_identity_impl<_BinaryOperation, _T>::value, _T>
+  getIdentity() {
+    return known_identity_impl<_BinaryOperation, _T>::value;
+  }
+
+private:
+  template <access::address_space Space>
+  static constexpr memory_scope getMemoryScope() {
+    return Space == access::address_space::local_space
+               ? memory_scope::work_group
+               : memory_scope::device;
+  }
+
+  // TODO: Skip atomic operations with the identity
+public:
+  /// Atomic ADD operation: *ReduVarPtr += MValue;
+  template <access::address_space Space = access::address_space::global_space,
+            typename _T = T, class _BinaryOperation = BinaryOperation>
+  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+              (IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value ||
+               IsReduOptForAtomic64Add<T, _BinaryOperation>::value) &&
+              sycl::detail::IsPlus<T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
+  atomic_combine(_T *ReduVarPtr) const {
+    for (size_t i = 0; i < Extent; ++i) {
+      atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+          *multi_ptr<T, Space>(ReduVarPtr + i))
+          .fetch_add(MValue[i]);
+    }
+  }
+
+  /// Atomic BITWISE OR operation: *ReduVarPtr |= MValue;
+  template <access::address_space Space = access::address_space::global_space,
+            typename _T = T, class _BinaryOperation = BinaryOperation>
+  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
+              sycl::detail::IsBitOR<T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
+  atomic_combine(_T *ReduVarPtr) const {
+    for (size_t i = 0; i < Extent; ++i) {
+      atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+          *multi_ptr<T, Space>(ReduVarPtr + i))
+          .fetch_or(MValue[i]);
+    }
+  }
+
+  /// Atomic BITWISE XOR operation: *ReduVarPtr ^= MValue;
+  template <access::address_space Space = access::address_space::global_space,
+            typename _T = T, class _BinaryOperation = BinaryOperation>
+  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
+              sycl::detail::IsBitXOR<T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
+  atomic_combine(_T *ReduVarPtr) const {
+    for (size_t i = 0; i < Extent; ++i) {
+      atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+          *multi_ptr<T, Space>(ReduVarPtr + i))
+          .fetch_xor(MValue[i]);
+    }
+  }
+
+  /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
+  template <access::address_space Space = access::address_space::global_space,
+            typename _T = T, class _BinaryOperation = BinaryOperation>
+  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
+              sycl::detail::IsBitAND<T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
+  atomic_combine(_T *ReduVarPtr) const {
+    for (size_t i = 0; i < Extent; ++i) {
+      atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+          *multi_ptr<T, Space>(ReduVarPtr + i))
+          .fetch_and(MValue[i]);
+    }
+  }
+
+  /// Atomic MIN operation: *ReduVarPtr = sycl::minimum(*ReduVarPtr, MValue);
+  template <access::address_space Space = access::address_space::global_space,
+            typename _T = T, class _BinaryOperation = BinaryOperation>
+  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
+              sycl::detail::IsMinimum<T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
+  atomic_combine(_T *ReduVarPtr) const {
+    for (size_t i = 0; i < Extent; ++i) {
+      atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+          *multi_ptr<T, Space>(ReduVarPtr + i))
+          .fetch_min(MValue[i]);
+    }
+  }
+
+  /// Atomic MAX operation: *ReduVarPtr = sycl::maximum(*ReduVarPtr, MValue);
+  template <access::address_space Space = access::address_space::global_space,
+            typename _T = T, class _BinaryOperation = BinaryOperation>
+  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
+              sycl::detail::IsMaximum<T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
+  atomic_combine(_T *ReduVarPtr) const {
+    for (size_t i = 0; i < Extent; ++i) {
+      atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+          *multi_ptr<T, Space>(ReduVarPtr + i))
+          .fetch_max(MValue[i]);
+    }
+  }
+
+  T &getElement(size_t E) { return MValue[E]; }
+
+private:
+  marray<T, Extent> MValue;
 };
 
 /// Base non-template class which is a base class for all reduction
