@@ -100,5 +100,55 @@ reduction(T *Var, const T &Identity, BinaryOperation Combiner,
   return {Var, Identity, Combiner, InitializeToIdentity};
 }
 
+/// Constructs a reduction object using the reduction variable referenced by
+/// the given sycl::span \p Span, reduction operation \p Combiner, and
+/// optional reduction properties.
+/// The reduction algorithm may be less efficient for this variant as the
+/// reduction identity is not known statically and it is not provided by user.
+template <typename T, size_t Extent, typename BinaryOperation>
+std::enable_if_t<Extent != dynamic_extent &&
+                     has_known_identity<BinaryOperation, T>::value,
+                 ext::oneapi::detail::reduction_impl<span<T, Extent>,
+                                                     BinaryOperation, 1, true>>
+reduction(span<T, Extent> Span, BinaryOperation,
+          const property_list &PropList = {}) {
+  bool InitializeToIdentity =
+      PropList.has_property<property::reduction::initialize_to_identity>();
+  return {Span, InitializeToIdentity};
+}
+
+/// Constructs a reduction object using the reduction variable referenced by
+/// the given sycl::span \p Span, reduction operation \p Combiner, and
+/// optional reduction properties.
+/// The reduction algorithm may be less efficient for this variant as the
+/// reduction identity is not known statically and it is not provided by user.
+template <typename T, size_t Extent, typename BinaryOperation>
+std::enable_if_t<Extent != dynamic_extent &&
+                     !has_known_identity<BinaryOperation, T>::value,
+                 ext::oneapi::detail::reduction_impl<span<T, Extent>,
+                                                     BinaryOperation, 1, true>>
+reduction(span<T, Extent> Span, BinaryOperation,
+          const property_list &PropList = {}) {
+  // TODO: implement reduction that works even when identity is not known.
+  (void)PropList;
+  throw runtime_error("Identity-less reductions with unknown identity are not "
+                      "supported yet.",
+                      PI_INVALID_VALUE);
+}
+
+/// Constructs a reduction object using the reduction variable referenced by
+/// the given sycl::span \p Span, reduction identity value \p Identity,
+/// reduction operation \p Combiner, and optional reduction properties.
+template <typename T, size_t Extent, typename BinaryOperation>
+std::enable_if_t<Extent != dynamic_extent,
+                 ext::oneapi::detail::reduction_impl<span<T, Extent>,
+                                                     BinaryOperation, 1, true>>
+reduction(span<T, Extent> Span, const T &Identity, BinaryOperation Combiner,
+          const property_list &PropList = {}) {
+  bool InitializeToIdentity =
+      PropList.has_property<property::reduction::initialize_to_identity>();
+  return {Span, Identity, Combiner, InitializeToIdentity};
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
