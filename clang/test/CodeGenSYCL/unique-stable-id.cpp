@@ -1,5 +1,7 @@
-// RUN: %clang_cc1 -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -std=c++17 -emit-llvm %s -o - | FileCheck %s --check-prefixes=CHECK
-// RUN: %clang_cc1 -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -std=c++17 -emit-llvm -fsycl-unique-prefix=THE_PREFIX %s -o - | FileCheck %s --check-prefixes=PREFIX,CHECK
+// RUN: %clang_cc1 -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -std=c++17 -emit-llvm %s -o - | FileCheck %s --check-prefixes=CHECK,NONOPAQUE
+// RUN: %clang_cc1 -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -std=c++17 -emit-llvm -fsycl-unique-prefix=THE_PREFIX %s -o - | FileCheck %s --check-prefixes=PREFIX,CHECK,NONOPAQUE
+// RUN: %clang_cc1 -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -std=c++17 -emit-llvm %s -o - -mllvm -opaque-pointers | FileCheck %s --check-prefixes=CHECK,OPAQUE
+// RUN: %clang_cc1 -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -std=c++17 -emit-llvm -fsycl-unique-prefix=THE_PREFIX %s -o - -mllvm -opaque-pointers | FileCheck %s --check-prefixes=PREFIX,CHECK,OPAQUE
 
 // A set of tests to validate the naming behavior of
 // __builtin_sycl_unique_stable_id, both as it is altered by a kernel being
@@ -131,7 +133,8 @@ void Func() {
   static double FuncVar;
   constexpr const char *ID = __builtin_sycl_unique_stable_id(FuncVar);
   // CHECK: define{{.+}} void @_Z4Funcv()
-  // CHECK: store i8* getelementptr inbounds
+  // NONOPAQUE: store i8* getelementptr inbounds
+  // OPAQUE: store ptr
   // CHECK-SAME: @[[FUNC_VAR]]
 };
 
@@ -143,7 +146,7 @@ void TemplateFunc() {
 
 int main() {
   some_template(func<Derp>);
-  // CHECK: call void @_Z13some_templateIPFPKcvEEvT_(i8* ()* noundef @_Z4funcI4DerpEDTcl31__builtin_sycl_unique_stable_idsrT_3strEEv)
+  // CHECK: call void @_Z13some_templateIPFPKcvEEvT_({{.+}} noundef @_Z4funcI4DerpEDTcl31__builtin_sycl_unique_stable_idsrT_3strEEv)
   // Demangles to:
   // call void @void some_template<char const* (*)()>(char const* (*)())(i8* ()* @decltype(__builtin_sycl_unique_stable_id(Derp::str)) func<Derp>())
 
@@ -179,7 +182,7 @@ int main() {
   puts(__builtin_sycl_unique_stable_id(Struct::StaticConstexprStructInt));
   // CHECK: call i32 @puts({{.+}} @[[STRUCT_STATIC_CONSTEXPR_INT]],
   puts(Wrapper<GlobalInt>::ID);
-  // CHECK: call i32 @puts({{.+}} @[[WRAPPED_GLOBAL_INT]],
+  // CHECK: call i32 @puts({{.+}} @[[WRAPPED_GLOBAL_INT]]
 
   // Ensure 'kernel naming' modifies the builtin. Wrapped in a lambda to make
   // sure it has its name changed when the kernel is named. All should have
@@ -209,7 +212,8 @@ int main() {
 
   TemplateFunc<float>();
   // CHECK: define{{.+}} void @_Z12TemplateFuncIfEvv()
-  // CHECK: store i8* getelementptr inbounds
+  // NONOPAQUE: store i8* getelementptr inbounds
+  // OPAQUE: store ptr
   // CHECK-SAME: @[[TEMPL_FUNC_VAR]]
 
 }
