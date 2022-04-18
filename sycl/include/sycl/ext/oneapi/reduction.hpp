@@ -618,6 +618,8 @@ public:
   static constexpr bool is_placeholder =
       (IsPlaceholder == access::placeholder::true_t);
 
+  static constexpr size_t num_elements = 1;
+
   // Only scalar (i.e. 0-dim and 1-dim with 1 element) reductions supported now.
   // TODO: suport (Dims > 1) accessors/reductions.
   // TODO: support true 1-Dimensional accessors/reductions (size() > 1).
@@ -988,6 +990,257 @@ public:
   bool initializeToIdentity() const { return InitializeToIdentity; }
 
 private:
+  template <typename BufferT, access::placeholder IsPH = IsPlaceholder>
+  std::enable_if_t<IsPH == access::placeholder::false_t, rw_accessor_type>
+  createHandlerWiredReadWriteAccessor(handler &CGH, BufferT Buffer) {
+    return {Buffer, CGH};
+  }
+
+  template <typename BufferT, access::placeholder IsPH = IsPlaceholder>
+  std::enable_if_t<IsPH == access::placeholder::true_t, rw_accessor_type>
+  createHandlerWiredReadWriteAccessor(handler &CGH, BufferT Buffer) {
+    rw_accessor_type Acc(Buffer);
+    CGH.require(Acc);
+    return Acc;
+  }
+
+  /// Identity of the BinaryOperation.
+  /// The result of BinaryOperation(X, MIdentity) is equal to X for any X.
+  const T MIdentity;
+
+  /// User's accessor to where the reduction must be written.
+  std::shared_ptr<rw_accessor_type> MRWAcc;
+  std::shared_ptr<dw_accessor_type> MDWAcc;
+
+  std::shared_ptr<buffer<T, buffer_dim>> MOutBufPtr;
+
+  /// USM pointer referencing the memory to where the result of the reduction
+  /// must be written. Applicable/used only for USM reductions.
+  T *MUSMPointer = nullptr;
+
+  BinaryOperation MBinaryOp;
+
+  bool InitializeToIdentity;
+};
+
+/// Specialization of reduction_impl for spans
+// TODO: Consider hoisting some functionality into reduction_impl_base
+// TODO: Refactor to remove IsUSM and IsPlaceholder arguments?
+template <typename T, size_t Extent, class BinaryOperation, int Dims,
+          bool IsUSM, access::placeholder IsPlaceholder>
+class reduction_impl<span<T, Extent>, BinaryOperation, Dims, IsUSM,
+                     IsPlaceholder> : private reduction_impl_base {
+public:
+  using reducer_type = reducer<span<T, Extent>, BinaryOperation>;
+  using result_type = T;
+  using binary_operation = BinaryOperation;
+
+  using rw_accessor_type =
+      accessor<T, Dims, access::mode::read_write, access::target::device,
+               IsPlaceholder, ext::oneapi::accessor_property_list<>>;
+  using dw_accessor_type =
+      accessor<T, Dims, access::mode::discard_write, access::target::device,
+               IsPlaceholder, ext::oneapi::accessor_property_list<>>;
+  static constexpr int accessor_dim = Dims;
+  static constexpr int buffer_dim = (Dims == 0) ? 1 : Dims;
+
+  static constexpr bool has_atomic_add_float64 =
+      IsReduOptForAtomic64Add<T, BinaryOperation>::value;
+  static constexpr bool has_fast_atomics =
+      IsReduOptForFastAtomicFetch<T, BinaryOperation>::value;
+  static constexpr bool has_fast_reduce =
+      IsReduOptForFastReduce<T, BinaryOperation>::value;
+  static constexpr bool is_usm = IsUSM;
+  static constexpr bool is_placeholder =
+      (IsPlaceholder == access::placeholder::true_t);
+
+  static constexpr size_t num_elements = Extent;
+
+  /// Constructs reduction_impl when the identity value is statically known
+  template <
+      typename _T = T,
+      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  reduction_impl(span<_T, Extent> Span, bool InitializeToIdentity = false)
+      : MIdentity(getIdentity()), MUSMPointer(Span.data()),
+        InitializeToIdentity(InitializeToIdentity) {}
+
+  /// Constructs reduction_impl when the identity value is statically known
+  /// and user passed an identity value anyway
+  template <
+      typename _T = T,
+      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  reduction_impl(span<_T, Extent> Span, const T & /* Identity */,
+                 BinaryOperation BOp, bool InitializeToIdentity = false)
+      : MIdentity(getIdentity()), MBinaryOp(BOp), MUSMPointer(Span.data()),
+        InitializeToIdentity(InitializeToIdentity) {}
+
+  /// Constructs reduction_impl when the identity value is not statically known
+  template <
+      typename _T = T,
+      enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  reduction_impl(span<T, Extent> Span, const T &Identity, BinaryOperation BOp,
+                 bool InitializeToIdentity = false)
+      : MIdentity(Identity), MBinaryOp(BOp), MUSMPointer(Span.data()),
+        InitializeToIdentity(InitializeToIdentity) {}
+
+  /// Returns the statically known identity value.
+  template <typename _T = T, class _BinaryOperation = BinaryOperation>
+  enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value,
+              _T> constexpr getIdentity() {
+    return reducer_type::getIdentity();
+  }
+
+  /// Returns the identity value given by user.
+  template <typename _T = T, class _BinaryOperation = BinaryOperation>
+  enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value, _T>
+  getIdentity() {
+    return MIdentity;
+  }
+
+  /// Associates the reduction accessor to user's memory with \p CGH handler
+  /// to keep the accessor alive until the command group finishes the work.
+  /// This function does not do anything for USM reductions.
+  void associateWithHandler(handler &CGH) {
+#ifndef __SYCL_DEVICE_ONLY__
+    if (MRWAcc)
+      CGH.associateWithHandler(MRWAcc.get(), access::target::device);
+    else if (MDWAcc)
+      CGH.associateWithHandler(MDWAcc.get(), access::target::device);
+#else
+    (void)CGH;
+#endif
+  }
+
+  /// Creates and returns a local accessor with the \p Size elements.
+  /// By default the local accessor elements are of the same type as the
+  /// elements processed by the reduction, but may it be altered by specifying
+  /// \p _T explicitly if need an accessor with elements of different type.
+  template <typename _T = result_type>
+  static accessor<_T, buffer_dim, access::mode::read_write,
+                  access::target::local>
+  getReadWriteLocalAcc(size_t Size, handler &CGH) {
+    return {Size, CGH};
+  }
+
+  accessor<T, buffer_dim, access::mode::read>
+  getReadAccToPreviousPartialReds(handler &CGH) const {
+    CGH.addReduction(MOutBufPtr);
+    return {*MOutBufPtr, CGH};
+  }
+
+  /// Returns user's USM pointer passed to reduction for editing.
+  template <bool IsOneWG, bool _IsUSM = is_usm>
+  std::enable_if_t<IsOneWG && _IsUSM, result_type *>
+  getWriteMemForPartialReds(size_t, handler &) {
+    return getUSMPointer();
+  }
+
+  /// Returns user's accessor passed to reduction for editing if that is
+  /// the read-write accessor. Otherwise, create a new buffer and return
+  /// read-write accessor to it.
+  template <bool IsOneWG, bool _IsUSM = is_usm>
+  std::enable_if_t<IsOneWG && !_IsUSM, rw_accessor_type>
+  getWriteMemForPartialReds(size_t, handler &CGH) {
+    if (MRWAcc)
+      return *MRWAcc;
+    return getWriteMemForPartialReds<false>(1, CGH);
+  }
+
+  /// Constructs a new temporary buffer to hold partial sums and returns
+  /// the accessor for that buffer.
+  template <bool IsOneWG>
+  std::enable_if_t<!IsOneWG, rw_accessor_type>
+  getWriteMemForPartialReds(size_t Size, handler &CGH) {
+    MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+    CGH.addReduction(MOutBufPtr);
+    return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+  }
+
+  /// Returns an accessor accessing the memory that will hold the reduction
+  /// partial sums.
+  /// If \p Size is equal to one, then the reduction result is the final and
+  /// needs to be written to user's read-write accessor (if there is such).
+  /// Otherwise, a new buffer is created and accessor to that buffer is
+  /// returned.
+  rw_accessor_type getWriteAccForPartialReds(size_t Size, handler &CGH) {
+    if (Size == 1 && MRWAcc != nullptr) {
+      associateWithHandler(CGH);
+      return *MRWAcc;
+    }
+
+    // Create a new output buffer and return an accessor to it.
+    MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+    CGH.addReduction(MOutBufPtr);
+    return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+  }
+
+  /// If reduction is initialized with read-write accessor, which does not
+  /// require initialization with identity value, then return user's read-write
+  /// accessor. Otherwise, create global buffer initialized with identity value
+  /// for each result and return an accessor to that buffer.
+
+  template <bool HasFastAtomics = (has_fast_atomics || has_atomic_add_float64)>
+  std::enable_if_t<HasFastAtomics, rw_accessor_type>
+  getReadWriteAccessorToInitializedMem(handler &CGH) {
+    if (!is_usm && !initializeToIdentity())
+      return *MRWAcc;
+
+    // TODO: Move to T[] in C++20 to simplify handling here
+    // auto RWReduVal = std::make_shared<T[num_elements]>();
+    auto RWReduVal = std::make_shared<std::array<T, num_elements>>();
+    for (int i = 0; i < num_elements; ++i) {
+      (*RWReduVal)[i] = 0;
+    }
+    CGH.addReduction(RWReduVal);
+    MOutBufPtr = std::make_shared<buffer<T, 1>>(RWReduVal.get()->data(),
+                                                range<1>(num_elements));
+    MOutBufPtr->set_final_data();
+    CGH.addReduction(MOutBufPtr);
+    return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+  }
+
+  accessor<int, 1, access::mode::read_write, access::target::device,
+           access::placeholder::false_t>
+  getReadWriteAccessorToInitializedGroupsCounter(handler &CGH) {
+    auto CounterMem = std::make_shared<int>(0);
+    CGH.addReduction(CounterMem);
+    auto CounterBuf = std::make_shared<buffer<int, 1>>(CounterMem.get(), 1);
+    CounterBuf->set_final_data();
+    CGH.addReduction(CounterBuf);
+    return {*CounterBuf, CGH};
+  }
+
+  bool hasUserDiscardWriteAccessor() { return MDWAcc != nullptr; }
+
+  template <bool _IsUSM = IsUSM>
+  std::enable_if_t<!_IsUSM, rw_accessor_type &> getUserReadWriteAccessor() {
+    return *MRWAcc;
+  }
+
+  template <bool _IsUSM = IsUSM>
+  std::enable_if_t<!_IsUSM, dw_accessor_type &> getUserDiscardWriteAccessor() {
+    return *MDWAcc;
+  }
+
+  result_type *getUSMPointer() {
+    assert(is_usm && "Unexpected call of getUSMPointer().");
+    return MUSMPointer;
+  }
+
+  static inline result_type *getOutPointer(const rw_accessor_type &OutAcc) {
+    return OutAcc.get_pointer().get();
+  }
+
+  static inline result_type *getOutPointer(result_type *OutPtr) {
+    return OutPtr;
+  }
+
+  /// Returns the binary operation associated with the reduction.
+  BinaryOperation getBinaryOperation() const { return MBinaryOp; }
+  bool initializeToIdentity() const { return InitializeToIdentity; }
+
+private:
+  // TODO: Determine if these are necessary for spans
   template <typename BufferT, access::placeholder IsPH = IsPlaceholder>
   std::enable_if_t<IsPH == access::placeholder::false_t, rw_accessor_type>
   createHandlerWiredReadWriteAccessor(handler &CGH, BufferT Buffer) {
