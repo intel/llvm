@@ -1,9 +1,9 @@
-SPV_INTEL_fpmath
+SPV_INTEL_fp_max_error
 ================
 
 == Name Strings
 
-SPV_INTEL_fpmath
+SPV_INTEL_fp_max_error
 
 == Contact
 
@@ -47,22 +47,22 @@ This extension adds a decoration that may be attached to any instruction of floa
 To use this extension within a SPIR-V module, the following *OpExtension* must be present in the module:
 
 ----
-OpExtension "SPV_INTEL_fpmath"
+OpExtension "SPV_INTEL_fp_max_error"
 ----
 
 == New capabilities
 This extension introduces a new capability:
 
 ----
-FPMathINTEL
+FPMaxErrorDecorationINTEL
 ----
 
 == New Decorations
 
-This extension adds the following decoration under the *FPMathINTEL* capability:
+This extension adds the following decoration under the *FPMaxErrorDecorationINTEL* capability:
 
 ----
-FPMathOnInstructionINTEL
+FPMaxErrorINTEL
 ----
 
 == Token Number Assignments
@@ -72,8 +72,8 @@ FPMathOnInstructionINTEL
 [cols="70%,30%"]
 [grid="rows"]
 |====
-|FPMathINTEL              |6169
-|FPMathOnInstructionINTEL |6170
+|FPMaxErrorDecorationINTEL |6169
+|FPMaxErrorINTEL           |6170
 |====
 --
 
@@ -87,7 +87,7 @@ Modify Section 3.20, Decoration, adding the following rows to the Decoration tab
 [options="header"]
 |====
 2+^| Decoration ^| Extra Operands ^| Enabling Capabilities
-| 6170 | *FPMathOnInstructionINTEL* +
+| 6170 | *FPMaxErrorINTEL* +
 Apply to an floating-point type instruction to express the maximum acceptable error in the result of that instruction, in ULPs. ULP is defined as follows:
 
 If x is a real number that lies between two finite consecutive floating-point numbers a and b, without being equal to one of them, then ulp(x) = \|b - a\|, otherwise ulp(x) is the distance between the two non-equal finite floating-point numbers nearest x. Moreover, ulp(NaN) is NaN.
@@ -95,7 +95,7 @@ If x is a real number that lies between two finite consecutive floating-point nu
 _Max Error_ is a positive float type number representing the maximum relative error.
 
 | Literal +
-_Max Error_ | *FPMathINTEL*
+_Max Error_ | *FPMaxErrorDecorationINTEL*
 |====
 --
 
@@ -106,7 +106,7 @@ Modify Section 3.31, Capability, adding a row to the Capability table:
 [options="header"]
 |====
 2+^| Capability ^| Implicitly Declares
-| 6169 | FPMathINTEL |
+| 6169 | FPMaxErrorDecorationINTEL |
 |====
 --
 
