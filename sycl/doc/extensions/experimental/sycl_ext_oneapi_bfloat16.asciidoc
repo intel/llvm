@@ -57,7 +57,6 @@ floating-point type(`float`) to `bfloat16` type and vice versa. The extension
 doesn't add support for `bfloat16` type as such, instead it uses 16-bit integer
 type(`uint16_t`) as a storage for `bfloat16` values.
 
-
 The purpose of conversion from float to bfloat16 is to reduce the amount of memory
 required to store floating-point numbers. Computations are expected to be done with
 32-bit floating-point values.
