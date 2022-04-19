@@ -137,22 +137,21 @@ public:
 
 private:
   static constexpr int32_t _burst_coalesce_val =
-      _GetValue<int32_t, burst_coalesce_impl, _mem_access_params...>::value;
+      _GetValue<burst_coalesce_impl, _mem_access_params...>::value;
   static constexpr uint8_t _burst_coalesce =
       _burst_coalesce_val == 1 ? BURST_COALESCE : 0;
 
   static constexpr int32_t _cache_val =
-      _GetValue<int32_t, cache, _mem_access_params...>::value;
+      _GetValue<cache, _mem_access_params...>::value;
   static constexpr uint8_t _cache = (_cache_val > 0) ? CACHE : 0;
 
   static constexpr int32_t _statically_coalesce_val =
-      _GetValue<int32_t, statically_coalesce_impl,
-                _mem_access_params...>::value;
+      _GetValue<statically_coalesce_impl, _mem_access_params...>::value;
   static constexpr uint8_t _dont_statically_coalesce =
       _statically_coalesce_val == 0 ? STATICALLY_COALESCE : 0;
 
   static constexpr int32_t _prefetch_val =
-      _GetValue<int32_t, prefetch_impl, _mem_access_params...>::value;
+      _GetValue<prefetch_impl, _mem_access_params...>::value;
   static constexpr uint8_t _prefetch = _prefetch_val ? PREFETCH : 0;
 
   static_assert(_cache_val >= 0, "cache size parameter must be non-negative");
