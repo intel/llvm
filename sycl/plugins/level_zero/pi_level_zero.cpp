@@ -2838,12 +2838,14 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     }
     ZesStruct<zes_pci_properties_t> ZeDevicePciProperties;
     ZE_CALL(zesDevicePciGetProperties, (ZeDevice, &ZeDevicePciProperties));
-    std::stringstream ss;
-    ss << ZeDevicePciProperties.address.domain << ":"
-       << ZeDevicePciProperties.address.bus << ":"
-       << ZeDevicePciProperties.address.device << "."
-       << ZeDevicePciProperties.address.function;
-    return ReturnValue(ss.str().c_str());
+    constexpr size_t AddressBufferSize = 13;
+    char AddressBuffer[AddressBufferSize];
+    std::snprintf(AddressBuffer, AddressBufferSize, "%04x:%02x:%02x.%01x",
+                  ZeDevicePciProperties.address.domain,
+                  ZeDevicePciProperties.address.bus,
+                  ZeDevicePciProperties.address.device,
+                  ZeDevicePciProperties.address.function);
+    return ReturnValue(AddressBuffer);
   }
   case PI_DEVICE_INFO_GPU_EU_COUNT: {
     pi_uint32 count = Device->ZeDeviceProperties->numEUsPerSubslice *

@@ -315,8 +315,8 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::usm_system_allocations>();
   case aspect::ext_intel_pci_address:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_PCI_ADDRESS, sizeof(pi_device_type),
-               &device_type, &return_size) == PI_SUCCESS;
+               MDevice, PI_DEVICE_INFO_PCI_ADDRESS, 0, nullptr, &return_size) ==
+           PI_SUCCESS;
   case aspect::ext_intel_gpu_eu_count:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                MDevice, PI_DEVICE_INFO_GPU_EU_COUNT, sizeof(pi_device_type),
