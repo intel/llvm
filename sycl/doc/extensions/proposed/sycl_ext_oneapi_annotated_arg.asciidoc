@@ -62,8 +62,8 @@ compiler to reliably maintain and analyze the information.
 == Overview
 
 The purpose of this document is to clearly describe and specify
-`annotated_arg` and related concepts, types, and mechanisms, and to give examples and context
-for their usage.
+`annotated_arg` and related concepts, types, and mechanisms, and to give
+examples and context for their usage.
 
 [NOTE]
 ====
@@ -126,6 +126,35 @@ int main () {
 `PropA` and `PropB` are expected to be preserved on the kernel arguments in a
 reliable manner. For example, the properties may be converted to kernel
 function level metadata.
+
+The example below shows a type of use-case which is not meant to be supported
+by `annotated_arg`:
+
+.Unsupported Usage Example
+[source,c++]
+----
+using sycl::ext::oneapi::experimental;
+struct MyType {
+  annotated_arg<int, properties<PropC>> a;
+  annotated_arg<int, properties<PropD>> b;
+};
+
+struct MyKernel {
+  annotated_arg<MyType, properties<PropA>> a;
+  annotated_arg<MyType, properties<PropB>> b;
+  ...
+  void operator()() const {
+    ...
+  }
+};
+----
+When a nested structure is created by wrapping other types with `annotated_arg`,
+only the top-most level `annotated_arg` properties will be applied to the
+kernel arguments.
+
+In the example above, only properties `PropA` and `PropB` will be applied to the
+kernel argument and the other properties on members of `MyType` will not be
+processed.
 
 === Representation of `annotated_arg`
 
