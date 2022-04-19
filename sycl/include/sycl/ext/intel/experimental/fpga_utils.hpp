@@ -116,13 +116,11 @@ struct GetOrDefaultValT<
 
 // Default latency_anchor_id property for latency control, indicating the
 // applied operation is not an anchor.
-using defaultLatencyAnchorIdProperty =
-    oneapi::experimental::latency_anchor_id_key::value_t<-1>;
+using defaultLatencyAnchorIdProperty = latency_anchor_id_key::value_t<-1>;
 // Default latency_constraint property for latency control, indicating the
 // applied operation is not a non-anchor.
 using defaultLatencyConstraintProperty =
-    oneapi::experimental::latency_constraint_key::value_t<
-        0, oneapi::experimental::latency_control_type::none, 0>;
+    latency_constraint_key::value_t<0, latency_control_type::none, 0>;
 
 } // namespace experimental
 } // namespace intel

@@ -42,30 +42,25 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
     using _latency_anchor_id_prop =
-        typename GetOrDefaultValT<_functionPropertiesT,
-                                  oneapi::experimental::latency_anchor_id_key,
+        typename GetOrDefaultValT<_functionPropertiesT, latency_anchor_id_key,
                                   defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop =
-        typename GetOrDefaultValT<_functionPropertiesT,
-                                  oneapi::experimental::latency_constraint_key,
+        typename GetOrDefaultValT<_functionPropertiesT, latency_constraint_key,
                                   defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
-    static constexpr oneapi::experimental::latency_control_type _control_type =
+    static constexpr latency_control_type _control_type =
         _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
     int32_t _control_type_code = 0; // latency_control_type::none is default
-    if constexpr (_control_type ==
-                  oneapi::experimental::latency_control_type::exact) {
+    if constexpr (_control_type == latency_control_type::exact) {
       _control_type_code = 1;
-    } else if constexpr (_control_type ==
-                         oneapi::experimental::latency_control_type::max) {
+    } else if constexpr (_control_type == latency_control_type::max) {
       _control_type_code = 2;
-    } else if constexpr (_control_type ==
-                         oneapi::experimental::latency_control_type::min) {
+    } else if constexpr (_control_type == latency_control_type::min) {
       _control_type_code = 3;
     }
 
@@ -95,30 +90,25 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
     using _latency_anchor_id_prop =
-        typename GetOrDefaultValT<_functionPropertiesT,
-                                  oneapi::experimental::latency_anchor_id_key,
+        typename GetOrDefaultValT<_functionPropertiesT, latency_anchor_id_key,
                                   defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop =
-        typename GetOrDefaultValT<_functionPropertiesT,
-                                  oneapi::experimental::latency_constraint_key,
+        typename GetOrDefaultValT<_functionPropertiesT, latency_constraint_key,
                                   defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
-    static constexpr oneapi::experimental::latency_control_type _control_type =
+    static constexpr latency_control_type _control_type =
         _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
     int32_t _control_type_code = 0; // latency_control_type::none is default
-    if constexpr (_control_type ==
-                  oneapi::experimental::latency_control_type::exact) {
+    if constexpr (_control_type == latency_control_type::exact) {
       _control_type_code = 1;
-    } else if constexpr (_control_type ==
-                         oneapi::experimental::latency_control_type::max) {
+    } else if constexpr (_control_type == latency_control_type::max) {
       _control_type_code = 2;
-    } else if constexpr (_control_type ==
-                         oneapi::experimental::latency_control_type::min) {
+    } else if constexpr (_control_type == latency_control_type::min) {
       _control_type_code = 3;
     }
 
@@ -147,30 +137,25 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
     using _latency_anchor_id_prop =
-        typename GetOrDefaultValT<_functionPropertiesT,
-                                  oneapi::experimental::latency_anchor_id_key,
+        typename GetOrDefaultValT<_functionPropertiesT, latency_anchor_id_key,
                                   defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop =
-        typename GetOrDefaultValT<_functionPropertiesT,
-                                  oneapi::experimental::latency_constraint_key,
+        typename GetOrDefaultValT<_functionPropertiesT, latency_constraint_key,
                                   defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
-    static constexpr oneapi::experimental::latency_control_type _control_type =
+    static constexpr latency_control_type _control_type =
         _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
     int32_t _control_type_code = 0; // latency_control_type::none is default
-    if constexpr (_control_type ==
-                  oneapi::experimental::latency_control_type::exact) {
+    if constexpr (_control_type == latency_control_type::exact) {
       _control_type_code = 1;
-    } else if constexpr (_control_type ==
-                         oneapi::experimental::latency_control_type::max) {
+    } else if constexpr (_control_type == latency_control_type::max) {
       _control_type_code = 2;
-    } else if constexpr (_control_type ==
-                         oneapi::experimental::latency_control_type::min) {
+    } else if constexpr (_control_type == latency_control_type::min) {
       _control_type_code = 3;
     }
 
@@ -196,30 +181,25 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
     using _latency_anchor_id_prop =
-        typename GetOrDefaultValT<_functionPropertiesT,
-                                  oneapi::experimental::latency_anchor_id_key,
+        typename GetOrDefaultValT<_functionPropertiesT, latency_anchor_id_key,
                                   defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop =
-        typename GetOrDefaultValT<_functionPropertiesT,
-                                  oneapi::experimental::latency_constraint_key,
+        typename GetOrDefaultValT<_functionPropertiesT, latency_constraint_key,
                                   defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
     static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
     static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
-    static constexpr oneapi::experimental::latency_control_type _control_type =
+    static constexpr latency_control_type _control_type =
         _latency_constraint_prop::type;
     static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
 
     int32_t _control_type_code = 0; // latency_control_type::none is default
-    if constexpr (_control_type ==
-                  oneapi::experimental::latency_control_type::exact) {
+    if constexpr (_control_type == latency_control_type::exact) {
       _control_type_code = 1;
-    } else if constexpr (_control_type ==
-                         oneapi::experimental::latency_control_type::max) {
+    } else if constexpr (_control_type == latency_control_type::max) {
       _control_type_code = 2;
-    } else if constexpr (_control_type ==
-                         oneapi::experimental::latency_control_type::min) {
+    } else if constexpr (_control_type == latency_control_type::min) {
       _control_type_code = 3;
     }
 

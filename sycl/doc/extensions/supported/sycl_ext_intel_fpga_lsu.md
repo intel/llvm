@@ -43,16 +43,16 @@ The implementation relies on the Clang built-in `__builtin_intel_fpga_mem` when
 parsing the SYCL device code. The built-in uses the LLVM `ptr.annotation`
 intrinsic under the hood to annotate the pointer that is being accessed.
 ```c++
-template <class... mem_access_params> class lsu final {
+template <class... MemAccessParams> class lsu final {
 public:
   lsu() = delete;
 
-  template <typename _T, access::address_space _space>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
-    check_space<_space>();
+  template <typename T, access::address_space Space>
+  static T load(sycl::multi_ptr<T, Space> Ptr) {
+    check_space<Space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    return *__builtin_intel_fpga_mem((_T *)Ptr,
+    return *__builtin_intel_fpga_mem((T *)Ptr,
                                      _burst_coalesce | _cache |
                                          _dont_statically_coalesce | _prefetch,
                                      _cache_val);
@@ -61,12 +61,12 @@ public:
 #endif
   }
 
-  template <typename _T, access::address_space _space>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
-    check_space<_space>();
+  template <typename T, access::address_space Space>
+  static void store(sycl::multi_ptr<T, Space> Ptr, T Val) {
+    check_space<Space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    *__builtin_intel_fpga_mem((_T *)Ptr,
+    *__builtin_intel_fpga_mem((T *)Ptr,
                               _burst_coalesce | _cache |
                                   _dont_statically_coalesce | _prefetch,
                               _cache_val) = Val;
@@ -129,11 +129,11 @@ In the experimental API version, member functions `load()` and `store()` take
 in a property list as function argument, which can contain the latency control
 properties `latency_anchor_id` and/or `latency_constraint`.
 
-1. **`sycl::ext::oneapi::experimental::latency_anchor_id<N>`, where `N` is an integer**:
+1. **`sycl::ext::intel::experimental::latency_anchor_id<N>`, where `N` is an integer**:
 represents ID of the current function call when it performs as an anchor. The ID
 must be unique within the application, with a diagnostic required if that
 condition is not met.
-2. **`sycl::ext::oneapi::experimental::latency_constraint<A, B, C>`** contains control
+2. **`sycl::ext::intel::experimental::latency_constraint<A, B, C>`** contains control
 parameters when the current function performs as a non-anchor, where:
     - **`A` is an integer**: The ID of the target anchor defined on a different
     instruction through a `latency_anchor_id` property.
@@ -146,7 +146,7 @@ parameters when the current function performs as a non-anchor, where:
 ### Synopsis
 ```c++
 // Added in version 2 of this extension.
-namespace sycl::ext::oneapi::experimental {
+namespace sycl::ext::intel::experimental {
 enum class latency_control_type {
   none, // default
   exact,
@@ -156,17 +156,17 @@ enum class latency_control_type {
 
 struct latency_anchor_id_key {
   template <int Anchor>
-  using value_t = property_value<latency_anchor_id_key,
-                                 std::integral_constant<int, Anchor>>;
+  using value_t =
+      oneapi::experimental::property_value<latency_anchor_id_key,
+                                           std::integral_constant<int, Anchor>>;
 };
 
 struct latency_constraint_key {
   template <int Target, latency_control_type Type, int Cycle>
-  using value_t =
-      property_value<latency_constraint_key,
-                     std::integral_constant<int, Target>,
-                     std::integral_constant<latency_control_type, Type>,
-                     std::integral_constant<int, Cycle>>;
+  using value_t = oneapi::experimental::property_value<
+      latency_constraint_key, std::integral_constant<int, Target>,
+      std::integral_constant<latency_control_type, Type>,
+      std::integral_constant<int, Cycle>>;
 };
 
 template <int Anchor>
@@ -175,22 +175,20 @@ inline constexpr latency_anchor_id_key::value_t<Anchor> latency_anchor_id;
 template <int Target, latency_control_type Type, int Cycle>
 inline constexpr latency_constraint_key::value_t<Target, Type, Cycle>
     latency_constraint;
-} // namespace sycl::ext::oneapi::experimental
 
-namespace sycl::ext::intel::experimental {
-template <class... mem_access_params> class lsu final {
-  template <typename _T, access::address_space _space>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr);
+template <class... MemAccessParams> class lsu final {
+  template <typename T, access::address_space Space>
+  static T load(sycl::multi_ptr<T, Space> Ptr);
 
-  template <typename _T, access::address_space _space, typename _propertiesT>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr, _propertiesT Properties);
+  template <typename T, access::address_space Space, typename PropertiesT>
+  static T load(sycl::multi_ptr<T, Space> Ptr, PropertiesT Properties);
 
-  template <typename _T, access::address_space _space>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val);
+  template <typename T, access::address_space Space>
+  static void store(sycl::multi_ptr<T, Space> Ptr, T Val);
 
-  template <typename _T, access::address_space _space, typename _propertiesT>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val,
-                    _propertiesT Properties);
+  template <typename T, access::address_space Space, typename PropertiesT>
+  static void store(sycl::multi_ptr<T, Space> Ptr, T Val,
+                    PropertiesT Properties);
 };
 } // namespace sycl::ext::intel::experimental
 ```
@@ -221,14 +219,14 @@ Queue.submit([&](sycl::handler &cgh) {
 
     // The following load is anchor 1
     int Z = ExpPrefetchingLSU::load(
-      input_ptr + 2, sycl::ext::oneapi::experimental::properties(
-        sycl::ext::oneapi::experimental::latency_anchor_id<1>));
+        input_ptr + 2,
+        sycl::ext::oneapi::experimental::properties(latency_anchor_id<1>));
 
     // The following store occurs exactly 5 cycles after the anchor 1 read
-    ExpBurstCoalescedLSU::store(output_ptr + 2, Z,
-      sycl::ext::oneapi::experimental::properties(
-        sycl::ext::oneapi::experimental::latency_constraint<
-          1, sycl::ext::oneapi::experimental::latency_control_type::exact, 5>));
+    ExpBurstCoalescedLSU::store(
+        output_ptr + 2, Z,
+        sycl::ext::oneapi::experimental::properties(
+            latency_constraint<1, latency_control_type::exact, 5>));
   });
 });
 ...

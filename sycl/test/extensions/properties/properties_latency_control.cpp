@@ -5,28 +5,35 @@
 
 #include <sycl/ext/oneapi/latency_control/properties.hpp>
 
-using namespace sycl::ext::oneapi::experimental;
+using namespace sycl::ext;
 
 int main() {
-  // Check that is_property_key is correctly specialized.
-  static_assert(is_property_key<latency_anchor_id_key>::value);
-  static_assert(is_property_key<latency_constraint_key>::value);
+  // Check that oneapi::experimental::is_property_key is correctly specialized
+  static_assert(oneapi::experimental::is_property_key<
+                intel::experimental::latency_anchor_id_key>::value);
+  static_assert(oneapi::experimental::is_property_key<
+                intel::experimental::latency_constraint_key>::value);
 
-  // Check that is_property_value is correctly specialized.
-  static_assert(is_property_value<decltype(latency_anchor_id<-1>)>::value);
+  // Check that oneapi::experimental::is_property_value is correctly specialized
+  static_assert(oneapi::experimental::is_property_value<
+                decltype(intel::experimental::latency_anchor_id<-1>)>::value);
+  static_assert(oneapi::experimental::is_property_value<
+                decltype(intel::experimental::latency_constraint<
+                         0, intel::experimental::latency_control_type::none,
+                         0>)>::value);
+
+  // Check that property lists will accept the new properties
+  using P = decltype(oneapi::experimental::properties(
+      intel::experimental::latency_anchor_id<-1>,
+      intel::experimental::latency_constraint<
+          0, intel::experimental::latency_control_type::none, 0>));
+  static_assert(oneapi::experimental::is_property_list_v<P>);
+  static_assert(P::has_property<intel::experimental::latency_anchor_id_key>());
+  static_assert(P::has_property<intel::experimental::latency_constraint_key>());
+  static_assert(P::get_property<intel::experimental::latency_anchor_id_key>() ==
+                intel::experimental::latency_anchor_id<-1>);
   static_assert(
-      is_property_value<decltype(latency_constraint<
-                                 0, latency_control_type::none, 0>)>::value);
-
-  // Check that property lists will accept the new properties.
-  using P = decltype(properties(
-      latency_anchor_id<-1>,
-      latency_constraint<0, latency_control_type::none, 0>));
-  static_assert(is_property_list_v<P>);
-  static_assert(P::has_property<latency_anchor_id_key>());
-  static_assert(P::has_property<latency_constraint_key>());
-  static_assert(P::get_property<latency_anchor_id_key>() ==
-                latency_anchor_id<-1>);
-  static_assert(P::get_property<latency_constraint_key>() ==
-                latency_constraint<0, latency_control_type::none, 0>);
+      P::get_property<intel::experimental::latency_constraint_key>() ==
+      intel::experimental::latency_constraint<
+          0, intel::experimental::latency_control_type::none, 0>);
 }
