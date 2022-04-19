@@ -114,73 +114,73 @@ enum class OMPScheduleType {
   ModifierMask = OrderingMask | MonotonicityMask,
 
   // valid schedule type values, without monotonicity flags
-  UnorderedStaticChunked = BaseStaticChunked | ModifierUnordered,   // 33
-  UnorderedStatic = BaseStatic | ModifierUnordered,                 // 34
-  UnorderedDynamicChunked = BaseDynamicChunked | ModifierUnordered, // 35
-  UnorderedGuidedChunked = BaseGuidedChunked | ModifierUnordered,   // 36
-  UnorderedRuntime = BaseRuntime | ModifierUnordered,               // 37
-  UnorderedAuto = BaseAuto | ModifierUnordered,                     // 38
-  UnorderedTrapezoidal = BaseTrapezoidal | ModifierUnordered,       // 39
-  UnorderedGreedy = BaseGreedy | ModifierUnordered,                 // 40
-  UnorderedBalanced = BaseBalanced | ModifierUnordered,             // 41
+  UnorderedStaticChunked = BaseStaticChunked | ModifierUnordered,        //  33
+  UnorderedStatic = BaseStatic | ModifierUnordered,                      //  34
+  UnorderedDynamicChunked = BaseDynamicChunked | ModifierUnordered,      //  35
+  UnorderedGuidedChunked = BaseGuidedChunked | ModifierUnordered,        //  36
+  UnorderedRuntime = BaseRuntime | ModifierUnordered,                    //  37
+  UnorderedAuto = BaseAuto | ModifierUnordered,                          //  38
+  UnorderedTrapezoidal = BaseTrapezoidal | ModifierUnordered,            //  39
+  UnorderedGreedy = BaseGreedy | ModifierUnordered,                      //  40
+  UnorderedBalanced = BaseBalanced | ModifierUnordered,                  //  41
   UnorderedGuidedIterativeChunked =
-      BaseGuidedIterativeChunked | ModifierUnordered, // 42
+      BaseGuidedIterativeChunked | ModifierUnordered,                    //  42
   UnorderedGuidedAnalyticalChunked =
-      BaseGuidedAnalyticalChunked | ModifierUnordered, // 43
-  UnorderedSteal = BaseSteal | ModifierUnordered,      // 44
+      BaseGuidedAnalyticalChunked | ModifierUnordered,                   //  43
+  UnorderedSteal = BaseSteal | ModifierUnordered,                        //  44
 
   UnorderedStaticBalancedChunked =
-      BaseStaticBalancedChunked | ModifierUnordered,          // 45
-  UnorderedGuidedSimd = BaseGuidedSimd | ModifierUnordered,   // 46
-  UnorderedRuntimeSimd = BaseRuntimeSimd | ModifierUnordered, // 47
+      BaseStaticBalancedChunked | ModifierUnordered,                     //  45
+  UnorderedGuidedSimd = BaseGuidedSimd | ModifierUnordered,              //  46
+  UnorderedRuntimeSimd = BaseRuntimeSimd | ModifierUnordered,            //  47
 
-  OrderedStaticChunked = BaseStaticChunked | ModifierOrdered,   // 65
-  OrderedStatic = BaseStatic | ModifierOrdered,                 // 66
-  OrderedDynamicChunked = BaseDynamicChunked | ModifierOrdered, // 67
-  OrderedGuidedChunked = BaseGuidedChunked | ModifierOrdered,   // 68
-  OrderedRuntime = BaseRuntime | ModifierOrdered,               // 69
-  OrderedAuto = BaseAuto | ModifierOrdered,                     // 70
-  OrderdTrapezoidal = BaseTrapezoidal | ModifierOrdered,        // 71
+  OrderedStaticChunked = BaseStaticChunked | ModifierOrdered,            //  65
+  OrderedStatic = BaseStatic | ModifierOrdered,                          //  66
+  OrderedDynamicChunked = BaseDynamicChunked | ModifierOrdered,          //  67
+  OrderedGuidedChunked = BaseGuidedChunked | ModifierOrdered,            //  68
+  OrderedRuntime = BaseRuntime | ModifierOrdered,                        //  69
+  OrderedAuto = BaseAuto | ModifierOrdered,                              //  70
+  OrderdTrapezoidal = BaseTrapezoidal | ModifierOrdered,                 //  71
 
-  OrderedDistributeChunked = BaseDistributeChunked | ModifierOrdered, // 91
-  OrderedDistribute = BaseDistribute | ModifierOrdered,               // 92
+  OrderedDistributeChunked = BaseDistributeChunked | ModifierOrdered,    //  91
+  OrderedDistribute = BaseDistribute | ModifierOrdered,                  //  92
 
   NomergeUnorderedStaticChunked =
-      BaseStaticChunked | ModifierUnordered | ModifierNomerge, // 161
+      BaseStaticChunked | ModifierUnordered | ModifierNomerge,           // 161
   NomergeUnorderedStatic =
-      BaseStatic | ModifierUnordered | ModifierNomerge, // 162
+      BaseStatic | ModifierUnordered | ModifierNomerge,                  // 162
   NomergeUnorderedDynamicChunked =
-      BaseDynamicChunked | ModifierUnordered | ModifierNomerge, // 163
+      BaseDynamicChunked | ModifierUnordered | ModifierNomerge,          // 163
   NomergeUnorderedGuidedChunked =
-      BaseGuidedChunked | ModifierUnordered | ModifierNomerge, // 164
+      BaseGuidedChunked | ModifierUnordered | ModifierNomerge,           // 164
   NomergeUnorderedRuntime =
       BaseRuntime | ModifierUnordered | ModifierNomerge,                 // 165
   NomergeUnorderedAuto = BaseAuto | ModifierUnordered | ModifierNomerge, // 166
   NomergeUnorderedTrapezoidal =
-      BaseTrapezoidal | ModifierUnordered | ModifierNomerge, // 167
+      BaseTrapezoidal | ModifierUnordered | ModifierNomerge,             // 167
   NomergeUnorderedGreedy =
-      BaseGreedy | ModifierUnordered | ModifierNomerge, // 168
+      BaseGreedy | ModifierUnordered | ModifierNomerge,                  // 168
   NomergeUnorderedBalanced =
-      BaseBalanced | ModifierUnordered | ModifierNomerge, // 169
+      BaseBalanced | ModifierUnordered | ModifierNomerge,                // 169
   NomergeUnorderedGuidedIterativeChunked =
-      BaseGuidedIterativeChunked | ModifierUnordered | ModifierNomerge, // 170
+      BaseGuidedIterativeChunked | ModifierUnordered | ModifierNomerge,  // 170
   NomergeUnorderedGuidedAnalyticalChunked =
       BaseGuidedAnalyticalChunked | ModifierUnordered | ModifierNomerge, // 171
   NomergeUnorderedSteal =
-      BaseSteal | ModifierUnordered | ModifierNomerge, // 172
+      BaseSteal | ModifierUnordered | ModifierNomerge,                   // 172
 
   NomergeOrderedStaticChunked =
       BaseStaticChunked | ModifierOrdered | ModifierNomerge,             // 193
   NomergeOrderedStatic = BaseStatic | ModifierOrdered | ModifierNomerge, // 194
   NomergeOrderedDynamicChunked =
-      BaseDynamicChunked | ModifierOrdered | ModifierNomerge, // 195
+      BaseDynamicChunked | ModifierOrdered | ModifierNomerge,            // 195
   NomergeOrderedGuidedChunked =
-      BaseGuidedChunked | ModifierOrdered | ModifierNomerge, // 196
+      BaseGuidedChunked | ModifierOrdered | ModifierNomerge,             // 196
   NomergeOrderedRuntime =
-      BaseRuntime | ModifierOrdered | ModifierNomerge,               // 197
-  NomergeOrderedAuto = BaseAuto | ModifierOrdered | ModifierNomerge, // 198
+      BaseRuntime | ModifierOrdered | ModifierNomerge,                   // 197
+  NomergeOrderedAuto = BaseAuto | ModifierOrdered | ModifierNomerge,     // 198
   NomergeOrderedTrapezoidal =
-      BaseTrapezoidal | ModifierOrdered | ModifierNomerge, // 199
+      BaseTrapezoidal | ModifierOrdered | ModifierNomerge,               // 199
 
   LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue */ ModifierMask)
 };
