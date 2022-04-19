@@ -5,9 +5,7 @@
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
-void test_slm_init() SYCL_ESIMD_FUNCTION {
-  slm_init(1024);
-}
+void test_slm_init() SYCL_ESIMD_FUNCTION { slm_init(1024); }
 
 void test_fence() SYCL_ESIMD_FUNCTION {
   fence<fence_mask::global_coherent_fence | fence_mask::local_barrier>();
