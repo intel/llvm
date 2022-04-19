@@ -185,7 +185,7 @@ allocation `T`, and a list of properties `PropertyListT`.
 [source,c++]
 ----
 namespace sycl::ext::oneapi {
-template <typename T, typename PropertyListT = property_list<>>
+template <typename T, typename PropertyListT = properties<>>
 class annotated_ptr {
   ...
 ----
@@ -201,11 +201,11 @@ Here's an example of how a property could be used:
 using namespace sycl::ext::oneapi;
 {
   sycl::queue q;
-   // alignment of the pointer in bytes specified using the property 'alignment'
+  // alignment of the pointer in bytes specified using the property 'alignment'
   annotated_ptr<int, properties<alignment<4>>> kernel_arg = ...;
 
   q.submit([=]{
-    *kernel_arg = *kernel_arg * 2;
+    *kernel_arg = (*kernel_arg) * 2;
   });
   ...
 }
@@ -607,8 +607,8 @@ Sets the alignment of the pointer address in bytes.
 
 |`kernel_arg_restrict`
 |
-Informs the compiler that the pointer kernel argument cannot alias with other
-pointer kernel arguments.
+Informs the compiler that writes to the address pointed to by this pointer
+are only done by this pointer or pointers derived from it.
 
 This property does not need to be retained in the device code but it must be
 applied to the kernel argument.
