@@ -73,6 +73,8 @@ public:
           ? _propertiesT::template get_property<min_capacity_key>().value
           : 0;
 
+  static const void *get_host_ptr() { return &__pipe; }
+
   // Blocking pipes
   static _dataT read(queue & q, memory_order order = memory_order::seq_cst);
   static void write(queue & q, const _dataT &data,

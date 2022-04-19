@@ -33,9 +33,8 @@ host_pipe<_name, _dataT, _propertiesT,
   detail::HostPipeMapEntry hostPipeEntry =
       detail::ProgramManager::getInstance().getHostPipeEntry(HostPipePtr);
   const std::string pipe_name = hostPipeEntry.MUniqueId;
-  size_t size = 4;
   event e = q.submit([=](handler &CGH) {
-    CGH.read_write_host_pipe(pipe_name, (void *)(&data), (size_t)size, false,
+    CGH.read_write_host_pipe(pipe_name, (void *)(&data), sizeof(_dataT), false,
                              true /* read */);
   });
   e.wait();
@@ -60,9 +59,8 @@ void host_pipe<
       detail::ProgramManager::getInstance().getHostPipeEntry(HostPipePtr);
   const std::string pipe_name = hostPipeEntry.MUniqueId;
   const void *data_ptr = &data;
-  size_t size = 4;
   event e = q.submit([=](handler &CGH) {
-    CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, (size_t)size, false,
+    CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT), false,
                              false /* write */);
   });
   e.wait();

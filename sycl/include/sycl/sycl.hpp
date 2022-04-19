@@ -82,4 +82,5 @@
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
+#include <sycl/ext/intel/experimental/host_pipes.hpp>
 #include <sycl/ext/intel/experimental/pipe_properties.hpp>
