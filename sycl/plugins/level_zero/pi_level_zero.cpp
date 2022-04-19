@@ -5444,7 +5444,9 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   // Assume native event is host-visible, or otherwise we'd
   // need to create a host-visible proxy for it.
   (*Event)->HostVisibleEvent = *Event;
-
+  // To match with the regular piEventCreate() and piEventRelease(),
+  // we increase the ref count of the pi_event we return to SYCL RT.
+  PI_CALL(piEventRetain(*Event));
   return PI_SUCCESS;
 }
 
