@@ -1,15 +1,11 @@
-// RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -O0 -o %t.out
-// RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -O1 -o %t.out
-// RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -O2 -o %t.out
-// RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -O3 -o %t.out
 // RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -Ofast -o %t.out
 // RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -Os -o %t.out
 // RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -Oz -o %t.out
 // RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -Og -o %t.out
 // RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -O -o %t.out
 
-// NOTE: Tests that debugging information can be generated for all optimization
-// levels.
+// NOTE: Tests that debugging information can be generated for all special-name
+// optimization levels.
 
 #include <CL/sycl.hpp>
 
