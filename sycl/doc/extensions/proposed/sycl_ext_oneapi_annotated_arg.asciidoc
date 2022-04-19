@@ -56,7 +56,7 @@ rely on APIs defined in this specification.*
 
 == Overview
 This extension introduces a wrapper class that provides a mechanism to attach
-compile-time constant information to a pointer in a manner that allows the
+compile-time constant information to a variable in a manner that allows the
 compiler to reliably maintain and analyze the information.
 
 == Overview
