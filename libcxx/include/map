@@ -530,7 +530,7 @@ erase_if(multimap<Key, T, Compare, Allocator>& c, Predicate pred);  // C++20
 
 #include <__algorithm/equal.h>
 #include <__algorithm/lexicographical_compare.h>
-#include <__assert>
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__config>
 #include <__functional/is_transparent.h>
 #include <__iterator/iterator_traits.h>
@@ -958,8 +958,8 @@ public:
     typedef _Key                                     key_type;
     typedef _Tp                                      mapped_type;
     typedef pair<const key_type, mapped_type>        value_type;
-    typedef __identity_t<_Compare>                   key_compare;
-    typedef __identity_t<_Allocator>                 allocator_type;
+    typedef __type_identity_t<_Compare>              key_compare;
+    typedef __type_identity_t<_Allocator>            allocator_type;
     typedef value_type&                              reference;
     typedef const value_type&                        const_reference;
 
@@ -1743,8 +1743,8 @@ public:
     typedef _Key                                     key_type;
     typedef _Tp                                      mapped_type;
     typedef pair<const key_type, mapped_type>        value_type;
-    typedef __identity_t<_Compare>                   key_compare;
-    typedef __identity_t<_Allocator>                 allocator_type;
+    typedef __type_identity_t<_Compare>              key_compare;
+    typedef __type_identity_t<_Allocator>            allocator_type;
     typedef value_type&                              reference;
     typedef const value_type&                        const_reference;
 

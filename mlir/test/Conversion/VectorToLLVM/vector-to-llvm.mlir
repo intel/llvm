@@ -425,8 +425,7 @@ func @shuffle_1D_direct(%arg0: vector<2xf32>, %arg1: vector<2xf32>) -> vector<2x
 // CHECK-LABEL: @shuffle_1D_direct(
 // CHECK-SAME: %[[A:.*]]: vector<2xf32>,
 // CHECK-SAME: %[[B:.*]]: vector<2xf32>)
-//       CHECK:   %[[s:.*]] = llvm.shufflevector %[[A]], %[[B]] [0, 1] : vector<2xf32>, vector<2xf32>
-//       CHECK:   return %[[s]] : vector<2xf32>
+//       CHECK:   return %[[A:.*]]: vector<2xf32>
 
 // -----
 
@@ -437,11 +436,7 @@ func @shuffle_1D_index_direct(%arg0: vector<2xindex>, %arg1: vector<2xindex>) ->
 // CHECK-LABEL: @shuffle_1D_index_direct(
 // CHECK-SAME: %[[A:.*]]: vector<2xindex>,
 // CHECK-SAME: %[[B:.*]]: vector<2xindex>)
-//       CHECK-DAG:   %[[T0:.*]] = builtin.unrealized_conversion_cast %[[A]] : vector<2xindex> to vector<2xi64>
-//       CHECK-DAG:   %[[T1:.*]] = builtin.unrealized_conversion_cast %[[B]] : vector<2xindex> to vector<2xi64>
-//       CHECK:   %[[T2:.*]] = llvm.shufflevector %[[T0]], %[[T1]] [0, 1] : vector<2xi64>, vector<2xi64>
-//       CHECK:   %[[T3:.*]] = builtin.unrealized_conversion_cast %[[T2]] : vector<2xi64> to vector<2xindex>
-//       CHECK:   return %[[T3]] : vector<2xindex>
+//       CHECK:   return  %[[A:.*]]: vector<2xindex>
 
 // -----
 
@@ -1459,6 +1454,16 @@ func @genbool_1d() -> vector<8xi1> {
 
 // -----
 
+func @genbool_1d_scalable() -> vector<[8]xi1> {
+  %0 = vector.constant_mask [0] : vector<[8]xi1>
+  return %0 : vector<[8]xi1>
+}
+// CHECK-LABEL: func @genbool_1d_scalable
+// CHECK: %[[VAL_0:.*]] = arith.constant dense<false> : vector<[8]xi1>
+// CHECK: return %[[VAL_0]] : vector<[8]xi1>
+
+// -----
+
 func @genbool_2d() -> vector<4x4xi1> {
   %v = vector.constant_mask [2, 2] : vector<4x4xi1>
   return %v: vector<4x4xi1>
@@ -1504,6 +1509,20 @@ func @create_mask_1d(%a : index) -> vector<4xi1> {
 // CHECK:  %[[bounds:.*]] = llvm.shufflevector %[[boundsInsert]]
 // CHECK:  %[[result:.*]] = arith.cmpi slt, %[[indices]], %[[bounds]] : vector<4xi32>
 // CHECK:  return %[[result]] : vector<4xi1>
+
+func @create_mask_1d_scalable(%a : index) -> vector<[4]xi1> {
+  %v = vector.create_mask %a : vector<[4]xi1>
+  return %v: vector<[4]xi1>
+}
+
+// CHECK-LABEL: func @create_mask_1d_scalable
+// CHECK-SAME: %[[arg:.*]]: index
+// CHECK:  %[[indices:.*]] = llvm.intr.experimental.stepvector : vector<[4]xi32>
+// CHECK:  %[[arg_i32:.*]] = arith.index_cast %[[arg]] : index to i32
+// CHECK:  %[[boundsInsert:.*]] = llvm.insertelement %[[arg_i32]], {{.*}} : vector<[4]xi32>
+// CHECK:  %[[bounds:.*]] = llvm.shufflevector %[[boundsInsert]], {{.*}} : vector<[4]xi32>, vector<[4]xi32>
+// CHECK:  %[[result:.*]] = arith.cmpi slt, %[[indices]], %[[bounds]] : vector<[4]xi32>
+// CHECK: return %[[result]] : vector<[4]xi1>
 
 // -----
 

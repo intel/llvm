@@ -1978,7 +1978,8 @@ static bool IsGlobalLValue(APValue::LValueBase B) {
       return true;
     // ... the address of a function,
     // ... the address of a GUID [MS extension],
-    return isa<FunctionDecl>(D) || isa<MSGuidDecl>(D);
+    // ... the address of an unnamed global constant
+    return isa<FunctionDecl, MSGuidDecl, UnnamedGlobalConstantDecl>(D);
   }
 
   if (B.is<TypeInfoLValue>() || B.is<DynamicAllocLValue>())
@@ -2013,6 +2014,10 @@ static bool IsGlobalLValue(APValue::LValueBase B) {
   // Block variables at global or local static scope.
   case Expr::BlockExprClass:
     return !cast<BlockExpr>(E)->getBlockDecl()->hasCaptures();
+  // The APValue generated from a __builtin_source_location will be emitted as a
+  // literal.
+  case Expr::SourceLocExprClass:
+    return true;
   case Expr::ImplicitValueInitExprClass:
     // FIXME:
     // We can never form an lvalue with an implicit value initialization as its
@@ -4024,6 +4029,16 @@ static CompleteObject findCompleteObject(EvalInfo &Info, const Expr *E,
       return CompleteObject(LVal.Base, &V, GD->getType());
     }
 
+    // Allow reading the APValue from an UnnamedGlobalConstantDecl.
+    if (auto *GCD = dyn_cast<UnnamedGlobalConstantDecl>(D)) {
+      if (isModification(AK)) {
+        Info.FFDiag(E, diag::note_constexpr_modify_global);
+        return CompleteObject();
+      }
+      return CompleteObject(LVal.Base, const_cast<APValue *>(&GCD->getValue()),
+                            GCD->getType());
+    }
+
     // Allow reading from template parameter objects.
     if (auto *TPO = dyn_cast<TemplateParamObjectDecl>(D)) {
       if (isModification(AK)) {
@@ -5003,6 +5018,18 @@ static EvalStmtResult EvaluateSwitch(StmtResult &Result, EvalInfo &Info,
   llvm_unreachable("Invalid EvalStmtResult!");
 }
 
+static bool CheckLocalVariableDeclaration(EvalInfo &Info, const VarDecl *VD) {
+  // An expression E is a core constant expression unless the evaluation of E
+  // would evaluate one of the following: [C++2b] - a control flow that passes
+  // through a declaration of a variable with static or thread storage duration.
+  if (VD->isLocalVarDecl() && VD->isStaticLocal()) {
+    Info.CCEDiag(VD->getLocation(), diag::note_constexpr_static_local)
+        << (VD->getTSCSpec() == TSCS_unspecified ? 0 : 1) << VD;
+    return false;
+  }
+  return true;
+}
+
 // Evaluate a statement.
 static EvalStmtResult EvaluateStmt(StmtResult &Result, EvalInfo &Info,
                                    const Stmt *S, const SwitchCase *Case) {
@@ -5113,6 +5140,8 @@ static EvalStmtResult EvaluateStmt(StmtResult &Result, EvalInfo &Info,
       const DeclStmt *DS = cast<DeclStmt>(S);
       for (const auto *D : DS->decls()) {
         if (const auto *VD = dyn_cast<VarDecl>(D)) {
+          if (!CheckLocalVariableDeclaration(Info, VD))
+            return ESR_Failed;
           if (VD->hasLocalStorage() && !VD->getInit())
             if (!EvaluateVarDecl(Info, VD))
               return ESR_Failed;
@@ -5156,6 +5185,9 @@ static EvalStmtResult EvaluateStmt(StmtResult &Result, EvalInfo &Info,
   case Stmt::DeclStmtClass: {
     const DeclStmt *DS = cast<DeclStmt>(S);
     for (const auto *D : DS->decls()) {
+      const VarDecl *VD = dyn_cast_or_null<VarDecl>(D);
+      if (VD && !CheckLocalVariableDeclaration(Info, VD))
+        return ESR_Failed;
       // Each declaration initialization is its own full-expression.
       FullExpressionRAII Scope(Info);
       if (!EvaluateDecl(Info, D) && !Info.noteFailure())
@@ -8158,7 +8190,8 @@ static bool EvaluateLValue(const Expr *E, LValue &Result, EvalInfo &Info,
 
 bool LValueExprEvaluator::VisitDeclRefExpr(const DeclRefExpr *E) {
   const NamedDecl *D = E->getDecl();
-  if (isa<FunctionDecl, MSGuidDecl, TemplateParamObjectDecl>(D))
+  if (isa<FunctionDecl, MSGuidDecl, TemplateParamObjectDecl,
+          UnnamedGlobalConstantDecl>(D))
     return Success(cast<ValueDecl>(D));
   if (const VarDecl *VD = dyn_cast<VarDecl>(D))
     return VisitVarDecl(E, VD);
@@ -8698,7 +8731,7 @@ public:
   bool VisitCXXNewExpr(const CXXNewExpr *E);
 
   bool VisitSourceLocExpr(const SourceLocExpr *E) {
-    assert(E->isStringType() && "SourceLocExpr isn't a pointer type?");
+    assert(!E->isIntType() && "SourceLocExpr isn't a pointer type?");
     APValue LValResult = E->EvaluateInContext(
         Info.Ctx, Info.CurrentCall->CurSourceLocExprScope.getDefaultExpr());
     Result.setFrom(Info.Ctx, LValResult);
@@ -8781,6 +8814,22 @@ bool PointerExprEvaluator::VisitUnaryAddrOf(const UnaryOperator *E) {
   return evaluateLValue(E->getSubExpr(), Result);
 }
 
+// Is the provided decl 'std::source_location::current'?
+static bool IsDeclSourceLocationCurrent(const FunctionDecl *FD) {
+  if (!FD)
+    return false;
+  const IdentifierInfo *FnII = FD->getIdentifier();
+  if (!FnII || !FnII->isStr("current"))
+    return false;
+
+  const auto *RD = dyn_cast<RecordDecl>(FD->getParent());
+  if (!RD)
+    return false;
+
+  const IdentifierInfo *ClassII = RD->getIdentifier();
+  return RD->isInStdNamespace() && ClassII && ClassII->isStr("source_location");
+}
+
 bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
   const Expr *SubExpr = E->getSubExpr();
 
@@ -8798,14 +8847,23 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
     // permitted in constant expressions in C++11. Bitcasts from cv void* are
     // also static_casts, but we disallow them as a resolution to DR1312.
     if (!E->getType()->isVoidPointerType()) {
-      if (!Result.InvalidBase && !Result.Designator.Invalid &&
+      // In some circumstances, we permit casting from void* to cv1 T*, when the
+      // actual pointee object is actually a cv2 T.
+      bool VoidPtrCastMaybeOK =
+          !Result.InvalidBase && !Result.Designator.Invalid &&
           !Result.IsNullPtr &&
           Info.Ctx.hasSameUnqualifiedType(Result.Designator.getType(Info.Ctx),
-                                          E->getType()->getPointeeType()) &&
-          Info.getStdAllocatorCaller("allocate")) {
-        // Inside a call to std::allocator::allocate and friends, we permit
-        // casting from void* back to cv1 T* for a pointer that points to a
-        // cv2 T.
+                                          E->getType()->getPointeeType());
+      // 1. We'll allow it in std::allocator::allocate, and anything which that
+      //    calls.
+      // 2. We'll allow it in the body of std::source_location:current.  This is
+      //    necessary for libstdc++'s <source_location>, which gave its
+      //    parameter the type void*, and cast from that back to `const __impl*`
+      //    in the body. (Fixed for new versions in gcc.gnu.org/PR104602).
+      if (VoidPtrCastMaybeOK &&
+          (Info.getStdAllocatorCaller("allocate") ||
+           IsDeclSourceLocationCurrent(Info.CurrentCall->Callee))) {
+        // Permitted.
       } else {
         Result.Designator.setInvalid();
         if (SubExpr->getType()->isVoidPointerType())
@@ -10103,7 +10161,6 @@ bool RecordExprEvaluator::VisitLambdaExpr(const LambdaExpr *E) {
   // Iterate through all the lambda's closure object's fields and initialize
   // them.
   auto *CaptureInitIt = E->capture_init_begin();
-  const LambdaCapture *CaptureIt = ClosureClass->captures_begin();
   bool Success = true;
   const ASTRecordLayout &Layout = Info.Ctx.getASTRecordLayout(ClosureClass);
   for (const auto *Field : ClosureClass->fields()) {
@@ -10127,7 +10184,6 @@ bool RecordExprEvaluator::VisitLambdaExpr(const LambdaExpr *E) {
         return false;
       Success = false;
     }
-    ++CaptureIt;
   }
   return Success;
 }

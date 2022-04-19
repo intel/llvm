@@ -194,9 +194,7 @@ public:
 
 }
 AMDGPURegisterBankInfo::AMDGPURegisterBankInfo(const GCNSubtarget &ST)
-    : AMDGPUGenRegisterBankInfo(),
-      Subtarget(ST),
-      TRI(Subtarget.getRegisterInfo()),
+    : Subtarget(ST), TRI(Subtarget.getRegisterInfo()),
       TII(Subtarget.getInstrInfo()) {
 
   // HACK: Until this is fully tablegen'd.
@@ -743,16 +741,19 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
   // To insert the loop we need to split the block. Move everything before this
   // point to a new block, and insert a new empty block before this instruction.
   MachineBasicBlock *LoopBB = MF->CreateMachineBasicBlock();
+  MachineBasicBlock *BodyBB = MF->CreateMachineBasicBlock();
   MachineBasicBlock *RemainderBB = MF->CreateMachineBasicBlock();
   MachineBasicBlock *RestoreExecBB = MF->CreateMachineBasicBlock();
   MachineFunction::iterator MBBI(MBB);
   ++MBBI;
   MF->insert(MBBI, LoopBB);
+  MF->insert(MBBI, BodyBB);
   MF->insert(MBBI, RestoreExecBB);
   MF->insert(MBBI, RemainderBB);
 
-  LoopBB->addSuccessor(RestoreExecBB);
-  LoopBB->addSuccessor(LoopBB);
+  LoopBB->addSuccessor(BodyBB);
+  BodyBB->addSuccessor(RestoreExecBB);
+  BodyBB->addSuccessor(LoopBB);
 
   // Move the rest of the block into a new block.
   RemainderBB->transferSuccessorsAndUpdatePHIs(&MBB);
@@ -764,26 +765,26 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
   B.setInsertPt(*LoopBB, LoopBB->end());
 
   B.buildInstr(TargetOpcode::PHI)
-    .addDef(PhiExec)
-    .addReg(InitSaveExecReg)
-    .addMBB(&MBB)
-    .addReg(NewExec)
-    .addMBB(LoopBB);
+      .addDef(PhiExec)
+      .addReg(InitSaveExecReg)
+      .addMBB(&MBB)
+      .addReg(NewExec)
+      .addMBB(BodyBB);
 
   const DebugLoc &DL = B.getDL();
 
   MachineInstr &FirstInst = *Range.begin();
 
-  // Move the instruction into the loop. Note we moved everything after
+  // Move the instruction into the loop body. Note we moved everything after
   // Range.end() already into a new block, so Range.end() is no longer valid.
-  LoopBB->splice(LoopBB->end(), &MBB, Range.begin(), MBB.end());
+  BodyBB->splice(BodyBB->end(), &MBB, Range.begin(), MBB.end());
 
   // Figure out the iterator range after splicing the instructions.
   MachineBasicBlock::iterator NewBegin = FirstInst.getIterator();
-  auto NewEnd = LoopBB->end();
+  auto NewEnd = BodyBB->end();
 
-  MachineBasicBlock::iterator I = Range.begin();
-  B.setInsertPt(*LoopBB, I);
+  MachineBasicBlock::iterator I = LoopBB->end();
+  B.setMBB(*LoopBB);
 
   Register CondReg;
 
@@ -815,7 +816,7 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
         B.setMBB(MBB);
         OpReg = B.buildCopy(OpTy, OpReg).getReg(0);
         MRI.setRegBank(OpReg, AMDGPU::VGPRRegBank);
-        B.setInstr(*I);
+        B.setMBB(*LoopBB);
       }
 
       unsigned OpSize = OpTy.getSizeInBits();
@@ -881,7 +882,7 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
           for (unsigned PieceIdx = 0; PieceIdx != NumPieces; ++PieceIdx)
             UnmergePieces.push_back(Unmerge.getReg(PieceIdx));
         }
-        B.setInstr(*I);
+        B.setMBB(*LoopBB);
 
         for (Register UnmergePiece : UnmergePieces) {
           Register CurrentLaneOpReg;
@@ -980,7 +981,7 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
 
   MRI.setSimpleHint(NewExec, CondReg);
 
-  B.setInsertPt(*LoopBB, LoopBB->end());
+  B.setInsertPt(*BodyBB, BodyBB->end());
 
   // Update EXEC, switch all done bits to 0 and all todo bits to 1.
   B.buildInstr(XorTermOpc)
@@ -4243,7 +4244,11 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_mfma_f32_32x32x8bf16_1k:
     case Intrinsic::amdgcn_mfma_f32_16x16x16bf16_1k:
     case Intrinsic::amdgcn_mfma_f64_16x16x4f64:
-    case Intrinsic::amdgcn_mfma_f64_4x4x4f64: {
+    case Intrinsic::amdgcn_mfma_f64_4x4x4f64:
+    case Intrinsic::amdgcn_mfma_i32_16x16x32_i8:
+    case Intrinsic::amdgcn_mfma_i32_32x32x16_i8:
+    case Intrinsic::amdgcn_mfma_f32_16x16x8_xf32:
+    case Intrinsic::amdgcn_mfma_f32_32x32x4_xf32: {
       // Default for MAI intrinsics.
       // srcC can also be an immediate which can be folded later.
       // FIXME: Should we eventually add an alternative mapping with AGPR src
@@ -4261,6 +4266,20 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
           Info->mayNeedAGPRs()
               ? getAGPROpMapping(MI.getOperand(4).getReg(), MRI, *TRI)
               : getVGPROpMapping(MI.getOperand(4).getReg(), MRI, *TRI);
+      break;
+    }
+    case Intrinsic::amdgcn_smfmac_f32_16x16x32_f16:
+    case Intrinsic::amdgcn_smfmac_f32_32x32x16_f16:
+    case Intrinsic::amdgcn_smfmac_f32_16x16x32_bf16:
+    case Intrinsic::amdgcn_smfmac_f32_32x32x16_bf16:
+    case Intrinsic::amdgcn_smfmac_i32_16x16x64_i8:
+    case Intrinsic::amdgcn_smfmac_i32_32x32x32_i8: {
+      // vdst, srcA, srcB, srcC, idx
+      OpdsMapping[0] = getAGPROpMapping(MI.getOperand(0).getReg(), MRI, *TRI);
+      OpdsMapping[2] = getVGPROpMapping(MI.getOperand(2).getReg(), MRI, *TRI);
+      OpdsMapping[3] = getVGPROpMapping(MI.getOperand(3).getReg(), MRI, *TRI);
+      OpdsMapping[4] = getAGPROpMapping(MI.getOperand(4).getReg(), MRI, *TRI);
+      OpdsMapping[5] = getVGPROpMapping(MI.getOperand(5).getReg(), MRI, *TRI);
       break;
     }
     case Intrinsic::amdgcn_interp_p1:

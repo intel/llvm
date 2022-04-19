@@ -54,7 +54,7 @@ static bool isUsedOutsideOfDefiningBlock(const Instruction *I) {
   return false;
 }
 
-static ISD::NodeType getPreferredExtendForValue(const Value *V) {
+static ISD::NodeType getPreferredExtendForValue(const Instruction *I) {
   // For the users of the source value being used for compare instruction, if
   // the number of signed predicate is greater than unsigned predicate, we
   // prefer to use SIGN_EXTEND.
@@ -64,7 +64,7 @@ static ISD::NodeType getPreferredExtendForValue(const Value *V) {
   // can be exposed.
   ISD::NodeType ExtendKind = ISD::ANY_EXTEND;
   unsigned NumOfSigned = 0, NumOfUnsigned = 0;
-  for (const User *U : V->users()) {
+  for (const User *U : I->users()) {
     if (const auto *CI = dyn_cast<CmpInst>(U)) {
       NumOfSigned += CI->isSigned();
       NumOfUnsigned += CI->isUnsigned();
@@ -445,9 +445,14 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
   IntVT = TLI->getTypeToTransformTo(PN->getContext(), IntVT);
   unsigned BitWidth = IntVT.getSizeInBits();
 
-  Register DestReg = ValueMap[PN];
-  if (!Register::isVirtualRegister(DestReg))
+  auto It = ValueMap.find(PN);
+  if (It == ValueMap.end())
     return;
+
+  Register DestReg = It->second;
+  if (DestReg == 0)
+    return
+  assert(Register::isVirtualRegister(DestReg) && "Expected a virtual reg");
   LiveOutRegInfo.grow(DestReg);
   LiveOutInfo &DestLOI = LiveOutRegInfo[DestReg];
 
@@ -459,7 +464,7 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
   }
 
   if (ConstantInt *CI = dyn_cast<ConstantInt>(V)) {
-    APInt Val = CI->getValue().zextOrTrunc(BitWidth);
+    APInt Val = CI->getValue().zextOrSelf(BitWidth);
     DestLOI.NumSignBits = Val.getNumSignBits();
     DestLOI.Known = KnownBits::makeConstant(Val);
   } else {
@@ -491,7 +496,7 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
     }
 
     if (ConstantInt *CI = dyn_cast<ConstantInt>(V)) {
-      APInt Val = CI->getValue().zextOrTrunc(BitWidth);
+      APInt Val = CI->getValue().zextOrSelf(BitWidth);
       DestLOI.NumSignBits = std::min(DestLOI.NumSignBits, Val.getNumSignBits());
       DestLOI.Known.Zero &= ~Val;
       DestLOI.Known.One &= Val;

@@ -2343,6 +2343,11 @@ protected:
     TargetDAGCombineArray[NT >> 3] |= 1 << (NT&7);
   }
 
+  void setTargetDAGCombine(ArrayRef<ISD::NodeType> NTs) {
+    for (auto NT : NTs)
+      setTargetDAGCombine(NT);
+  }
+
   /// Set the target's minimum function alignment.
   void setMinFunctionAlignment(Align Alignment) {
     MinFunctionAlignment = Alignment;
@@ -4475,6 +4480,13 @@ public:
                                   bool &UseOneConstNR, bool Reciprocal) const {
     return SDValue();
   }
+
+  /// Try to convert the fminnum/fmaxnum to a compare/select sequence. This is
+  /// required for correctness since InstCombine might have canonicalized a
+  /// fcmp+select sequence to a FMINNUM/FMAXNUM intrinsic.  If we were to fall
+  /// through to the default expansion/soften to libcall, we might introduce a
+  /// link-time dependency on libm into a file that originally did not have one.
+  SDValue createSelectForFMINNUM_FMAXNUM(SDNode *Node, SelectionDAG &DAG) const;
 
   /// Return a reciprocal estimate value for the input operand.
   /// \p Enabled is a ReciprocalEstimate enum with value either 'Unspecified' or

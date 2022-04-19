@@ -389,10 +389,6 @@ inline void DoNotOptimize(Tp const& value) {
 #  define TEST_HAS_NO_FGETPOS_FSETPOS
 #endif
 
-#if defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
-#  define TEST_HAS_NO_INCOMPLETE_RANGES
-#endif
-
 #if defined(TEST_COMPILER_CLANG)
 #  define TEST_DIAGNOSTIC_PUSH _Pragma("clang diagnostic push")
 #  define TEST_DIAGNOSTIC_POP _Pragma("clang diagnostic pop")
@@ -417,6 +413,14 @@ inline void DoNotOptimize(Tp const& value) {
 #  define TEST_CLANG_DIAGNOSTIC_IGNORED(str)
 #  define TEST_GCC_DIAGNOSTIC_IGNORED(str)
 #  define TEST_MSVC_DIAGNOSTIC_IGNORED(num)
+#endif
+
+#if __has_cpp_attribute(msvc::no_unique_address)
+#define TEST_NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
+#elif __has_cpp_attribute(no_unique_address)
+#define TEST_NO_UNIQUE_ADDRESS [[no_unique_address]]
+#else
+#define TEST_NO_UNIQUE_ADDRESS
 #endif
 
 #endif // SUPPORT_TEST_MACROS_HPP

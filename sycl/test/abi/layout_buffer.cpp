@@ -51,7 +51,7 @@ void foo(sycl::buffer<int, 2>) {}
 // CHECK-NEXT:  80 |         std::__shared_ptr<class sycl::detail::context_impl, __gnu_cxx::_S_atomic>::element_type * _M_ptr
 // CHECK-NEXT:  88 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT:  88 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:  96 |     cl_mem MInteropMemObject
+// CHECK-NEXT:  96 |     RT::PiMem MInteropMemObject
 // CHECK-NEXT:  104 |     _Bool MOpenCLInterop
 // CHECK-NEXT:  105 |     _Bool MHostPtrReadOnly
 // CHECK-NEXT:  106 |     _Bool MNeedWriteBack

@@ -3109,6 +3109,7 @@ llvm::Error ASTReader::ReadASTBlock(ModuleFile &F,
       case IDENTIFIER_OFFSET:
       case INTERESTING_IDENTIFIERS:
       case STATISTICS:
+      case PP_ASSUME_NONNULL_LOC:
       case PP_CONDITIONAL_STACK:
       case PP_COUNTER_VALUE:
       case SOURCE_LOCATION_OFFSETS:
@@ -3307,7 +3308,7 @@ llvm::Error ASTReader::ReadASTBlock(ModuleFile &F,
       break;
 
     case WEAK_UNDECLARED_IDENTIFIERS:
-      if (Record.size() % 4 != 0)
+      if (Record.size() % 3 != 0)
         return llvm::createStringError(std::errc::illegal_byte_sequence,
                                        "invalid weak identifiers record");
 
@@ -3322,8 +3323,7 @@ llvm::Error ASTReader::ReadASTBlock(ModuleFile &F,
         WeakUndeclaredIdentifiers.push_back(
           getGlobalIdentifierID(F, Record[I++]));
         WeakUndeclaredIdentifiers.push_back(
-          ReadSourceLocation(F, Record, I).getRawEncoding());
-        WeakUndeclaredIdentifiers.push_back(Record[I++]);
+            ReadSourceLocation(F, Record, I).getRawEncoding());
       }
       break;
 
@@ -3370,6 +3370,14 @@ llvm::Error ASTReader::ReadASTBlock(ModuleFile &F,
         }
       }
       break;
+
+    case PP_ASSUME_NONNULL_LOC: {
+      unsigned Idx = 0;
+      if (!Record.empty())
+        PP.setPreambleRecordedPragmaAssumeNonNullLoc(
+            ReadSourceLocation(F, Record, Idx));
+      break;
+    }
 
     case PP_CONDITIONAL_STACK:
       if (!Record.empty()) {
@@ -8403,11 +8411,9 @@ void ASTReader::ReadWeakUndeclaredIdentifiers(
       = DecodeIdentifierInfo(WeakUndeclaredIdentifiers[I++]);
     IdentifierInfo *AliasId
       = DecodeIdentifierInfo(WeakUndeclaredIdentifiers[I++]);
-    SourceLocation Loc
-      = SourceLocation::getFromRawEncoding(WeakUndeclaredIdentifiers[I++]);
-    bool Used = WeakUndeclaredIdentifiers[I++];
+    SourceLocation Loc =
+        SourceLocation::getFromRawEncoding(WeakUndeclaredIdentifiers[I++]);
     WeakInfo WI(AliasId, Loc);
-    WI.setUsed(Used);
     WeakIDs.push_back(std::make_pair(WeakId, WI));
   }
   WeakUndeclaredIdentifiers.clear();
@@ -10619,9 +10625,8 @@ void ASTReader::diagnoseOdrViolations() {
                     ExpandedList.push_back(&TA);
                     continue;
                   }
-                  for (const TemplateArgument &PackTA : TA.getPackAsArray()) {
-                    ExpandedList.push_back(&PackTA);
-                  }
+                  llvm::append_range(ExpandedList, llvm::make_pointer_range(
+                                                       TA.getPackAsArray()));
                 }
                 return ExpandedList;
               };

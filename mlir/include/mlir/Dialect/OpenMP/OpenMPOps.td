@@ -66,7 +66,7 @@ def OpenMP_PointerLikeType : Type<
 def ParallelOp : OpenMP_Op<"parallel", [
                  AutomaticAllocationScope, AttrSizedOperandSegments,
                  DeclareOpInterfaceMethods<OutlineableOpenMPOpInterface>,
-                 RecursiveSideEffects]> {
+                 RecursiveSideEffects, ReductionClauseInterface]> {
   let summary = "parallel construct";
   let description = [{
     The parallel construct includes a region of code which is to be executed
@@ -83,6 +83,18 @@ def ParallelOp : OpenMP_Op<"parallel", [
     The $allocators_vars and $allocate_vars parameters are a variadic list of values
     that specify the memory allocator to be used to obtain storage for private values.
 
+    Reductions can be performed in a parallel construct by specifying reduction
+    accumulator variables in `reduction_vars` and symbols referring to reduction
+    declarations in the `reductions` attribute. Each reduction is identified
+    by the accumulator it uses and accumulators must not be repeated in the same
+    reduction. The `omp.reduction` operation accepts the accumulator and a
+    partial value which is considered to be produced by the thread for the
+    given reduction. If multiple values are produced for the same accumulator,
+    i.e. there are multiple `omp.reduction`s, the last value is taken. The
+    reduction declaration specifies how to combine the values from each thread
+    into the final value, which is available in the accumulator after all the
+    threads complete.
+
     The optional $proc_bind_val attribute controls the thread affinity for the execution
     of the parallel region.
   }];
@@ -91,6 +103,8 @@ def ParallelOp : OpenMP_Op<"parallel", [
              Optional<AnyType>:$num_threads_var,
              Variadic<AnyType>:$allocate_vars,
              Variadic<AnyType>:$allocators_vars,
+             Variadic<OpenMP_PointerLikeType>:$reduction_vars,
+             OptionalAttr<SymbolRefArrayAttr>:$reductions,
              OptionalAttr<ProcBindKindAttr>:$proc_bind_val);
 
   let regions = (region AnyRegion:$region);
@@ -99,7 +113,11 @@ def ParallelOp : OpenMP_Op<"parallel", [
     OpBuilder<(ins CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
   ];
   let assemblyFormat = [{
-    oilist( `if` `(` $if_expr_var `:` type($if_expr_var) `)`
+    oilist( `reduction` `(`
+              custom<ReductionVarList>(
+                $reduction_vars, type($reduction_vars), $reductions
+              ) `)`
+          | `if` `(` $if_expr_var `:` type($if_expr_var) `)`
           | `num_threads` `(` $num_threads_var `:` type($num_threads_var) `)`
           | `allocate` `(`
               custom<AllocateAndAllocator>(
@@ -110,6 +128,12 @@ def ParallelOp : OpenMP_Op<"parallel", [
     ) $region attr-dict
   }];
   let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    // TODO: remove this once emitAccessorPrefix is set to
+    // kEmitAccessorPrefix_Prefixed for the dialect.
+    /// Returns the reduction variables
+    operand_range getReductionVars() { return reduction_vars(); }
+  }];
 }
 
 def TerminatorOp : OpenMP_Op<"terminator", [Terminator]> {
@@ -127,6 +151,8 @@ def TerminatorOp : OpenMP_Op<"terminator", [Terminator]> {
 def OMP_ScheduleModNone         : I32EnumAttrCase<"none", 0>;
 def OMP_ScheduleModMonotonic    : I32EnumAttrCase<"monotonic", 1>;
 def OMP_ScheduleModNonmonotonic : I32EnumAttrCase<"nonmonotonic", 2>;
+// FIXME: remove this value for the modifier because this is handled using a
+// separate attribute
 def OMP_ScheduleModSIMD         : I32EnumAttrCase<"simd", 3>;
 
 def ScheduleModifier
@@ -154,7 +180,8 @@ def SectionOp : OpenMP_Op<"section", [HasParent<"SectionsOp">]> {
   let assemblyFormat = "$region attr-dict";
 }
 
-def SectionsOp : OpenMP_Op<"sections", [AttrSizedOperandSegments]> {
+def SectionsOp : OpenMP_Op<"sections", [AttrSizedOperandSegments,
+                           ReductionClauseInterface]> {
   let summary = "sections construct";
   let description = [{
     The sections construct is a non-iterative worksharing construct that
@@ -199,12 +226,51 @@ def SectionsOp : OpenMP_Op<"sections", [AttrSizedOperandSegments]> {
                 $allocate_vars, type($allocate_vars),
                 $allocators_vars, type($allocators_vars)
               ) `)`
-          | `nowait`
+          | `nowait` $nowait
     ) $region attr-dict
   }];
 
   let hasVerifier = 1;
   let hasRegionVerifier = 1;
+
+  let extraClassDeclaration = [{
+    // TODO: remove this once emitAccessorPrefix is set to
+    // kEmitAccessorPrefix_Prefixed for the dialect.
+    /// Returns the reduction variables
+    operand_range getReductionVars() { return reduction_vars(); }
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// 2.8.2 Single Construct
+//===----------------------------------------------------------------------===//
+
+def SingleOp : OpenMP_Op<"single", [AttrSizedOperandSegments]> {
+  let summary = "single directive";
+  let description = [{
+    The single construct specifies that the associated structured block is 
+    executed by only one of the threads in the team (not necessarily the
+    master thread), in the context of its implicit task. The other threads
+    in the team, which do not execute the block, wait at an implicit barrier
+    at the end of the single construct unless a nowait clause is specified.
+  }];
+
+  let arguments = (ins Variadic<AnyType>:$allocate_vars,
+                       Variadic<AnyType>:$allocators_vars,
+                       UnitAttr:$nowait);
+
+  let regions = (region SizedRegion<1>:$region);
+
+  let assemblyFormat = [{
+    oilist(`allocate` `(`
+              custom<AllocateAndAllocator>(
+                $allocate_vars, type($allocate_vars),
+                $allocators_vars, type($allocators_vars)
+              ) `)`
+          |`nowait` $nowait
+    ) $region attr-dict
+  }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -213,10 +279,10 @@ def SectionsOp : OpenMP_Op<"sections", [AttrSizedOperandSegments]> {
 
 def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
                          AllTypesMatch<["lowerBound", "upperBound", "step"]>,
-                         RecursiveSideEffects]> {
-  let summary = "workshare loop construct";
+                         RecursiveSideEffects, ReductionClauseInterface]> {
+  let summary = "worksharing-loop construct";
   let description = [{
-    The workshare loop construct specifies that the iterations of the loop(s)
+    The worksharing-loop construct specifies that the iterations of the loop(s)
     will be executed in parallel by threads in the current context. These
     iterations are spread across threads that already exist in the enclosing
     parallel region. The lower and upper bounds specify a half-open range: the
@@ -227,7 +293,8 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
     by "omp.yield" instruction without operands.
 
     ```
-    omp.wsloop (%i1, %i2) : index = (%c0, %c0) to (%c10, %c10) step (%c1, %c1) {
+    omp.wsloop <clauses>
+    for (%i1, %i2) : index = (%c0, %c0) to (%c10, %c10) step (%c1, %c1) {
       %a = load %arrA[%i1, %i2] : memref<?x?xf32>
       %b = load %arrB[%i1, %i2] : memref<?x?xf32>
       %sum = arith.addf %a, %b : f32
@@ -265,7 +332,8 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
     implicit barrier at the end of the loop.
 
     The optional `ordered_val` attribute specifies how many loops are associated
-    with the do loop construct.
+    with the worksharing-loop construct. The value of zero refers to the ordered
+    clause specified without parameter.
 
     The optional `order` attribute specifies which order the iterations of the
     associate loops are executed in. Currently the only option for this
@@ -276,7 +344,7 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
              Variadic<IntLikeType>:$upperBound,
              Variadic<IntLikeType>:$step,
              Variadic<AnyType>:$linear_vars,
-             Variadic<AnyType>:$linear_step_vars,
+             Variadic<I32>:$linear_step_vars,
              Variadic<OpenMP_PointerLikeType>:$reduction_vars,
              OptionalAttr<SymbolRefArrayAttr>:$reductions,
              OptionalAttr<ScheduleKindAttr>:$schedule_val,
@@ -303,8 +371,32 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
 
     /// Returns the number of reduction variables.
     unsigned getNumReductionVars() { return reduction_vars().size(); }
+
+    // TODO: remove this once emitAccessorPrefix is set to
+    // kEmitAccessorPrefix_Prefixed for the dialect.
+    /// Returns the reduction variables
+    operand_range getReductionVars() { return reduction_vars(); }
   }];
   let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = [{
+    oilist(`linear` `(`
+              custom<LinearClause>($linear_vars, type($linear_vars),
+                                   $linear_step_vars) `)`
+          |`schedule` `(`
+              custom<ScheduleClause>(
+                $schedule_val, $schedule_modifier, $simd_modifier,
+                $schedule_chunk_var, type($schedule_chunk_var)) `)`
+          |`collapse` `(` $collapse_val `)`
+          |`nowait` $nowait
+          |`ordered` `(` $ordered_val `)`
+          |`order` `(` custom<ClauseAttr>($order_val) `)`
+          |`reduction` `(`
+              custom<ReductionVarList>(
+                $reduction_vars, type($reduction_vars), $reductions
+              ) `)`
+    ) `for` custom<WsLoopControl>($region, $lowerBound, $upperBound, $step,
+                                  type($step), $inclusive) attr-dict
+  }];
   let hasVerifier = 1;
 }
 
@@ -438,7 +530,7 @@ def TargetOp : OpenMP_Op<"target",[AttrSizedOperandSegments]> {
     oilist( `if` `(` $if_expr `)`
           | `device` `(` $device `:` type($device) `)`
           | `thread_limit` `(` $thread_limit `:` type($thread_limit) `)`
-          | `nowait`
+          | `nowait` $nowait
     ) $region attr-dict
   }];
 }
@@ -717,6 +809,11 @@ def AtomicUpdateOp : OpenMP_Op<"atomic.update",
   }];
   let hasVerifier = 1;
   let hasRegionVerifier = 1;
+  let extraClassDeclaration = [{
+    Operation* getFirstOp() {
+      return &getRegion().front().getOperations().front();
+    }
+  }];
 }
 
 def AtomicCaptureOp : OpenMP_Op<"atomic.capture",
@@ -764,6 +861,25 @@ def AtomicCaptureOp : OpenMP_Op<"atomic.capture",
     $region attr-dict
   }];
   let hasRegionVerifier = 1;
+  let extraClassDeclaration = [{
+    /// Returns the first operation in atomic capture region
+    Operation* getFirstOp();
+
+    /// Returns the second operation in atomic capture region
+    Operation* getSecondOp();
+
+    /// Returns the `atomic.read` operation inside the region, if any.
+    /// Otherwise, it returns nullptr.
+    AtomicReadOp getAtomicReadOp();
+
+    /// Returns the `atomic.write` operation inside the region, if any.
+    /// Otherwise, it returns nullptr.
+    AtomicWriteOp getAtomicWriteOp();
+
+    /// Returns the `atomic.update` operation inside the region, if any.
+    /// Otherwise, it returns nullptr.
+    AtomicUpdateOp getAtomicUpdateOp();
+  }];
 }
 
 //===----------------------------------------------------------------------===//

@@ -32,6 +32,7 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/IR/Argument.h"
 #include "llvm/IR/Assumptions.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
@@ -45,7 +46,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO/ArgumentPromotion.h"
@@ -403,25 +404,29 @@ static bool genericValueTraversal(
 
     if (auto *LI = dyn_cast<LoadInst>(V)) {
       bool UsedAssumedInformation = false;
-      SmallSetVector<Value *, 4> PotentialCopies;
-      if (AA::getPotentiallyLoadedValues(A, *LI, PotentialCopies, QueryingAA,
-                                         UsedAssumedInformation,
-                                         /* OnlyExact */ true)) {
-        // Values have to be dynamically unique or we loose the fact that a
-        // single llvm::Value might represent two runtime values (e.g., stack
-        // locations in different recursive calls).
-        bool DynamicallyUnique =
-            llvm::all_of(PotentialCopies, [&A, &QueryingAA](Value *PC) {
-              return AA::isDynamicallyUnique(A, QueryingAA, *PC);
-            });
-        if (DynamicallyUnique &&
-            (!Intraprocedural || !CtxI ||
-             llvm::all_of(PotentialCopies, [CtxI](Value *PC) {
-               return AA::isValidInScope(*PC, CtxI->getFunction());
-             }))) {
-          for (auto *PotentialCopy : PotentialCopies)
-            Worklist.push_back({PotentialCopy, CtxI});
-          continue;
+      // If we ask for the potentially loaded values from the initial pointer we
+      // will simply end up here again. The load is as far as we can make it.
+      if (LI->getPointerOperand() != InitialV) {
+        SmallSetVector<Value *, 4> PotentialCopies;
+        if (AA::getPotentiallyLoadedValues(A, *LI, PotentialCopies, QueryingAA,
+                                           UsedAssumedInformation,
+                                           /* OnlyExact */ true)) {
+          // Values have to be dynamically unique or we loose the fact that a
+          // single llvm::Value might represent two runtime values (e.g., stack
+          // locations in different recursive calls).
+          bool DynamicallyUnique =
+              llvm::all_of(PotentialCopies, [&A, &QueryingAA](Value *PC) {
+                return AA::isDynamicallyUnique(A, QueryingAA, *PC);
+              });
+          if (DynamicallyUnique &&
+              (!Intraprocedural || !CtxI ||
+               llvm::all_of(PotentialCopies, [CtxI](Value *PC) {
+                 return AA::isValidInScope(*PC, CtxI->getFunction());
+               }))) {
+            for (auto *PotentialCopy : PotentialCopies)
+              Worklist.push_back({PotentialCopy, CtxI});
+            continue;
+          }
         }
       }
     }
@@ -9536,7 +9541,9 @@ struct AACallEdgesCallSite : public AACallEdgesImpl {
     CallBase *CB = cast<CallBase>(getCtxI());
 
     if (CB->isInlineAsm()) {
-      setHasUnknownCallee(false, Change);
+      if (!hasAssumption(*CB->getCaller(), "ompx_no_call_asm") &&
+          !hasAssumption(*CB, "ompx_no_call_asm"))
+        setHasUnknownCallee(false, Change);
       return Change;
     }
 
@@ -9698,6 +9705,10 @@ private:
         const SetVector<Function *> &Edges = AAEdges->getOptimisticEdges();
 
         for (Function *Edge : Edges) {
+          // Functions that do not call back into the module can be ignored.
+          if (Edge->hasFnAttribute(Attribute::NoCallback))
+            continue;
+
           // We don't need a dependency if the result is reachable.
           const AAFunctionReachability &EdgeReachability =
               A.getAAFor<AAFunctionReachability>(

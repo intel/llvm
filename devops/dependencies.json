@@ -25,15 +25,15 @@
       "root": "{DEPS_ROOT}/tbb/lin"
     },
     "oclcpu": {
-      "github_tag": "2021-WW50",
-      "version": "2021.13.11.0.23",
-      "url": "https://github.com/intel/llvm/releases/download/2021-WW50/oclcpuexp-2021.13.11.0.23_rel.tar.gz",
+      "github_tag": "2022-WW13",
+      "version": "2022.13.3.0.16",
+      "url": "https://github.com/intel/llvm/releases/download/2022-WW13/oclcpuexp-2022.13.3.0.16_rel.tar.gz",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     },
     "fpgaemu": {
-      "github_tag": "2021-WW50",
-      "version": "2021.13.11.0.23",
-      "url": "https://github.com/intel/llvm/releases/download/2021-WW50/fpgaemu-2021.13.11.0.23_rel.tar.gz",
+      "github_tag": "2022-WW13",
+      "version": "2022.13.3.0.16",
+      "url": "https://github.com/intel/llvm/releases/download/2022-WW13/fpgaemu-2022.13.3.0.16_rel.tar.gz",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclfpgaemu"
     },
     "fpga": {
@@ -94,16 +94,16 @@
       "root": "{DEPS_ROOT}/tbb/win"
     },
     "oclcpu": {
-      "github_tag": "2021-WW50",
-      "version": "2021.13.11.0.23",
-      "url": "https://github.com/intel/llvm/releases/download/2021-WW50/win-oclcpuexp-2021.13.11.0.23_rel.zip",
-      "root": "{DEPS_ROOT}/opencl/runtime/win/oclcpu"
+      "github_tag": "2022-WW13",
+      "version": "2022.13.3.0.16",
+      "url": "https://github.com/intel/llvm/releases/download/2022-WW13/oclcpuexp-2022.13.3.0.16_rel.tar.gz",
+      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     },
     "fpgaemu": {
-      "github_tag": "2021-WW50",
-      "version": "2021.13.11.0.23",
-      "url": "https://github.com/intel/llvm/releases/download/2021-WW50/win-fpgaemu-2021.13.11.0.23_rel.zip",
-      "root": "{DEPS_ROOT}/opencl/runtime/win/oclfpgaemu"
+      "github_tag": "2022-WW13",
+      "version": "2022.13.3.0.16",
+      "url": "https://github.com/intel/llvm/releases/download/2022-WW13/fpgaemu-2022.13.3.0.16_rel.tar.gz",
+      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclfpgaemu"
     },
     "fpga": {
       "root": "{ARCHIVE_ROOT}/comp/oclfpga/win"

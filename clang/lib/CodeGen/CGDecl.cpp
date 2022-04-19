@@ -119,6 +119,7 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::Label:        // __label__ x;
   case Decl::Import:
   case Decl::MSGuid:    // __declspec(uuid("..."))
+  case Decl::UnnamedGlobalConstant:
   case Decl::TemplateParamObject:
   case Decl::OMPThreadPrivate:
   case Decl::OMPAllocate:
@@ -295,6 +296,11 @@ llvm::Constant *CodeGenModule::getOrCreateStaticVarDecl(
   }
 
   setStaticLocalDeclAddress(&D, Addr);
+
+  // Do not force emission of the parent funtion since it can be a host function
+  // that contains illegal code for SYCL device.
+  if (getLangOpts().SYCLIsDevice)
+    return Addr;
 
   // Ensure that the static local gets initialized by making sure the parent
   // function gets emitted eventually.

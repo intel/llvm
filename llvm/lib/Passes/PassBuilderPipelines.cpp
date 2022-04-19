@@ -32,6 +32,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h"
 #include "llvm/Transforms/Coroutines/CoroCleanup.h"
+#include "llvm/Transforms/Coroutines/CoroConditionalWrapper.h"
 #include "llvm/Transforms/Coroutines/CoroEarly.h"
 #include "llvm/Transforms/Coroutines/CoroElide.h"
 #include "llvm/Transforms/Coroutines/CoroSplit.h"
@@ -1190,6 +1191,9 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   // memory operations.
   MPM.addPass(RecomputeGlobalsAAPass());
 
+  for (auto &C : OptimizerEarlyEPCallbacks)
+    C(MPM, Level);
+
   FunctionPassManager OptimizePM;
   OptimizePM.addPass(Float2IntPass());
   OptimizePM.addPass(LowerConstantIntrinsicsPass());
@@ -1833,6 +1837,10 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
     if (!FPM.isEmpty())
       MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
+
+  for (auto &C : OptimizerEarlyEPCallbacks)
+    C(MPM, Level);
+
   if (!VectorizerStartEPCallbacks.empty()) {
     FunctionPassManager FPM;
     for (auto &C : VectorizerStartEPCallbacks)
@@ -1841,11 +1849,14 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
       MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
 
-  MPM.addPass(createModuleToFunctionPassAdaptor(CoroEarlyPass()));
+  ModulePassManager CoroPM;
+  CoroPM.addPass(createModuleToFunctionPassAdaptor(CoroEarlyPass()));
   CGSCCPassManager CGPM;
   CGPM.addPass(CoroSplitPass());
-  MPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(std::move(CGPM)));
-  MPM.addPass(createModuleToFunctionPassAdaptor(CoroCleanupPass()));
+  CoroPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(std::move(CGPM)));
+  CoroPM.addPass(createModuleToFunctionPassAdaptor(CoroCleanupPass()));
+  CoroPM.addPass(GlobalDCEPass());
+  MPM.addPass(CoroConditionalWrapper(std::move(CoroPM)));
 
   for (auto &C : OptimizerLastEPCallbacks)
     C(MPM, Level);

@@ -1434,11 +1434,6 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__is_trivially_constructible`` (C++, GNU, Microsoft)
 * ``__is_trivially_copyable`` (C++, GNU, Microsoft)
 * ``__is_trivially_destructible`` (C++, MSVC 2013)
-* ``__is_trivially_relocatable`` (Clang): Returns true if moving an object
-  of the given type, and then destroying the source object, is known to be
-  functionally equivalent to copying the underlying bytes and then dropping the
-  source object on the floor. This is true of trivial types and types which
-  were made trivially relocatable via the ``clang::trivial_abi`` attribute.
 * ``__is_union`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_unsigned`` (C++, Embarcadero):
   Returns false for enumeration types. Note, before Clang 13, returned true for
@@ -2299,7 +2294,8 @@ invariant that is defined to be true.
 The boolean argument to this function is defined to be true. The optimizer may
 analyze the form of the expression provided as the argument and deduce from
 that information used to optimize the program. If the condition is violated
-during execution, the behavior is undefined. The argument itself is 
+during execution, the behavior is undefined. The argument itself is never
+evaluated, so any side effects of the expression will be discarded.
 
 Query for this feature with ``__has_builtin(__builtin_assume)``.
 
@@ -3402,10 +3398,9 @@ as the first argument to the intrinsic.
 Source location builtins
 ------------------------
 
-Clang provides experimental builtins to support C++ standard library implementation
-of ``std::experimental::source_location`` as specified in  http://wg21.link/N4600.
-With the exception of ``__builtin_COLUMN``, these builtins are also implemented by
-GCC.
+Clang provides builtins to support C++ standard library implementation
+of ``std::source_location`` as specified in C++20.  With the exception
+of ``__builtin_COLUMN``, these builtins are also implemented by GCC.
 
 **Syntax**:
 
@@ -3415,6 +3410,7 @@ GCC.
   const char *__builtin_FUNCTION();
   unsigned    __builtin_LINE();
   unsigned    __builtin_COLUMN(); // Clang only
+  const std::source_location::__impl *__builtin_source_location();
 
 **Example of use**:
 
@@ -3441,9 +3437,11 @@ GCC.
 
 **Description**:
 
-The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, and ``__builtin_FILE`` return
-the values, at the "invocation point", for ``__LINE__``, ``__FUNCTION__``, and
-``__FILE__`` respectively. These builtins are constant expressions.
+The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, and ``__builtin_FILE``
+return the values, at the "invocation point", for ``__LINE__``,
+``__FUNCTION__``, and ``__FILE__`` respectively. ``__builtin_COLUMN`` similarly
+returns the column, though there is no corresponding macro. These builtins are
+constant expressions.
 
 When the builtins appear as part of a default function argument the invocation
 point is the location of the caller. When the builtins appear as part of a
@@ -3453,6 +3451,15 @@ the invocation point is the same as the location of the builtin.
 
 When the invocation point of ``__builtin_FUNCTION`` is not a function scope the
 empty string is returned.
+
+The builtin ``__builtin_source_location`` returns a pointer to constant static
+data of type ``std::source_location::__impl``. This type must have already been
+defined, and must contain exactly four fields: ``const char *_M_file_name``,
+``const char *_M_function_name``, ``<any-integral-type> _M_line``, and
+``<any-integral-type> _M_column``. The fields will be populated in the same
+manner as the above four builtins, except that ``_M_function_name`` is populated
+with ``__PRETTY_FUNCTION__`` rather than ``__FUNCTION__``.
+
 
 Alignment builtins
 ------------------
@@ -4142,8 +4149,22 @@ The ``__declspec`` style syntax is also supported:
 
   #pragma clang attribute pop
 
-A single push directive accepts only one attribute regardless of the syntax
-used.
+A single push directive can contain multiple attributes, however, 
+only one syntax style can be used within a single directive:
+
+.. code-block:: c++
+
+  #pragma clang attribute push ([[noreturn, noinline]], apply_to = function)
+
+  void function1(); // The function now has the [[noreturn]] and [[noinline]] attributes
+
+  #pragma clang attribute pop
+  
+  #pragma clang attribute push (__attribute((noreturn, noinline)), apply_to = function)
+
+  void function2(); // The function now has the __attribute((noreturn)) and __attribute((noinline)) attributes
+
+  #pragma clang attribute pop
 
 Because multiple push directives can be nested, if you're writing a macro that
 expands to ``_Pragma("clang attribute")`` it's good hygiene (though not

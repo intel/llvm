@@ -66,6 +66,7 @@ unsigned SimplexBase::addZeroRow(bool makeRestricted) {
     tableau.resizeVertically(nRow);
   rowUnknown.push_back(~con.size());
   con.emplace_back(Orientation::Row, makeRestricted, nRow - 1);
+  undoLog.push_back(UndoLogEntry::RemoveLastConstraint);
 
   // Zero out the new row.
   tableau.fillRow(nRow - 1, 0);
@@ -131,7 +132,6 @@ unsigned SimplexBase::addRow(ArrayRef<int64_t> coeffs, bool makeRestricted) {
 
   normalizeRow(nRow - 1);
   // Push to undo log along with the index of the new constraint.
-  undoLog.push_back(UndoLogEntry::RemoveLastConstraint);
   return con.size() - 1;
 }
 
@@ -169,7 +169,7 @@ MaybeOptimum<SmallVector<Fraction, 8>> LexSimplex::findRationalLexMin() {
   return getRationalSample();
 }
 
-LogicalResult LexSimplex::addCut(unsigned row) {
+LogicalResult LexSimplexBase::addCut(unsigned row) {
   int64_t denom = tableau(row, 0);
   addZeroRow(/*makeRestricted=*/true);
   tableau(nRow - 1, 0) = denom;
@@ -180,7 +180,7 @@ LogicalResult LexSimplex::addCut(unsigned row) {
   return moveRowUnknownToColumn(nRow - 1);
 }
 
-Optional<unsigned> LexSimplex::maybeGetNonIntegeralVarRow() const {
+Optional<unsigned> LexSimplex::maybeGetNonIntegralVarRow() const {
   for (const Unknown &u : var) {
     if (u.orientation == Orientation::Column)
       continue;
@@ -200,7 +200,7 @@ MaybeOptimum<SmallVector<int64_t, 8>> LexSimplex::findIntegerLexMin() {
     if (empty)
       return OptimumKind::Empty;
 
-    if (Optional<unsigned> maybeRow = maybeGetNonIntegeralVarRow()) {
+    if (Optional<unsigned> maybeRow = maybeGetNonIntegralVarRow()) {
       // Failure occurs when the polytope is integer empty.
       if (failed(addCut(*maybeRow)))
         return OptimumKind::Empty;
@@ -211,14 +211,23 @@ MaybeOptimum<SmallVector<int64_t, 8>> LexSimplex::findIntegerLexMin() {
     assert(!sample.isEmpty() && "If we reached here the sample should exist!");
     if (sample.isUnbounded())
       return OptimumKind::Unbounded;
-    return llvm::to_vector<8>(llvm::map_range(
-        *sample, [](const Fraction &f) { return f.getAsInteger(); }));
+    return llvm::to_vector<8>(
+        llvm::map_range(*sample, std::mem_fn(&Fraction::getAsInteger)));
   }
 
   // Polytope is integer empty.
   return OptimumKind::Empty;
 }
 
+bool LexSimplex::isSeparateInequality(ArrayRef<int64_t> coeffs) {
+  SimplexRollbackScopeExit scopeExit(*this);
+  addInequality(coeffs);
+  return findIntegerLexMin().isEmpty();
+}
+
+bool LexSimplex::isRedundantInequality(ArrayRef<int64_t> coeffs) {
+  return isSeparateInequality(getComplementIneq(coeffs));
+}
 bool LexSimplex::rowIsViolated(unsigned row) const {
   if (tableau(row, 2) < 0)
     return true;
@@ -307,7 +316,7 @@ void LexSimplex::restoreRationalConsistency() {
 // which is in contradiction to the fact that B.col(j) / B(i,j) must be
 // lexicographically smaller than B.col(k) / B(i,k), since it lexicographically
 // minimizes the change in sample value.
-LogicalResult LexSimplex::moveRowUnknownToColumn(unsigned row) {
+LogicalResult LexSimplexBase::moveRowUnknownToColumn(unsigned row) {
   Optional<unsigned> maybeColumn;
   for (unsigned col = 3; col < nCol; ++col) {
     if (tableau(row, col) <= 0)
@@ -325,8 +334,8 @@ LogicalResult LexSimplex::moveRowUnknownToColumn(unsigned row) {
   return success();
 }
 
-unsigned LexSimplex::getLexMinPivotColumn(unsigned row, unsigned colA,
-                                          unsigned colB) const {
+unsigned LexSimplexBase::getLexMinPivotColumn(unsigned row, unsigned colA,
+                                              unsigned colB) const {
   // A pivot causes the following change. (in the diagram the matrix elements
   // are shown as rationals and there is no common denominator used)
   //
@@ -735,7 +744,7 @@ void Simplex::undoLastConstraint() {
 
 // It's not valid to remove the constraint by deleting the column since this
 // would result in an invalid basis.
-void LexSimplex::undoLastConstraint() {
+void LexSimplexBase::undoLastConstraint() {
   if (con.back().orientation == Orientation::Column) {
     // When removing the last constraint during a rollback, we just need to find
     // any pivot at all, i.e., any row with non-zero coefficient for the
@@ -818,6 +827,28 @@ void SimplexBase::rollback(unsigned snapshot) {
   }
 }
 
+/// We add the usual floor division constraints:
+/// `0 <= coeffs - denom*q <= denom - 1`, where `q` is the new division
+/// variable.
+///
+/// This constrains the remainder `coeffs - denom*q` to be in the
+/// range `[0, denom - 1]`, which fixes the integer value of the quotient `q`.
+void SimplexBase::addDivisionVariable(ArrayRef<int64_t> coeffs, int64_t denom) {
+  assert(denom != 0 && "Cannot divide by zero!\n");
+  appendVariable();
+
+  SmallVector<int64_t, 8> ineq(coeffs.begin(), coeffs.end());
+  int64_t constTerm = ineq.back();
+  ineq.back() = -denom;
+  ineq.push_back(constTerm);
+  addInequality(ineq);
+
+  for (int64_t &coeff : ineq)
+    coeff = -coeff;
+  ineq.back() += denom - 1;
+  addInequality(ineq);
+}
+
 void SimplexBase::appendVariable(unsigned count) {
   if (count == 0)
     return;
@@ -866,11 +897,11 @@ MaybeOptimum<Fraction> Simplex::computeOptimum(Direction direction,
                                                ArrayRef<int64_t> coeffs) {
   if (empty)
     return OptimumKind::Empty;
-  unsigned snapshot = getSnapshot();
+
+  SimplexRollbackScopeExit scopeExit(*this);
   unsigned conIndex = addRow(coeffs);
   unsigned row = con[conIndex].pos;
   MaybeOptimum<Fraction> optimum = computeRowOptimum(direction, row);
-  rollback(snapshot);
   return optimum;
 }
 
@@ -1088,6 +1119,10 @@ Optional<SmallVector<Fraction, 8>> Simplex::getRationalSample() const {
   return sample;
 }
 
+void LexSimplexBase::addInequality(ArrayRef<int64_t> coeffs) {
+  addRow(coeffs, /*makeRestricted=*/true);
+}
+
 MaybeOptimum<SmallVector<Fraction, 8>> LexSimplex::getRationalSample() const {
   if (empty)
     return OptimumKind::Empty;
@@ -1158,9 +1193,8 @@ public:
   /// First pushes a snapshot for the current simplex state to the stack so
   /// that this can be rolled back later.
   void addEqualityForDirection(ArrayRef<int64_t> dir) {
-    assert(
-        std::any_of(dir.begin(), dir.end(), [](int64_t x) { return x != 0; }) &&
-        "Direction passed is the zero vector!");
+    assert(llvm::any_of(dir, [](int64_t x) { return x != 0; }) &&
+           "Direction passed is the zero vector!");
     snapshotStack.push_back(simplex.getSnapshot());
     simplex.addEquality(getCoeffsForDirection(dir));
   }
@@ -1183,7 +1217,7 @@ public:
     // tableau before returning. We instead add a row for the objective function
     // ourselves, call into computeOptimum, compute the duals from the tableau
     // state, and finally rollback the addition of the row before returning.
-    unsigned snap = simplex.getSnapshot();
+    SimplexRollbackScopeExit scopeExit(simplex);
     unsigned conIndex = simplex.addRow(getCoeffsForDirection(dir));
     unsigned row = simplex.con[conIndex].pos;
     MaybeOptimum<Fraction> maybeWidth =
@@ -1226,7 +1260,6 @@ public:
       else
         dual.push_back(0);
     }
-    simplex.rollback(snap);
     return *maybeWidth;
   }
 

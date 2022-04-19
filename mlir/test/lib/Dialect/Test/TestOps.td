@@ -617,6 +617,15 @@ def TestBranchOp : TEST_Op<"br",
   let successors = (successor AnySuccessor:$target);
 }
 
+def TestProducingBranchOp : TEST_Op<"producing_br",
+    [DeclareOpInterfaceMethods<BranchOpInterface>, Terminator,
+     AttrSizedOperandSegments]> {
+  let arguments = (ins Variadic<AnyType>:$firstOperands,
+                       Variadic<AnyType>:$secondOperands);
+  let results = (outs I32:$dummy);
+  let successors = (successor AnySuccessor:$first,AnySuccessor:$second);
+}
+
 def AttrSizedOperandOp : TEST_Op<"attr_sized_operands",
                                  [AttrSizedOperandSegments]> {
   let arguments = (ins
@@ -647,9 +656,12 @@ def CustomFormatFallbackOp : TEST_Op<"dialect_custom_format_fallback">;
 
 // Ops related to OIList primitive
 def OIListTrivial : TEST_Op<"oilist_with_keywords_only"> {
+  let arguments = (ins UnitAttr:$keyword, UnitAttr:$otherKeyword,
+                       UnitAttr:$diffNameUnitAttrKeyword);
   let assemblyFormat = [{
-    oilist( `keyword`
-          | `otherKeyword`) attr-dict
+    oilist( `keyword` $keyword
+          | `otherKeyword` $otherKeyword
+          | `thirdKeyword` $diffNameUnitAttrKeyword) attr-dict
   }];
 }
 
@@ -681,8 +693,8 @@ def OIListCustom : TEST_Op<"oilist_custom", [AttrSizedOperandSegments]> {
                        UnitAttr:$nowait);
   let assemblyFormat = [{
     oilist( `private` `(` $arg0 `:` type($arg0) `)`
-          | `nowait`
           | `reduction` custom<CustomOptionalOperand>($optOperand)
+          | `nowait` $nowait
     ) attr-dict
   }];
 }
@@ -1074,6 +1086,11 @@ def TestOpWithVariadicResultsAndFolder: TEST_Op<"op_with_variadic_results_and_fo
 
 def TestCommutativeOp : TEST_Op<"op_commutative", [Commutative]> {
   let arguments = (ins I32:$op1, I32:$op2, I32:$op3, I32:$op4);
+  let results = (outs I32);
+}
+
+def TestCommutative2Op : TEST_Op<"op_commutative2", [Commutative]> {
+  let arguments = (ins I32:$op1, I32:$op2);
   let results = (outs I32);
 }
 
