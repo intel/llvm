@@ -46,7 +46,10 @@ if (DEFINED CM_LOCAL_SOURCE_DIR)
     )
   endif()
 else ()
-  if (DEFINED CM_PACKAGE_URL)
+  if ((DEFINED CM_PACKAGE_URL) OR (DEFINED ESIMD_EMU_USE_PREBUILT_CM_PACKAGE))
+    if (DEFINED ESIMD_EMU_USE_PREBUILT_CM_PACKAGE)
+      set(CM_PACKAGE_URL "https://github.com/intel/cm-cpu-emulation/releases/download/v2022-02-11/intel-cmemu-1.0.20.u20.04-release.x86_64.tar.xz")
+    endif()
     # Downloading pre-built CM Package
     file (MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install)
     ExternalProject_Add(cm-emu
