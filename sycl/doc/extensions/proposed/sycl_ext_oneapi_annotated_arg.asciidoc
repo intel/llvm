@@ -107,7 +107,7 @@ using sycl::ext::oneapi::experimental;
 struct MyKernel {
   annotated_arg<int, properties<PropA>> a;
   annotated_arg<int, properties<PropB>> b;
-  int *c;
+  annotated_arg<int*, properties<PropC>> *c;
   MyKernel(int a_, int b_, int* c_) : a(a_), b(b_), c(c_) { }
   void operator()() const {
     *c = a + b;
@@ -123,9 +123,13 @@ int main () {
 }
 ----
 
-`PropA` and `PropB` are expected to be preserved on the kernel arguments in a
-reliable manner. For example, the properties may be converted to kernel
-function level metadata.
+`PropA`, `PropB` and `PropC` are expected to be preserved on the kernel
+arguments in a reliable manner. For example, the properties may be converted to
+kernel function level metadata.
+
+NOTE: `PropC` will just influence the kernel argument and not the device code
+where the pointer is dereferenced. Use the `sycl::ext::oneapi::annotated_ptr`
+class template to apply properties that must be preserved in the device code.
 
 The example below shows a type of use-case which is not meant to be supported
 by `annotated_arg`:
