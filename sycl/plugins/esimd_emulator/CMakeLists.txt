@@ -22,21 +22,19 @@ else()
   set(LIBIGFXCMRT_EMU ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps/lib/libigfxcmrt_emu${CMAKE_SHARED_LIBRARY_SUFFIX})
 endif()
 
-if (DEFINED CM_LOCAL_SOURCE_DIR)
-    # Using local CM directory for online building without downloading
+set (DEFAULT_CM_EMU_PREBUILT_PACKAGE "https://github.com/intel/cm-cpu-emulation/releases/download/v2022-02-11/intel-cmemu-1.0.20.u20.04-release.x86_64.tar.xz")
+set (DEFAULT_CM_EMU_SOURCE_URL "https://github.com/intel/cm-cpu-emulation.git")
+
+if (DEFINED USE_DEFAULT_CM_EMU_SOURCE)
+  if ((DEFINED USE_LOCAL_CM_EMU_SOURCE) OR (DEFINED USE_CM_EMU_PREBUILT_PACKAGE))
+    message(FATAL_ERROR "Configuration failure : Building CM_EMU library with local source or using pre-built one with online-building of CM_EMU")
+  endif()
   if (MSVC)
-    ExternalProject_Add(cm-emu
-      DOWNLOAD_COMMAND  ""
-      SOURCE_DIR        ${CM_LOCAL_SOURCE_DIR}
-      BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
-      INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
-      CMAKE_ARGS        -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-      BUILD_BYPRODUCTS  ${LIBCM} ${LIBIGFXCMRT_EMU}
-    )
+    message(FATAL_ERROR "Online-building of CM_EMU library is not supported under Windows environment")
   else()
     ExternalProject_Add(cm-emu
-      DOWNLOAD_COMMAND  ""
-      SOURCE_DIR        ${CM_LOCAL_SOURCE_DIR}
+      GIT_REPOSITORY    ${DEFAULT_CM_EMU_SOURCE_URL}
+      GIT_TAG           f9d167edbcb995e713d5a8
       BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
       INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
       CMAKE_ARGS        -DLIBVA_INSTALL_PATH=/usr
@@ -45,42 +43,41 @@ if (DEFINED CM_LOCAL_SOURCE_DIR)
       BUILD_BYPRODUCTS  ${LIBCM} ${LIBIGFXCMRT_EMU}
     )
   endif()
-else ()
-  if (DEFINED CM_PACKAGE_URL)
-    # Downloading pre-built CM Package
-    file (MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install)
+elseif (DEFINED USE_LOCAL_CM_EMU_SOURCE)
+  if (DEFINED USE_CM_EMU_PREBUILT_PACKAGE)
+    message(FATAL_ERROR "Configuration failure : Using pre-built CM_EMU package with online-building of it")
+  endif()
+  if (MSVC)
+    message(FATAL_ERROR "Building of CM_EMU library is not supported under Windows environment")
+  else()
     ExternalProject_Add(cm-emu
-      URL               ${CM_PACKAGE_URL}
-      CONFIGURE_COMMAND ""
-      BUILD_COMMAND     ""
-      UPDATE_COMMAND    ""
+      DOWNLOAD_COMMAND  ""
+      SOURCE_DIR        ${USE_LOCAL_CM_EMU_SOURCE}
+      BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
       INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
-      INSTALL_COMMAND   ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_BINARY_DIR}/cm-emu-prefix/src/cm-emu/ <INSTALL_DIR>
+      CMAKE_ARGS        -DLIBVA_INSTALL_PATH=/usr
+                        -D__SYCL_EXPLICIT_SIMD_PLUGIN__=true
+                        -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
       BUILD_BYPRODUCTS  ${LIBCM} ${LIBIGFXCMRT_EMU}
     )
-  else()
-    # Build from CM source tree fetched from github
-    if (MSVC)
-      message(FATAL_ERROR "Online-building of CM_EMU library is not supported under Windows environment")
-    else()
-      # Arguments for online patching to suppress log message from CM_EMU
-      # Replacing CM_EMU's log print-out macro controlled by 'GFX_EMU_WITH_FLAGS_'
-      # with blank space from $CM_EMU_SRC/common/emu_log.h
-      set (replacing_pattern s/{\ ?GFX_EMU_WITH_FLAGS_.*//g)
-      ExternalProject_Add(cm-emu
-        GIT_REPOSITORY    https://github.com/intel/cm-cpu-emulation.git
-        GIT_TAG           f9d167edbcb995e713d5a8
-        BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
-        INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
-        PATCH_COMMAND     perl -pi.back -e ${replacing_pattern} ${CMAKE_CURRENT_BINARY_DIR}/cm-emu-prefix/src/cm-emu/common/emu_log.h
-        CMAKE_ARGS        -DLIBVA_INSTALL_PATH=/usr
-                          -D__SYCL_EXPLICIT_SIMD_PLUGIN__=true
-                          -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-        BUILD_BYPRODUCTS  ${LIBCM} ${LIBIGFXCMRT_EMU}
-      )
-    endif()
   endif()
-endif ()
+else()
+  set(ACTUAL_CM_EMU_PREBUILT_PACKAGE ${DEFAULT_CM_EMU_PREBUILT_PACKAGE})
+  if (DEFINED USE_CM_EMU_PREBUILT_PACKAGE)
+    set(ACTUAL_CM_EMU_PREBUILT_PACKAGE ${USE_CM_EMU_PREBUILT_PACKAGE})
+  endif()
+  file (MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install)
+  ExternalProject_Add(cm-emu
+    URL               ${ACTUAL_CM_EMU_PREBUILT_PACKAGE}
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND     ""
+    UPDATE_COMMAND    ""
+    INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
+    INSTALL_COMMAND   ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_BINARY_DIR}/cm-emu-prefix/src/cm-emu/ <INSTALL_DIR>
+    BUILD_BYPRODUCTS  ${LIBCM} ${LIBIGFXCMRT_EMU}
+  )
+endif()
+
 ExternalProject_Add_Step(cm-emu llvminstall
   COMMAND ${CMAKE_COMMAND} -E make_directory ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps && ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps
   COMMENT "Installing cm-emu into the LLVM binary directory"
