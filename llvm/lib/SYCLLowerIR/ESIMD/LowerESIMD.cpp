@@ -336,10 +336,10 @@ public:
         {"svm_block_ld_unaligned", {"svm.block.ld.unaligned", {l(0)}}},
         {"svm_block_ld", {"svm.block.ld", {l(0)}}},
         {"svm_block_st", {"svm.block.st", {l(1)}}},
-        {"svm_gather", {"svm.gather", {ai1(2), a(1), a(0), u(-1)}}},
+        {"svm_gather", {"svm.gather", {ai1(1), t(3), a(0), u(-1)}}},
         {"svm_gather4_scaled",
          {"svm.gather4.scaled", {ai1(1), t(2), c16(0), c64(0), a(0), u(-1)}}},
-        {"svm_scatter", {"svm.scatter", {ai1(3), a(2), a(0), a(1)}}},
+        {"svm_scatter", {"svm.scatter", {ai1(2), t(3), a(0), a(1)}}},
         {"svm_scatter4_scaled",
          {"svm.scatter4.scaled", {ai1(2), t(2), c16(0), c64(0), a(0), a(1)}}},
 
