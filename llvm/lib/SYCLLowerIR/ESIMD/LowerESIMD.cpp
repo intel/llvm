@@ -898,6 +898,9 @@ static inline llvm::Metadata *getMD(llvm::Value *V) {
 // 2) For now such intrinsics are also handled in functions directly called
 // from kernels and being translate into those caller-kernel meeven though such
 // behaviour is not fully specified/documented.
+// 3) This code (or the code in FE) must verify that slm_init or other such
+// intrinsic is not called from another module because kernels in that other
+// module would not get updated meta data attributes.
 static void updateGenXMDNodes(llvm::Function *F, genx::KernelMDOp MD,
                               uint64_t NewVal) {
   llvm::NamedMDNode *GenXKernelMD =
