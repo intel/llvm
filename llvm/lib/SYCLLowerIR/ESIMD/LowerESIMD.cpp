@@ -885,53 +885,51 @@ template <typename Ty = llvm::Value> Ty *getVal(llvm::Metadata *M) {
   return nullptr;
 }
 
-/// Return the MDNode that has the SLM size attribute.
-static llvm::MDNode *getSLMSizeMDNode(llvm::Function *F) {
-  llvm::NamedMDNode *Nodes =
-      F->getParent()->getNamedMetadata(GENX_KERNEL_METADATA);
-  assert(Nodes && "invalid genx.kernels metadata");
-  for (auto Node : Nodes->operands()) {
-    if (Node->getNumOperands() >= 4 && getVal(Node->getOperand(0)) == F)
-      return Node;
-  }
-  // if F is not a kernel, keep looking into its callers
-  while (!F->use_empty()) {
-    auto CI = cast<CallInst>(F->use_begin()->getUser());
-    auto UF = CI->getParent()->getParent();
-    if (auto Node = getSLMSizeMDNode(UF))
-      return Node;
-  }
-  return nullptr;
-}
-
 static inline llvm::Metadata *getMD(llvm::Value *V) {
   return llvm::ValueAsMetadata::get(V);
 }
 
+/// Updates genx.kernels metadata attribute \p MD for the given function \p F.
+/// The value of the attribute is updated only if the new value \p NewVal is
+/// bigger than what is already stored in the attribute.
+static void updateGenXMDNodes(llvm::Function *F, genx::KernelMDOp MD,
+                              uint64_t NewVal) {
+  llvm::NamedMDNode *GenXKernelMD =
+      F->getParent()->getNamedMetadata(GENX_KERNEL_METADATA);
+  assert(GenXKernelMD && "invalid genx.kernels metadata");
+  for (auto Node : GenXKernelMD->operands()) {
+    if (Node->getNumOperands() > MD &&
+        getVal(Node->getOperand(genx::KernelMDOp::FunctionRef)) == F) {
+
+      llvm::Value *Old = getVal(Node->getOperand(MD));
+      assert((Old && isa<llvm::ConstantInt>(Old)) &&
+             "integer constant expected");
+      uint64_t OldVal = cast<llvm::ConstantInt>(Old)->getZExtValue();
+      if (OldVal < NewVal) {
+        llvm::Value *New = llvm::ConstantInt::get(Old->getType(), NewVal);
+        Node->replaceOperandWith(MD, getMD(New));
+      }
+    }
+  }
+
+  // Update all callers of 'F' as well.
+  for (auto It = F->use_begin(); It != F->use_end(); It++) {
+    auto CI = cast<CallInst>(It->getUser());
+    auto UserF = CI->getParent()->getParent();
+    updateGenXMDNodes(UserF, MD, NewVal);
+  }
+}
+
 static void translateSLMInit(CallInst &CI) {
   auto F = CI.getParent()->getParent();
-
   auto *ArgV = CI.getArgOperand(0);
   if (!isa<ConstantInt>(ArgV)) {
     assert(false && "integral constant expected for slm size");
     return;
   }
-  auto NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
+  uint64_t NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
   assert(NewVal != 0 && "zero slm bytes being requested");
-
-  // find the corresponding kernel metadata and set the SLM size.
-  if (llvm::MDNode *Node = getSLMSizeMDNode(F)) {
-    if (llvm::Value *OldSz = getVal(Node->getOperand(4))) {
-      assert(isa<llvm::ConstantInt>(OldSz) && "integer constant expected");
-      llvm::Value *NewSz = llvm::ConstantInt::get(OldSz->getType(), NewVal);
-      uint64_t OldVal = cast<llvm::ConstantInt>(OldSz)->getZExtValue();
-      if (OldVal < NewVal)
-        Node->replaceOperandWith(3, getMD(NewSz));
-    }
-  } else {
-    // We check whether this call is inside a kernel function.
-    assert(false && "slm_init shall be called by a kernel");
-  }
+  updateGenXMDNodes(F, genx::KernelMDOp::SLMSize, NewVal);
 }
 
 static void translatePackMask(CallInst &CI) {
@@ -1024,29 +1022,16 @@ static void translateUnPackMask(CallInst &CI) {
 // This function sets VCNamedBarrierCount attribute to set
 // the number of named barriers required by a kernel
 static void translateNbarrierInit(CallInst &CI) {
-  auto *F = CI.getFunction();
-
+  auto F = CI.getParent()->getParent();
   auto *ArgV = CI.getArgOperand(0);
-  assert(isa<ConstantInt>(ArgV) &&
-         "integral constant expected for nbarrier count");
+  if (!isa<ConstantInt>(ArgV)) {
+    assert(false && "integral constant expected for nbarrier count");
+    return;
+  }
 
   auto NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
   assert(NewVal != 0 && "zero nbarrier count being requested");
-
-  if (llvm::MDNode *Node = getSLMSizeMDNode(F)) {
-    if (llvm::Value *OldCount =
-            getVal(Node->getOperand(genx::KernelMDOp::NBarrierCnt))) {
-      assert(isa<llvm::ConstantInt>(OldCount) && "integer constant expected");
-      llvm::Value *NewCount =
-          llvm::ConstantInt::get(OldCount->getType(), NewVal);
-      uint64_t OldVal = cast<llvm::ConstantInt>(OldCount)->getZExtValue();
-      if (OldVal < NewVal)
-        Node->replaceOperandWith(genx::KernelMDOp::NBarrierCnt,
-                                 getMD(NewCount));
-    }
-  } else {
-    llvm_unreachable("esimd_nbarrier_init can only be called by a kernel");
-  }
+  updateGenXMDNodes(F, genx::KernelMDOp::NBarrierCnt, NewVal);
 }
 
 static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
