@@ -6662,7 +6662,10 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
     else if (RequiresArg)
       Diag(Tok, diag::err_argument_required_after_attribute);
 
-    HasProto = ParamInfo.size() || getLangOpts().CPlusPlus ||
+    // OpenCL disallows functions without a prototype, but it doesn't enforce
+    // strict prototypes as in C2x because it allows a function definition to
+    // have an identifier list. See OpenCL 3.0 6.11/g for more details.
+    HasProto = ParamInfo.size() || getLangOpts().requiresStrictPrototypes() ||
                getLangOpts().OpenCL || getLangOpts().SYCLIsDevice;
 
     // If we have the closing ')', eat it.
@@ -6800,7 +6803,7 @@ bool Parser::ParseRefQualifier(bool &RefQualifierIsLValueRef,
 /// Note that identifier-lists are only allowed for normal declarators, not for
 /// abstract-declarators.
 bool Parser::isFunctionDeclaratorIdentifierList() {
-  return !getLangOpts().CPlusPlus
+  return !getLangOpts().requiresStrictPrototypes()
          && Tok.is(tok::identifier)
          && !TryAltiVecVectorToken()
          // K&R identifier lists can't have typedefs as identifiers, per C99
@@ -6834,6 +6837,10 @@ bool Parser::isFunctionDeclaratorIdentifierList() {
 void Parser::ParseFunctionDeclaratorIdentifierList(
        Declarator &D,
        SmallVectorImpl<DeclaratorChunk::ParamInfo> &ParamInfo) {
+  // We should never reach this point in C2x or C++.
+  assert(!getLangOpts().requiresStrictPrototypes() &&
+         "Cannot parse an identifier list in C2x or C++");
+
   // If there was no identifier specified for the declarator, either we are in
   // an abstract-declarator, or we are in a parameter declarator which was found
   // to be abstract.  In abstract-declarators, identifier lists are not valid:
