@@ -892,44 +892,81 @@ static inline llvm::Metadata *getMD(llvm::Value *V) {
 /// Updates genx.kernels metadata attribute \p MD for the given function \p F.
 /// The value of the attribute is updated only if the new value \p NewVal is
 /// bigger than what is already stored in the attribute.
+// TODO: 1) In general this function is supposed to handle intrinsics
+// translated into kernel's metadata. So, the primary/intended usage model is
+// when such intrinsics are called from kernels.
+// 2) For now such intrinsics are also handled in functions directly called
+// from kernels and being translate into those caller-kernel meeven though such
+// behaviour is not fully specified/documented.
 static void updateGenXMDNodes(llvm::Function *F, genx::KernelMDOp MD,
                               uint64_t NewVal) {
   llvm::NamedMDNode *GenXKernelMD =
       F->getParent()->getNamedMetadata(GENX_KERNEL_METADATA);
   assert(GenXKernelMD && "invalid genx.kernels metadata");
-  for (auto Node : GenXKernelMD->operands()) {
-    if (Node->getNumOperands() > MD &&
-        getVal(Node->getOperand(genx::KernelMDOp::FunctionRef)) == F) {
+
+  SmallPtrSet<Function *, 4> FunctionsVisited;
+  SmallVector<Function *, 4> FunctionsToVisit{F};
+  for (size_t I = 0; I < FunctionsToVisit.size(); I++) {
+    F = FunctionsToVisit[I];
+
+    // Update the meta data attribute for the function 'F'.
+    for (auto Node : GenXKernelMD->operands()) {
+      if (Node->getNumOperands() <= MD ||
+          getVal(Node->getOperand(genx::KernelMDOp::FunctionRef)) != F)
+        continue;
 
       llvm::Value *Old = getVal(Node->getOperand(MD));
-      assert((Old && isa<llvm::ConstantInt>(Old)) &&
-             "integer constant expected");
       uint64_t OldVal = cast<llvm::ConstantInt>(Old)->getZExtValue();
       if (OldVal < NewVal) {
         llvm::Value *New = llvm::ConstantInt::get(Old->getType(), NewVal);
         Node->replaceOperandWith(MD, getMD(New));
       }
     }
-  }
+    FunctionsVisited.insert(F);
 
-  // Update all callers of 'F' as well.
-  for (auto It = F->use_begin(); It != F->use_end(); It++) {
-    auto CI = cast<CallInst>(It->getUser());
-    auto UserF = CI->getParent()->getParent();
-    updateGenXMDNodes(UserF, MD, NewVal);
+    // Update all callers of 'F' as well.
+    for (auto It = F->use_begin(); It != F->use_end(); It++) {
+      auto FCall = It->getUser();
+      if (!isa<CallInst>(FCall))
+        llvm::report_fatal_error(
+            llvm::Twine(__FILE__ " ") +
+            "Found an intrinsic violating assumption on usage from a kernel or "
+            "a func directly called from a kernel");
+
+      auto FCaller = cast<CallInst>(FCall)->getFunction();
+      if (!FunctionsVisited.count(FCaller))
+        FunctionsToVisit.push_back(FCaller);
+    }
   }
 }
 
+// This function sets/updates VCSLMSize attribute to the kernels
+// calling this intrinsic initializing SLM memory.
 static void translateSLMInit(CallInst &CI) {
-  auto F = CI.getParent()->getParent();
+  auto F = CI.getFunction();
   auto *ArgV = CI.getArgOperand(0);
-  if (!isa<ConstantInt>(ArgV)) {
-    assert(false && "integral constant expected for slm size");
-    return;
-  }
+  if (!isa<ConstantInt>(ArgV))
+    llvm::report_fatal_error(llvm::Twine(__FILE__ " ") +
+                             "integral constant is expected for slm size");
+
   uint64_t NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
   assert(NewVal != 0 && "zero slm bytes being requested");
   updateGenXMDNodes(F, genx::KernelMDOp::SLMSize, NewVal);
+}
+
+// This function sets/updates VCNamedBarrierCount attribute to the kernels
+// calling this intrinsic initializing the number of named barriers.
+static void translateNbarrierInit(CallInst &CI) {
+  auto F = CI.getFunction();
+  auto *ArgV = CI.getArgOperand(0);
+  if (!isa<ConstantInt>(ArgV))
+    llvm::report_fatal_error(
+        llvm::Twine(__FILE__ " ") +
+        "integral constant is expected for named barrier count");
+
+  auto NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
+  assert(NewVal != 0 && "zero named barrier count being requested");
+  updateGenXMDNodes(F, genx::KernelMDOp::NBarrierCnt, NewVal);
 }
 
 static void translatePackMask(CallInst &CI) {
@@ -1017,21 +1054,6 @@ static void translateUnPackMask(CallInst &CI) {
   if (llvm::Instruction *TransCInst = dyn_cast<llvm::Instruction>(TransCI))
     TransCInst->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(TransCI);
-}
-
-// This function sets VCNamedBarrierCount attribute to set
-// the number of named barriers required by a kernel
-static void translateNbarrierInit(CallInst &CI) {
-  auto F = CI.getParent()->getParent();
-  auto *ArgV = CI.getArgOperand(0);
-  if (!isa<ConstantInt>(ArgV)) {
-    assert(false && "integral constant expected for nbarrier count");
-    return;
-  }
-
-  auto NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
-  assert(NewVal != 0 && "zero nbarrier count being requested");
-  updateGenXMDNodes(F, genx::KernelMDOp::NBarrierCnt, NewVal);
 }
 
 static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
