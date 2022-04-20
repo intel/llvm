@@ -349,7 +349,7 @@ pi_result cuda_piEventRetain(pi_event event);
 /// \endcond
 
 
-_pi_queue::native_type _pi_queue::get_compute() noexcept {
+_pi_queue::native_type _pi_queue::get_compute() {
   if(n_compute_streams_ < compute_streams_.size()){
     unsigned int idx = n_compute_streams_++;
     if(idx<compute_streams_.size()){
@@ -359,7 +359,7 @@ _pi_queue::native_type _pi_queue::get_compute() noexcept {
   return compute_streams_[compute_stream_idx_++ % compute_streams_.size()];
 }
 
-_pi_queue::native_type _pi_queue::get_transfer() noexcept {
+_pi_queue::native_type _pi_queue::get_transfer() {
   if(!(properties_ & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)){
     return get_compute();
   }

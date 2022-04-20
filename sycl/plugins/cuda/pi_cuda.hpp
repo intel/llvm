@@ -407,8 +407,11 @@ struct _pi_queue {
     cuda_piDeviceRelease(device_);
   }
 
-  native_type get_compute() noexcept;
-  native_type get_transfer() noexcept;
+  native_type get_compute();
+  native_type get_transfer();
+  native_type get() {
+    return get_compute();
+  };
 
   template<typename T>
   void for_each_stream(T&& f){

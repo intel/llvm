@@ -28,4 +28,5 @@ target_include_directories(PiCudaTests
 target_link_libraries(PiCudaTests
   PRIVATE
     cudadrv
+    pi_cuda
 )
