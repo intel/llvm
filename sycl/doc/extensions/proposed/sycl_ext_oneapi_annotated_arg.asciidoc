@@ -107,7 +107,7 @@ using sycl::ext::oneapi::experimental;
 struct MyKernel {
   annotated_arg<int, properties<PropA>> a;
   annotated_arg<int, properties<PropB>> b;
-  annotated_arg<int*, properties<PropC>> *c;
+  annotated_arg<int*, properties<PropC>> c;
   MyKernel(int a_, int b_, int* c_) : a(a_), b(b_), c(c_) { }
   void operator()() const {
     *c = a + b;
