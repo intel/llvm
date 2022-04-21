@@ -43,6 +43,9 @@
 
 #include "pi_esimd_emulator.hpp"
 
+#define ARG_UNUSED(x) (void)x
+#define ARG_PTR_UNUSED(x) (void *)x
+
 namespace {
 
 // Helper functions for unified 'Return' type declaration - imported
@@ -67,6 +70,7 @@ template <typename T>
 pi_result getInfo(size_t ParamValueSize, void *ParamValue,
                   size_t *ParamValueSizeRet, T Value) {
   auto assignment = [](void *ParamValue, T Value, size_t ValueSize) {
+    ARG_UNUSED(ValueSize);
     *static_cast<T *>(ParamValue) = Value;
   };
   return getInfoImpl(ParamValueSize, ParamValue, ParamValueSizeRet, Value,
@@ -808,6 +812,10 @@ pi_result piContextCreate(const pi_context_properties *Properties,
                                             const void *PrivateInfo, size_t CB,
                                             void *UserData),
                           void *UserData, pi_context *RetContext) {
+  ARG_PTR_UNUSED(Properties);
+  ARG_PTR_UNUSED(PFnNotify);
+  ARG_PTR_UNUSED(UserData);
+
   if (NumDevices != 1) {
     return PI_INVALID_VALUE;
   }
@@ -903,6 +911,8 @@ bool _pi_context::checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr) {
 
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
+  ARG_UNUSED(Device);
+
   if (Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
     // TODO : Support Out-of-order Queue
     *Queue = nullptr;
@@ -979,6 +989,8 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
 pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             void *HostPtr, pi_mem *RetMem,
                             const pi_mem_properties *properties) {
+  ARG_PTR_UNUSED(properties);
+
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     if (PrintPiTrace) {
       std::cerr << "Invalid memory attribute for piMemBufferCreate"
@@ -1378,6 +1390,12 @@ pi_result piEventGetInfo(pi_event, pi_event_info, size_t, void *, size_t *) {
 pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
                                   size_t ParamValueSize, void *ParamValue,
                                   size_t *ParamValueSizeRet) {
+  ARG_UNUSED(Event);
+  ARG_UNUSED(ParamName);
+  ARG_UNUSED(ParamValueSize);
+  ARG_PTR_UNUSED(ParamValue);
+  ARG_PTR_UNUSED(ParamValueSizeRet);
+
   if (PrintPiTrace) {
     std::cerr << "Warning : Profiling Not supported under PI_ESIMD_EMULATOR"
               << std::endl;
@@ -1479,11 +1497,18 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
                                  pi_uint32 NumEventsInWaitList,
                                  const pi_event *EventWaitList,
                                  pi_event *Event) {
+  ARG_UNUSED(Queue);
+  ARG_PTR_UNUSED(EventWaitList);
+
   /// TODO : Support Blocked read, 'Queue' handling
   if (BlockingRead) {
     assert(false &&
            "ESIMD_EMULATOR support for blocking piEnqueueMemBufferRead is NYI");
   }
+
+  assert(Offset == 0 &&
+         "ESIMD_EMULATOR does not support buffer reading with offsets");
+
   if (NumEventsInWaitList != 0) {
     return PI_INVALID_EVENT_WAIT_LIST;
   }
@@ -1566,6 +1591,11 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem MemObj,
                                 pi_uint32 NumEventsInWaitList,
                                 const pi_event *EventWaitList, pi_event *Event,
                                 void **RetMap) {
+  ARG_UNUSED(Queue);
+  ARG_UNUSED(BlockingMap);
+  ARG_UNUSED(MapFlags);
+  ARG_UNUSED(NumEventsInWaitList);
+  ARG_PTR_UNUSED(EventWaitList);
 
   std::unique_ptr<_pi_event> RetEv{nullptr};
   pi_result ret = PI_SUCCESS;
@@ -1604,6 +1634,10 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem MemObj,
 pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
                             pi_uint32 NumEventsInWaitList,
                             const pi_event *EventWaitList, pi_event *Event) {
+  ARG_UNUSED(Queue);
+  ARG_UNUSED(NumEventsInWaitList);
+  ARG_PTR_UNUSED(EventWaitList);
+
   std::unique_ptr<_pi_event> RetEv{nullptr};
   pi_result ret = PI_SUCCESS;
 
@@ -1646,6 +1680,10 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
                                 pi_uint32 NumEventsInWaitList,
                                 const pi_event *EventWaitList,
                                 pi_event *Event) {
+  ARG_UNUSED(CommandQueue);
+  ARG_UNUSED(NumEventsInWaitList);
+  ARG_PTR_UNUSED(EventWaitList);
+
   /// TODO : Support Blocked read, 'Queue' handling
   if (BlockingRead) {
     assert(false && "ESIMD_EMULATOR does not support Blocking Read");
@@ -1720,6 +1758,9 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
                       const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
                       pi_uint32 NumEventsInWaitList,
                       const pi_event *EventWaitList, pi_event *Event) {
+  ARG_UNUSED(Queue);
+  ARG_UNUSED(NumEventsInWaitList);
+  ARG_PTR_UNUSED(EventWaitList);
 
   const size_t LocalWorkSz[] = {1, 1, 1};
 
@@ -1807,6 +1848,9 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
                               pi_device Device,
                               pi_usm_mem_properties *Properties, size_t Size,
                               pi_uint32 Alignment) {
+  ARG_PTR_UNUSED(Properties);
+  ARG_UNUSED(Alignment);
+
   if (Context == nullptr || (Device != Context->Device)) {
     return PI_INVALID_CONTEXT;
   }
