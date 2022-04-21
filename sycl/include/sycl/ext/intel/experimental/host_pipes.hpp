@@ -26,15 +26,6 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-template <class _name, class _dataT,
-          class _propertiesT = decltype(oneapi::experimental::properties{}),
-          class = void>
-class host_pipe {
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_list_v<_propertiesT>,
-      "Host pipe is available only through new property list");
-};
-
 using default_pipe_properties =
     decltype(sycl::ext::oneapi::experimental::properties(min_capacity<0>));
 
@@ -46,9 +37,7 @@ class
 #endif
     // TODO: change name to pipe, and merge into the existing pipe
     // implementation
-    host_pipe<_name, _dataT, _propertiesT,
-              std::enable_if_t<sycl::ext::oneapi::experimental::
-                                   is_property_list_v<_propertiesT>>> {
+    host_pipe {
 
   struct
 #ifdef __SYCL_DEVICE_ONLY__
