@@ -284,7 +284,8 @@ define dso_local spir_func <32 x half>  @FUNC_52() {
 
 define dso_local spir_func void  @FUNC_53(i32 %0) {
   call spir_func void @_Z16__esimd_slm_initj(i32 %0)
-; CHECK:  call void @llvm.genx.slm.init(i32 %0)
+; COM: FIXME: to enable this test after VC-intrinsic sync
+; COM: CHECK: call void @llvm.genx.slm.init(i32 %0)
   ret void
 }
 
