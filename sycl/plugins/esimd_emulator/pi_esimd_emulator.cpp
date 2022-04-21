@@ -66,7 +66,7 @@ pi_result getInfoImpl(size_t ParamValueSize, void *ParamValue,
 template <typename T>
 pi_result getInfo(size_t ParamValueSize, void *ParamValue,
                   size_t *ParamValueSizeRet, T Value) {
-  auto assignment = [](void *ParamValue, T Value, size_t) {
+  auto assignment = [](void *ParamValue, T Value, size_t ValueSize) {
     *static_cast<T *>(ParamValue) = Value;
   };
   return getInfoImpl(ParamValueSize, ParamValue, ParamValueSizeRet, Value,
@@ -802,11 +802,12 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle, pi_platform,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piContextCreate(const pi_context_properties *, pi_uint32 NumDevices,
-                          const pi_device *Devices,
-                          void (*)(const char *ErrInfo, const void *PrivateInfo,
-                                   size_t CB, void *UserData),
-                          void *, pi_context *RetContext) {
+pi_result piContextCreate(const pi_context_properties *Properties,
+                          pi_uint32 NumDevices, const pi_device *Devices,
+                          void (*PFnNotify)(const char *ErrInfo,
+                                            const void *PrivateInfo, size_t CB,
+                                            void *UserData),
+                          void *UserData, pi_context *RetContext) {
   if (NumDevices != 1) {
     return PI_INVALID_VALUE;
   }
@@ -900,7 +901,7 @@ bool _pi_context::checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr) {
   return true;
 }
 
-pi_result piQueueCreate(pi_context Context, pi_device,
+pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
   if (Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
     // TODO : Support Out-of-order Queue
@@ -977,7 +978,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
 
 pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             void *HostPtr, pi_mem *RetMem,
-                            const pi_mem_properties *) {
+                            const pi_mem_properties *properties) {
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     if (PrintPiTrace) {
       std::cerr << "Invalid memory attribute for piMemBufferCreate"
@@ -1374,8 +1375,9 @@ pi_result piEventGetInfo(pi_event, pi_event_info, size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEventGetProfilingInfo(pi_event, pi_profiling_info, size_t, void *,
-                                  size_t *) {
+pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
+                                  size_t ParamValueSize, void *ParamValue,
+                                  size_t *ParamValueSizeRet) {
   if (PrintPiTrace) {
     std::cerr << "Warning : Profiling Not supported under PI_ESIMD_EMULATOR"
               << std::endl;
@@ -1471,8 +1473,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue, pi_uint32, const pi_event *,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueMemBufferRead(pi_queue, pi_mem Src, pi_bool BlockingRead,
-                                 size_t Offset, size_t Size, void *Dst,
+pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
+                                 pi_bool BlockingRead, size_t Offset,
+                                 size_t Size, void *Dst,
                                  pi_uint32 NumEventsInWaitList,
                                  const pi_event *EventWaitList,
                                  pi_event *Event) {
@@ -1481,10 +1484,6 @@ pi_result piEnqueueMemBufferRead(pi_queue, pi_mem Src, pi_bool BlockingRead,
     assert(false &&
            "ESIMD_EMULATOR support for blocking piEnqueueMemBufferRead is NYI");
   }
-
-  assert(Offset == 0 &&
-         "ESIMD_EMULATOR does not support 2D-image reading with offsets");
-
   if (NumEventsInWaitList != 0) {
     return PI_INVALID_EVENT_WAIT_LIST;
   }
@@ -1561,9 +1560,11 @@ pi_result piEnqueueMemBufferFill(pi_queue, pi_mem, const void *, size_t, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueMemBufferMap(pi_queue, pi_mem MemObj, pi_bool, pi_map_flags,
-                                size_t Offset, size_t Size, pi_uint32,
-                                const pi_event *, pi_event *Event,
+pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem MemObj,
+                                pi_bool BlockingMap, pi_map_flags MapFlags,
+                                size_t Offset, size_t Size,
+                                pi_uint32 NumEventsInWaitList,
+                                const pi_event *EventWaitList, pi_event *Event,
                                 void **RetMap) {
 
   std::unique_ptr<_pi_event> RetEv{nullptr};
@@ -1600,7 +1601,8 @@ pi_result piEnqueueMemBufferMap(pi_queue, pi_mem MemObj, pi_bool, pi_map_flags,
   return ret;
 }
 
-pi_result piEnqueueMemUnmap(pi_queue, pi_mem MemObj, void *MappedPtr, pi_uint32,
+pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
+                            pi_uint32 NumEventsInWaitList,
                             const pi_event *EventWaitList, pi_event *Event) {
   std::unique_ptr<_pi_event> RetEv{nullptr};
   pi_result ret = PI_SUCCESS;
@@ -1637,10 +1639,13 @@ pi_result piMemImageGetInfo(pi_mem, pi_image_info, size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueMemImageRead(pi_queue, pi_mem Image, pi_bool BlockingRead,
-                                pi_image_offset Origin, pi_image_region Region,
-                                size_t RowPitch, size_t SlicePitch, void *Ptr,
-                                pi_uint32, const pi_event *, pi_event *Event) {
+pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
+                                pi_bool BlockingRead, pi_image_offset Origin,
+                                pi_image_region Region, size_t RowPitch,
+                                size_t SlicePitch, void *Ptr,
+                                pi_uint32 NumEventsInWaitList,
+                                const pi_event *EventWaitList,
+                                pi_event *Event) {
   /// TODO : Support Blocked read, 'Queue' handling
   if (BlockingRead) {
     assert(false && "ESIMD_EMULATOR does not support Blocking Read");
@@ -1709,11 +1714,12 @@ pi_result piMemBufferPartition(pi_mem, pi_mem_flags, pi_buffer_create_type,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueKernelLaunch(pi_queue, pi_kernel Kernel, pi_uint32 WorkDim,
-                                const size_t *GlobalWorkOffset,
-                                const size_t *GlobalWorkSize,
-                                const size_t *LocalWorkSize, pi_uint32,
-                                const pi_event *, pi_event *Event) {
+pi_result
+piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+                      const size_t *GlobalWorkOffset,
+                      const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+                      pi_uint32 NumEventsInWaitList,
+                      const pi_event *EventWaitList, pi_event *Event) {
 
   const size_t LocalWorkSz[] = {1, 1, 1};
 
@@ -1798,8 +1804,9 @@ pi_result piextUSMDeviceAlloc(void **, pi_context, pi_device,
 }
 
 pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
-                              pi_device Device, pi_usm_mem_properties *,
-                              size_t Size, pi_uint32) {
+                              pi_device Device,
+                              pi_usm_mem_properties *Properties, size_t Size,
+                              pi_uint32 Alignment) {
   if (Context == nullptr || (Device != Context->Device)) {
     return PI_INVALID_CONTEXT;
   }
