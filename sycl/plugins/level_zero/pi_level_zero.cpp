@@ -4881,7 +4881,7 @@ pi_result piKernelRelease(pi_kernel Kernel) {
       // other thread) then release referenced memory allocations. As a result,
       // memory can be deallocated and context can be removed from container in
       // the platform. That's why we need to lock a mutex here.
-      pi_platform Plt = Kernel->Program->Context->getPlatform();
+      pi_platform Plt = KernelProgram->Context->getPlatform();
       std::lock_guard<std::mutex> ContextsLock(Plt->ContextsMutex);
 
       if (--Kernel->SubmissionsCount == 0) {
@@ -4895,7 +4895,6 @@ pi_result piKernelRelease(pi_kernel Kernel) {
       }
     }
 
-    auto KernelProgram = Kernel->Program;
     if (--(Kernel->RefCount) == 0) {
       if (Kernel->OwnZeKernel)
         ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
