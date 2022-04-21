@@ -247,6 +247,8 @@ void parseMetadata(xpti::trace_event_data_t *Event) {
                 << arg.size << ", " << arg.index << "} "
                 << "\n";
     }
+  } else {
+    std::cout << "\n";
   }
 }
 XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,

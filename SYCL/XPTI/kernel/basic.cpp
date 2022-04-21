@@ -77,6 +77,10 @@ int main() {
       })
       .wait();
 
+  // CHECK: Wait begin|{{.*}}.cpp:[[# @LINE + 2]]:3
+  // CHECK: Wait end|{{.*}}.cpp:[[# @LINE + 1]]:3
+  Queue.wait();
+
   // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID3:.*]]|2018|1024|{{.*}}.cpp:[[# @LINE + 1]]:15
   { auto HA = Buf.get_access<mode::read>(); }
 
