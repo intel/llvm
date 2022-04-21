@@ -100,6 +100,32 @@ inline __SYCL_ALWAYS_INLINE
 #endif
 }
 
+template <typename T, size_t N>
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<std::is_same<T, half>::value ||
+                                                 std::is_same<T, float>::value,
+                                             sycl::marray<T, N>>
+tanh(sycl::marray<T, N> x) __NOEXC {
+  sycl::marray<T, N> res;
+  auto x_vec2 = reinterpret_cast<sycl::vec<T, 2> const *>(&x);
+  auto res_vec2 = reinterpret_cast<sycl::vec<T, 2> *>(&res);
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  for (size_t i = 0; i < N / 2; i++) {
+    res_vec2[i] = __clc_native_tanh(x_vec2[i]);
+  }
+  if constexpr (N % 2) {
+    res[N - 1] = __clc_native_tanh(x[N - 1]);
+  }
+#else
+  for (size_t i = 0; i < N / 2; i++) {
+    res_vec2[i] = __sycl_std::__invoke_tanh<sycl::vec<T, 2>>(x_vec2[i]);
+  }
+  if constexpr (N % 2) {
+    res[N - 1] = __sycl_std::__invoke_tanh<T>(x[N - 1]);
+  }
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  return res;
+}
+
 // genfloath exp2 (genfloath x)
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
@@ -113,6 +139,30 @@ inline __SYCL_ALWAYS_INLINE
 #else
   return __sycl_std::__invoke_exp2<T>(x);
 #endif
+}
+
+template <size_t N>
+inline __SYCL_ALWAYS_INLINE sycl::marray<half, N>
+exp2(sycl::marray<half, N> x) __NOEXC {
+  sycl::marray<half, N> res;
+  auto x_vec2 = reinterpret_cast<sycl::vec<half, 2> const *>(&x);
+  auto res_vec2 = reinterpret_cast<sycl::vec<half, 2> *>(&res);
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  for (size_t i = 0; i < N / 2; i++) {
+    res_vec2[i] = __clc_native_exp2(x_vec2[i]);
+  }
+  if constexpr (N % 2) {
+    res[N - 1] = __clc_native_exp2(x[N - 1]);
+  }
+#else
+  for (size_t i = 0; i < N / 2; i++) {
+    res_vec2[i] = __sycl_std::__invoke_exp2<sycl::vec<half, 2>>(x_vec2[i]);
+  }
+  if constexpr (N % 2) {
+    res[N - 1] = __sycl_std::__invoke_exp2<half>(x[N - 1]);
+  }
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  return res;
 }
 
 } // namespace native
