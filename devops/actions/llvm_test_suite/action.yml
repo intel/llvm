@@ -89,6 +89,8 @@ runs:
       mkdir -p icd
       echo /usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so > icd/gpu.icd
       echo /runtimes/oclcpu/x64/libintelocl.so > icd/cpu.icd
+      # temporary test
+      echo /opt/runtimes/oclcpu/x64/libintelocl.so > icd/cpu_2.icd
       export OCL_ICD_VENDORS=$PWD/icd
       echo "::group::sycl-ls --verbose"
       sycl-ls --verbose
