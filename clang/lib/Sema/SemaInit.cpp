@@ -3467,7 +3467,7 @@ unsigned InitializedEntity::dumpImpl(raw_ostream &OS) const {
     D->printQualifiedName(OS);
   }
 
-  OS << " '" << getType().getAsString() << "'\n";
+  OS << " '" << getType() << "'\n";
 
   return Depth + 1;
 }
@@ -8216,10 +8216,6 @@ ExprResult InitializationSequence::Perform(Sema &S,
       CurInit = S.FixOverloadedFunctionReference(CurInit,
                                                  Step->Function.FoundDecl,
                                                  Step->Function.Function);
-      // We might get back another placeholder expression if we resolved to a
-      // builtin.
-      if (!CurInit.isInvalid())
-        CurInit = S.CheckPlaceholderExpr(CurInit.get());
       break;
 
     case SK_CastDerivedToBasePRValue:
@@ -9811,7 +9807,7 @@ void InitializationSequence::dump(raw_ostream &OS) const {
       break;
     }
 
-    OS << " [" << S->Type.getAsString() << ']';
+    OS << " [" << S->Type << ']';
   }
 
   OS << '\n';

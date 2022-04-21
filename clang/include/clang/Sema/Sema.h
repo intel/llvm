@@ -964,23 +964,6 @@ public:
   /// context.
   unsigned FunctionScopesStart = 0;
 
-  /// Whether we are currently in the context of a mutable agnostic identifier
-  /// as described by CWG2569.
-  /// We are handling the unqualified-id of a decltype or noexcept expression.
-  bool InMutableAgnosticContext = false;
-
-  /// RAII object used to change the value of \c InMutableAgnosticContext
-  /// within a \c Sema object.
-  class MutableAgnosticContextRAII {
-    Sema &SemaRef;
-
-  public:
-    MutableAgnosticContextRAII(Sema &S) : SemaRef(S) {
-      SemaRef.InMutableAgnosticContext = true;
-    }
-    ~MutableAgnosticContextRAII() { SemaRef.InMutableAgnosticContext = false; }
-  };
-
   ArrayRef<sema::FunctionScopeInfo*> getFunctionScopes() const {
     return llvm::makeArrayRef(FunctionScopes.begin() + FunctionScopesStart,
                               FunctionScopes.end());
@@ -5545,9 +5528,6 @@ public:
       CorrectionCandidateCallback *CCC = nullptr,
       bool IsInlineAsmIdentifier = false, Token *KeywordReplacement = nullptr);
 
-  ExprResult ActOnMutableAgnosticIdExpression(Scope *S, CXXScopeSpec &SS,
-                                              UnqualifiedId &Id);
-
   void DecomposeUnqualifiedId(const UnqualifiedId &Id,
                               TemplateArgumentListInfo &Buffer,
                               DeclarationNameInfo &NameInfo,
@@ -7093,6 +7073,15 @@ public:
                                          unsigned LambdaDependencyKind,
                                          LambdaCaptureDefault CaptureDefault);
 
+  /// Start the definition of a lambda expression.
+  CXXMethodDecl *startLambdaDefinition(CXXRecordDecl *Class,
+                                       SourceRange IntroducerRange,
+                                       TypeSourceInfo *MethodType,
+                                       SourceLocation EndLoc,
+                                       ArrayRef<ParmVarDecl *> Params,
+                                       ConstexprSpecKind ConstexprKind,
+                                       Expr *TrailingRequiresClause);
+
   /// Number lambda for linkage purposes if necessary.
   void handleLambdaNumbering(
       CXXRecordDecl *Class, CXXMethodDecl *Method,
@@ -7105,15 +7094,8 @@ public:
                         LambdaCaptureDefault CaptureDefault,
                         SourceLocation CaptureDefaultLoc,
                         bool ExplicitParams,
+                        bool ExplicitResultType,
                         bool Mutable);
-
-  CXXMethodDecl *CreateLambdaCallOperator(SourceRange IntroducerRange,
-                                          CXXRecordDecl *Class);
-  void CompleteLambdaCallOperator(
-      CXXMethodDecl *Method, SourceLocation LambdaLoc,
-      SourceLocation CallOperatorLoc, Expr *TrailingRequiresClause,
-      TypeSourceInfo *MethodTyInfo, ConstexprSpecKind ConstexprKind,
-      ArrayRef<ParmVarDecl *> Params, bool HasExplicitResultType);
 
   /// Perform initialization analysis of the init-capture and perform
   /// any implicit conversions such as an lvalue-to-rvalue conversion if
@@ -7135,9 +7117,11 @@ public:
   ///
   ///  CodeGen handles emission of lambda captures, ignoring these dummy
   ///  variables appropriately.
-  VarDecl *createLambdaInitCaptureVarDecl(
-      SourceLocation Loc, QualType InitCaptureType, SourceLocation EllipsisLoc,
-      IdentifierInfo *Id, unsigned InitStyle, Expr *Init, DeclContext *DeclCtx);
+  VarDecl *createLambdaInitCaptureVarDecl(SourceLocation Loc,
+                                          QualType InitCaptureType,
+                                          SourceLocation EllipsisLoc,
+                                          IdentifierInfo *Id,
+                                          unsigned InitStyle, Expr *Init);
 
   /// Add an init-capture to a lambda scope.
   void addInitCapture(sema::LambdaScopeInfo *LSI, VarDecl *Var);
@@ -7146,29 +7130,21 @@ public:
   /// given lambda.
   void finishLambdaExplicitCaptures(sema::LambdaScopeInfo *LSI);
 
-  /// Deduce a block or lambda's return type based on the return
-  /// statements present in the body.
-  void deduceClosureReturnType(sema::CapturingScopeInfo &CSI);
-
-  /// Once the Lambdas capture are known, we can
-  /// start to create the closure, call operator method,
-  /// and keep track of the captures.
-  /// We do the capture lookup here, but they are not actually captured
-  /// until after we know what the qualifiers of the call operator are.
-  void ActOnLambdaIntroducer(LambdaIntroducer &Intro, Scope *CurContext);
-
-  /// This is called after parsing the explicit template parameter list
+  /// \brief This is called after parsing the explicit template parameter list
   /// on a lambda (if it exists) in C++2a.
-  void ActOnLambdaExplicitTemplateParameterList(LambdaIntroducer &Intro,
-                                                SourceLocation LAngleLoc,
+  void ActOnLambdaExplicitTemplateParameterList(SourceLocation LAngleLoc,
                                                 ArrayRef<NamedDecl *> TParams,
                                                 SourceLocation RAngleLoc,
                                                 ExprResult RequiresClause);
 
-  void ActOnLambdaClosureQualifiers(
-      LambdaIntroducer &Intro, SourceLocation MutableLoc, SourceLocation EndLoc,
-      MutableArrayRef<DeclaratorChunk::ParamInfo> ParamInfo,
-      const DeclSpec &DS);
+  /// Introduce the lambda parameters into scope.
+  void addLambdaParameters(
+      ArrayRef<LambdaIntroducer::LambdaCapture> Captures,
+      CXXMethodDecl *CallOperator, Scope *CurScope);
+
+  /// Deduce a block or lambda's return type based on the return
+  /// statements present in the body.
+  void deduceClosureReturnType(sema::CapturingScopeInfo &CSI);
 
   /// ActOnStartOfLambdaDefinition - This is called just before we start
   /// parsing the body of a lambda; it analyzes the explicit captures and

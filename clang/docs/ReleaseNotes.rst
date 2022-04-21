@@ -265,10 +265,7 @@ C2x Feature Support
 C++ Language Changes in Clang
 -----------------------------
 
-- Improved ``-O0`` code generation for calls to ``std::move``, ``std::forward``,
-  ``std::move_if_noexcept``, ``std::addressof``, and ``std::as_const``. These
-  are now treated as compiler builtins and implemented directly, rather than
-  instantiating the definition from the standard library.
+- ...
 
 C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -293,11 +290,6 @@ C++2b Feature Support
 - Implemented `P2128R6: Multidimensional subscript operator <https://wg21.link/P2128R6>`_.
 - Implemented `P0849R8: auto(x): decay-copy in the language <https://wg21.link/P0849R8>`_.
 - Implemented `P2242R3: Non-literal variables (and labels and gotos) in constexpr functions	<https://wg21.link/P2242R3>`_.
-- Implemented `P2036R3: Change scope of lambda trailing-return-type <https://wg21.link/P2036R3>`_.
-  This proposal modifies how variables captured in lambdas can appear in trailing return type
-  expressions and how their types are deduced therein, in all C++ language versions.
-  `CWG2569 <https://cplusplus.github.io/CWG/issues/2569.html>`_ is also partially implemented so that
-  `[x](decltype(x)){}` doesn't become ill-formed with the adoption of P2036R3.
 
 CUDA Language Changes in Clang
 ------------------------------

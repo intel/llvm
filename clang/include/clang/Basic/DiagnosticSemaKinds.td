@@ -6638,15 +6638,6 @@ def warn_self_move : Warning<
   "explicitly moving variable of type %0 to itself">,
   InGroup<SelfMove>, DefaultIgnore;
 
-def err_builtin_move_forward_unsupported : Error<
-  "unsupported signature for %q0">;
-def err_use_of_unaddressable_function : Error<
-  "taking address of non-addressable standard library function">;
-// FIXME: This should also be in -Wc++23-compat once we have it.
-def warn_cxx20_compat_use_of_unaddressable_function : Warning<
-  "taking address of non-addressable standard library function "
-  "is incompatible with C++20">, InGroup<CXX20Compat>;
-
 def warn_redundant_move_on_return : Warning<
   "redundant move in return statement">,
   InGroup<RedundantMove>, DefaultIgnore;
@@ -7776,8 +7767,6 @@ let CategoryName = "Lambda Issue" in {
   def err_lambda_impcap : Error<
     "variable %0 cannot be implicitly captured in a lambda with no "
     "capture-default specified">;
-  def err_lambda_used_before_capture: Error<
-    "captured variable %0 cannot appear here">;
   def note_lambda_variable_capture_fixit : Note<
     "capture %0 by %select{value|reference}1">;
   def note_lambda_default_capture_fixit : Note<
