@@ -1631,8 +1631,9 @@ ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
   if (GlobalConstStr->getType()->getPointerAddressSpace() == ExprAS)
     return GlobalConstStr;
 
-  llvm::Type *EltTy = GlobalConstStr->getType()->getPointerElementType();
-  llvm::PointerType *NewPtrTy = llvm::PointerType::get(EltTy, ExprAS);
+  llvm::PointerType *PtrTy = cast<llvm::PointerType>(GlobalConstStr->getType());
+  llvm::PointerType *NewPtrTy =
+      llvm::PointerType::getWithSamePointeeType(PtrTy, ExprAS);
   return Builder.CreateAddrSpaceCast(GlobalConstStr, NewPtrTy,
                                      "usid_addr_cast");
 }
