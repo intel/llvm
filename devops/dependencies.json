@@ -13,9 +13,9 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "cm": {
-      "github_tag": "cmclang-1.0.120",
-      "version": "1.0.120",
-      "url": "https://github.com/intel/cm-compiler/releases/tag/cmclang-1.0.120",
+      "github_tag": "cmclang-1.0.144",
+      "version": "1.0.144",
+      "url": "https://github.com/intel/cm-compiler/releases/tag/cmclang-1.0.144",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {
