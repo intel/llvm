@@ -33,6 +33,27 @@ namespace {
 device_global<int> same_name; // OK
 }
 
+struct BBar {
+private:
+  struct BarInsider {
+    static device_global<float> c;
+  };
+};
+
+struct ABar {
+  void method() {
+    // expected-error@+1{{'device_global' variables must be static or declared at namespace scope}}
+    static device_global<float> c;
+  }
+  struct BarInsider {
+    static device_global<float> c;
+    void method() {
+      // expected-error@+1{{'device_global' variables must be static or declared at namespace scope}}
+      static device_global<float> c;
+    }
+  };
+};
+
 // expected-error@+2{{'device_global' attribute only applies to classes}}
 // expected-error@+1{{'global_variable_allowed' attribute only applies to classes}}
 [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] int integer;
@@ -58,6 +79,7 @@ int main() {
 
     // expect no error on non_const_static declaration if decorated with
     // [[__sycl_detail__::global_variable_allowed]]
+    // expected-error@+1{{'device_global' variables must be static or declared at namespace scope}}
     static device_global<int> non_const_static;
   });
 }

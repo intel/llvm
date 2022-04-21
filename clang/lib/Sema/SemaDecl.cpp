@@ -7420,10 +7420,24 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   // Global variables with types decorated with device_global attribute must be
   // static if they are declared in SYCL device code.
   if (getLangOpts().SYCLIsDevice) {
-    if (SCSpec != DeclSpec::SCS_static && !NewVD->hasGlobalStorage() &&
-        isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-            NewVD->getType()))
-      Diag(D.getIdentifierLoc(), diag::err_sycl_device_global_incorrect_scope);
+    if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            NewVD->getType())) {
+
+      if (SCSpec != DeclSpec::SCS_static && !NewVD->hasGlobalStorage())
+        Diag(D.getIdentifierLoc(),
+             diag::err_sycl_device_global_incorrect_scope);
+      if (SCSpec == DeclSpec::SCS_static) {
+        const DeclContext *DC = NewVD->getDeclContext();
+        while (!DC->isTranslationUnit()) {
+          if (isa<FunctionDecl>(DC)) {
+            Diag(D.getIdentifierLoc(),
+                 diag::err_sycl_device_global_incorrect_scope);
+            break;
+          }
+          DC = DC->getParent();
+        }
+      }
+    }
 
     // Static variables declared inside SYCL device code must be const or
     // constexpr unless their types are decorated with global_variable_allowed
