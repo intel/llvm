@@ -1,4 +1,5 @@
-//==----- fallback-complex.cpp - complex math functions for SPIR-V device --==//
+//==----- fallback-complex-fp64.cpp - double precision complex math functions
+//for SPIR-V device --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "device_complex.h"
-#include "device_math.h"
+// #include "device_math.h"
 
 #ifdef __SPIR__
 #include <cmath>
